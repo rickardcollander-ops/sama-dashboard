@@ -39,7 +39,23 @@ export default function AdsPage() {
       const response = await fetch(`${SAMA_API_URL}/api/ads/campaigns`);
       if (response.ok) {
         const data = await response.json();
-        const campaignList = data.campaigns || [];
+        // Backend returns campaigns as object {name: config} - convert to array
+        let campaignList: Campaign[] = [];
+        const raw = data.campaigns;
+        if (Array.isArray(raw)) {
+          campaignList = raw;
+        } else if (raw && typeof raw === 'object') {
+          campaignList = Object.entries(raw).map(([key, val]: [string, any], idx) => ({
+            id: String(idx + 1),
+            name: val?.name || key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+            status: 'Active',
+            impressions: val?.impressions || 0,
+            clicks: val?.clicks || 0,
+            cost: val?.budget?.daily || val?.cost || 0,
+            conversions: val?.conversions || 0,
+            ctr: val?.ctr || 0,
+          }));
+        }
         setCampaigns(campaignList);
         if (campaignList.length > 0) {
           const totalSpend = campaignList.reduce((s: number, c: any) => s + (c.cost || 0), 0);
