@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Star, MessageSquare, TrendingUp, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { createClient } from '@supabase/supabase-js';
+
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 interface Review {
   id: string;
@@ -33,26 +34,16 @@ export default function ReviewsPage() {
 
   const fetchReviews = async () => {
     try {
-      // Create Supabase client
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
-      );
-
-      // Fetch reviews from Supabase
-      const { data: reviewData, error } = await supabase
-        .from('reviews')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error fetching reviews:', error);
-        setLoading(false);
-        return;
+      // Fetch reviews from backend API
+      const response = await fetch(`${SAMA_API_URL}/api/reviews/recent?limit=20`);
+      let reviewList: Review[] = [];
+      
+      if (response.ok) {
+        const data = await response.json();
+        reviewList = data.reviews || data || [];
+      } else {
+        console.error('Error fetching reviews:', response.status);
       }
-
-      const reviewList = reviewData || [];
       setReviews(reviewList);
 
       // Calculate stats
