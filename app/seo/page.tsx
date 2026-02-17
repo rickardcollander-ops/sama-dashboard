@@ -12,8 +12,11 @@ interface KeywordData {
   ctr: number;
 }
 
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+
 export default function SEOPage() {
   const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
   const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [stats, setStats] = useState({
     avgPosition: 1.6,
@@ -23,7 +26,7 @@ export default function SEOPage() {
   });
 
   useEffect(() => {
-    // Simulate loading real data from SAMA API
+    // Load initial data
     setTimeout(() => {
       setKeywords([
         { keyword: "successifier", position: 1.0, clicks: 28, impressions: 95, ctr: 29.5 },
@@ -33,6 +36,23 @@ export default function SEOPage() {
       setLoading(false);
     }, 1000);
   }, []);
+
+  const runAudit = async () => {
+    setRunning(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/seo/audit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      alert(data.message || 'SEO audit started successfully!');
+    } catch (error) {
+      alert('Failed to start audit. Please try again.');
+    } finally {
+      setRunning(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -152,8 +172,12 @@ export default function SEOPage() {
 
         {/* Actions */}
         <div className="mt-8 flex gap-4">
-          <button className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700">
-            Run SEO Audit
+          <button 
+            onClick={runAudit}
+            disabled={running}
+            className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+          >
+            {running ? 'Running...' : 'Run SEO Audit'}
           </button>
           <button className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50">
             View Full Report

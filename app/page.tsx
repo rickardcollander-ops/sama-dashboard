@@ -37,30 +37,33 @@ export default function Home() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {agents.map((agent) => (
-            <div key={agent.name} className="rounded-lg border bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg ${agent.color} p-3`}>
-                    <agent.icon className="h-6 w-6 text-white" />
+          {agents.map((agent) => {
+            const agentPath = agent.name.toLowerCase().split(' ')[0]; // "SEO Agent" -> "seo"
+            return (
+              <div key={agent.name} className="rounded-lg border bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`rounded-lg ${agent.color} p-3`}>
+                      <agent.icon className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{agent.name}</h3>
+                      <p className="text-sm text-slate-500">{agent.status}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{agent.name}</h3>
-                    <p className="text-sm text-slate-500">{agent.status}</p>
-                  </div>
+                  <div className="h-3 w-3 rounded-full bg-green-500"></div>
                 </div>
-                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <div className="mt-4 flex gap-2">
+                  <Link href={`/${agentPath}`} className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-200">
+                    View Details
+                  </Link>
+                  <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    Run
+                  </button>
+                </div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <button className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                  View Details
-                </button>
-                <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                  Run
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
