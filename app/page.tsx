@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Activity, BarChart3, MessageSquare, Search, TrendingUp, Users } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 export default function Home() {
   const { stats } = useSEOData();

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../supabase';
 
 interface SEOStats {
   avgPosition: number;
@@ -36,7 +35,7 @@ export function useSEOData() {
     async function fetchData() {
       try {
         // Fetch from SAMA backend API
-        const SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+        const SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
         const response = await fetch(`${SAMA_API}/api/seo/keywords`, {
           signal: AbortSignal.timeout(5000) // 5 second timeout
         });

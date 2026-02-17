@@ -13,7 +13,7 @@ interface KeywordData {
   ctr: number;
 }
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 export default function SEOPage() {
   const { loading, stats, keywords } = useSEOData();

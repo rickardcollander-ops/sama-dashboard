@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Eye, Clock, MousePointerClick, Target } from "lucide-react";
 import Link from "next/link";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 interface ContentPerformance {
   url_path: string;
