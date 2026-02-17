@@ -5,11 +5,6 @@ import { Star, MessageSquare, TrendingUp, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
-);
-
 interface Review {
   id: string;
   platform: string;
@@ -38,6 +33,12 @@ export default function ReviewsPage() {
 
   const fetchReviews = async () => {
     try {
+      // Create Supabase client
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
+      );
+
       // Fetch reviews from Supabase
       const { data: reviewData, error } = await supabase
         .from('reviews')

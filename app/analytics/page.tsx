@@ -7,11 +7,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
-);
-
 interface ChannelData {
   channel: string;
   visits: number;
@@ -38,6 +33,12 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
+      // Create Supabase client
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
+      );
+
       // Fetch from Supabase daily_metrics table
       const { data: metricsData, error } = await supabase
         .from('daily_metrics')
