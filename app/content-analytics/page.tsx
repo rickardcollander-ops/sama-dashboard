@@ -179,7 +179,25 @@ export default function ContentAnalyticsPage() {
                         </p>
                       </div>
 
-                      <button className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`${SAMA_API_URL}/api/content/blog`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ keyword: content.title, content_type: 'refresh' })
+                            });
+                            if (response.ok) {
+                              alert(`Optimization started for: ${content.title}`);
+                            } else {
+                              alert('Failed to start optimization. Backend may need API keys.');
+                            }
+                          } catch (error) {
+                            alert('Error connecting to backend.');
+                          }
+                        }}
+                        className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+                      >
                         Optimize
                       </button>
                     </div>

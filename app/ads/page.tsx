@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { TrendingUp, DollarSign, MousePointerClick, Eye } from "lucide-react";
 import Link from "next/link";
 
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+
 interface Campaign {
   id: string;
   name: string;
@@ -18,6 +20,9 @@ interface Campaign {
 export default function AdsPage() {
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [optimizing, setOptimizing] = useState(false);
+  const [recommendations, setRecommendations] = useState<any>(null);
+  const [showRecs, setShowRecs] = useState(false);
   const [stats, setStats] = useState({
     totalSpend: 0,
     totalClicks: 0,
@@ -26,28 +31,66 @@ export default function AdsPage() {
   });
 
   useEffect(() => {
-    setTimeout(() => {
-      setCampaigns([
-        {
-          id: "1",
-          name: "Customer Success Platform - Brand",
-          status: "Active",
-          impressions: 0,
-          clicks: 0,
-          cost: 0,
-          conversions: 0,
-          ctr: 0,
-        },
-      ]);
-      setStats({
-        totalSpend: 0,
-        totalClicks: 0,
-        totalImpressions: 0,
-        avgCTR: 0,
-      });
-      setLoading(false);
-    }, 1000);
+    fetchCampaigns();
   }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/ads/campaigns`);
+      if (response.ok) {
+        const data = await response.json();
+        const campaignList = data.campaigns || [];
+        setCampaigns(campaignList);
+        if (campaignList.length > 0) {
+          const totalSpend = campaignList.reduce((s: number, c: any) => s + (c.cost || 0), 0);
+          const totalClicks = campaignList.reduce((s: number, c: any) => s + (c.clicks || 0), 0);
+          const totalImpressions = campaignList.reduce((s: number, c: any) => s + (c.impressions || 0), 0);
+          setStats({
+            totalSpend,
+            totalClicks,
+            totalImpressions,
+            avgCTR: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const optimizeCampaigns = async () => {
+    setOptimizing(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/ads/optimize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      alert(data.message || 'Campaign optimization started!');
+    } catch (error) {
+      alert('Failed to optimize campaigns. Check backend connection.');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const viewRecommendations = async () => {
+    setShowRecs(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/ads/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(data);
+      } else {
+        setRecommendations({ error: 'Could not load recommendations.' });
+      }
+    } catch (error) {
+      setRecommendations({ error: 'Backend not reachable.' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -177,13 +220,36 @@ export default function AdsPage() {
 
         {/* Actions */}
         <div className="mt-8 flex gap-4">
-          <button className="rounded-lg bg-green-600 px-6 py-3 font-medium text-white hover:bg-green-700">
-            Optimize Campaigns
+          <button 
+            onClick={optimizeCampaigns}
+            disabled={optimizing}
+            className="rounded-lg bg-green-600 px-6 py-3 font-medium text-white hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed"
+          >
+            {optimizing ? 'Optimizing...' : 'Optimize Campaigns'}
           </button>
-          <button className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50">
+          <button 
+            onClick={viewRecommendations}
+            className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50"
+          >
             View Recommendations
           </button>
         </div>
+
+        {showRecs && (
+          <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Recommendations</h3>
+              <button onClick={() => setShowRecs(false)} className="text-sm text-slate-500 hover:text-slate-700">Close</button>
+            </div>
+            {recommendations?.error ? (
+              <p className="text-slate-500">{recommendations.error}</p>
+            ) : recommendations ? (
+              <pre className="rounded bg-slate-50 p-4 text-xs text-slate-600 overflow-auto max-h-64">{JSON.stringify(recommendations, null, 2)}</pre>
+            ) : (
+              <p className="text-slate-500">Loading...</p>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

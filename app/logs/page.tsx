@@ -14,7 +14,7 @@ interface LogEntry {
 }
 
 export default function LogsPage() {
-  const { loading, logs } = useActivityLogs();
+  const { loading, logs, loadMore, hasMore } = useActivityLogs();
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -93,11 +93,16 @@ export default function LogsPage() {
           )}
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <button className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50">
-            Load More
-          </button>
-        </div>
+        {hasMore && (
+          <div className="mt-8 flex justify-center">
+            <button 
+              onClick={loadMore}
+              className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Load More
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );

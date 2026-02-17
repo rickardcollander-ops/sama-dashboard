@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Users, Heart, MessageCircle, Repeat2 } from "lucide-react";
 import Link from "next/link";
 
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+
 interface Tweet {
   id: string;
   text: string;
@@ -16,6 +18,11 @@ interface Tweet {
 export default function SocialPage() {
   const [loading, setLoading] = useState(true);
   const [tweets, setTweets] = useState<Tweet[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [tweetText, setTweetText] = useState("");
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [stats, setStats] = useState({
     followers: 0,
     totalEngagement: 0,
@@ -24,26 +31,87 @@ export default function SocialPage() {
   });
 
   useEffect(() => {
-    setTimeout(() => {
-      setTweets([
-        {
-          id: "1",
-          text: "Just launched SAMA 2.0 - autonomous marketing agents powered by AI! 🚀",
-          likes: 0,
-          retweets: 0,
-          replies: 0,
-          timestamp: "2 hours ago",
-        },
-      ]);
-      setStats({
-        followers: 0,
-        totalEngagement: 0,
-        tweetsThisWeek: 1,
-        avgEngagement: 0,
-      });
-      setLoading(false);
-    }, 1000);
+    fetchTweets();
   }, []);
+
+  const fetchTweets = async () => {
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/social/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setStats({
+          followers: data.followers || 0,
+          totalEngagement: data.total_engagement || 0,
+          tweetsThisWeek: data.tweets_this_week || 0,
+          avgEngagement: data.avg_engagement || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching social data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateTweet = async () => {
+    setCreating(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/social/post/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: tweetText || 'customer success tips', platform: 'twitter' })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTweetText(data.content || data.tweet || 'Generated tweet content');
+      } else {
+        alert('Failed to generate tweet');
+      }
+    } catch (error) {
+      alert('Error generating tweet. Check backend connection.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const postTweet = async () => {
+    if (!tweetText) return;
+    setCreating(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/social/post/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: tweetText, platform: 'twitter' })
+      });
+      if (response.ok) {
+        alert('Tweet posted successfully!');
+        setTweetText("");
+        setShowCreate(false);
+      } else {
+        const data = await response.json();
+        alert(data.detail || 'Failed to post tweet');
+      }
+    } catch (error) {
+      alert('Error posting tweet. Check backend connection.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const viewAnalytics = async () => {
+    setShowAnalytics(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/social/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setAnalyticsData(data);
+      } else {
+        setAnalyticsData({ error: 'Could not load analytics.' });
+      }
+    } catch (error) {
+      setAnalyticsData({ error: 'Backend not reachable.' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -147,13 +215,67 @@ export default function SocialPage() {
 
         {/* Actions */}
         <div className="mt-8 flex gap-4">
-          <button className="rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700">
+          <button 
+            onClick={() => setShowCreate(!showCreate)}
+            className="rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700"
+          >
             Create Tweet
           </button>
-          <button className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50">
+          <button 
+            onClick={viewAnalytics}
+            className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50"
+          >
             View Analytics
           </button>
         </div>
+
+        {showCreate && (
+          <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Compose Tweet</h3>
+            <textarea
+              value={tweetText}
+              onChange={(e) => setTweetText(e.target.value)}
+              placeholder="What's on your mind? Or click Generate to create AI content..."
+              rows={4}
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-pink-500 focus:outline-none mb-3"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">{tweetText.length}/280 characters</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateTweet}
+                  disabled={creating}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-400"
+                >
+                  {creating ? 'Generating...' : 'Generate with AI'}
+                </button>
+                <button
+                  onClick={postTweet}
+                  disabled={!tweetText || creating}
+                  className="rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 disabled:bg-pink-400"
+                >
+                  Post Tweet
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAnalytics && (
+          <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Social Analytics</h3>
+              <button onClick={() => setShowAnalytics(false)} className="text-sm text-slate-500 hover:text-slate-700">Close</button>
+            </div>
+            {analyticsData?.error ? (
+              <p className="text-slate-500">{analyticsData.error}</p>
+            ) : analyticsData ? (
+              <pre className="rounded bg-slate-50 p-4 text-xs text-slate-600 overflow-auto max-h-64">{JSON.stringify(analyticsData, null, 2)}</pre>
+            ) : (
+              <p className="text-slate-500">Loading...</p>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

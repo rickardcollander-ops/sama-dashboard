@@ -6,6 +6,8 @@ import Link from "next/link";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
+type ReviewAction = 'requesting' | 'responding' | null;
+
 interface Review {
   id: string;
   platform: string;
@@ -27,6 +29,10 @@ export default function ReviewsPage() {
     avgResponseTime: "0h"
   });
   const [platforms, setPlatforms] = useState<any[]>([]);
+  const [actionState, setActionState] = useState<ReviewAction>(null);
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  const [responseText, setResponseText] = useState("");
+  const [generatingResponse, setGeneratingResponse] = useState(false);
 
   useEffect(() => {
     fetchReviews();
@@ -209,8 +215,31 @@ export default function ReviewsPage() {
         <div className="rounded-lg border bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">Recent Reviews</h2>
-            <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-              Request Reviews
+            <button 
+              onClick={async () => {
+                setActionState('requesting');
+                try {
+                  const response = await fetch(`${SAMA_API_URL}/api/reviews/request/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customer: { name: 'Customer', email: 'customer@example.com' }, trigger: 'milestone', platform: 'g2' })
+                  });
+                  if (response.ok) {
+                    const data = await response.json();
+                    alert('Review request generated! Check your email templates.');
+                  } else {
+                    alert('Failed to generate review request.');
+                  }
+                } catch (error) {
+                  alert('Error connecting to backend.');
+                } finally {
+                  setActionState(null);
+                }
+              }}
+              disabled={actionState === 'requesting'}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+            >
+              {actionState === 'requesting' ? 'Requesting...' : 'Request Reviews'}
             </button>
           </div>
 
@@ -257,7 +286,34 @@ export default function ReviewsPage() {
                       </div>
                     </div>
 
-                    <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+                    <button 
+                      onClick={async () => {
+                        if (review.responded) {
+                          setSelectedReview(review);
+                        } else {
+                          setSelectedReview(review);
+                          setGeneratingResponse(true);
+                          try {
+                            const response = await fetch(`${SAMA_API_URL}/api/reviews/response/generate`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ review: { title: review.title, content: review.content, rating: review.rating, author: review.author }, platform: review.platform })
+                            });
+                            if (response.ok) {
+                              const data = await response.json();
+                              setResponseText(data.response?.response || data.response || 'AI-generated response will appear here.');
+                            } else {
+                              setResponseText('Could not generate response. Try again.');
+                            }
+                          } catch (error) {
+                            setResponseText('Error connecting to backend.');
+                          } finally {
+                            setGeneratingResponse(false);
+                          }
+                        }
+                      }}
+                      className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                    >
                       {review.responded ? 'View' : 'Respond'}
                     </button>
                   </div>
@@ -266,6 +322,57 @@ export default function ReviewsPage() {
             </div>
           )}
         </div>
+
+        {selectedReview && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-auto p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {selectedReview.responded ? 'Review Details' : 'Generate Response'}
+                </h3>
+                <button onClick={() => { setSelectedReview(null); setResponseText(""); }} className="text-slate-500 hover:text-slate-700 text-xl">&times;</button>
+              </div>
+              <div className="mb-4 p-4 rounded-lg bg-slate-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm font-medium text-slate-700">{selectedReview.platform}</span>
+                  <div className="flex">{Array.from({ length: selectedReview.rating }).map((_, i) => <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />)}</div>
+                </div>
+                <h4 className="font-medium text-slate-900">{selectedReview.title}</h4>
+                <p className="text-sm text-slate-600 mt-1">{selectedReview.content}</p>
+                <p className="text-xs text-slate-400 mt-2">By {selectedReview.author}</p>
+              </div>
+              {generatingResponse ? (
+                <p className="text-slate-500 text-center py-4">Generating AI response...</p>
+              ) : responseText ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">AI-Generated Response</label>
+                  <textarea
+                    value={responseText}
+                    onChange={(e) => setResponseText(e.target.value)}
+                    rows={6}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-blue-500 focus:outline-none text-sm"
+                  />
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(responseText); alert('Copied to clipboard!'); }}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      Copy Response
+                    </button>
+                    <button
+                      onClick={() => { setSelectedReview(null); setResponseText(""); }}
+                      className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">This review has been responded to.</p>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

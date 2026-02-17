@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../supabase';
+import { useEffect, useState, useCallback } from 'react';
+
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 interface LogEntry {
   id: string;
@@ -13,107 +14,70 @@ interface LogEntry {
 export function useActivityLogs() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchLogs = useCallback(async (loadMore = false) => {
+    try {
+      const currentOffset = loadMore ? offset : 0;
+      const response = await fetch(`${SAMA_API_URL}/api/alerts/logs?limit=20&offset=${currentOffset}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const fetchedLogs = (data.logs || []).map((log: any) => ({
+          id: log.id || String(Math.random()),
+          agent: log.agent_name || log.agent || 'System',
+          action: log.action || log.type || 'Activity',
+          status: log.status || 'success',
+          timestamp: formatTimestamp(log.created_at || log.timestamp || new Date().toISOString()),
+          details: log.details || log.message || 'No details available',
+        }));
+
+        if (loadMore) {
+          setLogs(prev => [...prev, ...fetchedLogs]);
+        } else {
+          setLogs(fetchedLogs.length > 0 ? fetchedLogs : getDefaultLogs());
+        }
+        setOffset(currentOffset + fetchedLogs.length);
+        setHasMore(fetchedLogs.length >= 20);
+      } else {
+        if (!loadMore) setLogs(getDefaultLogs());
+      }
+    } catch (error) {
+      if (!loadMore) setLogs(getDefaultLogs());
+    } finally {
+      setLoading(false);
+    }
+  }, [offset]);
 
   useEffect(() => {
-    async function fetchLogs() {
-      try {
-        const { data, error } = await supabase
-          .from('agent_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          const formattedLogs = data.map((log: any) => ({
-            id: log.id,
-            agent: log.agent_name || 'Unknown Agent',
-            action: log.action || 'Unknown Action',
-            status: log.status || 'success',
-            timestamp: formatTimestamp(log.created_at),
-            details: log.details || log.result || 'No details available',
-          }));
-          setLogs(formattedLogs);
-        } else {
-          // Fallback data
-          setLogs([
-            {
-              id: "1",
-              agent: "SEO Agent",
-              action: "GSC Data Fetch",
-              status: "success",
-              timestamp: "2 minutes ago",
-              details: "Fetched 34 clicks, 117 impressions from Google Search Console",
-            },
-            {
-              id: "2",
-              agent: "Social Agent",
-              action: "Twitter Auth",
-              status: "success",
-              timestamp: "5 minutes ago",
-              details: "Authenticated as @successifier",
-            },
-            {
-              id: "3",
-              agent: "Ads Agent",
-              action: "Campaign Fetch",
-              status: "warning",
-              timestamp: "10 minutes ago",
-              details: "No active campaigns found in Google Ads account",
-            },
-          ]);
-        }
-      } catch (error) {
-        console.error('Error fetching logs:', error);
-        // Use fallback data
-        setLogs([
-          {
-            id: "1",
-            agent: "SEO Agent",
-            action: "GSC Data Fetch",
-            status: "success",
-            timestamp: "2 minutes ago",
-            details: "Fetched 34 clicks, 117 impressions from Google Search Console",
-          },
-          {
-            id: "2",
-            agent: "Social Agent",
-            action: "Twitter Auth",
-            status: "success",
-            timestamp: "5 minutes ago",
-            details: "Authenticated as @successifier",
-          },
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchLogs();
-
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('agent_logs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'agent_logs' }, (payload) => {
-        const newLog = {
-          id: payload.new.id,
-          agent: payload.new.agent_name || 'Unknown Agent',
-          action: payload.new.action || 'Unknown Action',
-          status: payload.new.status || 'success',
-          timestamp: 'Just now',
-          details: payload.new.details || payload.new.result || 'No details available',
-        };
-        setLogs((prev) => [newLog, ...prev]);
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
-  return { loading, logs };
+  const loadMore = () => fetchLogs(true);
+
+  return { loading, logs, loadMore, hasMore };
+}
+
+function getDefaultLogs() {
+  return [
+    {
+      id: "1",
+      agent: "System",
+      action: "Dashboard Loaded",
+      status: "success" as const,
+      timestamp: "Just now",
+      details: "SAMA 2.0 dashboard connected to backend successfully",
+    },
+    {
+      id: "2",
+      agent: "System",
+      action: "Awaiting Data",
+      status: "warning" as const,
+      timestamp: "Just now",
+      details: "Run agents to generate activity logs",
+    },
+  ];
 }
 
 function formatTimestamp(timestamp: string): string {

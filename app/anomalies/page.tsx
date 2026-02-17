@@ -108,7 +108,10 @@ export default function AnomaliesPage() {
           </div>
         </div>
 
-        <button className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100">
+        <button 
+          onClick={() => alert(`Anomaly Details:\n\nMetric: ${anomaly.metric}\nCurrent: ${anomaly.current_value.toFixed(2)}\nBaseline: ${anomaly.baseline_mean.toFixed(2)}\nDeviation: ${anomaly.deviation_percentage.toFixed(1)}%\nDirection: ${anomaly.direction}\nSeverity: ${anomaly.severity}\nDetected: ${anomaly.detected_at}`)}
+          className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
           Investigate
         </button>
       </div>

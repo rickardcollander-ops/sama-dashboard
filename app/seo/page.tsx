@@ -18,6 +18,9 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-produc
 export default function SEOPage() {
   const { loading, stats, keywords } = useSEOData();
   const [running, setRunning] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [report, setReport] = useState<any>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   const runAudit = async () => {
     setRunning(true);
@@ -33,6 +36,24 @@ export default function SEOPage() {
       alert('Failed to start audit. Please try again.');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const viewReport = async () => {
+    setLoadingReport(true);
+    setShowReport(true);
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/seo/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setReport(data);
+      } else {
+        setReport({ error: 'Could not load report. Run an audit first.' });
+      }
+    } catch (error) {
+      setReport({ error: 'Backend not reachable.' });
+    } finally {
+      setLoadingReport(false);
     }
   };
 
@@ -161,10 +182,46 @@ export default function SEOPage() {
           >
             {running ? 'Running...' : 'Run SEO Audit'}
           </button>
-          <button className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50">
-            View Full Report
+          <button 
+            onClick={viewReport}
+            disabled={loadingReport}
+            className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loadingReport ? 'Loading...' : 'View Full Report'}
           </button>
         </div>
+
+        {showReport && (
+          <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">SEO Report</h3>
+              <button onClick={() => setShowReport(false)} className="text-sm text-slate-500 hover:text-slate-700">Close</button>
+            </div>
+            {loadingReport ? (
+              <p className="text-slate-500">Loading report...</p>
+            ) : report?.error ? (
+              <p className="text-slate-500">{report.error}</p>
+            ) : report ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><span className="text-sm text-slate-500">Agent Status:</span> <span className="font-medium text-green-600">{report.status || 'Operational'}</span></div>
+                  <div><span className="text-sm text-slate-500">Target Keywords:</span> <span className="font-medium">{report.target_keywords || 0}</span></div>
+                </div>
+                {report.competitors && (
+                  <div>
+                    <span className="text-sm text-slate-500">Competitors Tracked:</span>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {report.competitors.map((c: string) => (
+                        <span key={c} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{c}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <pre className="mt-4 rounded bg-slate-50 p-4 text-xs text-slate-600 overflow-auto max-h-64">{JSON.stringify(report, null, 2)}</pre>
+              </div>
+            ) : null}
+          </div>
+        )}
       </main>
     </div>
   );
