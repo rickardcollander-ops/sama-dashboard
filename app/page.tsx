@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { Activity, BarChart3, MessageSquare, Search, TrendingUp, Users } from "lucide-react";
+import { useSEOData } from "@/lib/hooks/useSEOData";
 
 export default function Home() {
+  const { stats } = useSEOData();
+  
   const agents = [
     { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500" },
     { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500" },
@@ -71,19 +76,19 @@ export default function Home() {
           <div className="mt-4 grid gap-4 md:grid-cols-4">
             <div>
               <p className="text-sm text-slate-500">SEO Position</p>
-              <p className="text-2xl font-bold text-slate-900">1.6</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.avgPosition.toFixed(1)}</p>
             </div>
             <div>
               <p className="text-sm text-slate-500">Total Clicks</p>
-              <p className="text-2xl font-bold text-slate-900">34</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalClicks}</p>
             </div>
             <div>
               <p className="text-sm text-slate-500">CTR</p>
-              <p className="text-2xl font-bold text-slate-900">29%</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.avgCTR.toFixed(1)}%</p>
             </div>
             <div>
               <p className="text-sm text-slate-500">Impressions</p>
-              <p className="text-2xl font-bold text-slate-900">117</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalImpressions}</p>
             </div>
           </div>
         </div>

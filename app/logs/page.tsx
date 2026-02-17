@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Activity, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { useActivityLogs } from "@/lib/hooks/useActivityLogs";
 
 interface LogEntry {
   id: string;
@@ -14,49 +14,7 @@ interface LogEntry {
 }
 
 export default function LogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate loading logs
-    setTimeout(() => {
-      setLogs([
-        {
-          id: "1",
-          agent: "SEO Agent",
-          action: "GSC Data Fetch",
-          status: "success",
-          timestamp: "2 minutes ago",
-          details: "Fetched 34 clicks, 117 impressions from Google Search Console",
-        },
-        {
-          id: "2",
-          agent: "Social Agent",
-          action: "Twitter Auth",
-          status: "success",
-          timestamp: "5 minutes ago",
-          details: "Authenticated as @successifier",
-        },
-        {
-          id: "3",
-          agent: "Ads Agent",
-          action: "Campaign Fetch",
-          status: "warning",
-          timestamp: "10 minutes ago",
-          details: "No active campaigns found in Google Ads account",
-        },
-        {
-          id: "4",
-          agent: "SEO Agent",
-          action: "PageSpeed Audit",
-          status: "success",
-          timestamp: "15 minutes ago",
-          details: "Performance score: 92/100",
-        },
-      ]);
-      setLoading(false);
-    }, 500);
-  }, []);
+  const { loading, logs } = useActivityLogs();
 
   const getStatusIcon = (status: string) => {
     switch (status) {

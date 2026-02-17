@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowDown, ArrowUp, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { useSEOData } from "@/lib/hooks/useSEOData";
 
 interface KeywordData {
   keyword: string;
@@ -15,27 +16,8 @@ interface KeywordData {
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
 
 export default function SEOPage() {
-  const [loading, setLoading] = useState(true);
+  const { loading, stats, keywords } = useSEOData();
   const [running, setRunning] = useState(false);
-  const [keywords, setKeywords] = useState<KeywordData[]>([]);
-  const [stats, setStats] = useState({
-    avgPosition: 1.6,
-    totalClicks: 34,
-    totalImpressions: 117,
-    avgCTR: 29.0,
-  });
-
-  useEffect(() => {
-    // Load initial data
-    setTimeout(() => {
-      setKeywords([
-        { keyword: "successifier", position: 1.0, clicks: 28, impressions: 95, ctr: 29.5 },
-        { keyword: "customer success platform", position: 2.1, clicks: 4, impressions: 15, ctr: 26.7 },
-        { keyword: "cs automation", position: 3.5, clicks: 2, impressions: 7, ctr: 28.6 },
-      ]);
-      setLoading(false);
-    }, 1000);
-  }, []);
 
   const runAudit = async () => {
     setRunning(true);
