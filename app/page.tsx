@@ -12,12 +12,19 @@ export default function Home() {
   const [runningAgent, setRunningAgent] = useState<string | null>(null);
   
   const agents = [
-    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500", endpoint: "/api/seo/audit" },
-    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500", endpoint: "/api/content/blog" },
-    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500", endpoint: "/api/ads/optimize" },
-    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/social/post/generate" },
-    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/reviews/fetch" },
-    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report" },
+    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500", endpoint: "/api/seo/audit", page: "/seo" },
+    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500", endpoint: "/api/content/blog", page: "/content" },
+    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500", endpoint: "/api/ads/optimize", page: "/ads" },
+    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/social/post/generate", page: "/social" },
+    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/reviews/fetch", page: "/reviews" },
+    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report", page: "/analytics" },
+  ];
+
+  const improvements = [
+    { name: "Content Analytics (GA4)", icon: BarChart3, color: "bg-purple-500", page: "/content-analytics" },
+    { name: "LinkedIn Manager", icon: Users, color: "bg-blue-600", page: "/linkedin" },
+    { name: "Budget Optimizer", icon: TrendingUp, color: "bg-green-600", page: "/budget-optimizer" },
+    { name: "Anomaly Detection", icon: Activity, color: "bg-orange-600", page: "/anomalies" },
   ];
 
   const runAgent = async (agentName: string, endpoint: string) => {
@@ -98,6 +105,27 @@ export default function Home() {
               </div>
             );
           })}
+        </div>
+
+        {/* New Improvements Section */}
+        <div className="mt-8">
+          <h2 className="mb-4 text-xl font-bold text-slate-900">🎉 New Features</h2>
+          <div className="grid gap-4 md:grid-cols-4">
+            {improvements.map((improvement) => (
+              <Link
+                key={improvement.name}
+                href={improvement.page}
+                className="rounded-lg border bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-lg ${improvement.color} p-3`}>
+                    <improvement.icon className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-slate-900">{improvement.name}</h3>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
