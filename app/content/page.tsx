@@ -178,7 +178,10 @@ export default function ContentPage() {
                     )}
                   </div>
 
-                  <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+                  <button 
+                    onClick={() => window.open(`/content/${content.id}`, '_blank')}
+                    className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                  >
                     View
                   </button>
                 </div>
