@@ -1,20 +1,45 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Activity, BarChart3, MessageSquare, Search, TrendingUp, Users } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+
 export default function Home() {
   const { stats } = useSEOData();
+  const [runningAgent, setRunningAgent] = useState<string | null>(null);
   
   const agents = [
-    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500" },
-    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500" },
-    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500" },
-    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500" },
-    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500" },
-    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500" },
+    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500", endpoint: "/api/seo/audit" },
+    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500", endpoint: "/api/content/blog" },
+    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500", endpoint: "/api/ads/optimize" },
+    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/social/post/generate" },
+    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/reviews/fetch" },
+    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report" },
   ];
+
+  const runAgent = async (agentName: string, endpoint: string) => {
+    setRunningAgent(agentName);
+    try {
+      const response = await fetch(`${SAMA_API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      
+      if (response.ok) {
+        alert(`${agentName} started successfully!`);
+      } else {
+        alert(`Failed to start ${agentName}`);
+      }
+    } catch (error) {
+      alert(`Error starting ${agentName}`);
+    } finally {
+      setRunningAgent(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -62,8 +87,12 @@ export default function Home() {
                   <Link href={`/${agentPath}`} className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-200">
                     View Details
                   </Link>
-                  <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                    Run
+                  <button 
+                    onClick={() => runAgent(agent.name, agent.endpoint)}
+                    disabled={runningAgent === agent.name}
+                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+                  >
+                    {runningAgent === agent.name ? 'Running...' : 'Run'}
                   </button>
                 </div>
               </div>
