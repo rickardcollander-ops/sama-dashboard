@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SAMA 2.0 Dashboard
 
-## Getting Started
+Modern dashboard for monitoring and controlling SAMA 2.0 autonomous marketing agents.
 
-First, run the development server:
+## Features
 
+- **Agent Overview** - Monitor all 6 agents (SEO, Content, Ads, Social, Reviews, Analytics)
+- **SEO Metrics** - Google Search Console data visualization
+- **Google Ads Performance** - Campaign metrics and optimization insights
+- **Twitter Activity** - Social media engagement tracking
+- **Activity Logs** - Real-time agent activity feed
+
+## Tech Stack
+
+- Next.js 16 with App Router
+- TypeScript
+- Tailwind CSS
+- Supabase (database)
+- Lucide React (icons)
+
+## Setup
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create `.env.local`:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SAMA_API_URL=https://sama-agent-ivory.vercel.app
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run development server:
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Open [http://localhost:3000](http://localhost:3000)
 
-## Learn More
+## Pages
 
-To learn more about Next.js, take a look at the following resources:
+- `/` - Agent overview and quick stats
+- `/seo` - SEO performance metrics
+- `/ads` - Google Ads campaign data
+- `/social` - Twitter activity
+- `/logs` - Agent activity logs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy to Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variables
+4. Deploy
 
-## Deploy on Vercel
+## API Integration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Dashboard connects to SAMA 2.0 backend API:
+- Base URL: `https://sama-agent-ivory.vercel.app`
+- Endpoints: `/api/seo/stats`, `/api/ads/campaigns`, etc.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
