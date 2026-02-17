@@ -154,11 +154,11 @@ export default function AnomaliesPage() {
           <div className="text-center py-12">
             <p className="text-slate-500">Scanning for anomalies...</p>
           </div>
-        ) : allAnomalies.length === 0 ? (
+        ) : trafficAnomalies.length === 0 && conversionAnomalies.length === 0 && spendAnomalies.length === 0 ? (
           <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
-            <Activity className="mx-auto h-12 w-12 text-green-500" />
-            <h3 className="mt-4 text-lg font-semibold text-slate-900">All Systems Normal</h3>
-            <p className="mt-2 text-sm text-slate-500">No anomalies detected in the last 30 days.</p>
+            <Activity className="mx-auto h-12 w-12 text-slate-400" />
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">No Data Available</h3>
+            <p className="mt-2 text-sm text-slate-500">Run analytics to detect anomalies, or check if backend is running.</p>
           </div>
         ) : (
           <div className="space-y-6">

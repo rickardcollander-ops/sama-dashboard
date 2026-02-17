@@ -90,7 +90,7 @@ export default function ContentAnalyticsPage() {
                   : 'bg-white text-slate-700 hover:bg-slate-100'
               }`}
             >
-              {m.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {m.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
             </button>
           ))}
         </div>

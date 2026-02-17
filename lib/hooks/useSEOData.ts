@@ -31,13 +31,17 @@ export function useSEOData() {
   ]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function fetchData() {
       try {
         // Fetch from SAMA backend API
         const SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
-        const response = await fetch(`${SAMA_API}/api/seo/keywords`);
+        const response = await fetch(`${SAMA_API}/api/seo/keywords`, {
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        });
         
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const data = await response.json();
           
           if (data.keywords && data.keywords.length > 0) {
@@ -65,14 +69,19 @@ export function useSEOData() {
           }
         }
       } catch (error) {
-        console.error('Error fetching SEO data:', error);
-        // Keep fallback data already set in state
+        // Silently fail - keep fallback data
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     fetchData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { loading, stats, keywords };
