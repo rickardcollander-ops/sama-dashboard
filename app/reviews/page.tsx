@@ -1,82 +1,120 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Star, MessageSquare, TrendingUp, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
+);
+
+interface Review {
+  id: string;
+  platform: string;
+  rating: number;
+  author: string;
+  title: string;
+  content: string;
+  created_at: string;
+  responded: boolean;
+}
 
 export default function ReviewsPage() {
-  const platforms = [
-    {
-      name: "G2",
-      rating: 4.7,
-      totalReviews: 23,
-      pendingResponses: 2,
-      trend: "+3 this month",
-      color: "bg-orange-500"
-    },
-    {
-      name: "Capterra",
-      rating: 4.6,
-      totalReviews: 18,
-      pendingResponses: 1,
-      trend: "+2 this month",
-      color: "bg-blue-500"
-    },
-    {
-      name: "Trustpilot",
-      rating: 4.5,
-      totalReviews: 12,
-      pendingResponses: 0,
-      trend: "+1 this month",
-      color: "bg-green-500"
-    },
-    {
-      name: "Product Hunt",
-      rating: 4.8,
-      totalReviews: 34,
-      pendingResponses: 3,
-      trend: "+5 this month",
-      color: "bg-red-500"
-    }
-  ];
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    avgRating: 0,
+    totalReviews: 0,
+    responseRate: 0,
+    avgResponseTime: "0h"
+  });
+  const [platforms, setPlatforms] = useState<any[]>([]);
 
-  const recentReviews = [
-    {
-      id: "1",
-      platform: "G2",
-      rating: 5,
-      author: "Sarah M.",
-      title: "Game changer for our CS team",
-      excerpt: "Successifier has completely transformed how we manage customer success. The AI predictions are incredibly accurate...",
-      date: "2 days ago",
-      responded: true
-    },
-    {
-      id: "2",
-      platform: "Capterra",
-      rating: 4,
-      author: "John D.",
-      title: "Great product, minor issues",
-      excerpt: "Overall very happy with Successifier. The health scoring is excellent, though we'd love to see more customization...",
-      date: "5 days ago",
-      responded: false
-    },
-    {
-      id: "3",
-      platform: "Product Hunt",
-      rating: 5,
-      author: "Emily R.",
-      title: "Best CS platform we've used",
-      excerpt: "We switched from Gainsight and couldn't be happier. The setup was incredibly fast and the AI features actually work...",
-      date: "1 week ago",
-      responded: true
-    }
-  ];
+  useEffect(() => {
+    fetchReviews();
+  }, []);
 
-  const stats = {
-    avgRating: 4.6,
-    totalReviews: 87,
-    responseRate: 94,
-    avgResponseTime: "18h"
+  const fetchReviews = async () => {
+    try {
+      // Fetch reviews from Supabase
+      const { data: reviewData, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('Error fetching reviews:', error);
+        setLoading(false);
+        return;
+      }
+
+      const reviewList = reviewData || [];
+      setReviews(reviewList);
+
+      // Calculate stats
+      if (reviewList.length > 0) {
+        const avgRating = reviewList.reduce((sum, r) => sum + r.rating, 0) / reviewList.length;
+        const respondedCount = reviewList.filter(r => r.responded).length;
+        const responseRate = (respondedCount / reviewList.length) * 100;
+
+        setStats({
+          avgRating: parseFloat(avgRating.toFixed(1)),
+          totalReviews: reviewList.length,
+          responseRate: Math.round(responseRate),
+          avgResponseTime: "18h" // TODO: Calculate from actual response times
+        });
+
+        // Group by platform
+        const platformMap = new Map();
+        reviewList.forEach(review => {
+          if (!platformMap.has(review.platform)) {
+            platformMap.set(review.platform, {
+              name: review.platform,
+              ratings: [],
+              total: 0,
+              pending: 0
+            });
+          }
+          const platform = platformMap.get(review.platform);
+          platform.ratings.push(review.rating);
+          platform.total++;
+          if (!review.responded) platform.pending++;
+        });
+
+        const platformList = Array.from(platformMap.values()).map(p => ({
+          name: p.name,
+          rating: parseFloat((p.ratings.reduce((a: number, b: number) => a + b, 0) / p.ratings.length).toFixed(1)),
+          totalReviews: p.total,
+          pendingResponses: p.pending,
+          trend: `${p.total} total`,
+          color: p.name === 'G2' ? 'bg-orange-500' : 
+                 p.name === 'Capterra' ? 'bg-blue-500' : 
+                 p.name === 'Trustpilot' ? 'bg-green-500' : 'bg-purple-500'
+        }));
+
+        setPlatforms(platformList);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+    return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
   };
 
   return (
@@ -184,51 +222,57 @@ export default function ReviewsPage() {
             </button>
           </div>
 
-          <div className="space-y-4">
-            {recentReviews.map((review) => (
-              <div
-                key={review.id}
-                className="rounded-lg border border-slate-200 p-4 hover:border-slate-300 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        {review.platform}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: review.rating }).map((_, i) => (
-                          <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                        ))}
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">Loading reviews...</div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">No reviews found. Run the review scraper to fetch reviews.</div>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review: Review) => (
+                <div
+                  key={review.id}
+                  className="rounded-lg border border-slate-200 p-4 hover:border-slate-300 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          {review.platform}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: review.rating }).map((_, i) => (
+                            <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                          ))}
+                        </div>
+                        {review.responded ? (
+                          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                            Responded
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
+                            Needs Response
+                          </span>
+                        )}
                       </div>
-                      {review.responded ? (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-                          Responded
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
-                          Needs Response
-                        </span>
-                      )}
+                      
+                      <h3 className="font-semibold text-slate-900 mb-1">{review.title}</h3>
+                      <p className="text-sm text-slate-600 mb-2">{review.content?.substring(0, 150)}...</p>
+                      
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>By {review.author}</span>
+                        <span>•</span>
+                        <span>{formatDate(review.created_at)}</span>
+                      </div>
                     </div>
-                    
-                    <h3 className="font-semibold text-slate-900 mb-1">{review.title}</h3>
-                    <p className="text-sm text-slate-600 mb-2">{review.excerpt}</p>
-                    
-                    <div className="flex items-center gap-4 text-xs text-slate-500">
-                      <span>By {review.author}</span>
-                      <span>•</span>
-                      <span>{review.date}</span>
-                    </div>
-                  </div>
 
-                  <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                    {review.responded ? 'View' : 'Respond'}
-                  </button>
+                    <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+                      {review.responded ? 'View' : 'Respond'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

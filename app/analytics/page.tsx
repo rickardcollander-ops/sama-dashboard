@@ -1,58 +1,113 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, DollarSign, Users } from "lucide-react";
 import Link from "next/link";
+import { createClient } from '@supabase/supabase-js';
+
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://sama-agent-ivory.vercel.app';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_KEY || ''
+);
+
+interface ChannelData {
+  channel: string;
+  visits: number;
+  conversions: number;
+  conversionRate: number;
+  cost: number;
+  roas: string;
+}
 
 export default function AnalyticsPage() {
-  const channelPerformance = [
-    {
-      channel: "Organic Search",
-      visits: 2834,
-      conversions: 23,
-      conversionRate: 0.81,
-      cost: 0,
-      roas: "∞"
-    },
-    {
-      channel: "Google Ads",
-      visits: 1245,
-      conversions: 18,
-      conversionRate: 1.45,
-      cost: 1250,
-      roas: "3.2x"
-    },
-    {
-      channel: "Social Media",
-      visits: 892,
-      conversions: 7,
-      conversionRate: 0.78,
-      cost: 0,
-      roas: "∞"
-    },
-    {
-      channel: "Direct",
-      visits: 567,
-      conversions: 12,
-      conversionRate: 2.12,
-      cost: 0,
-      roas: "∞"
+  const [loading, setLoading] = useState(true);
+  const [channelPerformance, setChannelPerformance] = useState<ChannelData[]>([]);
+  const [stats, setStats] = useState({
+    totalVisits: 0,
+    totalConversions: 0,
+    avgConversionRate: 0,
+    totalRevenue: 0
+  });
+  const [funnelStages, setFunnelStages] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      // Fetch from Supabase daily_metrics table
+      const { data: metricsData, error } = await supabase
+        .from('daily_metrics')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(30);
+
+      if (error) {
+        console.error('Error fetching analytics:', error);
+        setLoading(false);
+        return;
+      }
+
+      const metrics = metricsData || [];
+
+      if (metrics.length > 0) {
+        // Calculate totals
+        const totalVisits = metrics.reduce((sum, m) => sum + (m.total_sessions || 0), 0);
+        const totalConversions = metrics.reduce((sum, m) => sum + (m.total_conversions || 0), 0);
+        const totalRevenue = metrics.reduce((sum, m) => sum + (m.total_revenue || 0), 0);
+        const avgConversionRate = totalVisits > 0 ? (totalConversions / totalVisits) * 100 : 0;
+
+        setStats({
+          totalVisits,
+          totalConversions,
+          avgConversionRate: parseFloat(avgConversionRate.toFixed(2)),
+          totalRevenue
+        });
+
+        // Group by channel (if available)
+        const channelMap = new Map<string, any>();
+        metrics.forEach(m => {
+          const channel = m.channel || 'Direct';
+          if (!channelMap.has(channel)) {
+            channelMap.set(channel, {
+              channel,
+              visits: 0,
+              conversions: 0,
+              cost: 0
+            });
+          }
+          const ch = channelMap.get(channel);
+          ch.visits += m.total_sessions || 0;
+          ch.conversions += m.total_conversions || 0;
+          ch.cost += m.total_ad_spend || 0;
+        });
+
+        const channels = Array.from(channelMap.values()).map(ch => ({
+          ...ch,
+          conversionRate: ch.visits > 0 ? parseFloat(((ch.conversions / ch.visits) * 100).toFixed(2)) : 0,
+          roas: ch.cost > 0 ? `${((ch.conversions * 800) / ch.cost).toFixed(1)}x` : '∞'
+        }));
+
+        setChannelPerformance(channels);
+
+        // Simple funnel (can be enhanced with real data)
+        setFunnelStages([
+          { stage: "Awareness", count: totalVisits, percentage: 100 },
+          { stage: "Website Visit", count: Math.floor(totalVisits * 0.76), percentage: 76 },
+          { stage: "Trial Signup", count: Math.floor(totalVisits * 0.042), percentage: 4.2 },
+          { stage: "Activation", count: Math.floor(totalVisits * 0.028), percentage: 2.8 },
+          { stage: "Paid Conversion", count: totalConversions, percentage: parseFloat(((totalConversions / totalVisits) * 100).toFixed(1)) }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  const stats = {
-    totalVisits: 5538,
-    totalConversions: 60,
-    avgConversionRate: 1.08,
-    totalRevenue: 47600
   };
-
-  const funnelStages = [
-    { stage: "Awareness", count: 5538, percentage: 100 },
-    { stage: "Website Visit", count: 4234, percentage: 76 },
-    { stage: "Trial Signup", count: 234, percentage: 4.2 },
-    { stage: "Activation", count: 156, percentage: 2.8 },
-    { stage: "Paid Conversion", count: 60, percentage: 1.1 }
-  ];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -75,6 +130,10 @@ export default function AnalyticsPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {loading ? (
+          <div className="text-center py-12 text-slate-500">Loading analytics data...</div>
+        ) : (
+          <>
         {/* Stats */}
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <div className="rounded-lg border bg-white p-6 shadow-sm">
@@ -201,6 +260,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </main>
     </div>
   );
