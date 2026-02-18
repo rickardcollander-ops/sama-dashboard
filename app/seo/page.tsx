@@ -428,6 +428,7 @@ export default function SEOPage() {
         await fetchActions();
         await fetchKeywords();
         await fetchVitals();
+        await fetchHistory();
       } else {
         setErrorMsg('Analysis failed. Check backend connection.');
       }
