@@ -149,7 +149,10 @@ export default function ContentPage() {
         </div>
       </nav>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex gap-6">
+        {/* Left: Content Area */}
+        <div className="flex-1 min-w-0">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
@@ -398,13 +401,18 @@ export default function ContentPage() {
           </div>
         )}
 
-        {/* Agent Chat */}
-        <div className="mt-8">
-          <AgentChat 
-            agentName="Content"
-            apiUrl={`${SAMA_API_URL}/api/content`}
-            placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
-          />
+        </div>
+
+        {/* Right: Agent Chat Sidebar */}
+        <div className="hidden lg:block w-[380px] flex-shrink-0">
+          <div className="sticky top-8">
+            <AgentChat 
+              agentName="Content"
+              apiUrl={`${SAMA_API_URL}/api/content`}
+              placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
+            />
+          </div>
+        </div>
         </div>
       </main>
     </div>
