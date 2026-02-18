@@ -57,7 +57,22 @@ export default function SEOPage() {
       const response = await fetch(`${SAMA_API_URL}/api/seo/actions?status=pending`);
       if (response.ok) {
         const data = await response.json();
-        setActions(data.actions || []);
+        const allActions = data.actions || [];
+        
+        // Deduplicate actions - keep only the latest version of each action_id
+        const uniqueActions = allActions.reduce((acc: Action[], current: Action) => {
+          const existing = acc.find(a => a.action_id === current.action_id);
+          if (!existing) {
+            acc.push(current);
+          } else if (new Date(current.created_at || 0) > new Date(existing.created_at || 0)) {
+            // Replace with newer version
+            const index = acc.indexOf(existing);
+            acc[index] = current;
+          }
+          return acc;
+        }, []);
+        
+        setActions(uniqueActions);
       }
     } catch (error) {
       console.error('Failed to fetch actions:', error);
