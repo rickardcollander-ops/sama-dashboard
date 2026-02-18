@@ -16,10 +16,7 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
   const [showScrollDown, setShowScrollDown] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load chat history on mount
-  useEffect(() => {
-    loadHistory();
-  }, []);
+  // Start fresh each session — no persistent history loaded
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -39,21 +36,6 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
     }
   };
 
-  const loadHistory = async () => {
-    try {
-      const response = await fetch(`${apiUrl}/chat/history`);
-      if (response.ok) {
-        const data = await response.json();
-        const history = data.history || [];
-        setChatHistory(history.map((msg: any) => ({
-          role: msg.role,
-          content: msg.message
-        })));
-      }
-    } catch (error) {
-      console.error('Failed to load chat history:', error);
-    }
-  };
 
   const sendMessage = async () => {
     if (!message.trim() || loading) return;

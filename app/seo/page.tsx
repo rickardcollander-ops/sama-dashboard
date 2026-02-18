@@ -395,8 +395,13 @@ export default function SEOPage() {
       if (res.ok) {
         const data = await res.json();
         setAnalysis(data);
+        // Update strategy state from analysis result
+        if (data.strategy_headline) {
+          await loadStrategy();
+        }
         await fetchActions();
         await fetchKeywords();
+        await fetchVitals();
       } else {
         setErrorMsg('Analysis failed. Check backend connection.');
       }
