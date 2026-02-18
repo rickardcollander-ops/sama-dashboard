@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
+import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen, Search, ExternalLink, Copy, Check } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 
@@ -47,6 +47,10 @@ export default function ContentPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'blog_post' | 'comparison'>('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => { fetchLibrary(); }, []);
 
@@ -130,6 +134,33 @@ export default function ContentPage() {
     return <BookOpen className="h-5 w-5 text-slate-600" />;
   };
 
+  const getLiveUrl = (cp: ContentPiece) => {
+    if (cp.type === 'comparison') {
+      const match = cp.title.match(/vs\s+(\w+)/i);
+      if (match) return `https://successifier.com/vs/${match[1].toLowerCase()}`;
+    } else if (cp.type === 'blog_post') {
+      const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      return `https://successifier.com/blog/${slug}`;
+    }
+    return '';
+  };
+
+  const copyUrl = (id: string, url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const filteredContent = contentPieces
+    .filter(cp => filterStatus === 'all' || cp.status === filterStatus)
+    .filter(cp => filterType === 'all' || cp.type === filterType)
+    .filter(cp =>
+      search === '' ||
+      cp.title.toLowerCase().includes(search.toLowerCase()) ||
+      (cp.target_keyword || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
   const pendingCount = actions.filter(a => a.status === 'pending').length;
   const completedCount = actions.filter(a => a.status === 'completed').length;
   const publishedCount = contentPieces.filter(c => c.status === 'published').length;
@@ -202,68 +233,111 @@ export default function ContentPage() {
 
         {/* TAB: Library */}
         {activeTab === 'library' && (
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-              <p className="mt-1 text-sm text-slate-500">All generated content pieces from Supabase</p>
+          <div className="space-y-4">
+            {/* Search + Filters */}
+            <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Sök på titel eller nyckelord..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full rounded-lg border pl-9 pr-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="text-xs font-medium text-slate-500 self-center">Status:</span>
+                {(['all', 'published', 'draft'] as const).map(s => (
+                  <button key={s} onClick={() => setFilterStatus(s)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      filterStatus === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    {s === 'all' ? `Alla (${contentPieces.length})` : s === 'published' ? `Publicerade (${publishedCount})` : `Utkast (${draftCount})`}
+                  </button>
+                ))}
+                <span className="text-xs font-medium text-slate-500 self-center ml-2">Typ:</span>
+                {(['all', 'blog_post', 'comparison'] as const).map(t => (
+                  <button key={t} onClick={() => setFilterType(t)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      filterType === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    {t === 'all' ? 'Alla typer' : t === 'blog_post' ? 'Blogginlägg' : 'Jämförelser'}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="divide-y">
+
+            <div className="rounded-lg border bg-white shadow-sm">
+              <div className="border-b px-6 py-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">Visar {filteredContent.length} av {contentPieces.length} innehållsstycken</p>
+                </div>
+              </div>
+
               {loading ? (
-                <div className="p-8 text-center text-sm text-slate-500">Loading content...</div>
+                <div className="p-8 text-center text-sm text-slate-500">Laddar innehåll...</div>
               ) : contentPieces.length === 0 ? (
                 <div className="p-12 text-center">
                   <FileText className="mx-auto h-12 w-12 text-slate-300" />
-                  <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
-                  <p className="mt-2 text-sm text-slate-500">Run analysis to discover content gaps and generate new pieces.</p>
+                  <h3 className="mt-4 text-lg font-semibold text-slate-900">Inget innehåll ännu</h3>
+                  <p className="mt-2 text-sm text-slate-500">Kör analys för att hitta innehållsgap och generera nya stycken.</p>
                 </div>
+              ) : filteredContent.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-500">Inga träffar för din sökning eller dina filter.</div>
               ) : (
-                contentPieces.map((cp) => {
-                  // Generate live URL based on content type and title
-                  let liveUrl = '';
-                  if (cp.status === 'published') {
-                    if (cp.type === 'comparison') {
-                      // Extract competitor name from title (e.g., "Successifier vs Gainsight" -> "gainsight")
-                      const match = cp.title.match(/vs\s+(\w+)/i);
-                      if (match) {
-                        liveUrl = `https://successifier.com/vs/${match[1].toLowerCase()}`;
-                      }
-                    } else if (cp.type === 'blog_post') {
-                      // Generate slug from title
-                      const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-                      liveUrl = `https://successifier.com/blog/${slug}`;
-                    }
-                  }
+                <div className="divide-y">
+                  {filteredContent.map((cp) => {
+                    const liveUrl = getLiveUrl(cp);
+                    const slug = liveUrl.split('/').pop() || '';
+                    return (
+                      <div key={cp.id} className="p-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">{getTypeIcon(cp.type)}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h4 className="font-medium text-slate-900 truncate">{cp.title}</h4>
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                                cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                              }`}>{cp.status === 'published' ? 'Publicerad' : 'Utkast'}</span>
+                              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                                {cp.type === 'blog_post' ? 'Blogginlägg' : cp.type === 'comparison' ? 'Jämförelse' : cp.type}
+                              </span>
+                            </div>
 
-                  return (
-                    <div key={cp.id} className="p-4 hover:bg-slate-50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-slate-900">{cp.title}</h4>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                            }`}>{cp.status}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
-                            {liveUrl && (
-                              <a href={liveUrl} target="_blank" rel="noopener noreferrer" 
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline">
-                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                                View Live
-                              </a>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-500">
-                            {cp.word_count > 0 && <span>{cp.word_count} words</span>}
-                            {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
-                            {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
+                            {/* URL-rad */}
+                            <div className="flex items-center gap-2 mt-1">
+                              {liveUrl ? (
+                                <>
+                                  <code className="text-xs text-slate-500 bg-slate-100 rounded px-2 py-0.5 truncate max-w-xs">
+                                    {liveUrl}
+                                  </code>
+                                  <a href={liveUrl} target="_blank" rel="noopener noreferrer"
+                                    className="shrink-0 text-blue-600 hover:text-blue-700" title="Öppna sida">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                  <button onClick={() => copyUrl(cp.id, liveUrl)}
+                                    className="shrink-0 text-slate-400 hover:text-slate-600" title="Kopiera URL">
+                                    {copiedId === cp.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-xs text-slate-400 italic">Ingen URL (ej publicerad eller okänd typ)</span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                              {cp.word_count > 0 && <span>{cp.word_count} ord</span>}
+                              {cp.target_keyword && <span>· Nyckelord: <span className="font-medium">{cp.target_keyword}</span></span>}
+                              {cp.created_at && <span>· {new Date(cp.created_at).toLocaleDateString('sv-SE')}</span>}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
