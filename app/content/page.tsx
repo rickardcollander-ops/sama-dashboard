@@ -213,26 +213,53 @@ export default function ContentPage() {
                   <p className="mt-2 text-sm text-slate-500">Run analysis to discover content gaps and generate new pieces.</p>
                 </div>
               ) : (
-                contentPieces.map((cp) => (
-                  <div key={cp.id} className="p-4 hover:bg-slate-50">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-slate-900">{cp.title}</h4>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>{cp.status}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500">
-                          {cp.word_count > 0 && <span>{cp.word_count} words</span>}
-                          {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
-                          {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
+                contentPieces.map((cp) => {
+                  // Generate live URL based on content type and title
+                  let liveUrl = '';
+                  if (cp.status === 'published') {
+                    if (cp.type === 'comparison') {
+                      // Extract competitor name from title (e.g., "Successifier vs Gainsight" -> "gainsight")
+                      const match = cp.title.match(/vs\s+(\w+)/i);
+                      if (match) {
+                        liveUrl = `https://successifier.com/vs/${match[1].toLowerCase()}`;
+                      }
+                    } else if (cp.type === 'blog_post') {
+                      // Generate slug from title
+                      const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                      liveUrl = `https://successifier.com/blog/${slug}`;
+                    }
+                  }
+
+                  return (
+                    <div key={cp.id} className="p-4 hover:bg-slate-50">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-slate-900">{cp.title}</h4>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>{cp.status}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
+                            {liveUrl && (
+                              <a href={liveUrl} target="_blank" rel="noopener noreferrer" 
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                View Live
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-500">
+                            {cp.word_count > 0 && <span>{cp.word_count} words</span>}
+                            {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
+                            {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
