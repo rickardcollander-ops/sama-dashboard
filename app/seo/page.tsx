@@ -197,6 +197,8 @@ export default function SEOPage() {
 
   // Delete state
   const [deletingKw, setDeletingKw] = useState<string | null>(null);
+  const [deletingAction, setDeletingAction] = useState<string | null>(null);
+  const [deletingTask, setDeletingTask] = useState<string | null>(null);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
 
@@ -365,6 +367,30 @@ export default function SEOPage() {
       });
     } catch { /* silent — optimistic update stays */ }
     finally { setTogglingTask(null); }
+  };
+
+  const deleteAction = async (actionId: string) => {
+    setDeletingAction(actionId);
+    // Optimistic removal
+    setActions(prev => prev.filter(a => a.id !== actionId));
+    try {
+      await fetch(`${SAMA_API_URL}/api/seo/actions/${actionId}`, { method: 'DELETE' });
+    } catch { /* optimistic stays */ }
+    finally { setDeletingAction(null); }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    setDeletingTask(taskId);
+    // Optimistic removal
+    setStrategyTasks(prev => prev.filter(t => t.id !== taskId));
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy/tasks/${taskId}`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tasks) setStrategyTasks(data.tasks);
+      }
+    } catch { /* optimistic stays */ }
+    finally { setDeletingTask(null); }
   };
 
   const initializeKeywords = async () => {
@@ -771,6 +797,14 @@ export default function SEOPage() {
                                     : <><Play  className="h-3 w-3" /> Execute</>}
                                 </button>
                               )}
+                              <button
+                                onClick={() => deleteAction(action.id)}
+                                disabled={deletingAction === action.id}
+                                title="Remove this action"
+                                className="rounded-lg p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                               <button
                                 onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
                                 className="rounded-lg p-1.5 hover:bg-slate-100 text-slate-400"
@@ -1277,6 +1311,14 @@ export default function SEOPage() {
                                     {task.done_at && (
                                       <span className="text-xs text-slate-300">{new Date(task.done_at).toLocaleDateString('sv-SE')}</span>
                                     )}
+                                    <button
+                                      onClick={() => deleteTask(task.id)}
+                                      disabled={deletingTask === task.id}
+                                      title="Remove this task"
+                                      className="rounded p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 ml-1"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                   </div>
                                 </li>
                               ))}
