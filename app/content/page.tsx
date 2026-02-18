@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
 import Link from "next/link";
+import AgentChat from "@/components/AgentChat";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -396,6 +397,15 @@ export default function ContentPage() {
             </div>
           </div>
         )}
+
+        {/* Agent Chat */}
+        <div className="mt-8">
+          <AgentChat 
+            agentName="Content"
+            apiUrl={`${SAMA_API_URL}/api/content`}
+            placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
+          />
+        </div>
       </main>
     </div>
   );
