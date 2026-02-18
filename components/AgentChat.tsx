@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Send, MessageSquare, Loader2 } from "lucide-react";
 
 interface AgentChatProps {
@@ -13,6 +13,27 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>([]);
   const [loading, setLoading] = useState(false);
+
+  // Load chat history on mount
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/chat/history`);
+      if (response.ok) {
+        const data = await response.json();
+        const history = data.history || [];
+        setChatHistory(history.map((msg: any) => ({
+          role: msg.role,
+          content: msg.message
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    }
+  };
 
   const sendMessage = async () => {
     if (!message.trim() || loading) return;
