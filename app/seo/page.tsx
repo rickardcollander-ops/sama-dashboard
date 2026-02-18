@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ArrowUp, Search, TrendingUp, Zap, FileText, Wrench, CheckCircle, XCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp, Gauge } from "lucide-react";
 import Link from "next/link";
 import { useSEOData } from "@/lib/hooks/useSEOData";
+import AgentChat from "@/components/AgentChat";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -216,7 +217,10 @@ export default function SEOPage() {
         </div>
       </nav>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex gap-6 max-w-[1400px] mx-auto">
+        {/* Left: SEO Content Area */}
+        <div className="flex-1 min-w-0">
         {/* Header with main CTA */}
         <div className="mb-8 flex items-start justify-between">
           <div>
@@ -602,6 +606,20 @@ export default function SEOPage() {
             )}
           </div>
         )}
+        </div>{/* end left content */}
+
+        {/* Right: Agent Chat Sidebar */}
+        <div className="hidden lg:block w-[380px] flex-shrink-0">
+          <div className="sticky top-8">
+            <AgentChat
+              agentName="SEO"
+              apiUrl={`${SAMA_API_URL}/api/seo`}
+              placeholder="Ask me anything — 'analyze customer success platform', 'show rankings', 'run audit', 'find opportunities'..."
+            />
+          </div>
+        </div>
+
+        </div>{/* end flex wrapper */}
       </main>
     </div>
   );
