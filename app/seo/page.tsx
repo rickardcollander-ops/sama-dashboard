@@ -293,6 +293,8 @@ export default function SEOPage() {
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Keyword</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Intent</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Priority</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Position</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Clicks</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Impressions</th>
@@ -301,17 +303,37 @@ export default function SEOPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {loading ? (
-                    <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-slate-500">Loading...</td></tr>
+                    <tr><td colSpan={7} className="px-6 py-4 text-center text-sm text-slate-500">Loading...</td></tr>
                   ) : keywords.length === 0 ? (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-500">No keywords tracked yet. Run analysis to discover opportunities.</td></tr>
+                    <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-500">No keywords tracked yet. Run analysis to discover opportunities.</td></tr>
                   ) : (
                     keywords.map((kw) => (
                       <tr key={kw.keyword} className="hover:bg-slate-50">
                         <td className="px-6 py-4 text-sm font-medium text-slate-900">{kw.keyword}</td>
                         <td className="px-6 py-4 text-sm">
+                          {kw.intent ? (
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              kw.intent === 'commercial' ? 'bg-purple-100 text-purple-700' :
+                              kw.intent === 'transactional' ? 'bg-green-100 text-green-700' :
+                              kw.intent === 'informational' ? 'bg-blue-100 text-blue-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>{kw.intent}</span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {kw.priority ? (
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              kw.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                              kw.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                              kw.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>{kw.priority}</span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
                           <span className={`inline-flex items-center gap-1 font-medium ${kw.position <= 3 ? 'text-green-600' : kw.position <= 10 ? 'text-blue-600' : 'text-slate-900'}`}>
-                            {kw.position.toFixed(1)}
-                            {kw.position <= 3 && <ArrowUp className="h-4 w-4" />}
+                            {kw.position > 0 ? kw.position.toFixed(1) : '—'}
+                            {kw.position > 0 && kw.position <= 3 && <ArrowUp className="h-4 w-4" />}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-900">{kw.clicks}</td>

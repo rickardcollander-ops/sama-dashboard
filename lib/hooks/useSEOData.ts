@@ -13,6 +13,8 @@ interface KeywordData {
   clicks: number;
   impressions: number;
   ctr: number;
+  intent?: string;
+  priority?: string;
 }
 
 export function useSEOData() {
@@ -47,7 +49,11 @@ export function useSEOData() {
             // Calculate stats from keywords
             const totalClicks = data.keywords.reduce((sum: number, kw: any) => sum + (kw.current_clicks || 0), 0);
             const totalImpressions = data.keywords.reduce((sum: number, kw: any) => sum + (kw.current_impressions || 0), 0);
-            const avgPosition = data.keywords.reduce((sum: number, kw: any) => sum + (kw.current_position || 0), 0) / data.keywords.length;
+            // Only average keywords that have real position data (exclude 0/null)
+            const withPosition = data.keywords.filter((kw: any) => kw.current_position && kw.current_position > 0);
+            const avgPosition = withPosition.length > 0
+              ? withPosition.reduce((sum: number, kw: any) => sum + kw.current_position, 0) / withPosition.length
+              : 0;
             const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
             
             setStats({
@@ -63,7 +69,9 @@ export function useSEOData() {
               position: kw.current_position || 0,
               clicks: kw.current_clicks || 0,
               impressions: kw.current_impressions || 0,
-              ctr: kw.current_impressions > 0 ? ((kw.current_clicks / kw.current_impressions) * 100) : 0
+              ctr: kw.current_impressions > 0 ? ((kw.current_clicks / kw.current_impressions) * 100) : 0,
+              intent: kw.intent || '',
+              priority: kw.priority || '',
             })));
           }
         }
