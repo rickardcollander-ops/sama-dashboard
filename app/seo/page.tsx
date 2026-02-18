@@ -250,6 +250,27 @@ export default function SEOPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
+  const [initializing, setInitializing] = useState(false);
+
+  const initializeKeywords = async () => {
+    setInitializing(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/initialize`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchKeywords();
+        setErrorMsg(null);
+      } else {
+        setErrorMsg(data.message || 'Initialize failed');
+      }
+    } catch {
+      setErrorMsg('Could not reach backend');
+    } finally {
+      setInitializing(false);
+    }
+  };
+
   const runAnalysis = async () => {
     setAnalyzing(true);
     setErrorMsg(null);
@@ -355,15 +376,27 @@ export default function SEOPage() {
                 <h2 className="text-3xl font-bold text-slate-900">SEO Performance</h2>
                 <p className="mt-1 text-slate-500 text-sm">Observe → Orient → Decide → Execute → Track</p>
               </div>
-              <button
-                onClick={runAnalysis}
-                disabled={analyzing}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20 text-sm"
-              >
-                {analyzing
-                  ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing…</>
-                  : <><Zap className="h-4 w-4" /> Run Full Analysis</>}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={initializeKeywords}
+                  disabled={initializing}
+                  title="Seed keyword database with target keywords + GSC data"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 text-sm"
+                >
+                  {initializing
+                    ? <><Clock className="h-4 w-4 animate-spin" /> Initializing…</>
+                    : <><RefreshCw className="h-4 w-4" /> Initialize Keywords</>}
+                </button>
+                <button
+                  onClick={runAnalysis}
+                  disabled={analyzing}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20 text-sm"
+                >
+                  {analyzing
+                    ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing…</>
+                    : <><Zap className="h-4 w-4" /> Run Full Analysis</>}
+                </button>
+              </div>
             </div>
 
             {/* Error banner */}
