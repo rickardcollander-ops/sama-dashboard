@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowUp, Search, TrendingUp, Zap, FileText, Wrench, CheckCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp, Gauge } from "lucide-react";
 import Link from "next/link";
 import { useSEOData } from "@/lib/hooks/useSEOData";
@@ -9,6 +9,7 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-produc
 
 interface Action {
   id: string;
+  action_id: string;
   type: string;
   priority: string;
   title: string;
@@ -17,6 +18,9 @@ interface Action {
   keyword?: string;
   target_page?: string;
   status: string;
+  created_at?: string;
+  executed_at?: string;
+  execution_result?: any;
 }
 
 export default function SEOPage() {
@@ -43,6 +47,23 @@ export default function SEOPage() {
   const [auditHistory, setAuditHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Fetch actions from database on mount
+  useEffect(() => {
+    fetchActions();
+  }, []);
+
+  const fetchActions = async () => {
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/seo/actions?status=pending`);
+      if (response.ok) {
+        const data = await response.json();
+        setActions(data.actions || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch actions:', error);
+    }
+  };
+
   const runAnalysis = async () => {
     setAnalyzing(true);
     setActiveTab('actions');
@@ -53,8 +74,9 @@ export default function SEOPage() {
       if (response.ok) {
         const data = await response.json();
         setAnalysis(data);
-        setActions(data.actions || []);
         if (data.core_web_vitals) setVitals(data.core_web_vitals);
+        // Fetch actions from database instead of using response
+        await fetchActions();
       } else {
         alert('Analysis failed. Check backend connection.');
       }
@@ -76,7 +98,8 @@ export default function SEOPage() {
       if (response.ok) {
         const result = await response.json();
         setExecutionResults(prev => ({ ...prev, [action.id]: result }));
-        setActions(prev => prev.map(a => a.id === action.id ? { ...a, status: 'completed' } : a));
+        // Refresh actions from database
+        await fetchActions();
       } else {
         setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
       }
