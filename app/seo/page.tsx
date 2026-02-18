@@ -303,7 +303,7 @@ export default function SEOPage() {
     setSerpResult(null);
     try {
       const res = await fetch(
-        `${SAMA_API_URL}/api/seo/advanced/serp/analyze?keyword=${encodeURIComponent(serpKeyword)}&num_results=5`,
+        `${SAMA_API_URL}/api/seo/serp/analyze?keyword=${encodeURIComponent(serpKeyword)}&num_results=5`,
         { method: 'POST' }
       );
       const data = await res.json();
