@@ -277,6 +277,23 @@ export default function SEOPage() {
     finally { setLoadingHistory(false); }
   }, []);
 
+  const applyStrategyData = (data: any) => {
+    if (data.strategy)  setStrategy(data.strategy);
+    if (data.tasks)     setStrategyTasks(data.tasks);
+    if (data.id)        setStrategyId(data.id);
+    if (data.created_at) setStrategyCreatedAt(data.created_at);
+    if (data.data_fingerprint) setStrategyFingerprint(data.data_fingerprint);
+    setStrategyCached(!!data.cached);
+  };
+
+  const loadStrategy = useCallback(async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
+      const data = await res.json();
+      if (data.success && data.strategy) applyStrategyData(data);
+    } catch { /* silent */ }
+  }, []);
+
   // Load everything in parallel on mount
   useEffect(() => {
     fetchKeywords();
@@ -320,23 +337,6 @@ export default function SEOPage() {
       setDeletingKw(null);
     }
   };
-
-  const applyStrategyData = (data: any) => {
-    if (data.strategy)  setStrategy(data.strategy);
-    if (data.tasks)     setStrategyTasks(data.tasks);
-    if (data.id)        setStrategyId(data.id);
-    if (data.created_at) setStrategyCreatedAt(data.created_at);
-    if (data.data_fingerprint) setStrategyFingerprint(data.data_fingerprint);
-    setStrategyCached(!!data.cached);
-  };
-
-  const loadStrategy = useCallback(async () => {
-    try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
-      const data = await res.json();
-      if (data.success && data.strategy) applyStrategyData(data);
-    } catch { /* silent */ }
-  }, []);
 
   const fetchStrategy = async (force = false) => {
     setStrategyLoading(true);
