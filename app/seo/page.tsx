@@ -250,7 +250,29 @@ export default function SEOPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  const [initializing, setInitializing] = useState(false);
+  const [initializing, setInitializing]   = useState(false);
+  const [trackingKw, setTrackingKw]       = useState<string | null>(null);
+  const [trackedKws, setTrackedKws]       = useState<Set<string>>(new Set());
+
+  const addKeyword = async (keyword: string, intent = 'manual', priority = 'medium') => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw || trackedKws.has(kw)) return;
+    setTrackingKw(kw);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw, intent, priority })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTrackedKws(prev => new Set([...prev, kw]));
+        await fetchKeywords();
+      }
+    } catch { /* silent */ } finally {
+      setTrackingKw(null);
+    }
+  };
 
   const initializeKeywords = async () => {
     setInitializing(true);
@@ -741,10 +763,30 @@ export default function SEOPage() {
                   <>
                     {/* Insights summary */}
                     <div className="rounded-xl border bg-white p-5 shadow-sm">
-                      <h4 className="font-semibold text-slate-900 mb-4">
-                        Competitive Insights — <span className="text-blue-600">"{serpResult.keyword}"</span>
-                        <span className="ml-2 text-xs text-slate-400 font-normal">{serpResult.results_analyzed} pages analyzed</span>
-                      </h4>
+                      <div className="flex items-center justify-between mb-4 gap-3">
+                        <h4 className="font-semibold text-slate-900">
+                          Competitive Insights — <span className="text-blue-600">"{serpResult.keyword}"</span>
+                          <span className="ml-2 text-xs text-slate-400 font-normal">{serpResult.results_analyzed} pages analyzed</span>
+                        </h4>
+                        {(() => {
+                          const kw = serpResult.keyword.toLowerCase();
+                          const already = trackedKws.has(kw) || keywords.some(k => k.keyword.toLowerCase() === kw);
+                          return already ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600 font-medium px-3 py-1.5 rounded-lg bg-green-50 border border-green-200">
+                              <CheckCircle className="h-3.5 w-3.5" /> Tracked
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => addKeyword(serpResult.keyword, 'commercial', 'high')}
+                              disabled={trackingKw === kw}
+                              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 disabled:opacity-50"
+                            >
+                              {trackingKw === kw ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                              Track this keyword
+                            </button>
+                          );
+                        })()}
+                      </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                         {[
                           { label: 'Avg Word Count',  value: `${(serpResult.insights.competitive_analysis?.avg_word_count || 0).toLocaleString()}` },
@@ -779,9 +821,26 @@ export default function SEOPage() {
                         <div>
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Common Topics in Top Results</p>
                           <div className="flex flex-wrap gap-2">
-                            {serpResult.insights.common_topics.map((t, i) => (
-                              <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">{t}</span>
-                            ))}
+                            {serpResult.insights.common_topics.map((t, i) => {
+                              const kw = t.toLowerCase();
+                              const already = trackedKws.has(kw) || keywords.some(k => k.keyword.toLowerCase() === kw);
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => !already && addKeyword(t)}
+                                  disabled={already || trackingKw === kw}
+                                  title={already ? 'Already tracked' : `Track "${t}"`}
+                                  className={`rounded-full px-3 py-1 text-xs flex items-center gap-1 transition-colors ${
+                                    already
+                                      ? 'bg-green-50 text-green-700 border border-green-200 cursor-default'
+                                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 cursor-pointer'
+                                  }`}
+                                >
+                                  {already ? <CheckCircle className="h-3 w-3" /> : trackingKw === kw ? <Clock className="h-3 w-3 animate-spin" /> : <span className="font-bold">+</span>}
+                                  {t}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
