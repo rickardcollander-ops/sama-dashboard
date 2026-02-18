@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ArrowUp, ArrowDown, Minus, Search, TrendingUp, Zap, FileText, Wrench,
   CheckCircle, XCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp,
-  Gauge, RefreshCw, ExternalLink, BarChart2, Globe
+  Gauge, RefreshCw, ExternalLink, BarChart2, Globe, Trash2, Target, Lightbulb
 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
@@ -57,6 +57,17 @@ interface Vitals {
   speed_index: number;
   performance_score: number;
   error?: string;
+}
+
+interface Strategy {
+  headline: string;
+  quick_wins: { title: string; action: string; impact: string; effort: string; timeframe: string }[];
+  month1: { focus: string; actions: string[] }[];
+  month2: { focus: string; actions: string[] }[];
+  month3: { focus: string; actions: string[] }[];
+  content_gaps: string[];
+  technical_priorities: string[];
+  kpi_targets: { top10_keywords?: number; monthly_clicks?: number; avg_position?: number };
 }
 
 interface SerpResult {
@@ -147,7 +158,7 @@ export default function SEOPage() {
   const [stats, setStats] = useState({ avgPosition: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp' | 'strategy'>('overview');
   const [analyzing, setAnalyzing]   = useState(false);
   const [analysis, setAnalysis]     = useState<any>(null);
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
@@ -161,6 +172,13 @@ export default function SEOPage() {
   const [serpLoading, setSerpLoading]   = useState(false);
   const [serpResult, setSerpResult]     = useState<SerpResult | null>(null);
   const [serpError, setSerpError]       = useState<string | null>(null);
+
+  // Strategy state
+  const [strategy, setStrategy]           = useState<Strategy | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState(false);
+
+  // Delete state
+  const [deletingKw, setDeletingKw] = useState<string | null>(null);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
 
@@ -271,6 +289,30 @@ export default function SEOPage() {
       }
     } catch { /* silent */ } finally {
       setTrackingKw(null);
+    }
+  };
+
+  const deleteKeyword = async (keyword: string) => {
+    setDeletingKw(keyword);
+    try {
+      await fetch(`${SAMA_API_URL}/api/seo/keywords/${encodeURIComponent(keyword)}`, { method: 'DELETE' });
+      await fetchKeywords();
+    } catch { /* silent */ } finally {
+      setDeletingKw(null);
+    }
+  };
+
+  const fetchStrategy = async () => {
+    setStrategyLoading(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) setStrategy(data.strategy);
+      else setErrorMsg(data.detail || 'Strategy generation failed');
+    } catch {
+      setErrorMsg('Could not reach backend');
+    } finally {
+      setStrategyLoading(false);
     }
   };
 
@@ -454,6 +496,7 @@ export default function SEOPage() {
                 { id: 'serp'     as const, label: 'SERP Analysis',   icon: <Globe      className="h-4 w-4" /> },
                 { id: 'vitals'   as const, label: 'Core Web Vitals', icon: <Gauge      className="h-4 w-4" /> },
                 { id: 'history'  as const, label: 'Audit History',   icon: <Clock      className="h-4 w-4" /> },
+                { id: 'strategy' as const, label: 'Strategy',        icon: <Target     className="h-4 w-4" /> },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -560,6 +603,18 @@ export default function SEOPage() {
                               <td className="px-5 py-3.5 text-slate-700">{kw.clicks.toLocaleString()}</td>
                               <td className="px-5 py-3.5 text-slate-700">{kw.impressions.toLocaleString()}</td>
                               <td className="px-5 py-3.5 text-slate-700">{kw.ctr.toFixed(1)}%</td>
+                              <td className="px-3 py-3.5">
+                                <button
+                                  onClick={() => deleteKeyword(kw.keyword)}
+                                  disabled={deletingKw === kw.keyword}
+                                  title="Remove keyword"
+                                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity disabled:opacity-50"
+                                >
+                                  {deletingKw === kw.keyword
+                                    ? <Clock className="h-3.5 w-3.5 animate-spin" />
+                                    : <Trash2 className="h-3.5 w-3.5" />}
+                                </button>
+                              </td>
                             </tr>
                           );
                         })
@@ -1014,6 +1069,163 @@ export default function SEOPage() {
                       </div>
                     );
                   })
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Strategy ──────────────────────────────────────────── */}
+            {activeTab === 'strategy' && (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-slate-900">90-Day SEO Strategy</h3>
+                      <p className="text-xs text-slate-500 mt-1">AI-generated plan based on your current keyword data and audit results</p>
+                    </div>
+                    <button
+                      onClick={fetchStrategy}
+                      disabled={strategyLoading}
+                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+                    >
+                      {strategyLoading
+                        ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
+                        : <><Lightbulb className="h-4 w-4" /> {strategy ? 'Regenerate' : 'Generate Strategy'}</>}
+                    </button>
+                  </div>
+                </div>
+
+                {!strategy && !strategyLoading && (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Target className="mx-auto h-10 w-10 text-slate-200 mb-3" />
+                    <p className="text-slate-500 text-sm">Click "Generate Strategy" to get a Claude-powered 90-day SEO plan based on your data.</p>
+                  </div>
+                )}
+
+                {strategyLoading && (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Clock className="mx-auto h-8 w-8 text-slate-300 animate-spin mb-3" />
+                    <p className="text-slate-500 text-sm">Analyzing your keyword data and generating strategy…</p>
+                  </div>
+                )}
+
+                {strategy && !strategyLoading && (
+                  <>
+                    {/* Headline */}
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                      <p className="text-sm font-semibold text-blue-900">🎯 {strategy.headline}</p>
+                    </div>
+
+                    {/* KPI Targets */}
+                    {strategy.kpi_targets && (
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: 'Top-10 Keywords', value: strategy.kpi_targets.top10_keywords },
+                          { label: 'Monthly Clicks', value: strategy.kpi_targets.monthly_clicks?.toLocaleString() },
+                          { label: 'Avg Position', value: strategy.kpi_targets.avg_position },
+                        ].map(t => (
+                          <div key={t.label} className="rounded-xl border bg-white p-4 text-center shadow-sm">
+                            <p className="text-2xl font-bold text-slate-900">{t.value ?? '—'}</p>
+                            <p className="text-xs text-slate-500 mt-1">Target: {t.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Quick Wins */}
+                    {strategy.quick_wins?.length > 0 && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                          <span className="text-yellow-500">⚡</span> Quick Wins
+                        </h4>
+                        <div className="space-y-3">
+                          {strategy.quick_wins.map((w, i) => (
+                            <div key={i} className="rounded-lg border border-slate-100 p-3 bg-slate-50">
+                              <div className="flex items-start justify-between gap-3 mb-1">
+                                <p className="text-sm font-medium text-slate-900">{w.title}</p>
+                                <div className="flex gap-1.5 flex-shrink-0">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${w.impact === 'high' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                    {w.impact} impact
+                                  </span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${w.effort === 'low' ? 'bg-blue-100 text-blue-700' : w.effort === 'medium' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>
+                                    {w.effort} effort
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-600">{w.action}</p>
+                              <p className="text-xs text-slate-400 mt-1">⏱ {w.timeframe}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Monthly roadmap */}
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {[
+                        { label: 'Month 1', items: strategy.month1, color: 'blue' },
+                        { label: 'Month 2', items: strategy.month2, color: 'purple' },
+                        { label: 'Month 3', items: strategy.month3, color: 'green' },
+                      ].map(({ label, items, color }) => (
+                        <div key={label} className="rounded-xl border bg-white p-4 shadow-sm">
+                          <h4 className={`font-semibold mb-3 text-${color}-700`}>{label}</h4>
+                          {(items || []).map((m: any, i: number) => (
+                            <div key={i} className="mb-3">
+                              <p className="text-xs font-semibold text-slate-700 mb-1.5">{m.focus}</p>
+                              <ul className="space-y-1">
+                                {(m.actions || []).map((a: string, j: number) => (
+                                  <li key={j} className="flex items-start gap-1.5 text-xs text-slate-600">
+                                    <span className={`text-${color}-400 flex-shrink-0`}>•</span> {a}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Content gaps + Technical */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {strategy.content_gaps?.length > 0 && (
+                        <div className="rounded-xl border bg-white p-5 shadow-sm">
+                          <h4 className="font-semibold text-slate-900 mb-3">📝 Content Gaps</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {strategy.content_gaps.map((g, i) => (
+                              <button
+                                key={i}
+                                onClick={() => addKeyword(g)}
+                                title={`Track "${g}"`}
+                                className={`rounded-full px-3 py-1 text-xs flex items-center gap-1 border transition-colors ${
+                                  trackedKws.has(g.toLowerCase()) || keywords.some(k => k.keyword.toLowerCase() === g.toLowerCase())
+                                    ? 'bg-green-50 text-green-700 border-green-200 cursor-default'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+                                }`}
+                              >
+                                {trackedKws.has(g.toLowerCase()) || keywords.some(k => k.keyword.toLowerCase() === g.toLowerCase())
+                                  ? <CheckCircle className="h-3 w-3" />
+                                  : <span className="font-bold">+</span>}
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {strategy.technical_priorities?.length > 0 && (
+                        <div className="rounded-xl border bg-white p-5 shadow-sm">
+                          <h4 className="font-semibold text-slate-900 mb-3">🔧 Technical Priorities</h4>
+                          <ul className="space-y-2">
+                            {strategy.technical_priorities.map((p, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                                <Wrench className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                                {p}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
