@@ -59,6 +59,18 @@ interface Vitals {
   error?: string;
 }
 
+interface StrategyTask {
+  id: string;
+  title: string;
+  detail?: string;
+  category: 'quick_win' | 'month1' | 'month2' | 'month3' | 'technical';
+  impact: string;
+  effort: string;
+  timeframe: string;
+  done: boolean;
+  done_at: string | null;
+}
+
 interface Strategy {
   headline: string;
   quick_wins: { title: string; action: string; impact: string; effort: string; timeframe: string }[];
@@ -174,8 +186,14 @@ export default function SEOPage() {
   const [serpError, setSerpError]       = useState<string | null>(null);
 
   // Strategy state
-  const [strategy, setStrategy]           = useState<Strategy | null>(null);
+  const [strategy, setStrategy]             = useState<Strategy | null>(null);
+  const [strategyTasks, setStrategyTasks]   = useState<StrategyTask[]>([]);
+  const [strategyId, setStrategyId]         = useState<string | null>(null);
+  const [strategyCreatedAt, setStrategyCreatedAt] = useState<string | null>(null);
+  const [strategyFingerprint, setStrategyFingerprint] = useState<string | null>(null);
+  const [strategyCached, setStrategyCached] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(false);
+  const [togglingTask, setTogglingTask]     = useState<string | null>(null);
 
   // Delete state
   const [deletingKw, setDeletingKw] = useState<string | null>(null);
@@ -264,7 +282,8 @@ export default function SEOPage() {
     fetchKeywords();
     fetchActions();
     fetchVitals();
-  }, [fetchKeywords, fetchActions, fetchVitals]);
+    loadStrategy();
+  }, [fetchKeywords, fetchActions, fetchVitals, loadStrategy]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -302,18 +321,50 @@ export default function SEOPage() {
     }
   };
 
-  const fetchStrategy = async () => {
+  const applyStrategyData = (data: any) => {
+    if (data.strategy)  setStrategy(data.strategy);
+    if (data.tasks)     setStrategyTasks(data.tasks);
+    if (data.id)        setStrategyId(data.id);
+    if (data.created_at) setStrategyCreatedAt(data.created_at);
+    if (data.data_fingerprint) setStrategyFingerprint(data.data_fingerprint);
+    setStrategyCached(!!data.cached);
+  };
+
+  const loadStrategy = useCallback(async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
+      const data = await res.json();
+      if (data.success && data.strategy) applyStrategyData(data);
+    } catch { /* silent */ }
+  }, []);
+
+  const fetchStrategy = async (force = false) => {
     setStrategyLoading(true);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`, { method: 'POST' });
+      const url = `${SAMA_API_URL}/api/seo/strategy${force ? '?force=true' : ''}`;
+      const res = await fetch(url, { method: 'POST' });
       const data = await res.json();
-      if (data.success) setStrategy(data.strategy);
+      if (data.success) applyStrategyData(data);
       else setErrorMsg(data.detail || 'Strategy generation failed');
     } catch {
       setErrorMsg('Could not reach backend');
     } finally {
       setStrategyLoading(false);
     }
+  };
+
+  const toggleTask = async (taskId: string, done: boolean) => {
+    setTogglingTask(taskId);
+    // Optimistic update
+    setStrategyTasks(prev => prev.map(t => t.id === taskId ? { ...t, done, done_at: done ? new Date().toISOString() : null } : t));
+    try {
+      await fetch(`${SAMA_API_URL}/api/seo/strategy/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ done })
+      });
+    } catch { /* silent — optimistic update stays */ }
+    finally { setTogglingTask(null); }
   };
 
   const initializeKeywords = async () => {
@@ -1074,122 +1125,165 @@ export default function SEOPage() {
             )}
 
             {/* ── TAB: Strategy ──────────────────────────────────────────── */}
-            {activeTab === 'strategy' && (
-              <div className="space-y-4">
-                {/* Header */}
-                <div className="rounded-xl border bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">90-Day SEO Strategy</h3>
-                      <p className="text-xs text-slate-500 mt-1">AI-generated plan based on your current keyword data and audit results</p>
-                    </div>
-                    <button
-                      onClick={fetchStrategy}
-                      disabled={strategyLoading}
-                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
-                    >
-                      {strategyLoading
-                        ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
-                        : <><Lightbulb className="h-4 w-4" /> {strategy ? 'Regenerate' : 'Generate Strategy'}</>}
-                    </button>
-                  </div>
-                </div>
+            {activeTab === 'strategy' && (() => {
+              const doneTasks   = strategyTasks.filter(t => t.done).length;
+              const totalTasks  = strategyTasks.length;
+              const pct         = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
+              const CATEGORIES  = [
+                { key: 'quick_win', label: '⚡ Quick Wins',        color: 'yellow' },
+                { key: 'month1',    label: '📅 Month 1',           color: 'blue'   },
+                { key: 'month2',    label: '📅 Month 2',           color: 'purple' },
+                { key: 'month3',    label: '📅 Month 3',           color: 'green'  },
+                { key: 'technical', label: '🔧 Technical',         color: 'slate'  },
+              ] as const;
 
-                {!strategy && !strategyLoading && (
-                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
-                    <Target className="mx-auto h-10 w-10 text-slate-200 mb-3" />
-                    <p className="text-slate-500 text-sm">Click "Generate Strategy" to get a Claude-powered 90-day SEO plan based on your data.</p>
-                  </div>
-                )}
-
-                {strategyLoading && (
-                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
-                    <Clock className="mx-auto h-8 w-8 text-slate-300 animate-spin mb-3" />
-                    <p className="text-slate-500 text-sm">Analyzing your keyword data and generating strategy…</p>
-                  </div>
-                )}
-
-                {strategy && !strategyLoading && (
-                  <>
-                    {/* Headline */}
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                      <p className="text-sm font-semibold text-blue-900">🎯 {strategy.headline}</p>
-                    </div>
-
-                    {/* KPI Targets */}
-                    {strategy.kpi_targets && (
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          { label: 'Top-10 Keywords', value: strategy.kpi_targets.top10_keywords },
-                          { label: 'Monthly Clicks', value: strategy.kpi_targets.monthly_clicks?.toLocaleString() },
-                          { label: 'Avg Position', value: strategy.kpi_targets.avg_position },
-                        ].map(t => (
-                          <div key={t.label} className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                            <p className="text-2xl font-bold text-slate-900">{t.value ?? '—'}</p>
-                            <p className="text-xs text-slate-500 mt-1">Target: {t.label}</p>
+              return (
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="rounded-xl border bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-slate-900">90-Day SEO Strategy</h3>
+                        {strategy && (
+                          <p className="text-sm text-blue-700 font-medium mt-0.5">🎯 {strategy.headline}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          {strategyCreatedAt && (
+                            <span className="text-xs text-slate-400">
+                              Generated {new Date(strategyCreatedAt).toLocaleDateString('sv-SE')}
+                            </span>
+                          )}
+                          {strategyCached && (
+                            <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">
+                              ✓ Up to date
+                            </span>
+                          )}
+                          {totalTasks > 0 && (
+                            <span className="text-xs text-slate-500">{doneTasks}/{totalTasks} tasks done</span>
+                          )}
+                        </div>
+                        {/* Progress bar */}
+                        {totalTasks > 0 && (
+                          <div className="mt-2 h-1.5 w-64 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-
-                    {/* Quick Wins */}
-                    {strategy.quick_wins?.length > 0 && (
-                      <div className="rounded-xl border bg-white p-5 shadow-sm">
-                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                          <span className="text-yellow-500">⚡</span> Quick Wins
-                        </h4>
-                        <div className="space-y-3">
-                          {strategy.quick_wins.map((w, i) => (
-                            <div key={i} className="rounded-lg border border-slate-100 p-3 bg-slate-50">
-                              <div className="flex items-start justify-between gap-3 mb-1">
-                                <p className="text-sm font-medium text-slate-900">{w.title}</p>
-                                <div className="flex gap-1.5 flex-shrink-0">
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${w.impact === 'high' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                    {w.impact} impact
-                                  </span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${w.effort === 'low' ? 'bg-blue-100 text-blue-700' : w.effort === 'medium' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>
-                                    {w.effort} effort
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-xs text-slate-600">{w.action}</p>
-                              <p className="text-xs text-slate-400 mt-1">⏱ {w.timeframe}</p>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        {strategy && (
+                          <button
+                            onClick={() => fetchStrategy(true)}
+                            disabled={strategyLoading}
+                            title="Force regenerate even if data hasn't changed"
+                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" /> Regenerate
+                          </button>
+                        )}
+                        <button
+                          onClick={() => fetchStrategy(false)}
+                          disabled={strategyLoading}
+                          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+                        >
+                          {strategyLoading
+                            ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
+                            : <><Lightbulb className="h-4 w-4" /> {strategy ? 'Refresh' : 'Generate Strategy'}</>}
+                        </button>
                       </div>
-                    )}
-
-                    {/* Monthly roadmap */}
-                    <div className="grid md:grid-cols-3 gap-4">
-                      {[
-                        { label: 'Month 1', items: strategy.month1, color: 'blue' },
-                        { label: 'Month 2', items: strategy.month2, color: 'purple' },
-                        { label: 'Month 3', items: strategy.month3, color: 'green' },
-                      ].map(({ label, items, color }) => (
-                        <div key={label} className="rounded-xl border bg-white p-4 shadow-sm">
-                          <h4 className={`font-semibold mb-3 text-${color}-700`}>{label}</h4>
-                          {(items || []).map((m: any, i: number) => (
-                            <div key={i} className="mb-3">
-                              <p className="text-xs font-semibold text-slate-700 mb-1.5">{m.focus}</p>
-                              <ul className="space-y-1">
-                                {(m.actions || []).map((a: string, j: number) => (
-                                  <li key={j} className="flex items-start gap-1.5 text-xs text-slate-600">
-                                    <span className={`text-${color}-400 flex-shrink-0`}>•</span> {a}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
                     </div>
+                  </div>
 
-                    {/* Content gaps + Technical */}
-                    <div className="grid md:grid-cols-2 gap-4">
+                  {!strategy && !strategyLoading && (
+                    <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                      <Target className="mx-auto h-10 w-10 text-slate-200 mb-3" />
+                      <p className="text-slate-500 text-sm">Click "Generate Strategy" to get a Claude-powered 90-day SEO plan based on your data.</p>
+                    </div>
+                  )}
+
+                  {strategyLoading && (
+                    <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                      <Clock className="mx-auto h-8 w-8 text-slate-300 animate-spin mb-3" />
+                      <p className="text-slate-500 text-sm">Analyzing your keyword data and generating strategy…</p>
+                    </div>
+                  )}
+
+                  {strategy && !strategyLoading && (
+                    <>
+                      {/* KPI Targets */}
+                      {strategy.kpi_targets && (
+                        <div className="grid grid-cols-3 gap-3">
+                          {[
+                            { label: 'Top-10 Keywords Target', value: strategy.kpi_targets.top10_keywords },
+                            { label: 'Monthly Clicks Target',  value: strategy.kpi_targets.monthly_clicks?.toLocaleString() },
+                            { label: 'Avg Position Target',    value: strategy.kpi_targets.avg_position },
+                          ].map(t => (
+                            <div key={t.label} className="rounded-xl border bg-white p-4 text-center shadow-sm">
+                              <p className="text-2xl font-bold text-slate-900">{t.value ?? '—'}</p>
+                              <p className="text-xs text-slate-500 mt-1">{t.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Task lists per category */}
+                      {CATEGORIES.map(({ key, label }) => {
+                        const catTasks = strategyTasks.filter(t => t.category === key);
+                        if (!catTasks.length) return null;
+                        const catDone = catTasks.filter(t => t.done).length;
+                        return (
+                          <div key={key} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                            <div className="px-5 py-3.5 border-b bg-slate-50 flex items-center justify-between">
+                              <h4 className="font-semibold text-slate-800 text-sm">{label}</h4>
+                              <span className="text-xs text-slate-400">{catDone}/{catTasks.length} done</span>
+                            </div>
+                            <ul className="divide-y">
+                              {catTasks.map(task => (
+                                <li key={task.id}
+                                  className={`flex items-start gap-3 px-5 py-3.5 transition-colors ${task.done ? 'bg-slate-50' : 'bg-white hover:bg-slate-50/50'}`}
+                                >
+                                  <button
+                                    onClick={() => toggleTask(task.id, !task.done)}
+                                    disabled={togglingTask === task.id}
+                                    className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                      task.done
+                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                        : 'border-slate-300 hover:border-blue-400'
+                                    }`}
+                                  >
+                                    {task.done && <CheckCircle className="h-3 w-3" />}
+                                  </button>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm ${task.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                      {task.title}
+                                    </p>
+                                    {task.detail && !task.done && (
+                                      <p className="text-xs text-slate-400 mt-0.5">{task.detail}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    {task.impact && (
+                                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${task.impact === 'high' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                        {task.impact}
+                                      </span>
+                                    )}
+                                    {task.timeframe && (
+                                      <span className="text-xs text-slate-400">{task.timeframe}</span>
+                                    )}
+                                    {task.done_at && (
+                                      <span className="text-xs text-slate-300">{new Date(task.done_at).toLocaleDateString('sv-SE')}</span>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+
+                      {/* Content Gaps */}
                       {strategy.content_gaps?.length > 0 && (
                         <div className="rounded-xl border bg-white p-5 shadow-sm">
-                          <h4 className="font-semibold text-slate-900 mb-3">📝 Content Gaps</h4>
+                          <h4 className="font-semibold text-slate-900 mb-3">📝 Content Gaps — Track as Keywords</h4>
                           <div className="flex flex-wrap gap-2">
                             {strategy.content_gaps.map((g, i) => (
                               <button
@@ -1211,24 +1305,11 @@ export default function SEOPage() {
                           </div>
                         </div>
                       )}
-                      {strategy.technical_priorities?.length > 0 && (
-                        <div className="rounded-xl border bg-white p-5 shadow-sm">
-                          <h4 className="font-semibold text-slate-900 mb-3">🔧 Technical Priorities</h4>
-                          <ul className="space-y-2">
-                            {strategy.technical_priorities.map((p, i) => (
-                              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                                <Wrench className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                                {p}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
           </div>{/* end left */}
 
