@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowUp, Search, TrendingUp, Zap, FileText, Wrench, CheckCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp, Gauge } from "lucide-react";
+import { ArrowUp, Search, TrendingUp, Zap, FileText, Wrench, CheckCircle, XCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp, Gauge } from "lucide-react";
 import Link from "next/link";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
@@ -127,9 +127,10 @@ export default function SEOPage() {
 
   const executeAll = async () => {
     const pending = actions.filter(a => a.status === 'pending');
-    for (const action of pending) {
-      await executeAction(action);
-    }
+    // Run all pending actions in parallel
+    await Promise.all(pending.map(action => executeAction(action)));
+    // Refresh list after all are done
+    await fetchActions();
   };
 
   const loadVitals = async () => {
@@ -405,8 +406,10 @@ export default function SEOPage() {
                       <div className="flex items-start gap-3 flex-1">
                         {action.status === 'completed' ? (
                           <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                        ) : action.status === 'failed' ? (
+                          <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
                         ) : (
-                          getTypeIcon(action.type)
+                          getTypeIcon(action.action_type || action.type)
                         )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -415,7 +418,7 @@ export default function SEOPage() {
                               {action.priority}
                             </span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                              {action.type}
+                              {action.action_type || action.type}
                             </span>
                           </div>
                           <p className="text-sm text-slate-600">{action.description}</p>
@@ -457,20 +460,25 @@ export default function SEOPage() {
                             {action.target_page && <> | <span className="font-medium">Page:</span> {action.target_page}</>}
                           </div>
                         )}
-                        {executionResults[action.id] && (
-                          <div className={`rounded-lg p-3 ${executionResults[action.id].error ? 'bg-red-50' : 'bg-green-50'}`}>
-                            <p className="text-xs font-medium mb-1 ${executionResults[action.id].error ? 'text-red-700' : 'text-green-700'}">
-                              {executionResults[action.id].error ? 'Error' : 'Execution Result'}
-                            </p>
-                            {executionResults[action.id].suggestions ? (
-                              <pre className="text-xs text-slate-700 whitespace-pre-wrap">{executionResults[action.id].suggestions}</pre>
-                            ) : executionResults[action.id].result ? (
-                              <pre className="text-xs text-slate-700 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(executionResults[action.id].result, null, 2)}</pre>
-                            ) : (
-                              <p className="text-xs text-slate-600">{executionResults[action.id].message || executionResults[action.id].error || 'Done'}</p>
-                            )}
-                          </div>
-                        )}
+                        {executionResults[action.id] && (() => {
+                          const res = executionResults[action.id];
+                          const isError = !!res.error || res.success === false;
+                          const text = res.suggestions || res.fix_plan || res.message || res.error;
+                          return (
+                            <div className={`rounded-lg p-3 ${isError ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                              <p className={`text-xs font-semibold mb-2 ${isError ? 'text-red-700' : 'text-green-700'}`}>
+                                {isError ? '❌ Failed' : '✅ Completed'}
+                                {res.action_type && <span className="ml-2 font-normal opacity-70">({res.action_type})</span>}
+                              </p>
+                              {text && (
+                                <pre className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{text}</pre>
+                              )}
+                              {res.result && !text && (
+                                <pre className="text-xs text-slate-700 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(res.result, null, 2)}</pre>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
