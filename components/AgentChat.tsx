@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Send, MessageSquare, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Send, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 
 interface AgentChatProps {
   agentName: string;
@@ -13,11 +13,31 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Load chat history on mount
   useEffect(() => {
     loadHistory();
   }, []);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory, loading]);
+
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  };
+
+  const handleScroll = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      setShowScrollDown(scrollHeight - scrollTop - clientHeight > 50);
+    }
+  };
 
   const loadHistory = async () => {
     try {
@@ -81,7 +101,7 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
         </p>
       </div>
 
-      <div className="h-64 overflow-y-auto p-4 space-y-3">
+      <div ref={chatContainerRef} onScroll={handleScroll} className="h-[500px] overflow-y-auto p-4 space-y-3 relative">
         {chatHistory.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
             Start a conversation with the {agentName} agent...
@@ -107,6 +127,13 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
           </div>
         )}
       </div>
+      {showScrollDown && (
+        <div className="flex justify-center -mt-10 mb-2 relative z-10">
+          <button onClick={scrollToBottom} className="rounded-full bg-blue-600 p-2 text-white shadow-lg hover:bg-blue-700">
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="border-t p-4">
         <div className="flex gap-2">

@@ -149,10 +149,10 @@ export default function ContentPage() {
         </div>
       </nav>
 
-      <main className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex gap-6">
+      <main className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex gap-6 max-w-[1400px] mx-auto">
         {/* Left: Content Area */}
-        <div className="flex-1 min-w-0">
+        <div className="max-w-4xl flex-1 min-w-0">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
