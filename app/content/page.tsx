@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen, Search, ExternalLink, Copy, Check } from "lucide-react";
+import { FileText, TrendingUp, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen, Search, ExternalLink, Copy, Check, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 
@@ -35,24 +35,20 @@ export default function ContentPage() {
   const [loading, setLoading] = useState(true);
   const [contentPieces, setContentPieces] = useState<ContentPiece[]>([]);
 
-  // Analysis state
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [actions, setActions] = useState<Action[]>([]);
 
-  // Execution state
   const [executing, setExecuting] = useState<string | null>(null);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
 
-  // UI state
-  const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars' | 'chat'>('library');
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
   const [filterType, setFilterType] = useState<'all' | 'blog_post' | 'comparison'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // YAML fix state
   const [fixingYaml, setFixingYaml] = useState(false);
   const [yamlFixResult, setYamlFixResult] = useState<{ fixed: number; skipped: number; errors: number } | null>(null);
 
@@ -81,13 +77,11 @@ export default function ContentPage() {
         const data = await response.json();
         setAnalysis(data);
         setActions(data.actions || []);
-        if (data.content?.length > 0) {
-          setContentPieces(data.content);
-        }
+        if (data.content?.length > 0) setContentPieces(data.content);
       } else {
         alert('Analysis failed. Check backend connection.');
       }
-    } catch (error) {
+    } catch {
       alert('Error connecting to backend.');
     } finally {
       setAnalyzing(false);
@@ -109,7 +103,7 @@ export default function ContentPage() {
       } else {
         setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
       }
-    } catch (error) {
+    } catch {
       setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Backend not reachable' } }));
     } finally {
       setExecuting(null);
@@ -130,12 +124,11 @@ export default function ContentPage() {
   };
 
   const getTypeIcon = (t: string) => {
-    if (t === 'blog_post') return <PenTool className="h-5 w-5 text-blue-600" />;
-    if (t === 'comparison') return <BarChart3 className="h-5 w-5 text-purple-600" />;
-    if (t === 'optimize') return <TrendingUp className="h-5 w-5 text-green-600" />;
-    if (t === 'meta') return <FileText className="h-5 w-5 text-orange-600" />;
-    if (t === 'publish') return <CheckCircle className="h-5 w-5 text-green-600" />;
-    return <BookOpen className="h-5 w-5 text-slate-600" />;
+    if (t === 'blog_post') return <PenTool className="h-4 w-4 text-blue-600" />;
+    if (t === 'comparison') return <BarChart3 className="h-4 w-4 text-purple-600" />;
+    if (t === 'optimize') return <TrendingUp className="h-4 w-4 text-green-600" />;
+    if (t === 'publish') return <CheckCircle className="h-4 w-4 text-green-600" />;
+    return <BookOpen className="h-4 w-4 text-slate-600" />;
   };
 
   const getLiveUrl = (cp: ContentPiece) => {
@@ -189,344 +182,369 @@ export default function ContentPage() {
   const publishedCount = contentPieces.filter(c => c.status === 'published').length;
   const draftCount = contentPieces.filter(c => c.status === 'draft').length;
 
+  const tabs = [
+    { id: 'library' as const, label: 'Library', shortLabel: 'Library', icon: <BookOpen className="h-4 w-4" /> },
+    { id: 'actions' as const, label: `Actions${pendingCount > 0 ? ` (${pendingCount})` : ''}`, shortLabel: pendingCount > 0 ? `(${pendingCount})` : 'Actions', icon: <Zap className="h-4 w-4" /> },
+    { id: 'pillars' as const, label: 'Pillars', shortLabel: 'Pillars', icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'chat' as const, label: 'Chat', shortLabel: 'Chat', icon: <MessageSquare className="h-4 w-4" />, mobileOnly: true },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
+      {/* Nav */}
+      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <FileText className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-slate-900">Content Agent</h1>
+          <div className="flex h-14 items-center justify-between gap-4">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
+              <FileText className="h-6 w-6 text-blue-600" />
+              <span className="text-lg font-bold text-slate-900">Content</span>
             </Link>
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">← Back to Dashboard</Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing}
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-sm"
+              >
+                {analyzing
+                  ? <><Clock className="h-4 w-4 animate-spin" /><span className="hidden sm:inline">Analyzing…</span></>
+                  : <><Zap className="h-4 w-4" /><span className="hidden sm:inline">Run Analysis</span></>
+                }
+              </button>
+              <Link href="/" className="text-sm font-medium text-slate-500 hover:text-slate-900 hidden sm:block">← Dashboard</Link>
+            </div>
           </div>
         </div>
       </nav>
 
-      <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex gap-6 max-w-[1400px] mx-auto">
-        {/* Left: Content Area */}
-        <div className="max-w-4xl flex-1 min-w-0">
-        <div className="mb-8 flex items-start justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
-            <p className="mt-2 text-slate-600">Analyze gaps → Generate content → Optimize → Publish</p>
-          </div>
-          <button onClick={runAnalysis} disabled={analyzing}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Content Analysis</>}
-          </button>
-        </div>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex gap-6 items-start">
 
-        {/* Stats */}
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Total Content</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{contentPieces.length}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Published</p>
-            <p className="mt-1 text-2xl font-bold text-green-600">{publishedCount}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Drafts</p>
-            <p className="mt-1 text-2xl font-bold text-yellow-600">{draftCount}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Actions Pending</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">{pendingCount}</p>
-          </div>
-        </div>
+          {/* ── Left / Main column ── */}
+          <div className="flex-1 min-w-0 space-y-5">
 
-        {/* Tabs */}
-        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm">
-          {[
-            { id: 'library' as const, label: 'Content Library', icon: <BookOpen className="h-4 w-4" /> },
-            { id: 'actions' as const, label: `Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
-            { id: 'pillars' as const, label: 'Content Pillars', icon: <BarChart3 className="h-4 w-4" /> },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}>
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* TAB: Library */}
-        {activeTab === 'library' && (
-          <div className="space-y-4">
-            {/* Search + Filters */}
-            <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Sök på titel eller nyckelord..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full rounded-lg border pl-9 pr-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-medium text-slate-500 self-center">Status:</span>
-                {(['all', 'published', 'draft'] as const).map(s => (
-                  <button key={s} onClick={() => setFilterStatus(s)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      filterStatus === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}>
-                    {s === 'all' ? `Alla (${contentPieces.length})` : s === 'published' ? `Publicerade (${publishedCount})` : `Utkast (${draftCount})`}
-                  </button>
-                ))}
-                <span className="text-xs font-medium text-slate-500 self-center ml-2">Typ:</span>
-                {(['all', 'blog_post', 'comparison'] as const).map(t => (
-                  <button key={t} onClick={() => setFilterType(t)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      filterType === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}>
-                    {t === 'all' ? 'Alla typer' : t === 'blog_post' ? 'Blogginlägg' : 'Jämförelser'}
-                  </button>
-                ))}
-              </div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Totalt', value: contentPieces.length, color: 'text-slate-900' },
+                { label: 'Publicerade', value: publishedCount, color: 'text-green-600' },
+                { label: 'Utkast', value: draftCount, color: 'text-yellow-600' },
+                { label: 'Åtgärder', value: pendingCount, color: 'text-blue-600' },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl border bg-white p-4 shadow-sm">
+                  <p className="text-xs font-medium text-slate-500">{s.label}</p>
+                  <p className={`mt-0.5 text-2xl font-bold ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="rounded-lg border bg-white shadow-sm">
-              <div className="border-b px-6 py-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">Visar {filteredContent.length} av {contentPieces.length} innehållsstycken</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {yamlFixResult && (
-                    <p className="text-xs text-slate-500">
-                      YAML-fix: <span className="text-green-600 font-medium">{yamlFixResult.fixed} fixade</span>
-                      {yamlFixResult.errors > 0 && <span className="text-red-600 font-medium"> · {yamlFixResult.errors} fel</span>}
-                    </p>
-                  )}
+            {/* Tab bar */}
+            <div className="flex overflow-x-auto gap-1 rounded-xl bg-white p-1 border shadow-sm scrollbar-none">
+              {tabs
+                .filter(t => !t.mobileOnly || true) // always render all; control visibility via class
+                .map(tab => (
                   <button
-                    onClick={fixYamlFrontMatter}
-                    disabled={fixingYaml}
-                    title="Reparera felformaterad YAML front matter i alla blogginlägg i Supabase"
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={[
+                      'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors shrink-0',
+                      tab.id === 'chat' ? 'lg:hidden' : '',
+                      activeTab === tab.id
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-600 hover:bg-slate-100',
+                    ].join(' ')}
                   >
-                    {fixingYaml ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                    {fixingYaml ? 'Fixar YAML...' : 'Fix YAML'}
+                    {tab.icon}
+                    <span className="hidden xs:inline sm:inline">{tab.label}</span>
+                    {/* On very small screens show only icon for non-chat tabs */}
+                    <span className="xs:hidden sm:hidden inline">{tab.id === 'chat' ? 'Chat' : tab.shortLabel}</span>
                   </button>
+                ))}
+            </div>
+
+            {/* ── TAB: Library ── */}
+            {activeTab === 'library' && (
+              <div className="space-y-3">
+                {/* Search + filters */}
+                <div className="rounded-xl border bg-white p-4 shadow-sm space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Sök titel eller nyckelord…"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      className="w-full rounded-lg border pl-9 pr-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['all', 'published', 'draft'] as const).map(s => (
+                      <button key={s} onClick={() => setFilterStatus(s)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterStatus === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {s === 'all' ? `Alla (${contentPieces.length})` : s === 'published' ? `Publicerade (${publishedCount})` : `Utkast (${draftCount})`}
+                      </button>
+                    ))}
+                    <div className="w-px bg-slate-200 mx-1 self-stretch" />
+                    {(['all', 'blog_post', 'comparison'] as const).map(t => (
+                      <button key={t} onClick={() => setFilterType(t)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${filterType === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {t === 'all' ? 'Alla typer' : t === 'blog_post' ? 'Blogg' : 'Jämförelse'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {loading ? (
-                <div className="p-8 text-center text-sm text-slate-500">Laddar innehåll...</div>
-              ) : contentPieces.length === 0 ? (
-                <div className="p-12 text-center">
-                  <FileText className="mx-auto h-12 w-12 text-slate-300" />
-                  <h3 className="mt-4 text-lg font-semibold text-slate-900">Inget innehåll ännu</h3>
-                  <p className="mt-2 text-sm text-slate-500">Kör analys för att hitta innehållsgap och generera nya stycken.</p>
-                </div>
-              ) : filteredContent.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">Inga träffar för din sökning eller dina filter.</div>
-              ) : (
-                <div className="divide-y">
-                  {filteredContent.map((cp) => {
-                    const liveUrl = getLiveUrl(cp);
-                    const slug = liveUrl.split('/').pop() || '';
-                    return (
-                      <div key={cp.id} className="p-4 hover:bg-slate-50 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5">{getTypeIcon(cp.type)}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h4 className="font-medium text-slate-900 truncate">{cp.title}</h4>
-                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                                cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                              }`}>{cp.status === 'published' ? 'Publicerad' : 'Utkast'}</span>
-                              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                                {cp.type === 'blog_post' ? 'Blogginlägg' : cp.type === 'comparison' ? 'Jämförelse' : cp.type}
-                              </span>
-                            </div>
+                {/* List */}
+                <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                  {/* Header */}
+                  <div className="border-b px-4 py-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-slate-700">
+                      {filteredContent.length} <span className="text-slate-400 font-normal">/ {contentPieces.length} inlägg</span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {yamlFixResult && (
+                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
+                          {yamlFixResult.fixed} fixade{yamlFixResult.errors > 0 && ` · ${yamlFixResult.errors} fel`}
+                        </span>
+                      )}
+                      <button
+                        onClick={fixYamlFrontMatter}
+                        disabled={fixingYaml}
+                        title="Reparera felformaterad YAML front matter"
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {fixingYaml ? <Clock className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                        Fix YAML
+                      </button>
+                    </div>
+                  </div>
 
-                            {/* URL-rad */}
-                            <div className="flex items-center gap-2 mt-1">
-                              {liveUrl ? (
-                                <>
-                                  <code className="text-xs text-slate-500 bg-slate-100 rounded px-2 py-0.5 truncate max-w-xs">
-                                    {liveUrl}
-                                  </code>
-                                  <a href={liveUrl} target="_blank" rel="noopener noreferrer"
-                                    className="shrink-0 text-blue-600 hover:text-blue-700" title="Öppna sida">
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </a>
-                                  <button onClick={() => copyUrl(cp.id, liveUrl)}
-                                    className="shrink-0 text-slate-400 hover:text-slate-600" title="Kopiera URL">
-                                    {copiedId === cp.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-xs text-slate-400 italic">Ingen URL (ej publicerad eller okänd typ)</span>
-                              )}
-                            </div>
+                  {loading ? (
+                    <div className="p-8 text-center text-sm text-slate-400">Laddar…</div>
+                  ) : contentPieces.length === 0 ? (
+                    <div className="p-10 text-center">
+                      <FileText className="mx-auto h-10 w-10 text-slate-200" />
+                      <p className="mt-3 text-sm font-medium text-slate-600">Inget innehåll ännu</p>
+                      <p className="mt-1 text-xs text-slate-400">Kör analys för att hitta innehållsgap.</p>
+                    </div>
+                  ) : filteredContent.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-slate-400">Inga träffar.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredContent.map((cp) => {
+                        const liveUrl = getLiveUrl(cp);
+                        return (
+                          <div key={cp.id} className="px-4 py-3 hover:bg-slate-50 transition-colors">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 shrink-0">{getTypeIcon(cp.type)}</div>
+                              <div className="flex-1 min-w-0">
+                                {/* Title + badges */}
+                                <div className="flex items-start gap-2 flex-wrap">
+                                  <p className="text-sm font-medium text-slate-900 leading-snug">{cp.title}</p>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                      {cp.status === 'published' ? 'Publicerad' : 'Utkast'}
+                                    </span>
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                      {cp.type === 'blog_post' ? 'Blogg' : cp.type === 'comparison' ? 'Jämförelse' : cp.type}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                              {cp.word_count > 0 && <span>{cp.word_count} ord</span>}
-                              {cp.target_keyword && <span>· Nyckelord: <span className="font-medium">{cp.target_keyword}</span></span>}
-                              {cp.created_at && <span>· {new Date(cp.created_at).toLocaleDateString('sv-SE')}</span>}
+                                {/* Meta row */}
+                                <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                  {cp.target_keyword && (
+                                    <span className="text-xs text-slate-500">{cp.target_keyword}</span>
+                                  )}
+                                  {cp.word_count > 0 && (
+                                    <span className="text-xs text-slate-400">{cp.word_count} ord</span>
+                                  )}
+                                  {cp.created_at && (
+                                    <span className="text-xs text-slate-400">{new Date(cp.created_at).toLocaleDateString('sv-SE')}</span>
+                                  )}
+                                  {liveUrl && (
+                                    <div className="flex items-center gap-1 ml-auto">
+                                      <a href={liveUrl} target="_blank" rel="noopener noreferrer"
+                                        className="text-blue-500 hover:text-blue-700" title="Öppna">
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                      </a>
+                                      <button onClick={() => copyUrl(cp.id, liveUrl)}
+                                        className="text-slate-400 hover:text-slate-600" title="Kopiera URL">
+                                        {copiedId === cp.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: Actions */}
-        {activeTab === 'actions' && (
-          <div className="space-y-4">
-            {analysis && (
-              <div className="rounded-lg border bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Content Analysis</h3>
-                  {pendingCount > 0 && (
-                    <button onClick={executeAll} disabled={executing !== null}
-                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                      <Play className="h-4 w-4" /> Execute All ({pendingCount})
-                    </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="rounded-lg bg-slate-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-slate-900">{analysis.summary?.total_actions || 0}</p>
-                    <p className="text-xs text-slate-500">Total Actions</p>
-                  </div>
-                  <div className="rounded-lg bg-orange-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-orange-600">{analysis.summary?.content_gaps || 0}</p>
-                    <p className="text-xs text-orange-600">Content Gaps</p>
-                  </div>
-                  <div className="rounded-lg bg-blue-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{analysis.summary?.content_pieces || 0}</p>
-                    <p className="text-xs text-blue-600">Existing Pieces</p>
-                  </div>
-                  <div className="rounded-lg bg-green-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-green-600">{completedCount}</p>
-                    <p className="text-xs text-green-600">Completed</p>
-                  </div>
                 </div>
               </div>
             )}
 
-            {actions.length === 0 ? (
-              <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
-                <Zap className="mx-auto h-12 w-12 text-slate-300" />
-                <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Click "Run Content Analysis" to find gaps and generate recommendations.</p>
-              </div>
-            ) : (
-              actions.map((action) => (
-                <div key={action.id} className={`rounded-lg border bg-white shadow-sm transition-all ${action.status === 'completed' ? 'opacity-75' : ''}`}>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        {action.status === 'completed' ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" /> : getTypeIcon(action.type)}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-slate-900">{action.title}</h4>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type.replace(/_/g, ' ')}</span>
-                          </div>
-                          <p className="text-sm text-slate-600">{action.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        {action.status === 'pending' && (
-                          <button onClick={() => executeAction(action)} disabled={executing === action.id}
-                            className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                            {executing === action.id ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
-                          </button>
-                        )}
-                        <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)} className="rounded p-1 hover:bg-slate-100">
-                          {expandedAction === action.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {/* ── TAB: Actions ── */}
+            {activeTab === 'actions' && (
+              <div className="space-y-3">
+                {analysis && (
+                  <div className="rounded-xl border bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900">Content Analysis</h3>
+                      {pendingCount > 0 && (
+                        <button onClick={executeAll} disabled={executing !== null}
+                          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shrink-0">
+                          <Play className="h-3.5 w-3.5" /> Kör alla ({pendingCount})
                         </button>
-                      </div>
+                      )}
                     </div>
-
-                    {expandedAction === action.id && (
-                      <div className="mt-3 ml-8 space-y-2">
-                        <div className="rounded-lg bg-slate-50 p-3">
-                          <p className="text-xs font-medium text-slate-500 mb-1">Recommended Action</p>
-                          <p className="text-sm text-slate-700">{action.action}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { label: 'Totalt', value: analysis.summary?.total_actions || 0, cls: 'text-slate-900' },
+                        { label: 'Gaps', value: analysis.summary?.content_gaps || 0, cls: 'text-orange-600' },
+                        { label: 'Inlägg', value: analysis.summary?.content_pieces || 0, cls: 'text-blue-600' },
+                        { label: 'Klara', value: completedCount, cls: 'text-green-600' },
+                      ].map(s => (
+                        <div key={s.label} className="rounded-lg bg-slate-50 p-2.5 text-center">
+                          <p className={`text-xl font-bold ${s.cls}`}>{s.value}</p>
+                          <p className="text-xs text-slate-500">{s.label}</p>
                         </div>
-                        {action.keyword && <p className="text-xs text-slate-500"><span className="font-medium">Keyword:</span> {action.keyword}</p>}
-                        {action.competitor && <p className="text-xs text-slate-500"><span className="font-medium">Competitor:</span> {action.competitor}</p>}
-                        {action.pillar && <p className="text-xs text-slate-500"><span className="font-medium">Pillar:</span> {action.pillar}</p>}
-                        {executionResults[action.id] && (
-                          <div className={`rounded-lg p-3 ${executionResults[action.id].error ? 'bg-red-50' : 'bg-green-50'}`}>
-                            <p className="text-xs font-medium mb-1">{executionResults[action.id].error ? 'Error' : 'Result'}</p>
-                            {executionResults[action.id].result ? (
-                              <pre className="text-xs text-slate-700 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(executionResults[action.id].result, null, 2)}</pre>
-                            ) : executionResults[action.id].meta_description ? (
-                              <p className="text-sm text-slate-700">{executionResults[action.id].meta_description}</p>
-                            ) : (
-                              <p className="text-xs text-slate-600">{executionResults[action.id].message || executionResults[action.id].error || 'Done'}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {actions.length === 0 ? (
+                  <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
+                    <Zap className="mx-auto h-10 w-10 text-slate-200" />
+                    <p className="mt-3 text-sm font-medium text-slate-600">Inga åtgärder ännu</p>
+                    <p className="mt-1 text-xs text-slate-400">Klicka "Run Analysis" för att hitta innehållsgap.</p>
+                  </div>
+                ) : (
+                  actions.map((action) => (
+                    <div key={action.id} className={`rounded-xl border bg-white shadow-sm transition-all ${action.status === 'completed' ? 'opacity-60' : ''}`}>
+                      <div className="p-4">
+                        {/* Top row */}
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 shrink-0">
+                            {action.status === 'completed'
+                              ? <CheckCircle className="h-4 w-4 text-green-600" />
+                              : getTypeIcon(action.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-2 flex-wrap mb-1">
+                              <p className="text-sm font-medium text-slate-900 leading-snug">{action.title}</p>
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>
+                                {action.priority}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 leading-relaxed">{action.description}</p>
+                          </div>
+                          <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
+                            className="shrink-0 rounded p-1 hover:bg-slate-100 text-slate-400">
+                            {expandedAction === action.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        </div>
+
+                        {/* Execute button – below title on mobile */}
+                        {action.status === 'pending' && (
+                          <div className="mt-3 ml-7">
+                            <button onClick={() => executeAction(action)} disabled={executing === action.id}
+                              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
+                              {executing === action.id
+                                ? <><Clock className="h-3 w-3 animate-spin" /> Kör…</>
+                                : <><Play className="h-3 w-3" /> Kör</>}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Expanded detail */}
+                        {expandedAction === action.id && (
+                          <div className="mt-3 ml-7 space-y-2">
+                            <div className="rounded-lg bg-slate-50 p-3">
+                              <p className="text-xs font-medium text-slate-500 mb-1">Rekommenderad åtgärd</p>
+                              <p className="text-sm text-slate-700">{action.action}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              {action.keyword && <p className="text-xs text-slate-500"><span className="font-medium">Keyword:</span> {action.keyword}</p>}
+                              {action.competitor && <p className="text-xs text-slate-500"><span className="font-medium">Competitor:</span> {action.competitor}</p>}
+                              {action.pillar && <p className="text-xs text-slate-500"><span className="font-medium">Pillar:</span> {action.pillar}</p>}
+                            </div>
+                            {executionResults[action.id] && (
+                              <div className={`rounded-lg p-3 ${executionResults[action.id].error ? 'bg-red-50' : 'bg-green-50'}`}>
+                                <p className="text-xs font-medium mb-1">{executionResults[action.id].error ? 'Fel' : 'Resultat'}</p>
+                                {executionResults[action.id].result ? (
+                                  <pre className="text-xs text-slate-700 whitespace-pre-wrap overflow-auto max-h-40">{JSON.stringify(executionResults[action.id].result, null, 2)}</pre>
+                                ) : (
+                                  <p className="text-xs text-slate-600">{executionResults[action.id].meta_description || executionResults[action.id].message || executionResults[action.id].error || 'Klar'}</p>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Pillars ── */}
+            {activeTab === 'pillars' && (
+              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                <div className="border-b px-4 py-4">
+                  <h3 className="text-sm font-semibold text-slate-900">Content Pillars</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Strategiska innehållsteman för topical authority</p>
                 </div>
-              ))
+                <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    { key: 'churn_prevention', title: 'Churn Prevention', desc: 'Detecting and reducing churn', color: 'border-red-200 bg-red-50' },
+                    { key: 'health_scoring', title: 'Health Scoring', desc: 'Customer health scoring frameworks', color: 'border-green-200 bg-green-50' },
+                    { key: 'cs_automation', title: 'CS Automation', desc: 'Automating workflows and playbooks', color: 'border-blue-200 bg-blue-50' },
+                    { key: 'onboarding', title: 'Onboarding', desc: 'Customer onboarding best practices', color: 'border-purple-200 bg-purple-50' },
+                    { key: 'nrr_growth', title: 'NRR Growth', desc: 'Net revenue retention strategies', color: 'border-yellow-200 bg-yellow-50' },
+                    { key: 'competitor', title: 'Competitor Comparisons', desc: 'vs Gainsight, Totango, ChurnZero', color: 'border-orange-200 bg-orange-50' },
+                  ].map(pillar => {
+                    const count = contentPieces.filter(cp =>
+                      (cp.target_keyword || '').toLowerCase().includes(pillar.key.replace(/_/g, ' ')) ||
+                      (cp.title || '').toLowerCase().includes(pillar.key.replace(/_/g, ' '))
+                    ).length;
+                    return (
+                      <div key={pillar.key} className={`rounded-xl border p-4 ${pillar.color}`}>
+                        <p className="text-sm font-semibold text-slate-900">{pillar.title}</p>
+                        <p className="mt-1 text-xs text-slate-600">{pillar.desc}</p>
+                        <p className="mt-2 text-xs font-medium text-slate-500">{count} inlägg</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB: Chat (mobile only) ── */}
+            {activeTab === 'chat' && (
+              <div className="lg:hidden">
+                <AgentChat
+                  agentName="Content"
+                  apiUrl={`${SAMA_API_URL}/api/content`}
+                  placeholder="Skapa blogginlägg, jämförelsesidor eller analysera innehållsgap"
+                />
+              </div>
             )}
           </div>
-        )}
 
-        {/* TAB: Content Pillars */}
-        {activeTab === 'pillars' && (
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Content Pillars</h3>
-              <p className="mt-1 text-sm text-slate-500">Strategic content themes for topical authority</p>
-            </div>
-            <div className="grid gap-4 p-6 md:grid-cols-3">
-              {[
-                { key: 'churn_prevention', title: 'Churn Prevention', desc: 'Content around detecting and reducing churn', color: 'border-red-200 bg-red-50' },
-                { key: 'health_scoring', title: 'Health Scoring', desc: 'Customer health scoring frameworks', color: 'border-green-200 bg-green-50' },
-                { key: 'cs_automation', title: 'CS Automation', desc: 'Automating workflows and playbooks', color: 'border-blue-200 bg-blue-50' },
-                { key: 'onboarding', title: 'Onboarding', desc: 'Customer onboarding best practices', color: 'border-purple-200 bg-purple-50' },
-                { key: 'nrr_growth', title: 'NRR Growth', desc: 'Net revenue retention strategies', color: 'border-yellow-200 bg-yellow-50' },
-                { key: 'competitor', title: 'Competitor Comparisons', desc: 'vs Gainsight, Totango, ChurnZero', color: 'border-orange-200 bg-orange-50' },
-              ].map(pillar => {
-                const count = contentPieces.filter(cp =>
-                  (cp.target_keyword || '').toLowerCase().includes(pillar.key.replace(/_/g, ' ')) ||
-                  (cp.title || '').toLowerCase().includes(pillar.key.replace(/_/g, ' '))
-                ).length;
-                return (
-                  <div key={pillar.key} className={`rounded-lg border p-4 ${pillar.color}`}>
-                    <h4 className="font-semibold text-slate-900">{pillar.title}</h4>
-                    <p className="mt-1 text-sm text-slate-600">{pillar.desc}</p>
-                    <p className="mt-2 text-xs font-medium text-slate-500">{count} pieces</p>
-                  </div>
-                );
-              })}
+          {/* ── Right: Chat sidebar (desktop only) ── */}
+          <div className="hidden lg:block w-[360px] shrink-0">
+            <div className="sticky top-20">
+              <AgentChat
+                agentName="Content"
+                apiUrl={`${SAMA_API_URL}/api/content`}
+                placeholder="Skapa blogginlägg, jämförelsesidor eller analysera innehållsgap"
+              />
             </div>
           </div>
-        )}
 
-        </div>
-
-        {/* Right: Agent Chat Sidebar */}
-        <div className="hidden lg:block w-[380px] flex-shrink-0">
-          <div className="sticky top-8">
-            <AgentChat 
-              agentName="Content"
-              apiUrl={`${SAMA_API_URL}/api/content`}
-              placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
-            />
-          </div>
-        </div>
         </div>
       </main>
     </div>
