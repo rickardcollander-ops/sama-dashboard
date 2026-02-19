@@ -829,9 +829,161 @@ export default function SEOPage() {
                                 </div>
                               )}
                               {(res || action.execution_result) && (() => {
-                                const r       = res || action.execution_result;
+                                const r = res || action.execution_result;
                                 const isError = !!r.error || r.success === false;
-                                const text    = r.suggestions || r.fix_plan || r.message || r.error;
+
+                                // ── Content generated → show PR link ──────────
+                                if (r.action_type === 'content_generated') {
+                                  const gh = r.github || {};
+                                  const pr_ok = gh.success && gh.pr_url;
+                                  return (
+                                    <div className={`rounded-lg p-3 border space-y-2 ${isError ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                                      <p className="text-xs font-semibold text-green-700">✅ Blog post generated</p>
+                                      {r.result && (
+                                        <div className="text-xs text-slate-600 space-y-0.5">
+                                          <p><span className="font-medium">Title:</span> {r.result.title}</p>
+                                          <p><span className="font-medium">Words:</span> {r.result.word_count}</p>
+                                          <p><span className="font-medium">Slug:</span> /blog/{r.result.slug}</p>
+                                          <p className="italic text-slate-500">{r.result.meta_description}</p>
+                                        </div>
+                                      )}
+                                      {pr_ok ? (
+                                        <a href={gh.pr_url} target="_blank" rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                                          🔗 Review PR #{gh.pr_number} on GitHub
+                                        </a>
+                                      ) : (
+                                        <p className="text-xs text-orange-600">
+                                          ⚠️ GitHub PR failed: {gh.error || 'GITHUB_TOKEN may not be set in Railway'}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                // ── On-page suggestions → structured boxes ──
+                                if (r.action_type === 'on_page_suggestions') {
+                                  const s = r.suggestions || {};
+                                  const raw = s.raw;
+                                  return (
+                                    <div className="rounded-lg border bg-green-50 border-green-200 p-3 space-y-2">
+                                      <p className="text-xs font-semibold text-green-700">✅ On-page optimisation</p>
+                                      {raw ? (
+                                        <pre className="text-xs text-slate-700 whitespace-pre-wrap">{raw}</pre>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {s.title_tag && (
+                                            <div className="rounded bg-white border p-2">
+                                              <p className="text-xs font-medium text-slate-500 mb-0.5">Title tag ({s.title_tag.length} chars)</p>
+                                              <p className="text-xs font-mono text-slate-800">{s.title_tag}</p>
+                                            </div>
+                                          )}
+                                          {s.meta_description && (
+                                            <div className="rounded bg-white border p-2">
+                                              <p className="text-xs font-medium text-slate-500 mb-0.5">Meta description ({s.meta_description.length} chars)</p>
+                                              <p className="text-xs font-mono text-slate-800">{s.meta_description}</p>
+                                            </div>
+                                          )}
+                                          {s.h1 && (
+                                            <div className="rounded bg-white border p-2">
+                                              <p className="text-xs font-medium text-slate-500 mb-0.5">H1</p>
+                                              <p className="text-xs font-mono text-slate-800">{s.h1}</p>
+                                            </div>
+                                          )}
+                                          {s.lsi_keywords?.length > 0 && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 mb-1">LSI keywords to add</p>
+                                              <div className="flex flex-wrap gap-1">
+                                                {s.lsi_keywords.map((kw: string, i: number) => (
+                                                  <span key={i} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{kw}</span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {s.internal_links?.length > 0 && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 mb-1">Internal links to add</p>
+                                              <ul className="space-y-1">
+                                                {s.internal_links.map((link: any, i: number) => (
+                                                  <li key={i} className="text-xs text-slate-700">
+                                                    → <span className="font-medium">&quot;{link.anchor}&quot;</span> → <span className="font-mono text-blue-600">{link.url}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                          {s.quick_wins?.length > 0 && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 mb-1">Quick wins</p>
+                                              <ul className="space-y-1">
+                                                {s.quick_wins.map((win: string, i: number) => (
+                                                  <li key={i} className="text-xs text-slate-700 flex gap-1.5">
+                                                    <span className="text-green-600 flex-shrink-0">✓</span>{win}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                // ── Technical fix plan → structured steps ───
+                                if (r.action_type === 'technical_fix_plan') {
+                                  const fp = r.fix_plan || {};
+                                  const raw = fp.raw;
+                                  const severityColor: Record<string, string> = {
+                                    critical: 'bg-red-100 text-red-700',
+                                    high: 'bg-orange-100 text-orange-700',
+                                    medium: 'bg-yellow-100 text-yellow-700',
+                                    low: 'bg-blue-100 text-blue-700'
+                                  };
+                                  return (
+                                    <div className="rounded-lg border bg-green-50 border-green-200 p-3 space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-xs font-semibold text-green-700">✅ Technical fix plan</p>
+                                        {fp.severity && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${severityColor[fp.severity] || ''}`}>{fp.severity}</span>}
+                                        {fp.estimated_effort && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">⏱ {fp.estimated_effort}</span>}
+                                      </div>
+                                      {raw ? (
+                                        <pre className="text-xs text-slate-700 whitespace-pre-wrap">{raw}</pre>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {fp.expected_impact && <p className="text-xs text-slate-600 italic">{fp.expected_impact}</p>}
+                                          {fp.steps?.length > 0 && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 mb-1">Steps</p>
+                                              <ol className="space-y-1">
+                                                {fp.steps.map((step: string, i: number) => (
+                                                  <li key={i} className="text-xs text-slate-700 flex gap-1.5">
+                                                    <span className="font-medium text-slate-400 flex-shrink-0">{i + 1}.</span>{step}
+                                                  </li>
+                                                ))}
+                                              </ol>
+                                            </div>
+                                          )}
+                                          {fp.files_to_change?.length > 0 && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 mb-1">Files to change</p>
+                                              <div className="flex flex-wrap gap-1">
+                                                {fp.files_to_change.map((f: string, i: number) => (
+                                                  <span key={i} className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-700">{f}</span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                // ── Fallback / unknown ───────────────────────
+                                const text = typeof r.suggestions === 'string' ? r.suggestions
+                                  : typeof r.fix_plan === 'string' ? r.fix_plan
+                                  : r.message || r.error;
                                 return (
                                   <div className={`rounded-lg p-3 border ${isError ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                                     <p className={`text-xs font-semibold mb-1.5 ${isError ? 'text-red-700' : 'text-green-700'}`}>
