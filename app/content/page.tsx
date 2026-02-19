@@ -48,6 +48,8 @@ export default function ContentPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   useEffect(() => { fetchLibrary(); }, []);
 
@@ -132,6 +134,13 @@ export default function ContentPage() {
     return <BookOpen className="h-5 w-5 text-slate-600" />;
   };
 
+  const filteredPieces = contentPieces.filter(cp => {
+    const matchesStatus = statusFilter === 'all' || cp.status === statusFilter;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || cp.title.toLowerCase().includes(q) || (cp.target_keyword || '').toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
+
   const pendingCount = actions.filter(a => a.status === 'pending').length;
   const completedCount = actions.filter(a => a.status === 'completed').length;
   const publishedCount = contentPieces.filter(c => c.status === 'published').length;
@@ -167,10 +176,16 @@ export default function ContentPage() {
             <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
             <p className="mt-2 text-slate-600">Analyze gaps → Generate content → Optimize → Publish</p>
           </div>
-          <button onClick={runAnalysis} disabled={analyzing}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Content Analysis</>}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link href="/content-analytics"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
+              <TrendingUp className="h-4 w-4 text-green-600" /> Analytics
+            </Link>
+            <button onClick={runAnalysis} disabled={analyzing}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
+              {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Content Analysis</>}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -213,8 +228,30 @@ export default function ContentPage() {
         {activeTab === 'library' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-              <p className="mt-1 text-sm text-slate-500">All generated content pieces from Supabase</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
+                  <p className="mt-1 text-sm text-slate-500">All generated content pieces from Supabase</p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search by title or keyword..."
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value as 'all' | 'published' | 'draft')}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
             </div>
             <div className="divide-y">
               {loading ? (
@@ -225,8 +262,10 @@ export default function ContentPage() {
                   <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
                   <p className="mt-2 text-sm text-slate-500">Run analysis to discover content gaps and generate new pieces.</p>
                 </div>
+              ) : filteredPieces.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-500">No content matches your search.</div>
               ) : (
-                contentPieces.map((cp) => {
+                filteredPieces.map((cp) => {
                   // Generate live URL based on content type and title
                   let liveUrl = '';
                   if (cp.status === 'published') {

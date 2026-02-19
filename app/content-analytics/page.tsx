@@ -21,12 +21,14 @@ export default function ContentAnalyticsPage() {
   const [underperforming, setUnderperforming] = useState<ContentPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("pageviews");
+  const [optimizingResults, setOptimizingResults] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
 
   useEffect(() => {
     fetchAnalytics();
   }, [metric]);
 
   const fetchAnalytics = async () => {
+    setLoading(true);
     try {
       // Fetch top performing
       const topResponse = await fetch(
@@ -45,10 +47,24 @@ export default function ContentAnalyticsPage() {
         const data = await underResponse.json();
         setUnderperforming(data.content || []);
       }
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
+    } catch {
+      // analytics fetch failed silently
     } finally {
       setLoading(false);
+    }
+  };
+
+  const optimizeContent = async (urlPath: string, title: string) => {
+    setOptimizingResults(prev => ({ ...prev, [urlPath]: 'loading' }));
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/content/blog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: title, content_type: 'refresh' }),
+      });
+      setOptimizingResults(prev => ({ ...prev, [urlPath]: response.ok ? 'success' : 'error' }));
+    } catch {
+      setOptimizingResults(prev => ({ ...prev, [urlPath]: 'error' }));
     }
   };
 
@@ -179,26 +195,24 @@ export default function ContentAnalyticsPage() {
                         </p>
                       </div>
 
-                      <button 
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(`${SAMA_API_URL}/api/content/blog`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ keyword: content.title, content_type: 'refresh' })
-                            });
-                            if (response.ok) {
-                              alert(`Optimization started for: ${content.title}`);
-                            } else {
-                              alert('Failed to start optimization. Backend may need API keys.');
-                            }
-                          } catch (error) {
-                            alert('Error connecting to backend.');
-                          }
-                        }}
-                        className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+                      <button
+                        onClick={() => optimizeContent(content.url_path, content.title)}
+                        disabled={optimizingResults[content.url_path] === 'loading'}
+                        className={`rounded-md px-4 py-2 text-sm font-medium text-white transition-colors ${
+                          optimizingResults[content.url_path] === 'success'
+                            ? 'bg-green-600'
+                            : optimizingResults[content.url_path] === 'error'
+                            ? 'bg-red-600'
+                            : 'bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400'
+                        }`}
                       >
-                        Optimize
+                        {optimizingResults[content.url_path] === 'loading'
+                          ? 'Starting...'
+                          : optimizingResults[content.url_path] === 'success'
+                          ? 'Started!'
+                          : optimizingResults[content.url_path] === 'error'
+                          ? 'Failed'
+                          : 'Optimize'}
                       </button>
                     </div>
                   ))}
