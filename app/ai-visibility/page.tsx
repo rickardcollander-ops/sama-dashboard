@@ -13,6 +13,12 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-produc
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface EngineStats {
+  total: number;
+  mentioned: number;
+  rate: number;
+}
+
 interface Summary {
   mention_rate: number;
   avg_rank: number | null;
@@ -21,17 +27,20 @@ interface Summary {
   top_competitors: { name: string; count: number }[];
   trend: 'up' | 'down' | 'flat';
   last_check_at: string | null;
+  engine_stats: Record<string, EngineStats>;
 }
 
 interface AICheck {
   id: string;
   prompt: string;
   category: string;
+  ai_engine: string;
   mentioned: boolean;
   rank: number | null;
   competitors_mentioned: string[];
   sentiment: string | null;
   ai_response_excerpt: string | null;
+  full_response: string | null;
   checked_at: string;
 }
 
@@ -39,6 +48,7 @@ interface Gap {
   id: string;
   prompt: string;
   category: string;
+  ai_engine?: string;
   priority: 'high' | 'medium' | 'low';
   action_type: string;
   status: 'open' | 'in_progress' | 'resolved';
@@ -54,6 +64,24 @@ interface Recommendation {
 }
 
 type TabId = 'overview' | 'checks' | 'gaps' | 'recommendations';
+
+// ── Engine config ──────────────────────────────────────────────────────────────
+
+const ENGINE_COLORS: Record<string, string> = {
+  'ChatGPT (GPT-4o)':   'bg-green-100 text-green-800 border-green-200',
+  'Claude (Anthropic)': 'bg-orange-100 text-orange-800 border-orange-200',
+  'Gemini (Google)':    'bg-blue-100 text-blue-800 border-blue-200',
+  'Perplexity AI':      'bg-purple-100 text-purple-800 border-purple-200',
+  'Microsoft Copilot':  'bg-cyan-100 text-cyan-800 border-cyan-200',
+};
+
+const ENGINE_DOTS: Record<string, string> = {
+  'ChatGPT (GPT-4o)':   'bg-green-500',
+  'Claude (Anthropic)': 'bg-orange-500',
+  'Gemini (Google)':    'bg-blue-500',
+  'Perplexity AI':      'bg-purple-500',
+  'Microsoft Copilot':  'bg-cyan-500',
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -73,15 +101,15 @@ const categoryLabel = (cat: string) => ({
 }[cat] ?? cat);
 
 const priorityColors: Record<string, string> = {
-  high: 'bg-red-100 text-red-800 border-red-200',
+  high:   'bg-red-100 text-red-800 border-red-200',
   medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  low: 'bg-blue-100 text-blue-800 border-blue-200',
+  low:    'bg-blue-100 text-blue-800 border-blue-200',
 };
 
 const actionTypeLabel: Record<string, string> = {
-  create_content: 'Create Content',
-  optimize_page: 'Optimize Page',
-  build_reviews: 'Build Reviews',
+  create_content:   'Create Content',
+  optimize_page:    'Optimize Page',
+  build_reviews:    'Build Reviews',
   forum_engagement: 'Forum Engagement',
 };
 
@@ -91,6 +119,13 @@ const fmtDate = (iso: string | null) => {
 };
 
 const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
+
+const EngineBadge = ({ engine }: { engine: string }) => (
+  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${ENGINE_COLORS[engine] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+    <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${ENGINE_DOTS[engine] ?? 'bg-slate-400'}`} />
+    {engine}
+  </span>
+);
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -105,12 +140,10 @@ export default function AIVisibilityPage() {
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
   const [checkStatus, setCheckStatus] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0); // 0–100
+  const [progress, setProgress] = useState(0);
   const [progressStep, setProgressStep] = useState('');
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -127,21 +160,15 @@ export default function AIVisibilityPage() {
 
   const fetchChecks = async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        setChecks(data.checks || []);
-      }
+      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=100`);
+      if (res.ok) { const d = await res.json(); setChecks(d.checks || []); }
     } catch { /* silent */ }
   };
 
   const fetchGaps = async () => {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/gaps`);
-      if (res.ok) {
-        const data = await res.json();
-        setGaps(data.gaps || []);
-      }
+      if (res.ok) { const d = await res.json(); setGaps(d.gaps || []); }
     } catch { /* silent */ }
   };
 
@@ -150,26 +177,31 @@ export default function AIVisibilityPage() {
     setProgress(0);
     setCheckStatus(null);
 
-    // Steps: 16 prompts, ~10s each → ~160s total. We fake progress over 170s.
-    const TOTAL_MS = 170_000;
+    // 5 engines × 16 prompts × ~10s = ~800s ≈ 13 min
+    const TOTAL_MS = 780_000;
     const steps = [
-      { at: 0,    label: 'Startar monitoring-körning...' },
-      { at: 5,    label: 'Analyserar tool_recommendation-prompts...' },
-      { at: 25,   label: 'Analyserar competitor_alternative-prompts...' },
-      { at: 50,   label: 'Analyserar use_case-prompts...' },
-      { at: 75,   label: 'Analyserar buying_intent-prompts...' },
-      { at: 92,   label: 'Sparar resultat och identifierar gaps...' },
-      { at: 98,   label: 'Nästan klart...' },
+      { at: 0,  label: 'Startar monitoring-körning...' },
+      { at: 2,  label: 'ChatGPT (GPT-4o) — tool recommendations...' },
+      { at: 10, label: 'ChatGPT (GPT-4o) — competitor alternatives...' },
+      { at: 18, label: 'Claude (Anthropic) — tool recommendations...' },
+      { at: 26, label: 'Claude (Anthropic) — use cases...' },
+      { at: 38, label: 'Gemini (Google) — tool recommendations...' },
+      { at: 48, label: 'Gemini (Google) — buying intent...' },
+      { at: 58, label: 'Perplexity AI — competitor alternatives...' },
+      { at: 70, label: 'Perplexity AI — use cases...' },
+      { at: 80, label: 'Microsoft Copilot — buying intent...' },
+      { at: 90, label: 'Sparar resultat och identifierar gaps...' },
+      { at: 97, label: 'Nästan klart...' },
     ];
 
     const startTime = Date.now();
     const timer = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const pct = Math.min(98, (elapsed / TOTAL_MS) * 100);
+      const pct = Math.min(97, (elapsed / TOTAL_MS) * 100);
       setProgress(Math.round(pct));
       const currentStep = [...steps].reverse().find(s => pct >= s.at);
       if (currentStep) setProgressStep(currentStep.label);
-    }, 500);
+    }, 1000);
 
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/check`, { method: 'POST' });
@@ -180,28 +212,25 @@ export default function AIVisibilityPage() {
         setCheckStatus('Misslyckades att starta körning.');
         return;
       }
-      // Poll checks count every 15s to detect real completion
+
       const pollInterval = setInterval(async () => {
         try {
           const r = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=1`);
-          if (r.ok) {
-            // If new checks appeared, backend is writing results
-          }
+          if (r.ok) { /* backend is alive */ }
         } catch { /* ignore */ }
-      }, 15_000);
+      }, 30_000);
 
-      // After TOTAL_MS, finalize
       setTimeout(async () => {
         clearInterval(timer);
         clearInterval(pollInterval);
         setProgress(100);
-        setProgressStep('Klar!');
+        setProgressStep('Klar! ✓');
         await fetchAll();
         setTimeout(() => {
           setRunningCheck(false);
           setProgress(0);
           setProgressStep('');
-        }, 1500);
+        }, 2000);
       }, TOTAL_MS);
 
     } catch {
@@ -217,10 +246,7 @@ export default function AIVisibilityPage() {
     setActiveTab('recommendations');
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/recommendations`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setRecommendations(data.recommendations || []);
-      }
+      if (res.ok) { const d = await res.json(); setRecommendations(d.recommendations || []); }
     } catch { /* silent */ }
     finally { setLoadingRecs(false); }
   };
@@ -239,13 +265,13 @@ export default function AIVisibilityPage() {
   const mentionRate = summary?.mention_rate ?? 0;
   const avgRank = summary?.avg_rank;
   const openGaps = summary?.open_gaps ?? gaps.filter(g => g.status === 'open').length;
-  const topCompetitors = summary?.top_competitors ?? [];
+  const engineStats = summary?.engine_stats ?? {};
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'overview', label: 'Översikt', icon: <BarChart2 className="h-4 w-4" /> },
-    { id: 'checks', label: 'Checks', icon: <Eye className="h-4 w-4" />, count: checks.length || undefined },
-    { id: 'gaps', label: 'Gaps', icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
-    { id: 'recommendations', label: 'GEO-råd', icon: <Lightbulb className="h-4 w-4" />, count: recommendations.length || undefined },
+    { id: 'overview',        label: 'Översikt',   icon: <BarChart2 className="h-4 w-4" /> },
+    { id: 'checks',          label: 'Checks',     icon: <Eye className="h-4 w-4" />,         count: checks.length || undefined },
+    { id: 'gaps',            label: 'Gaps',       icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
+    { id: 'recommendations', label: 'GEO-råd',    icon: <Lightbulb className="h-4 w-4" />,  count: recommendations.length || undefined },
   ];
 
   return (
@@ -268,7 +294,7 @@ export default function AIVisibilityPage() {
           <div>
             <h2 className="text-3xl font-bold text-slate-900">AI Visibility Monitor</h2>
             <p className="mt-2 text-slate-600">
-              Hur ofta nämner AI-assistenter Successifier? Tracking av omnämnanden, rank och GEO-gaps.
+              Hur ofta nämner ChatGPT, Claude, Gemini, Perplexity och Copilot Successifier?
             </p>
             {summary?.last_check_at && (
               <p className="mt-1 text-xs text-slate-400">Senaste check: {fmtDate(summary.last_check_at)}</p>
@@ -282,11 +308,15 @@ export default function AIVisibilityPage() {
             </button>
             <button onClick={runCheck} disabled={runningCheck}
               className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 font-medium text-white hover:bg-violet-700 disabled:bg-violet-400 shadow-lg shadow-violet-600/20">
-              {runningCheck ? <><Clock className="h-5 w-5 animate-spin" /> Kör...</> : <><Play className="h-5 w-5" /> Kör Monitoring</>}
+              {runningCheck
+                ? <><Clock className="h-5 w-5 animate-spin" /> Kör ({Math.round(progress)}%)</>
+                : <><Play className="h-5 w-5" /> Kör Monitoring</>
+              }
             </button>
           </div>
         </div>
 
+        {/* Progress bar */}
         {runningCheck && (
           <div className="mb-6 rounded-xl border border-violet-200 bg-violet-50 p-5">
             <div className="flex items-center justify-between mb-2">
@@ -297,12 +327,15 @@ export default function AIVisibilityPage() {
               <span className="text-sm font-bold text-violet-700">{progress}%</span>
             </div>
             <div className="w-full rounded-full bg-violet-200 h-3 overflow-hidden">
-              <div
-                className="h-3 rounded-full bg-violet-600 transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
+              <div className="h-3 rounded-full bg-violet-600 transition-all duration-1000"
+                style={{ width: `${progress}%` }} />
             </div>
-            <p className="mt-2 text-xs text-violet-600">16 prompts × ~10 sek/prompt ≈ 3 min totalt</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {['ChatGPT (GPT-4o)', 'Claude (Anthropic)', 'Gemini (Google)', 'Perplexity AI', 'Microsoft Copilot'].map(e => (
+                <EngineBadge key={e} engine={e} />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-violet-600">5 motorer × 16 prompts × ~10 sek/prompt ≈ 13 min totalt</p>
           </div>
         )}
 
@@ -314,31 +347,16 @@ export default function AIVisibilityPage() {
 
         {/* Stat cards */}
         <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <StatCard
-            label="Mention Rate"
-            value={loading ? '—' : fmtPct(mentionRate)}
-            sub="av 16 prompts"
+          <StatCard label="Mention Rate" value={loading ? '—' : fmtPct(mentionRate)} sub="totalt över alla motorer"
             trend={summary?.trend}
-            valueColor={mentionRate >= 0.5 ? 'text-green-600' : mentionRate >= 0.25 ? 'text-yellow-600' : 'text-red-600'}
-          />
-          <StatCard
-            label="Avg Rank"
-            value={loading ? '—' : avgRank ? `#${avgRank.toFixed(1)}` : '—'}
-            sub="när vi nämns"
-            valueColor="text-blue-600"
-          />
-          <StatCard
-            label="Öppna Gaps"
-            value={loading ? '—' : openGaps}
-            sub="prompts utan omnämnande"
-            valueColor={openGaps > 8 ? 'text-red-600' : openGaps > 4 ? 'text-yellow-600' : 'text-green-600'}
-          />
-          <StatCard
-            label="Totala Checks"
-            value={loading ? '—' : summary?.total_checks ?? checks.length}
-            sub="monitoring-körningar"
-            valueColor="text-violet-600"
-          />
+            valueColor={mentionRate >= 0.5 ? 'text-green-600' : mentionRate >= 0.25 ? 'text-yellow-600' : 'text-red-600'} />
+          <StatCard label="Avg Rank" value={loading ? '—' : avgRank ? `#${avgRank.toFixed(1)}` : '—'}
+            sub="när vi nämns" valueColor="text-blue-600" />
+          <StatCard label="Öppna Gaps" value={loading ? '—' : openGaps}
+            sub="prompts/motorer utan omnämnande"
+            valueColor={openGaps > 20 ? 'text-red-600' : openGaps > 10 ? 'text-yellow-600' : 'text-green-600'} />
+          <StatCard label="Totala Checks" value={loading ? '—' : summary?.total_checks ?? checks.length}
+            sub="prompt × motor-körningar" valueColor="text-violet-600" />
         </div>
 
         {/* Tabs */}
@@ -348,8 +366,7 @@ export default function AIVisibilityPage() {
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.id ? 'bg-violet-600 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}>
-              {tab.icon}
-              {tab.label}
+              {tab.icon}{tab.label}
               {tab.count !== undefined && tab.count > 0 && (
                 <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${
                   activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-700'
@@ -359,34 +376,57 @@ export default function AIVisibilityPage() {
           ))}
         </div>
 
-        {/* ── OVERVIEW TAB ── */}
+        {/* ── OVERVIEW ── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Mention rate breakdown by category */}
+
+            {/* Per-engine mention rate */}
+            <div className="rounded-lg border bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Mention rate per AI-motor</h3>
+              {Object.keys(engineStats).length === 0 ? (
+                <p className="text-sm text-slate-400">Kör Monitoring för att se per-motor statistik.</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(engineStats)
+                    .sort(([, a], [, b]) => b.rate - a.rate)
+                    .map(([engine, stats]) => (
+                      <div key={engine} className="flex items-center gap-3">
+                        <EngineBadge engine={engine} />
+                        <div className="flex-1 rounded-full bg-slate-100 h-3 overflow-hidden">
+                          <div className={`h-3 rounded-full transition-all ${
+                            stats.rate >= 0.5 ? 'bg-green-500' : stats.rate > 0 ? 'bg-yellow-400' : 'bg-red-400'
+                          }`} style={{ width: `${stats.rate * 100}%` }} />
+                        </div>
+                        <span className="w-10 text-right text-sm font-bold text-slate-700">{fmtPct(stats.rate)}</span>
+                        <span className="text-xs text-slate-400">{stats.mentioned}/{stats.total}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Category breakdown */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold text-slate-900">Omnämnanden per kategori</h3>
-              {checks.length === 0 ? (
-                <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="Inga checks ännu" desc="Kör Monitoring för att starta." />
-              ) : (
-                <CategoryBreakdown checks={checks} />
-              )}
+              {checks.length === 0
+                ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="Inga checks ännu" desc="Kör Monitoring för att starta." />
+                : <CategoryBreakdown checks={checks} />
+              }
             </div>
 
             {/* Top competitors */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold text-slate-900">Konkurrenter i AI-svar</h3>
-              {topCompetitors.length === 0 ? (
-                <p className="text-sm text-slate-400">Kör en monitoring-körning för att se vilka konkurrenter AI nämner.</p>
+              {(summary?.top_competitors ?? []).length === 0 ? (
+                <p className="text-sm text-slate-400">Kör en monitoring-körning för att se konkurrenter.</p>
               ) : (
                 <div className="space-y-3">
-                  {topCompetitors.slice(0, 8).map(c => (
+                  {(summary?.top_competitors ?? []).slice(0, 8).map(c => (
                     <div key={c.name} className="flex items-center gap-3">
                       <span className="w-36 truncate text-sm font-medium text-slate-800">{c.name}</span>
                       <div className="flex-1 rounded-full bg-slate-100 h-3 overflow-hidden">
-                        <div
-                          className="h-3 rounded-full bg-orange-500"
-                          style={{ width: `${Math.min(100, (c.count / (topCompetitors[0]?.count || 1)) * 100)}%` }}
-                        />
+                        <div className="h-3 rounded-full bg-orange-500"
+                          style={{ width: `${Math.min(100, (c.count / ((summary?.top_competitors[0]?.count) || 1)) * 100)}%` }} />
                       </div>
                       <span className="w-8 text-right text-xs font-bold text-slate-600">{c.count}</span>
                     </div>
@@ -395,7 +435,7 @@ export default function AIVisibilityPage() {
               )}
             </div>
 
-            {/* Recent checks mini-list */}
+            {/* Recent checks */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-slate-900">Senaste checks</h3>
@@ -405,10 +445,11 @@ export default function AIVisibilityPage() {
                 </button>
               </div>
               <div className="space-y-2">
-                {checks.slice(0, 5).map(c => (
-                  <div key={c.id} className="flex items-center gap-3 rounded-lg border p-3">
+                {checks.slice(0, 6).map(c => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-lg border p-3 flex-wrap">
                     {categoryIcon(c.category)}
-                    <p className="flex-1 text-sm text-slate-700 truncate">{c.prompt}</p>
+                    <p className="flex-1 text-sm text-slate-700 min-w-0 truncate">{c.prompt}</p>
+                    <EngineBadge engine={c.ai_engine} />
                     {c.mentioned
                       ? <span className="flex items-center gap-1 text-xs font-medium text-green-700"><CheckCircle className="h-3.5 w-3.5" /> #{c.rank ?? '?'}</span>
                       : <span className="flex items-center gap-1 text-xs font-medium text-red-600"><AlertCircle className="h-3.5 w-3.5" /> Ej nämnd</span>
@@ -422,11 +463,11 @@ export default function AIVisibilityPage() {
           </div>
         )}
 
-        {/* ── CHECKS TAB ── */}
+        {/* ── CHECKS ── */}
         {activeTab === 'checks' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">{checks.length} monitoring-körningar totalt.</p>
+              <p className="text-sm text-slate-600">{checks.length} checks. Klicka för att se hela AI-svaret.</p>
               <button onClick={fetchChecks} className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                 <RefreshCw className="h-4 w-4" /> Uppdatera
               </button>
@@ -434,23 +475,20 @@ export default function AIVisibilityPage() {
             {checks.length === 0
               ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="Inga checks ännu" desc="Kör Monitoring för att starta." />
               : checks.map(check => (
-                <CheckCard
-                  key={check.id}
-                  check={check}
+                <CheckCard key={check.id} check={check}
                   expanded={expandedCheck === check.id}
-                  onToggle={() => setExpandedCheck(expandedCheck === check.id ? null : check.id)}
-                />
+                  onToggle={() => setExpandedCheck(expandedCheck === check.id ? null : check.id)} />
               ))
             }
           </div>
         )}
 
-        {/* ── GAPS TAB ── */}
+        {/* ── GAPS ── */}
         {activeTab === 'gaps' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-600">
-                {gaps.filter(g => g.status === 'open').length} öppna gaps — prompts där Successifier inte nämns.
+                {gaps.filter(g => g.status === 'open').length} öppna gaps — prompt/motor-kombinationer där Successifier inte nämns.
               </p>
               <button onClick={fetchGaps} className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                 <RefreshCw className="h-4 w-4" /> Uppdatera
@@ -458,14 +496,12 @@ export default function AIVisibilityPage() {
             </div>
             {gaps.length === 0
               ? <EmptyState icon={<CheckCircle className="h-10 w-10 text-slate-300" />} title="Inga gaps hittade" desc="Kör en monitoring-körning för att identifiera gaps." />
-              : gaps.map(gap => (
-                <GapCard key={gap.id} gap={gap} onUpdateStatus={updateGapStatus} />
-              ))
+              : gaps.map(gap => <GapCard key={gap.id} gap={gap} onUpdateStatus={updateGapStatus} />)
             }
           </div>
         )}
 
-        {/* ── RECOMMENDATIONS TAB ── */}
+        {/* ── RECOMMENDATIONS ── */}
         {activeTab === 'recommendations' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -476,10 +512,9 @@ export default function AIVisibilityPage() {
               </button>
             </div>
             {recommendations.length === 0 && !loadingRecs
-              ? <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />} title="Inga råd ännu" desc='Klicka "Generera nya råd" för att få Claude att analysera dina gaps.' />
-              : recommendations.map((rec, i) => (
-                <RecommendationCard key={i} rec={rec} />
-              ))
+              ? <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />} title="Inga råd ännu"
+                  desc='Klicka "Generera nya råd" för att få Claude att analysera dina gaps.' />
+              : recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)
             }
           </div>
         )}
@@ -498,9 +533,9 @@ function StatCard({ label, value, sub, trend, valueColor = 'text-slate-900' }: {
       <p className="text-sm font-medium text-slate-500">{label}</p>
       <div className="mt-1 flex items-end gap-2">
         <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
-        {trend === 'up' && <TrendingUp className="h-4 w-4 text-green-500 mb-1" />}
-        {trend === 'down' && <TrendingDown className="h-4 w-4 text-red-500 mb-1" />}
-        {trend === 'flat' && <Minus className="h-4 w-4 text-slate-400 mb-1" />}
+        {trend === 'up'   && <TrendingUp   className="h-4 w-4 text-green-500 mb-1" />}
+        {trend === 'down' && <TrendingDown  className="h-4 w-4 text-red-500 mb-1" />}
+        {trend === 'flat' && <Minus         className="h-4 w-4 text-slate-400 mb-1" />}
       </div>
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
     </div>
@@ -541,16 +576,17 @@ function CategoryBreakdown({ checks }: { checks: AICheck[] }) {
 
 function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className={`rounded-lg border bg-white shadow-sm transition-all`}>
+    <div className="rounded-lg border bg-white shadow-sm">
       <div className="p-4 cursor-pointer" onClick={onToggle}>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 flex-1">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
             {categoryIcon(check.category)}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                   {categoryLabel(check.category)}
                 </span>
+                <EngineBadge engine={check.ai_engine} />
                 {check.mentioned
                   ? <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200">
                       <CheckCircle className="h-3 w-3" /> Nämnd {check.rank ? `#${check.rank}` : ''}
@@ -567,7 +603,7 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
                   }`}>{check.sentiment}</span>
                 )}
               </div>
-              <p className="text-sm text-slate-700">{check.prompt}</p>
+              <p className="text-sm text-slate-700 font-medium">{check.prompt}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -579,7 +615,7 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
 
       {expanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-3">
-          {check.competitors_mentioned.length > 0 && (
+          {check.competitors_mentioned?.length > 0 && (
             <div className="rounded-lg bg-orange-50 p-3">
               <p className="text-xs font-semibold text-orange-700 mb-1">Konkurrenter nämnda</p>
               <div className="flex flex-wrap gap-1">
@@ -589,12 +625,16 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
               </div>
             </div>
           )}
-          {check.ai_response_excerpt && (
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-500 mb-1">AI-svar (utdrag)</p>
-              <p className="text-sm text-slate-700 italic">"{check.ai_response_excerpt}"</p>
+
+          {/* Full AI response */}
+          <div className="rounded-lg bg-slate-50 border p-4">
+            <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+              Fullt AI-svar från {check.ai_engine}
+            </p>
+            <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+              {check.full_response || check.ai_response_excerpt || '(inget svar sparat)'}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -605,21 +645,18 @@ function GapCard({ gap, onUpdateStatus }: { gap: Gap; onUpdateStatus: (id: strin
   return (
     <div className={`rounded-lg border bg-white p-4 shadow-sm ${gap.status === 'resolved' ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
           {categoryIcon(gap.category)}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${priorityColors[gap.priority]}`}>
-                {gap.priority}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                {categoryLabel(gap.category)}
-              </span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${priorityColors[gap.priority]}`}>{gap.priority}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{categoryLabel(gap.category)}</span>
+              {gap.ai_engine && <EngineBadge engine={gap.ai_engine} />}
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 border border-violet-200">
                 {actionTypeLabel[gap.action_type] ?? gap.action_type}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${
-                gap.status === 'resolved' ? 'bg-green-100 text-green-700 border-green-200' :
+                gap.status === 'resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
                 gap.status === 'in_progress' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                 'bg-slate-100 text-slate-600 border-slate-200'
               }`}>{gap.status}</span>
@@ -631,15 +668,11 @@ function GapCard({ gap, onUpdateStatus }: { gap: Gap; onUpdateStatus: (id: strin
         <div className="flex gap-1 flex-shrink-0">
           {gap.status === 'open' && (
             <button onClick={() => onUpdateStatus(gap.id, 'in_progress')}
-              className="rounded-lg border px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">
-              Påbörja
-            </button>
+              className="rounded-lg border px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">Påbörja</button>
           )}
           {gap.status !== 'resolved' && (
             <button onClick={() => onUpdateStatus(gap.id, 'resolved')}
-              className="rounded-lg border px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50">
-              Löst
-            </button>
+              className="rounded-lg border px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Löst</button>
           )}
         </div>
       </div>
@@ -661,15 +694,11 @@ function RecommendationCard({ rec }: { rec: Recommendation }) {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h4 className="font-semibold text-slate-900">{rec.title}</h4>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${priorityColors[rec.priority]}`}>
-              {rec.priority}
-            </span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${priorityColors[rec.priority]}`}>{rec.priority}</span>
             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
               {actionTypeLabel[rec.action_type] ?? rec.action_type}
             </span>
-            {rec.effort && (
-              <span className="text-xs text-slate-400">Effort: {rec.effort}</span>
-            )}
+            {rec.effort && <span className="text-xs text-slate-400">Effort: {rec.effort}</span>}
           </div>
           <p className="text-sm text-slate-600">{rec.description}</p>
         </div>
