@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   let errors = 0;
   const details: Array<{ id: string; title?: string; result: string; error?: string }> = [];
 
-  for (const post of posts as PostRow[]) {
+  for (const post of posts as unknown as PostRow[]) {
     const rawContent: string | null = (post[CONTENT_COL] as string | null) ?? null;
     if (!rawContent || typeof rawContent !== 'string') {
       skipped++;
@@ -107,7 +107,7 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!posts) return NextResponse.json({ affected: [] });
 
-  const affected = (posts as PostRow[])
+  const affected = (posts as unknown as PostRow[])
     .filter((p) => typeof p[CONTENT_COL] === 'string' && hasFrontMatterIssues(p[CONTENT_COL] as string))
     .map((p) => ({ id: p.id, title: p.title }));
 
