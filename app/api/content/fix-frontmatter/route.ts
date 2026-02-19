@@ -11,6 +11,13 @@ const SUPABASE_KEY =
 const TABLE = process.env.BLOG_POSTS_TABLE || 'blog_posts';
 const CONTENT_COL = process.env.BLOG_POSTS_CONTENT_COL || 'content';
 
+// Minimal row shape returned by Supabase queries
+interface PostRow {
+  id: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
 export async function POST(req: NextRequest) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return NextResponse.json(
@@ -47,8 +54,8 @@ export async function POST(req: NextRequest) {
   let errors = 0;
   const details: Array<{ id: string; title?: string; result: string; error?: string }> = [];
 
-  for (const post of posts) {
-    const rawContent: string | null = post[CONTENT_COL];
+  for (const post of posts as PostRow[]) {
+    const rawContent: string | null = (post[CONTENT_COL] as string | null) ?? null;
     if (!rawContent || typeof rawContent !== 'string') {
       skipped++;
       details.push({ id: post.id, title: post.title, result: 'skipped – no content' });
@@ -100,8 +107,8 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!posts) return NextResponse.json({ affected: [] });
 
-  const affected = posts
-    .filter((p) => p[CONTENT_COL] && hasFrontMatterIssues(p[CONTENT_COL]))
+  const affected = (posts as PostRow[])
+    .filter((p) => typeof p[CONTENT_COL] === 'string' && hasFrontMatterIssues(p[CONTENT_COL] as string))
     .map((p) => ({ id: p.id, title: p.title }));
 
   return NextResponse.json({ affected, count: affected.length });
