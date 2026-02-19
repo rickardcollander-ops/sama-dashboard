@@ -41,8 +41,9 @@ export default function ContentPage() {
   const [actions, setActions] = useState<Action[]>([]);
 
   // Execution state
-  const [executing, setExecuting] = useState<string | null>(null);
+  const [executing, setExecuting] = useState<Set<string>>(new Set());
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
+  const [error, setError] = useState<string | null>(null);
 
   // UI state
   const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
@@ -67,6 +68,7 @@ export default function ContentPage() {
   const runAnalysis = async () => {
     setAnalyzing(true);
     setActiveTab('actions');
+    setError(null);
     try {
       const response = await fetch(`${SAMA_API_URL}/api/content/analyze`, { method: 'POST' });
       if (response.ok) {
@@ -77,17 +79,17 @@ export default function ContentPage() {
           setContentPieces(data.content);
         }
       } else {
-        alert('Analysis failed. Check backend connection.');
+        setError('Analysis failed. Check backend connection.');
       }
-    } catch (error) {
-      alert('Error connecting to backend.');
+    } catch {
+      setError('Error connecting to backend.');
     } finally {
       setAnalyzing(false);
     }
   };
 
   const executeAction = async (action: Action) => {
-    setExecuting(action.id);
+    setExecuting(prev => new Set([...prev, action.id]));
     try {
       const response = await fetch(`${SAMA_API_URL}/api/content/execute`, {
         method: 'POST',
@@ -98,20 +100,20 @@ export default function ContentPage() {
         const result = await response.json();
         setExecutionResults(prev => ({ ...prev, [action.id]: result }));
         setActions(prev => prev.map(a => a.id === action.id ? { ...a, status: 'completed' } : a));
+        fetchLibrary();
       } else {
         setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
       }
-    } catch (error) {
+    } catch {
       setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Backend not reachable' } }));
     } finally {
-      setExecuting(null);
+      setExecuting(prev => { const next = new Set(prev); next.delete(action.id); return next; });
     }
   };
 
   const executeAll = async () => {
-    for (const action of actions.filter(a => a.status === 'pending')) {
-      await executeAction(action);
-    }
+    if (!window.confirm(`Kör alla ${pendingCount} väntande actions?`)) return;
+    await Promise.all(actions.filter(a => a.status === 'pending').map(action => executeAction(action)));
   };
 
   const getPriorityColor = (p: string) => {
@@ -153,6 +155,13 @@ export default function ContentPage() {
         <div className="flex gap-6 max-w-[1400px] mx-auto">
         {/* Left: Content Area */}
         <div className="max-w-4xl flex-1 min-w-0">
+        {error && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-4 font-bold hover:text-red-900">✕</button>
+          </div>
+        )}
+
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
@@ -277,7 +286,7 @@ export default function ContentPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slate-900">Content Analysis</h3>
                   {pendingCount > 0 && (
-                    <button onClick={executeAll} disabled={executing !== null}
+                    <button onClick={executeAll} disabled={executing.size > 0}
                       className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
                       <Play className="h-4 w-4" /> Execute All ({pendingCount})
                     </button>
@@ -328,9 +337,9 @@ export default function ContentPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         {action.status === 'pending' && (
-                          <button onClick={() => executeAction(action)} disabled={executing === action.id}
+                          <button onClick={() => executeAction(action)} disabled={executing.has(action.id)}
                             className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                            {executing === action.id ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
+                            {executing.has(action.id) ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
                           </button>
                         )}
                         <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)} className="rounded p-1 hover:bg-slate-100">
@@ -406,10 +415,16 @@ export default function ContentPage() {
         {/* Right: Agent Chat Sidebar */}
         <div className="hidden lg:block w-[380px] flex-shrink-0">
           <div className="sticky top-8">
-            <AgentChat 
+            <AgentChat
               agentName="Content"
               apiUrl={`${SAMA_API_URL}/api/content`}
               placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
+              examplePrompts={[
+                "Create a blog post about reducing customer churn",
+                "Analyze content gaps for Q1",
+                "Write a comparison page vs Gainsight",
+                "What content should I prioritize?",
+              ]}
             />
           </div>
         </div>
