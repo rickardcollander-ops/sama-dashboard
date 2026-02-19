@@ -5,7 +5,7 @@ import {
   Bot, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock,
   Play, RefreshCw, ChevronDown, ChevronUp, Zap, Target, BookOpen,
   MessageSquare, ShoppingCart, Wrench, BarChart2, Lightbulb, Eye,
-  ArrowRight, Minus
+  ArrowRight, Minus, Trash2
 } from "lucide-react";
 import Link from "next/link";
 
@@ -142,6 +142,7 @@ export default function AIVisibilityPage() {
   const [checkStatus, setCheckStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressStep, setProgressStep] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -262,6 +263,19 @@ export default function AIVisibilityPage() {
     } catch { /* silent */ }
   };
 
+  const clearData = async () => {
+    if (!confirm('Rensa all data? Detta tar bort alla checks och gaps.')) return;
+    setClearing(true);
+    try {
+      await fetch(`${SAMA_API_URL}/api/ai-visibility/clear`, { method: 'POST' });
+      setSummary(null);
+      setChecks([]);
+      setGaps([]);
+      setRecommendations([]);
+    } catch { /* silent */ }
+    finally { setClearing(false); }
+  };
+
   const mentionRate = summary?.mention_rate ?? 0;
   const avgRank = summary?.avg_rank;
   const openGaps = summary?.open_gaps ?? gaps.filter(g => g.status === 'open').length;
@@ -301,6 +315,11 @@ export default function AIVisibilityPage() {
             )}
           </div>
           <div className="flex gap-3">
+            <button onClick={clearData} disabled={clearing || runningCheck}
+              className="flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
+              {clearing ? <Clock className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Rensa data
+            </button>
             <button onClick={generateRecommendations} disabled={loadingRecs}
               className="flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               {loadingRecs ? <Clock className="h-4 w-4 animate-spin" /> : <Lightbulb className="h-4 w-4" />}
