@@ -18,13 +18,7 @@ export default function Home() {
     { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/social/post/generate", page: "/social" },
     { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/reviews/fetch", page: "/reviews" },
     { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report", page: "/analytics" },
-  ];
-
-  const improvements = [
-    { name: "Content Analytics (GA4)", icon: BarChart3, color: "bg-purple-500", page: "/content-analytics" },
-    { name: "LinkedIn Manager", icon: Users, color: "bg-blue-600", page: "/linkedin" },
-    { name: "Budget Optimizer", icon: TrendingUp, color: "bg-green-600", page: "/budget-optimizer" },
-    { name: "Anomaly Detection", icon: Activity, color: "bg-orange-600", page: "/anomalies" },
+    { name: "AI Visibility", icon: Activity, status: "active", color: "bg-violet-500", endpoint: "/api/ai-visibility/check", page: "/ai-visibility" },
   ];
 
   const runAgent = async (agentName: string, endpoint: string) => {
@@ -62,6 +56,7 @@ export default function Home() {
               <Link href="/ads" className="text-sm font-medium text-slate-600 hover:text-slate-900">Ads</Link>
               <Link href="/social" className="text-sm font-medium text-slate-600 hover:text-slate-900">Social</Link>
               <Link href="/logs" className="text-sm font-medium text-slate-600 hover:text-slate-900">Logs</Link>
+              <Link href="/ai-visibility" className="text-sm font-medium text-slate-600 hover:text-slate-900">AI Visibility</Link>
             </div>
           </div>
         </div>
@@ -75,7 +70,6 @@ export default function Home() {
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => {
-            const agentPath = agent.name.toLowerCase().split(' ')[0]; // "SEO Agent" -> "seo"
             return (
               <div key={agent.name} className="rounded-lg border bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-center justify-between">
@@ -91,7 +85,7 @@ export default function Home() {
                   <div className="h-3 w-3 rounded-full bg-green-500"></div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Link href={`/${agentPath}`} className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-200">
+                  <Link href={agent.page} className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-200">
                     View Details
                   </Link>
                   <button 
@@ -105,27 +99,6 @@ export default function Home() {
               </div>
             );
           })}
-        </div>
-
-        {/* New Improvements Section */}
-        <div className="mt-8">
-          <h2 className="mb-4 text-xl font-bold text-slate-900">🎉 New Features</h2>
-          <div className="grid gap-4 md:grid-cols-4">
-            {improvements.map((improvement) => (
-              <Link
-                key={improvement.name}
-                href={improvement.page}
-                className="rounded-lg border bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg ${improvement.color} p-3`}>
-                    <improvement.icon className="h-6 w-6 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-slate-900">{improvement.name}</h3>
-                </div>
-              </Link>
-            ))}
-          </div>
         </div>
 
         <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">

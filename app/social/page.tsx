@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Users, MessageCircle, Repeat2, Zap, Clock, Play, ChevronDown, ChevronUp,
   CheckCircle, Calendar, AlertTriangle, Send, Twitter, ExternalLink, FileText,
-  TrendingUp, RefreshCw, Sparkles
+  TrendingUp, RefreshCw, Sparkles, Trash2
 } from "lucide-react";
 import Link from "next/link";
 
@@ -163,6 +163,18 @@ export default function SocialPage() {
     }
   };
 
+  const dismissAction = (id: string) => {
+    const action = actions.find(a => a.id === id);
+    if (action?.db_id) {
+      fetch(`${SAMA_API_URL}/api/social/actions/${action.db_id}`, { method: 'DELETE' }).catch(() => {});
+    }
+    setActions(prev => prev.filter(a => a.id !== id));
+  };
+
+  const dismissTweet = (id: string) => {
+    setInterestingTweets(prev => prev.filter(t => t.id !== id));
+  };
+
   const getPriorityColor = (p: string) => {
     if (p === 'critical') return 'bg-red-100 text-red-800 border-red-200';
     if (p === 'high') return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -301,6 +313,7 @@ export default function SocialPage() {
             expandedAction={expandedAction}
             setExpandedAction={setExpandedAction}
             executeAction={executeAction}
+            dismissAction={dismissAction}
             getPriorityColor={getPriorityColor}
             getTypeIcon={getTypeIcon}
           />
@@ -332,6 +345,7 @@ export default function SocialPage() {
                   expandedAction={expandedAction}
                   setExpandedAction={setExpandedAction}
                   executeAction={executeAction}
+                  dismissAction={dismissAction}
                   getPriorityColor={getPriorityColor}
                   getTypeIcon={getTypeIcon}
                 />
@@ -360,10 +374,16 @@ export default function SocialPage() {
                           <p className="mt-1 text-xs text-slate-400 italic">{tweet.user.description.slice(0, 100)}</p>
                         )}
                       </div>
-                      <a href={tweet.tweet_url} target="_blank" rel="noopener noreferrer"
-                        className="flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-1">
-                        <ExternalLink className="h-3 w-3" /> View
-                      </a>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <a href={tweet.tweet_url} target="_blank" rel="noopener noreferrer"
+                          className="rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-1">
+                          <ExternalLink className="h-3 w-3" /> View
+                        </a>
+                        <button onClick={() => dismissTweet(tweet.id)}
+                          className="rounded-lg border px-2 py-1.5 text-xs text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -537,7 +557,7 @@ export default function SocialPage() {
 
 // Extracted ActionsList component
 function ActionsList({
-  actions, executing, executionResults, expandedAction, setExpandedAction, executeAction, getPriorityColor, getTypeIcon
+  actions, executing, executionResults, expandedAction, setExpandedAction, executeAction, dismissAction, getPriorityColor, getTypeIcon
 }: {
   actions: Action[];
   executing: string | null;
@@ -545,6 +565,7 @@ function ActionsList({
   expandedAction: string | null;
   setExpandedAction: (id: string | null) => void;
   executeAction: (a: Action) => void;
+  dismissAction: (id: string) => void;
   getPriorityColor: (p: string) => string;
   getTypeIcon: (t: string) => React.ReactNode;
 }) {
@@ -590,6 +611,10 @@ function ActionsList({
                     {executing === action.id ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
                   </button>
                 )}
+                <button onClick={() => dismissAction(action.id)}
+                  className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
                 <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
                   className="rounded p-1 hover:bg-slate-100">
                   {expandedAction === action.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
