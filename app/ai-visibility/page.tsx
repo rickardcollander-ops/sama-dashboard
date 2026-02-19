@@ -105,6 +105,8 @@ export default function AIVisibilityPage() {
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
   const [checkStatus, setCheckStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0); // 0–100
+  const [progressStep, setProgressStep] = useState('');
 
   useEffect(() => {
     fetchAll();
@@ -145,22 +147,68 @@ export default function AIVisibilityPage() {
 
   const runCheck = async () => {
     setRunningCheck(true);
-    setCheckStatus('Startar monitoring-körning (~3 min)...');
+    setProgress(0);
+    setCheckStatus(null);
+
+    // Steps: 16 prompts, ~10s each → ~160s total. We fake progress over 170s.
+    const TOTAL_MS = 170_000;
+    const steps = [
+      { at: 0,    label: 'Startar monitoring-körning...' },
+      { at: 5,    label: 'Analyserar tool_recommendation-prompts...' },
+      { at: 25,   label: 'Analyserar competitor_alternative-prompts...' },
+      { at: 50,   label: 'Analyserar use_case-prompts...' },
+      { at: 75,   label: 'Analyserar buying_intent-prompts...' },
+      { at: 92,   label: 'Sparar resultat och identifierar gaps...' },
+      { at: 98,   label: 'Nästan klart...' },
+    ];
+
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(98, (elapsed / TOTAL_MS) * 100);
+      setProgress(Math.round(pct));
+      const currentStep = [...steps].reverse().find(s => pct >= s.at);
+      if (currentStep) setProgressStep(currentStep.label);
+    }, 500);
+
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/check`, { method: 'POST' });
-      if (res.ok) {
-        setCheckStatus('Körning startad i bakgrunden. Resultaten uppdateras automatiskt.');
-        setTimeout(() => {
-          fetchAll();
-          setCheckStatus(null);
-        }, 180000); // poll after 3 min
-      } else {
+      if (!res.ok) {
+        clearInterval(timer);
+        setRunningCheck(false);
+        setProgress(0);
         setCheckStatus('Misslyckades att starta körning.');
+        return;
       }
+      // Poll checks count every 15s to detect real completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const r = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=1`);
+          if (r.ok) {
+            // If new checks appeared, backend is writing results
+          }
+        } catch { /* ignore */ }
+      }, 15_000);
+
+      // After TOTAL_MS, finalize
+      setTimeout(async () => {
+        clearInterval(timer);
+        clearInterval(pollInterval);
+        setProgress(100);
+        setProgressStep('Klar!');
+        await fetchAll();
+        setTimeout(() => {
+          setRunningCheck(false);
+          setProgress(0);
+          setProgressStep('');
+        }, 1500);
+      }, TOTAL_MS);
+
     } catch {
-      setCheckStatus('Kunde inte nå backend.');
-    } finally {
+      clearInterval(timer);
       setRunningCheck(false);
+      setProgress(0);
+      setCheckStatus('Kunde inte nå backend.');
     }
   };
 
@@ -239,9 +287,28 @@ export default function AIVisibilityPage() {
           </div>
         </div>
 
-        {checkStatus && (
-          <div className="mb-6 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
-            <Clock className="inline h-4 w-4 mr-2" />{checkStatus}
+        {runningCheck && (
+          <div className="mb-6 rounded-xl border border-violet-200 bg-violet-50 p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-violet-800">
+                <Clock className="h-4 w-4 animate-spin" />
+                {progressStep || 'Startar...'}
+              </span>
+              <span className="text-sm font-bold text-violet-700">{progress}%</span>
+            </div>
+            <div className="w-full rounded-full bg-violet-200 h-3 overflow-hidden">
+              <div
+                className="h-3 rounded-full bg-violet-600 transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-violet-600">16 prompts × ~10 sek/prompt ≈ 3 min totalt</p>
+          </div>
+        )}
+
+        {checkStatus && !runningCheck && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <AlertCircle className="inline h-4 w-4 mr-2" />{checkStatus}
           </div>
         )}
 
