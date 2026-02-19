@@ -52,6 +52,10 @@ export default function ContentPage() {
   const [filterType, setFilterType] = useState<'all' | 'blog_post' | 'comparison'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // YAML fix state
+  const [fixingYaml, setFixingYaml] = useState(false);
+  const [yamlFixResult, setYamlFixResult] = useState<{ fixed: number; skipped: number; errors: number } | null>(null);
+
   useEffect(() => { fetchLibrary(); }, []);
 
   const fetchLibrary = async () => {
@@ -149,6 +153,25 @@ export default function ContentPage() {
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const fixYamlFrontMatter = async () => {
+    setFixingYaml(true);
+    setYamlFixResult(null);
+    try {
+      const response = await fetch('/api/content/fix-frontmatter', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        setYamlFixResult({ fixed: data.fixed, skipped: data.skipped, errors: data.errors });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(`YAML-fix misslyckades: ${err.error || response.statusText}`);
+      }
+    } catch {
+      alert('Kunde inte nå API-rutten för YAML-fix.');
+    } finally {
+      setFixingYaml(false);
+    }
   };
 
   const filteredContent = contentPieces
@@ -273,6 +296,23 @@ export default function ContentPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
                   <p className="text-sm text-slate-500 mt-0.5">Visar {filteredContent.length} av {contentPieces.length} innehållsstycken</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {yamlFixResult && (
+                    <p className="text-xs text-slate-500">
+                      YAML-fix: <span className="text-green-600 font-medium">{yamlFixResult.fixed} fixade</span>
+                      {yamlFixResult.errors > 0 && <span className="text-red-600 font-medium"> · {yamlFixResult.errors} fel</span>}
+                    </p>
+                  )}
+                  <button
+                    onClick={fixYamlFrontMatter}
+                    disabled={fixingYaml}
+                    title="Reparera felformaterad YAML front matter i alla blogginlägg i Supabase"
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {fixingYaml ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                    {fixingYaml ? 'Fixar YAML...' : 'Fix YAML'}
+                  </button>
                 </div>
               </div>
 
