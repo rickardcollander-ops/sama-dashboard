@@ -616,7 +616,7 @@ export default function SEOPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b">
                       <tr>
-                        {['Keyword','Intent','Priority','Position','Trend','Clicks','Impressions','CTR'].map(h => (
+                        {['Keyword','Intent','Priority','Position','Trend','Clicks','Impressions','CTR',''].map(h => (
                           <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">{h}</th>
                         ))}
                       </tr>
@@ -636,7 +636,7 @@ export default function SEOPage() {
                         keywords.map(kw => {
                           const trend = getPositionTrend(kw.position_history, kw.position);
                           return (
-                            <tr key={kw.keyword} className="hover:bg-slate-50 transition-colors">
+                            <tr key={kw.keyword} className="group hover:bg-slate-50 transition-colors">
                               <td className="px-5 py-3.5 font-medium text-slate-900">
                                 <div className="flex items-center gap-2">
                                   {kw.keyword}
