@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Users, MessageCircle, Repeat2, Zap, Clock, Play, ChevronDown, ChevronUp,
   CheckCircle, Calendar, AlertTriangle, Send, Twitter, ExternalLink, FileText,
-  TrendingUp, RefreshCw, Sparkles, Trash2
+  TrendingUp, RefreshCw, Sparkles, Trash2, Search, X, ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
 
@@ -48,7 +48,45 @@ interface InterestingTweet {
   tweet_url: string;
 }
 
-type TabId = 'actions' | 'interesting' | 'drafts' | 'calendar' | 'mentions';
+interface RedditStatus {
+  configured: boolean;
+  target_subreddits: string[];
+  status: string;
+  message: string | null;
+}
+
+interface RedditPost {
+  id: string;
+  fullname: string;
+  title: string;
+  selftext: string;
+  subreddit: string;
+  author: string;
+  score: number;
+  num_comments: number;
+  permalink: string;
+  created_utc: number;
+}
+
+interface RedditMention {
+  id: string;
+  subject: string;
+  body: string;
+  author: string;
+  subreddit: string;
+  created_utc: number;
+  context: string;
+}
+
+interface RedditDraft {
+  title: string;
+  body: string;
+  subreddit: string;
+  post_type: string;
+  status: string;
+}
+
+type TabId = 'actions' | 'interesting' | 'drafts' | 'calendar' | 'mentions' | 'reddit';
 
 export default function SocialPage() {
   const [analyzing, setAnalyzing] = useState(false);
@@ -64,9 +102,35 @@ export default function SocialPage() {
   const [loadingTweets, setLoadingTweets] = useState(false);
   const [dbActions, setDbActions] = useState<Action[]>([]);
 
+  // Reddit state
+  const [redditStatus, setRedditStatus] = useState<RedditStatus | null>(null);
+  const [redditSubreddits, setRedditSubreddits] = useState<string[]>([]);
+  const [redditTopic, setRedditTopic] = useState('');
+  const [redditSubreddit, setRedditSubreddit] = useState('');
+  const [redditPostType, setRedditPostType] = useState<'educational' | 'case_study' | 'question' | 'tips'>('educational');
+  const [redditGenerating, setRedditGenerating] = useState(false);
+  const [redditDraft, setRedditDraft] = useState<RedditDraft | null>(null);
+  const [redditPublishing, setRedditPublishing] = useState(false);
+  const [redditQuickPublishing, setRedditQuickPublishing] = useState(false);
+  const [redditRelevant, setRedditRelevant] = useState<RedditPost[]>([]);
+  const [redditLoadingRelevant, setRedditLoadingRelevant] = useState(false);
+  const [redditCompetitors, setRedditCompetitors] = useState<RedditPost[]>([]);
+  const [redditLoadingCompetitors, setRedditLoadingCompetitors] = useState(false);
+  const [redditMentions, setRedditMentions] = useState<RedditMention[]>([]);
+  const [redditLoadingMentions, setRedditLoadingMentions] = useState(false);
+  const [hotSubredditInput, setHotSubredditInput] = useState('');
+  const [hotSubredditSearch, setHotSubredditSearch] = useState('');
+  const [hotPosts, setHotPosts] = useState<RedditPost[]>([]);
+  const [loadingHotPosts, setLoadingHotPosts] = useState(false);
+  const [commentModal, setCommentModal] = useState<{ post: RedditPost; generatedComment: string; submitting: boolean } | null>(null);
+  const [generatingComment, setGeneratingComment] = useState<string | null>(null);
+  const [submittingComment, setSubmittingComment] = useState(false);
+
   useEffect(() => {
     fetchDrafts();
     fetchDbActions();
+    fetchRedditStatus();
+    fetchRedditSubreddits();
   }, []);
 
   const fetchDrafts = async () => {
@@ -101,6 +165,173 @@ export default function SocialPage() {
       }
     } catch { /* silent */ }
     finally { setLoadingTweets(false); }
+  };
+
+  const fetchRedditStatus = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setRedditStatus(data);
+      }
+    } catch { /* silent */ }
+  };
+
+  const fetchRedditSubreddits = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/subreddits`);
+      if (res.ok) {
+        const data = await res.json();
+        setRedditSubreddits(data.subreddits || []);
+        if (data.subreddits?.length > 0) setRedditSubreddit(data.subreddits[0]);
+      }
+    } catch { /* silent */ }
+  };
+
+  const fetchRedditRelevant = async () => {
+    setRedditLoadingRelevant(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/search/relevant?limit=25`);
+      if (res.ok) {
+        const data = await res.json();
+        setRedditRelevant(data.posts || []);
+      }
+    } catch { /* silent */ }
+    finally { setRedditLoadingRelevant(false); }
+  };
+
+  const fetchRedditCompetitors = async () => {
+    setRedditLoadingCompetitors(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/search/competitors?limit=20`);
+      if (res.ok) {
+        const data = await res.json();
+        setRedditCompetitors(data.posts || []);
+      }
+    } catch { /* silent */ }
+    finally { setRedditLoadingCompetitors(false); }
+  };
+
+  const fetchRedditMentions = async () => {
+    setRedditLoadingMentions(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/mentions?limit=25`);
+      if (res.ok) {
+        const data = await res.json();
+        setRedditMentions(data.mentions || []);
+      }
+    } catch { /* silent */ }
+    finally { setRedditLoadingMentions(false); }
+  };
+
+  const fetchHotPosts = async (subreddit: string) => {
+    if (!subreddit.trim()) return;
+    setLoadingHotPosts(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/subreddit/${subreddit.trim()}/hot?limit=10`);
+      if (res.ok) {
+        const data = await res.json();
+        setHotPosts(data.posts || []);
+        setHotSubredditSearch(subreddit.trim());
+      }
+    } catch { /* silent */ }
+    finally { setLoadingHotPosts(false); }
+  };
+
+  const generateRedditPost = async () => {
+    if (!redditTopic.trim() || !redditSubreddit) return;
+    setRedditGenerating(true);
+    setRedditDraft(null);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: redditTopic, subreddit: redditSubreddit, post_type: redditPostType }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRedditDraft(data.post);
+      }
+    } catch { /* silent */ }
+    finally { setRedditGenerating(false); }
+  };
+
+  const publishRedditDraft = async () => {
+    if (!redditDraft) return;
+    setRedditPublishing(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/submit/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subreddit: redditDraft.subreddit, title: redditDraft.title, text: redditDraft.body }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          alert(`Inlägg publicerat! ${data.result?.post_url || ''}`);
+          setRedditDraft(null);
+          setRedditTopic('');
+        }
+      }
+    } catch { /* silent */ }
+    finally { setRedditPublishing(false); }
+  };
+
+  const generateAndPublishReddit = async () => {
+    if (!redditTopic.trim() || !redditSubreddit) return;
+    setRedditQuickPublishing(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/generate-and-submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: redditTopic, subreddit: redditSubreddit, post_type: redditPostType }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const status = data.result?.status === 'published' ? 'Publicerat' : 'Sparat som utkast';
+          alert(`${status}! ${data.result?.post_url || ''}`);
+          setRedditTopic('');
+        }
+      }
+    } catch { /* silent */ }
+    finally { setRedditQuickPublishing(false); }
+  };
+
+  const openCommentModal = async (post: RedditPost) => {
+    setGeneratingComment(post.id);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/generate-comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_title: post.title, post_body: post.selftext, subreddit: post.subreddit }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCommentModal({ post, generatedComment: data.comment || '', submitting: false });
+      }
+    } catch { /* silent */ }
+    finally { setGeneratingComment(null); }
+  };
+
+  const submitComment = async () => {
+    if (!commentModal) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/social/reddit/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: commentModal.post.fullname, text: commentModal.generatedComment }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          alert('Kommentar publicerad!');
+          setCommentModal(null);
+        }
+      }
+    } catch { /* silent */ }
+    finally { setSubmittingComment(false); }
   };
 
   const runAnalysis = async () => {
@@ -198,13 +429,28 @@ export default function SocialPage() {
   const mentionActions = actions.filter(a => a.type === 'reply' || a.type === 'competitor_engage');
   const engageActions = actions.filter(a => a.type === 'engage_interesting');
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
+  const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number; dot?: 'green' | 'red' }[] = [
     { id: 'actions', label: 'All Actions', icon: <Zap className="h-4 w-4" />, count: pendingCount || undefined },
     { id: 'interesting', label: 'Interesting Tweets', icon: <Sparkles className="h-4 w-4" />, count: interestingTweets.length || engageActions.length || undefined },
     { id: 'drafts', label: 'Saved Drafts', icon: <FileText className="h-4 w-4" />, count: drafts.length || undefined },
     { id: 'calendar', label: 'Content Calendar', icon: <Calendar className="h-4 w-4" />, count: calendarActions.length || undefined },
     { id: 'mentions', label: 'Mentions & Replies', icon: <MessageCircle className="h-4 w-4" />, count: mentionActions.length || undefined },
+    {
+      id: 'reddit',
+      label: 'Reddit',
+      icon: <RedditIcon className="h-4 w-4" />,
+      dot: redditStatus ? (redditStatus.configured ? 'green' : 'red') : undefined,
+    },
   ];
+
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId);
+    if (tabId === 'reddit') {
+      if (redditRelevant.length === 0) fetchRedditRelevant();
+      if (redditCompetitors.length === 0) fetchRedditCompetitors();
+      if (redditMentions.length === 0) fetchRedditMentions();
+    }
+  };
 
   // DB completed actions count
   const dbCompletedCount = dbActions.filter((a: any) => a.status === 'completed').length;
@@ -267,7 +513,7 @@ export default function SocialPage() {
         {/* Tabs */}
         <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.id ? 'bg-pink-600 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}>
@@ -277,6 +523,9 @@ export default function SocialPage() {
                 <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${
                   activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-pink-100 text-pink-700'
                 }`}>{tab.count}</span>
+              )}
+              {tab.dot && (
+                <span className={`h-2 w-2 rounded-full ${tab.dot === 'green' ? 'bg-green-400' : 'bg-red-400'}`} />
               )}
             </button>
           ))}
@@ -499,6 +748,49 @@ export default function SocialPage() {
           </div>
         )}
 
+        {/* REDDIT TAB */}
+        {activeTab === 'reddit' && (
+          <RedditTab
+            status={redditStatus}
+            subreddits={redditSubreddits}
+            topic={redditTopic}
+            setTopic={setRedditTopic}
+            subreddit={redditSubreddit}
+            setSubreddit={setRedditSubreddit}
+            postType={redditPostType}
+            setPostType={setRedditPostType}
+            generating={redditGenerating}
+            draft={redditDraft}
+            setDraft={setRedditDraft}
+            publishing={redditPublishing}
+            quickPublishing={redditQuickPublishing}
+            onGenerate={generateRedditPost}
+            onPublish={publishRedditDraft}
+            onGenerateAndPublish={generateAndPublishReddit}
+            relevantPosts={redditRelevant}
+            loadingRelevant={redditLoadingRelevant}
+            onRefreshRelevant={fetchRedditRelevant}
+            competitorPosts={redditCompetitors}
+            loadingCompetitors={redditLoadingCompetitors}
+            onRefreshCompetitors={fetchRedditCompetitors}
+            mentions={redditMentions}
+            loadingMentions={redditLoadingMentions}
+            onRefreshMentions={fetchRedditMentions}
+            hotSubredditInput={hotSubredditInput}
+            setHotSubredditInput={setHotSubredditInput}
+            hotPosts={hotPosts}
+            loadingHotPosts={loadingHotPosts}
+            onFetchHot={() => fetchHotPosts(hotSubredditInput)}
+            hotSubredditSearch={hotSubredditSearch}
+            commentModal={commentModal}
+            setCommentModal={setCommentModal}
+            generatingComment={generatingComment}
+            onOpenCommentModal={openCommentModal}
+            submittingComment={submittingComment}
+            onSubmitComment={submitComment}
+          />
+        )}
+
         {/* MENTIONS TAB */}
         {activeTab === 'mentions' && (
           <div className="space-y-3">
@@ -554,6 +846,413 @@ export default function SocialPage() {
   );
 }
 
+
+// Reddit brand icon (inline SVG)
+function RedditIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" style={{ color: '#FF4500' }}>
+      <circle cx="10" cy="10" r="10" fill="#FF4500" />
+      <path fill="white" d="M16.67 10a1.46 1.46 0 00-2.47-1 7.12 7.12 0 00-3.85-1.23l.65-3.08 2.13.45a1 1 0 101.07-1 1 1 0 00-.96.68l-2.38-.5a.17.17 0 00-.2.13l-.73 3.44a7.14 7.14 0 00-3.89 1.23 1.46 1.46 0 10-1.61 2.39 2.87 2.87 0 000 .44c0 2.24 2.61 4.06 5.83 4.06s5.83-1.82 5.83-4.06a2.87 2.87 0 000-.44 1.46 1.46 0 00.49-1.51zm-9.06 1.27a1 1 0 111 1 1 1 0 01-1-1zm5.55 2.65a3.47 3.47 0 01-4.32 0 .17.17 0 01.24-.24 3.13 3.13 0 003.84 0 .17.17 0 11.24.24zm-.18-1.65a1 1 0 111-1 1 1 0 01-1 1z" />
+    </svg>
+  );
+}
+
+// Reddit Tab component
+function RedditTab({
+  status, subreddits, topic, setTopic, subreddit, setSubreddit, postType, setPostType,
+  generating, draft, setDraft, publishing, quickPublishing,
+  onGenerate, onPublish, onGenerateAndPublish,
+  relevantPosts, loadingRelevant, onRefreshRelevant,
+  competitorPosts, loadingCompetitors, onRefreshCompetitors,
+  mentions, loadingMentions, onRefreshMentions,
+  hotSubredditInput, setHotSubredditInput, hotPosts, loadingHotPosts, onFetchHot, hotSubredditSearch,
+  commentModal, setCommentModal, generatingComment, onOpenCommentModal, submittingComment, onSubmitComment,
+}: {
+  status: RedditStatus | null;
+  subreddits: string[];
+  topic: string; setTopic: (v: string) => void;
+  subreddit: string; setSubreddit: (v: string) => void;
+  postType: 'educational' | 'case_study' | 'question' | 'tips';
+  setPostType: (v: 'educational' | 'case_study' | 'question' | 'tips') => void;
+  generating: boolean;
+  draft: RedditDraft | null; setDraft: (d: RedditDraft | null) => void;
+  publishing: boolean; quickPublishing: boolean;
+  onGenerate: () => void; onPublish: () => void; onGenerateAndPublish: () => void;
+  relevantPosts: RedditPost[]; loadingRelevant: boolean; onRefreshRelevant: () => void;
+  competitorPosts: RedditPost[]; loadingCompetitors: boolean; onRefreshCompetitors: () => void;
+  mentions: RedditMention[]; loadingMentions: boolean; onRefreshMentions: () => void;
+  hotSubredditInput: string; setHotSubredditInput: (v: string) => void;
+  hotPosts: RedditPost[]; loadingHotPosts: boolean; onFetchHot: () => void; hotSubredditSearch: string;
+  commentModal: { post: RedditPost; generatedComment: string; submitting: boolean } | null;
+  setCommentModal: (m: { post: RedditPost; generatedComment: string; submitting: boolean } | null) => void;
+  generatingComment: string | null;
+  onOpenCommentModal: (post: RedditPost) => void;
+  submittingComment: boolean;
+  onSubmitComment: () => void;
+}) {
+  const configured = status?.configured ?? false;
+
+  const publishDisabledProps = !configured
+    ? { disabled: true, title: 'Konfigurera Reddit API-nycklar' }
+    : {};
+
+  const postTypeLabels: Record<string, string> = {
+    educational: 'Utbildande', case_study: 'Fallstudie', question: 'Fråga', tips: 'Tips',
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Status banner */}
+      {status && !configured && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-yellow-800">Reddit ej konfigurerat</p>
+            {status.message && <p className="mt-0.5 text-sm text-yellow-700">{status.message}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* --- GENERATE POST --- */}
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="border-b px-6 py-4">
+          <div className="flex items-center gap-2">
+            <RedditIcon className="h-5 w-5" />
+            <h3 className="font-semibold text-slate-900">Generera inlägg</h3>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-3">
+              <label className="mb-1 block text-sm font-medium text-slate-700">Ämne</label>
+              <input
+                type="text"
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                placeholder="t.ex. Hur vi minskade churn med 30%..."
+                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Subreddit</label>
+              <select
+                value={subreddit}
+                onChange={e => setSubreddit(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                {subreddits.map(s => <option key={s} value={s}>r/{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Typ</label>
+              <select
+                value={postType}
+                onChange={e => setPostType(e.target.value as typeof postType)}
+                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                <option value="educational">Utbildande</option>
+                <option value="case_study">Fallstudie</option>
+                <option value="question">Fråga</option>
+                <option value="tips">Tips</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={onGenerate}
+                disabled={generating || !topic.trim() || !subreddit}
+                className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:bg-orange-300"
+              >
+                {generating ? <><Clock className="h-4 w-4 animate-spin" /> Genererar...</> : <><Sparkles className="h-4 w-4" /> Generera</>}
+              </button>
+              <button
+                onClick={onGenerateAndPublish}
+                disabled={quickPublishing || !topic.trim() || !subreddit || !configured}
+                {...(!configured ? { title: 'Konfigurera Reddit API-nycklar' } : {})}
+                className="flex items-center gap-2 rounded-lg border border-orange-300 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+              >
+                {quickPublishing ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Generera & Publicera direkt</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Draft preview */}
+          {draft && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-orange-600">Förhandsgranskning – r/{draft.subreddit} · {postTypeLabels[draft.post_type] ?? draft.post_type}</span>
+                <button onClick={() => setDraft(null)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900 mb-2">{draft.title}</p>
+                <textarea
+                  value={draft.body}
+                  onChange={e => setDraft({ ...draft, body: e.target.value })}
+                  rows={6}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onPublish}
+                  disabled={publishing}
+                  {...publishDisabledProps}
+                  className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {publishing ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Publicera</>}
+                </button>
+                <button onClick={() => setDraft(null)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Kassera
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- RELEVANT DISCUSSIONS --- */}
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="border-b px-6 py-4 flex items-center justify-between">
+          <h3 className="font-semibold text-slate-900">Relevanta diskussioner</h3>
+          <button onClick={onRefreshRelevant} disabled={loadingRelevant}
+            className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loadingRelevant ? 'animate-spin' : ''}`} /> Hämta
+          </button>
+        </div>
+        <RedditPostTable posts={relevantPosts} loading={loadingRelevant} configured={configured}
+          generatingComment={generatingComment} onOpenCommentModal={onOpenCommentModal}
+          emptyMessage="Klicka på Hämta för att ladda relevanta diskussioner." />
+      </div>
+
+      {/* --- COMPETITOR MONITORING --- */}
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="border-b px-6 py-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-slate-900">Konkurrentbevakning</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Gainsight / Totango / ChurnZero – omnämnanden</p>
+          </div>
+          <button onClick={onRefreshCompetitors} disabled={loadingCompetitors}
+            className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loadingCompetitors ? 'animate-spin' : ''}`} /> Hämta
+          </button>
+        </div>
+        <RedditPostTable posts={competitorPosts} loading={loadingCompetitors} configured={configured}
+          generatingComment={generatingComment} onOpenCommentModal={onOpenCommentModal}
+          emptyMessage="Klicka på Hämta för att ladda konkurrentomnämnanden." />
+      </div>
+
+      {/* --- MENTIONS --- */}
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="border-b px-6 py-4 flex items-center justify-between">
+          <h3 className="font-semibold text-slate-900">Mina omnämnanden</h3>
+          <button onClick={onRefreshMentions} disabled={loadingMentions}
+            className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loadingMentions ? 'animate-spin' : ''}`} /> Hämta
+          </button>
+        </div>
+        <div className="divide-y">
+          {loadingMentions ? (
+            <div className="p-8 text-center"><Clock className="mx-auto h-8 w-8 animate-spin text-slate-300" /></div>
+          ) : mentions.length === 0 ? (
+            <div className="p-8 text-center text-sm text-slate-500">Klicka på Hämta för att ladda omnämnanden.</div>
+          ) : (
+            mentions.map(m => (
+              <div key={m.id} className="px-6 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-medium text-slate-900 text-sm">u/{m.author}</span>
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">r/{m.subreddit}</span>
+                      <span className="text-xs text-slate-400">{new Date(m.created_utc * 1000).toLocaleDateString('sv-SE')}</span>
+                    </div>
+                    {m.subject && <p className="text-xs font-medium text-slate-500 mb-1">{m.subject}</p>}
+                    <p className="text-sm text-slate-700 line-clamp-2">{m.body}</p>
+                  </div>
+                  {m.context && (
+                    <a href={`https://reddit.com${m.context}`} target="_blank" rel="noopener noreferrer"
+                      className="flex-shrink-0 flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
+                      <ArrowUpRight className="h-3.5 w-3.5" /> Visa
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* --- SUBREDDIT EXPLORATION --- */}
+      <div className="rounded-lg border bg-white shadow-sm">
+        <div className="border-b px-6 py-4">
+          <h3 className="font-semibold text-slate-900">Utforska subreddit</h3>
+        </div>
+        <div className="p-6">
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={hotSubredditInput}
+                onChange={e => setHotSubredditInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && onFetchHot()}
+                placeholder="Subredditnamn, t.ex. CustomerSuccess"
+                className="w-full rounded-lg border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+            <button onClick={onFetchHot} disabled={loadingHotPosts || !hotSubredditInput.trim()}
+              className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:bg-orange-300">
+              {loadingHotPosts ? <Clock className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Sök
+            </button>
+          </div>
+          {hotPosts.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-slate-500">Hot posts i r/{hotSubredditSearch}</p>
+              {hotPosts.map(post => (
+                <div key={post.id} className="rounded-lg border bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 line-clamp-2">{post.title}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-slate-400">u/{post.author}</span>
+                        <span className="flex items-center gap-0.5 text-xs text-orange-600"><TrendingUp className="h-3 w-3" />{post.score}</span>
+                        <span className="flex items-center gap-0.5 text-xs text-slate-500"><MessageCircle className="h-3 w-3" />{post.num_comments}</span>
+                      </div>
+                    </div>
+                    <a href={`https://reddit.com${post.permalink}`} target="_blank" rel="noopener noreferrer"
+                      className="flex-shrink-0 flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs text-slate-600 hover:bg-white">
+                      <ExternalLink className="h-3 w-3" /> Öppna
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- COMMENT MODAL --- */}
+      {commentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl">
+            <div className="border-b px-6 py-4 flex items-center justify-between">
+              <h4 className="font-semibold text-slate-900">Genererat svar</h4>
+              <button onClick={() => setCommentModal(null)} className="rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500 mb-1">Svarar på</p>
+                <p className="text-sm font-medium text-slate-900 line-clamp-2">{commentModal.post.title}</p>
+                <p className="text-xs text-slate-400 mt-1">r/{commentModal.post.subreddit} · u/{commentModal.post.author}</p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Ditt svar (redigerbart)</label>
+                <textarea
+                  value={commentModal.generatedComment}
+                  onChange={e => setCommentModal({ ...commentModal, generatedComment: e.target.value })}
+                  rows={6}
+                  className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onSubmitComment}
+                  disabled={submittingComment || !configured}
+                  {...(!configured ? { title: 'Konfigurera Reddit API-nycklar' } : {})}
+                  className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {submittingComment ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Publicera kommentar</>}
+                </button>
+                <button onClick={() => setCommentModal(null)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusable Reddit post table
+function RedditPostTable({
+  posts, loading, configured, generatingComment, onOpenCommentModal, emptyMessage,
+}: {
+  posts: RedditPost[];
+  loading: boolean;
+  configured: boolean;
+  generatingComment: string | null;
+  onOpenCommentModal: (post: RedditPost) => void;
+  emptyMessage: string;
+}) {
+  if (loading) {
+    return <div className="p-8 text-center"><Clock className="mx-auto h-8 w-8 animate-spin text-slate-300" /></div>;
+  }
+  if (posts.length === 0) {
+    return <div className="p-8 text-center text-sm text-slate-500">{emptyMessage}</div>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-slate-50 text-left">
+            <th className="px-4 py-3 font-medium text-slate-600">Titel</th>
+            <th className="px-4 py-3 font-medium text-slate-600">Subreddit</th>
+            <th className="px-4 py-3 font-medium text-slate-600 text-right">Score</th>
+            <th className="px-4 py-3 font-medium text-slate-600 text-right">Kommentarer</th>
+            <th className="px-4 py-3 font-medium text-slate-600">Länk</th>
+            <th className="px-4 py-3 font-medium text-slate-600">Åtgärd</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {posts.map(post => (
+            <tr key={post.id} className="hover:bg-slate-50">
+              <td className="px-4 py-3 max-w-xs">
+                <p className="font-medium text-slate-900 line-clamp-2 text-sm">{post.title}</p>
+                <p className="text-xs text-slate-400 mt-0.5">u/{post.author}</p>
+              </td>
+              <td className="px-4 py-3">
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">r/{post.subreddit}</span>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <span className="flex items-center justify-end gap-1 text-orange-600 font-medium">
+                  <TrendingUp className="h-3 w-3" />{post.score.toLocaleString()}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <span className="flex items-center justify-end gap-1 text-slate-600">
+                  <MessageCircle className="h-3 w-3" />{post.num_comments.toLocaleString()}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                <a href={`https://reddit.com${post.permalink}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-blue-600 hover:underline text-xs">
+                  <ExternalLink className="h-3 w-3" /> Reddit
+                </a>
+              </td>
+              <td className="px-4 py-3">
+                <button
+                  onClick={() => onOpenCommentModal(post)}
+                  disabled={generatingComment === post.id || !configured}
+                  title={!configured ? 'Konfigurera Reddit API-nycklar' : undefined}
+                  className="flex items-center gap-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {generatingComment === post.id
+                    ? <><Clock className="h-3 w-3 animate-spin" /> Genererar...</>
+                    : <><MessageCircle className="h-3 w-3" /> Generera svar</>}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 // Extracted ActionsList component
 function ActionsList({
