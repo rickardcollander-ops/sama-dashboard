@@ -199,6 +199,7 @@ export default function SEOPage() {
   const [deletingKw, setDeletingKw] = useState<string | null>(null);
   const [deletingAction, setDeletingAction] = useState<string | null>(null);
   const [deletingTask, setDeletingTask] = useState<string | null>(null);
+  const [resettingSeo, setResettingSeo] = useState(false);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
 
@@ -327,6 +328,55 @@ export default function SEOPage() {
       }
     } catch { /* silent */ } finally {
       setTrackingKw(null);
+    }
+  };
+
+  const resetSeoData = async (includeKeywords: boolean) => {
+    const mode = includeKeywords ? "ALL SEO data incl. keywords" : "SEO analysis data (keep keywords)";
+    const confirmed = window.confirm(`Reset ${mode}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setResettingSeo(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/reset?include_keywords=${includeKeywords}`, {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        setErrorMsg('Failed to reset SEO data. Check backend connection.');
+        return;
+      }
+
+      // Clear local UI state immediately
+      setActions([]);
+      setAnalysis(null);
+      setAuditHistory([]);
+      setStrategy(null);
+      setStrategyTasks([]);
+      setStrategyId(null);
+      setStrategyCreatedAt(null);
+      setStrategyFingerprint(null);
+      setExecutionResults({});
+      setExpandedAction(null);
+      setShowCompleted(false);
+
+      if (includeKeywords) {
+        setKeywords([]);
+        setStats({ avgPosition: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
+      }
+
+      // Reload from backend so UI reflects true DB state
+      await fetchActions();
+      await fetchHistory();
+      await loadStrategy();
+      await fetchVitals();
+      await fetchKeywords();
+    } catch {
+      setErrorMsg('Error resetting SEO data.');
+    } finally {
+      setResettingSeo(false);
     }
   };
 
@@ -524,6 +574,24 @@ export default function SEOPage() {
                 <p className="mt-1 text-slate-500 text-sm">Observe → Orient → Decide → Execute → Track</p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => resetSeoData(false)}
+                  disabled={resettingSeo || analyzing || initializing}
+                  title="Clear SEO actions, audits and strategy, keep tracked keywords"
+                  className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 text-sm"
+                >
+                  {resettingSeo
+                    ? <><Clock className="h-4 w-4 animate-spin" /> Resetting…</>
+                    : <><Trash2 className="h-4 w-4" /> Reset SEO Data</>}
+                </button>
+                <button
+                  onClick={() => resetSeoData(true)}
+                  disabled={resettingSeo || analyzing || initializing}
+                  title="Clear everything including tracked keywords"
+                  className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 text-sm"
+                >
+                  <Trash2 className="h-4 w-4" /> Full Reset
+                </button>
                 <button
                   onClick={initializeKeywords}
                   disabled={initializing}
