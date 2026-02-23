@@ -7,9 +7,10 @@ interface AgentChatProps {
   agentName: string;
   apiUrl: string;
   placeholder?: string;
+  examplePrompts?: string[];
 }
 
-export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatProps) {
+export default function AgentChat({ agentName, apiUrl, placeholder, examplePrompts }: AgentChatProps) {
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -46,10 +47,11 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
     setLoading(true);
 
     try {
+      const history = chatHistory.map(m => ({ role: m.role, content: m.content }));
       const response = await fetch(`${apiUrl}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, history }),
       });
 
       if (response.ok) {
@@ -123,7 +125,7 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
             placeholder="Type your message..."
             className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             disabled={loading}
@@ -137,9 +139,19 @@ export default function AgentChat({ agentName, apiUrl, placeholder }: AgentChatP
             Send
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Example: "Create a blog post about reducing customer churn" or "Analyze content gaps for Q1"
-        </p>
+        {examplePrompts && examplePrompts.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {examplePrompts.map((prompt, i) => (
+              <button
+                key={i}
+                onClick={() => setMessage(prompt)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

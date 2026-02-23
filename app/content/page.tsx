@@ -41,12 +41,15 @@ export default function ContentPage() {
   const [actions, setActions] = useState<Action[]>([]);
 
   // Execution state
-  const [executing, setExecuting] = useState<string | null>(null);
+  const [executing, setExecuting] = useState<Set<string>>(new Set());
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
+  const [error, setError] = useState<string | null>(null);
 
   // UI state
   const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   useEffect(() => { fetchLibrary(); }, []);
 
@@ -67,6 +70,7 @@ export default function ContentPage() {
   const runAnalysis = async () => {
     setAnalyzing(true);
     setActiveTab('actions');
+    setError(null);
     try {
       const response = await fetch(`${SAMA_API_URL}/api/content/analyze`, { method: 'POST' });
       if (response.ok) {
@@ -77,17 +81,17 @@ export default function ContentPage() {
           setContentPieces(data.content);
         }
       } else {
-        alert('Analysis failed. Check backend connection.');
+        setError('Analysis failed. Check backend connection.');
       }
-    } catch (error) {
-      alert('Error connecting to backend.');
+    } catch {
+      setError('Error connecting to backend.');
     } finally {
       setAnalyzing(false);
     }
   };
 
   const executeAction = async (action: Action) => {
-    setExecuting(action.id);
+    setExecuting(prev => new Set([...prev, action.id]));
     try {
       const response = await fetch(`${SAMA_API_URL}/api/content/execute`, {
         method: 'POST',
@@ -98,20 +102,20 @@ export default function ContentPage() {
         const result = await response.json();
         setExecutionResults(prev => ({ ...prev, [action.id]: result }));
         setActions(prev => prev.map(a => a.id === action.id ? { ...a, status: 'completed' } : a));
+        fetchLibrary();
       } else {
         setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
       }
-    } catch (error) {
+    } catch {
       setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Backend not reachable' } }));
     } finally {
-      setExecuting(null);
+      setExecuting(prev => { const next = new Set(prev); next.delete(action.id); return next; });
     }
   };
 
   const executeAll = async () => {
-    for (const action of actions.filter(a => a.status === 'pending')) {
-      await executeAction(action);
-    }
+    if (!window.confirm(`Kör alla ${pendingCount} väntande actions?`)) return;
+    await Promise.all(actions.filter(a => a.status === 'pending').map(action => executeAction(action)));
   };
 
   const getPriorityColor = (p: string) => {
@@ -129,6 +133,13 @@ export default function ContentPage() {
     if (t === 'publish') return <CheckCircle className="h-5 w-5 text-green-600" />;
     return <BookOpen className="h-5 w-5 text-slate-600" />;
   };
+
+  const filteredPieces = contentPieces.filter(cp => {
+    const matchesStatus = statusFilter === 'all' || cp.status === statusFilter;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || cp.title.toLowerCase().includes(q) || (cp.target_keyword || '').toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
 
   const pendingCount = actions.filter(a => a.status === 'pending').length;
   const completedCount = actions.filter(a => a.status === 'completed').length;
@@ -153,15 +164,28 @@ export default function ContentPage() {
         <div className="flex gap-6 max-w-[1400px] mx-auto">
         {/* Left: Content Area */}
         <div className="max-w-4xl flex-1 min-w-0">
+        {error && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-4 font-bold hover:text-red-900">✕</button>
+          </div>
+        )}
+
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Content Strategy</h2>
             <p className="mt-2 text-slate-600">Analyze gaps → Generate content → Optimize → Publish</p>
           </div>
-          <button onClick={runAnalysis} disabled={analyzing}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Content Analysis</>}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link href="/content-analytics"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
+              <TrendingUp className="h-4 w-4 text-green-600" /> Analytics
+            </Link>
+            <button onClick={runAnalysis} disabled={analyzing}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
+              {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Content Analysis</>}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -204,8 +228,30 @@ export default function ContentPage() {
         {activeTab === 'library' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-              <p className="mt-1 text-sm text-slate-500">All generated content pieces from Supabase</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
+                  <p className="mt-1 text-sm text-slate-500">All generated content pieces from Supabase</p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search by title or keyword..."
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value as 'all' | 'published' | 'draft')}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
             </div>
             <div className="divide-y">
               {loading ? (
@@ -216,8 +262,10 @@ export default function ContentPage() {
                   <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
                   <p className="mt-2 text-sm text-slate-500">Run analysis to discover content gaps and generate new pieces.</p>
                 </div>
+              ) : filteredPieces.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-500">No content matches your search.</div>
               ) : (
-                contentPieces.map((cp) => {
+                filteredPieces.map((cp) => {
                   // Generate live URL based on content type and title
                   let liveUrl = '';
                   if (cp.status === 'published') {
@@ -277,7 +325,7 @@ export default function ContentPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slate-900">Content Analysis</h3>
                   {pendingCount > 0 && (
-                    <button onClick={executeAll} disabled={executing !== null}
+                    <button onClick={executeAll} disabled={executing.size > 0}
                       className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
                       <Play className="h-4 w-4" /> Execute All ({pendingCount})
                     </button>
@@ -328,9 +376,9 @@ export default function ContentPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         {action.status === 'pending' && (
-                          <button onClick={() => executeAction(action)} disabled={executing === action.id}
+                          <button onClick={() => executeAction(action)} disabled={executing.has(action.id)}
                             className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                            {executing === action.id ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
+                            {executing.has(action.id) ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
                           </button>
                         )}
                         <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)} className="rounded p-1 hover:bg-slate-100">
@@ -406,10 +454,16 @@ export default function ContentPage() {
         {/* Right: Agent Chat Sidebar */}
         <div className="hidden lg:block w-[380px] flex-shrink-0">
           <div className="sticky top-8">
-            <AgentChat 
+            <AgentChat
               agentName="Content"
               apiUrl={`${SAMA_API_URL}/api/content`}
               placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
+              examplePrompts={[
+                "Create a blog post about reducing customer churn",
+                "Analyze content gaps for Q1",
+                "Write a comparison page vs Gainsight",
+                "What content should I prioritize?",
+              ]}
             />
           </div>
         </div>
