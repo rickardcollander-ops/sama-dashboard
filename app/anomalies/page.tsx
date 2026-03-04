@@ -16,11 +16,19 @@ interface Anomaly {
   detected_at: string;
 }
 
+interface Investigation {
+  anomaly: Anomaly;
+  loading: boolean;
+  result: any | null;
+  error: string | null;
+}
+
 export default function AnomaliesPage() {
   const [trafficAnomalies, setTrafficAnomalies] = useState<Anomaly[]>([]);
   const [conversionAnomalies, setConversionAnomalies] = useState<Anomaly[]>([]);
   const [spendAnomalies, setSpendAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(false);
+  const [investigation, setInvestigation] = useState<Investigation | null>(null);
 
   useEffect(() => {
     detectAnomalies();
@@ -53,6 +61,25 @@ export default function AnomaliesPage() {
       console.error('Error detecting anomalies:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const investigateAnomaly = async (anomaly: Anomaly) => {
+    setInvestigation({ anomaly, loading: true, result: null, error: null });
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/analytics/anomalies/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(anomaly),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setInvestigation({ anomaly, loading: false, result: data, error: null });
+      } else {
+        setInvestigation({ anomaly, loading: false, result: null, error: `Analysis failed (${response.status})` });
+      }
+    } catch {
+      setInvestigation({ anomaly, loading: false, result: null, error: 'Could not reach backend' });
     }
   };
 
@@ -108,11 +135,12 @@ export default function AnomaliesPage() {
           </div>
         </div>
 
-        <button 
-          onClick={() => alert(`Anomaly Details:\n\nMetric: ${anomaly.metric}\nCurrent: ${anomaly.current_value.toFixed(2)}\nBaseline: ${anomaly.baseline_mean.toFixed(2)}\nDeviation: ${anomaly.deviation_percentage.toFixed(1)}%\nDirection: ${anomaly.direction}\nSeverity: ${anomaly.severity}\nDetected: ${anomaly.detected_at}`)}
-          className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        <button
+          onClick={() => investigateAnomaly(anomaly)}
+          disabled={investigation?.loading && investigation.anomaly.metric === anomaly.metric}
+          className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
         >
-          Investigate
+          {investigation?.loading && investigation.anomaly.metric === anomaly.metric ? 'Analyzing...' : 'Investigate'}
         </button>
       </div>
     </div>
@@ -192,6 +220,53 @@ export default function AnomaliesPage() {
                 <div className="space-y-3">
                   {spendAnomalies.map(renderAnomaly)}
                 </div>
+              </div>
+            )}
+
+            {/* Investigation Panel */}
+            {investigation && !investigation.loading && (investigation.result || investigation.error) && (
+              <div className={`rounded-lg border p-6 shadow-sm ${investigation.error ? 'border-red-200 bg-red-50' : 'border-green-200 bg-white'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Investigation: {investigation.anomaly.metric.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </h2>
+                  <button onClick={() => setInvestigation(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                </div>
+                {investigation.error ? (
+                  <p className="text-sm text-red-700">{investigation.error}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {investigation.result.root_cause && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Root Cause</p>
+                        <p className="text-sm text-slate-700">{investigation.result.root_cause}</p>
+                      </div>
+                    )}
+                    {investigation.result.recommendations && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Recommendations</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                          {(Array.isArray(investigation.result.recommendations) ? investigation.result.recommendations : [investigation.result.recommendations]).map((rec: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-700">{rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {investigation.result.contributing_factors && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Contributing Factors</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                          {(Array.isArray(investigation.result.contributing_factors) ? investigation.result.contributing_factors : [investigation.result.contributing_factors]).map((f: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-700">{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {!investigation.result.root_cause && !investigation.result.recommendations && (
+                      <pre className="text-xs text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-3 overflow-auto max-h-64">{JSON.stringify(investigation.result, null, 2)}</pre>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

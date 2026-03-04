@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Send, MessageSquare, Loader2, ArrowDown } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Send, MessageSquare, Loader2, ArrowDown, Trash2 } from "lucide-react";
 
 interface AgentChatProps {
   agentName: string;
@@ -11,13 +11,30 @@ interface AgentChatProps {
 }
 
 export default function AgentChat({ agentName, apiUrl, placeholder, examplePrompts }: AgentChatProps) {
+  const storageKey = `sama-chat-${agentName}`;
   const [message, setMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>([]);
+  const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Start fresh each session — no persistent history loaded
+  // Persist chat history to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(chatHistory));
+    } catch { /* storage full or unavailable */ }
+  }, [chatHistory, storageKey]);
+
+  const clearHistory = useCallback(() => {
+    setChatHistory([]);
+    try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
+  }, [storageKey]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -76,9 +93,16 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
   return (
     <div className="rounded-lg border bg-white shadow-sm">
       <div className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-blue-600" />
-          <h3 className="font-semibold text-slate-900">Chat with {agentName} Agent</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-blue-600" />
+            <h3 className="font-semibold text-slate-900">Chat with {agentName} Agent</h3>
+          </div>
+          {chatHistory.length > 0 && (
+            <button onClick={clearHistory} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50" title="Clear chat history">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {placeholder || `Ask ${agentName} to create content, analyze gaps, or answer questions.`}

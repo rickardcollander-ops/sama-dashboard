@@ -22,6 +22,8 @@ export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     fetchApprovals();
@@ -60,28 +62,34 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleReject = async (approvalId: string) => {
-    const reason = prompt('Reason for rejection:');
-    if (!reason) return;
+  const openRejectModal = (approvalId: string) => {
+    setRejectingId(approvalId);
+    setRejectReason('');
+  };
 
-    setProcessing(approvalId);
+  const handleReject = async () => {
+    if (!rejectingId || !rejectReason.trim()) return;
+
+    setProcessing(rejectingId);
     try {
-      const response = await fetch(`${SAMA_API_URL}/api/alerts/${approvalId}/reject`, {
+      const response = await fetch(`${SAMA_API_URL}/api/alerts/${rejectingId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           rejected_by: 'Dashboard User',
-          reason 
+          reason: rejectReason.trim()
         })
       });
 
       if (response.ok) {
-        setApprovals(approvals.filter(a => a.id !== approvalId));
+        setApprovals(approvals.filter(a => a.id !== rejectingId));
       }
     } catch (error) {
       console.error('Error rejecting:', error);
     } finally {
       setProcessing(null);
+      setRejectingId(null);
+      setRejectReason('');
     }
   };
 
@@ -182,7 +190,7 @@ export default function ApprovalsPage() {
                       {processing === approval.id ? 'Processing...' : 'Approve'}
                     </button>
                     <button
-                      onClick={() => handleReject(approval.id)}
+                      onClick={() => openRejectModal(approval.id)}
                       disabled={processing === approval.id}
                       className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed flex items-center gap-2"
                     >
@@ -196,6 +204,39 @@ export default function ApprovalsPage() {
           </div>
         )}
       </main>
+
+      {/* Rejection Modal */}
+      {rejectingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Reject Approval</h3>
+            <p className="mt-1 text-sm text-slate-500">Please provide a reason for rejecting this action.</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows={3}
+              autoFocus
+              className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || processing === rejectingId}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
+              >
+                {processing === rejectingId ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
