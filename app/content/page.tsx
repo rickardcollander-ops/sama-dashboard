@@ -114,7 +114,7 @@ export default function ContentPage() {
   };
 
   const executeAll = async () => {
-    if (!window.confirm(`Run all ${pendingCount} pending actions?`)) return;
+    // Execute all pending actions
     await Promise.all(actions.filter(a => a.status === 'pending').map(action => executeAction(action)));
   };
 

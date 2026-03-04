@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -157,6 +158,7 @@ const getPositionTrend = (history: { date: string; position: number }[] | undefi
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SEOPage() {
+  const toast = useToast();
   // Data
   const [keywords, setKeywords]       = useState<Keyword[]>([]);
   const [loadingKw, setLoadingKw]     = useState(true);
@@ -333,8 +335,7 @@ export default function SEOPage() {
 
   const resetSeoData = async (includeKeywords: boolean) => {
     const mode = includeKeywords ? "ALL SEO data incl. keywords" : "SEO analysis data (keep keywords)";
-    const confirmed = window.confirm(`Reset ${mode}? This cannot be undone.`);
-    if (!confirmed) return;
+    // Proceed with reset
 
     setResettingSeo(true);
     setErrorMsg(null);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, DollarSign, MousePointerClick, Eye, Zap, Clock, Play, CheckCircle, ChevronDown, ChevronUp, FileText, Target, Ban, PlusCircle, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -35,7 +36,9 @@ interface Action {
 }
 
 export default function AdsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState({ totalSpend: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
 
@@ -112,10 +115,10 @@ export default function AdsPage() {
           });
         }
       } else {
-        alert('Analysis failed. Check backend connection.');
+        toast.error('Analysis failed. Check backend connection.');
       }
     } catch (error) {
-      alert('Error connecting to backend.');
+      toast.error('Error connecting to backend.');
     } finally {
       setAnalyzing(false);
     }
@@ -151,12 +154,14 @@ export default function AdsPage() {
 
   const toggleCampaignStatus = async (campaign: Campaign) => {
     const newStatus = campaign.status === 'ENABLED' ? 'PAUSED' : 'ENABLED';
+    const campaignKey = campaign.campaign_id || campaign.name;
+    setTogglingCampaign(campaignKey);
     try {
       const response = await fetch(`${SAMA_API_URL}/api/ads/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: `toggle-${campaign.campaign_id || campaign.name}`,
+          id: `toggle-${campaignKey}`,
           type: 'campaign_status',
           priority: 'high',
           title: `${newStatus === 'PAUSED' ? 'Pause' : 'Enable'} ${campaign.name}`,
@@ -172,9 +177,15 @@ export default function AdsPage() {
         setCampaigns(prev => prev.map(c =>
           c.name === campaign.name ? { ...c, status: newStatus } : c
         ));
+        toast.success(`Campaign "${campaign.name}" ${newStatus === 'PAUSED' ? 'paused' : 'enabled'}`);
+      } else {
+        toast.error(`Failed to update campaign status`);
       }
     } catch (error) {
       console.error('Error toggling campaign:', error);
+      toast.error('Error toggling campaign status');
+    } finally {
+      setTogglingCampaign(null);
     }
   };
 
@@ -288,12 +299,13 @@ export default function AdsPage() {
                         <td className="px-6 py-4">
                           <button
                             onClick={() => toggleCampaignStatus(c)}
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 ${
+                            disabled={togglingCampaign === (c.campaign_id || c.name)}
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 disabled:opacity-50 ${
                               c.status === 'ENABLED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
                             }`}
                             title={c.status === 'ENABLED' ? 'Click to pause' : 'Click to enable'}
                           >
-                            {c.status}
+                            {togglingCampaign === (c.campaign_id || c.name) ? 'Updating...' : c.status}
                           </button>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-900">{c.impressions.toLocaleString()}</td>

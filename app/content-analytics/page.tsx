@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Eye, Clock, MousePointerClick, Target } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -17,9 +18,11 @@ interface ContentPerformance {
 }
 
 export default function ContentAnalyticsPage() {
+  const toast = useToast();
   const [topContent, setTopContent] = useState<ContentPerformance[]>([]);
   const [underperforming, setUnderperforming] = useState<ContentPerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [metric, setMetric] = useState("pageviews");
   const [optimizingResults, setOptimizingResults] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
 
@@ -47,8 +50,10 @@ export default function ContentAnalyticsPage() {
         const data = await underResponse.json();
         setUnderperforming(data.content || []);
       }
-    } catch {
-      // analytics fetch failed silently
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load content analytics';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -62,9 +67,16 @@ export default function ContentAnalyticsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: title, content_type: 'refresh' }),
       });
-      setOptimizingResults(prev => ({ ...prev, [urlPath]: response.ok ? 'success' : 'error' }));
+      if (response.ok) {
+        setOptimizingResults(prev => ({ ...prev, [urlPath]: 'success' }));
+        toast.success(`Optimization started for "${title}"`);
+      } else {
+        setOptimizingResults(prev => ({ ...prev, [urlPath]: 'error' }));
+        toast.error(`Failed to optimize "${title}"`);
+      }
     } catch {
       setOptimizingResults(prev => ({ ...prev, [urlPath]: 'error' }));
+      toast.error(`Error optimizing "${title}"`);
     }
   };
 

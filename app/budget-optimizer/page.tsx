@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -26,11 +27,13 @@ interface Recommendation {
 }
 
 export default function BudgetOptimizerPage() {
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [requiresApproval, setRequiresApproval] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     analyzeCampaigns();
@@ -46,6 +49,9 @@ export default function BudgetOptimizerPage() {
       }
     } catch (error) {
       console.error('Error analyzing campaigns:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to analyze campaigns';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -63,9 +69,13 @@ export default function BudgetOptimizerPage() {
         const data = await response.json();
         setRecommendations(data.auto_apply || []);
         setRequiresApproval(data.requires_approval || []);
+        toast.success('Budget optimization complete');
+      } else {
+        toast.error(`Optimization failed (HTTP ${response.status})`);
       }
     } catch (error) {
       console.error('Error optimizing budgets:', error);
+      toast.error('Error connecting to backend for optimization');
     } finally {
       setOptimizing(false);
     }
@@ -80,13 +90,15 @@ export default function BudgetOptimizerPage() {
       });
 
       if (response.ok) {
-        alert('Budget changes applied successfully!');
+        toast.success('Budget changes applied successfully!');
         analyzeCampaigns();
         setRecommendations([]);
         setRequiresApproval([]);
+      } else {
+        toast.error('Failed to apply budget changes');
       }
     } catch (error) {
-      alert('Error applying changes');
+      toast.error('Error applying changes');
     }
   };
 
