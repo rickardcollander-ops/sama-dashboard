@@ -67,15 +67,14 @@ export function useBackgroundAnalysis({
         return data;
       }
 
-      // Start polling for progress
-      const cycleId = data.cycle_id;
-      setPhase(data.status === 'observing' ? 'Collecting data...' : data.phase || 'Starting...');
-      setProgress(15);
+      // Start polling for progress (always poll latest cycle, no cycle_id filter)
+      setPhase(data.phase || 'Collecting data...');
+      setProgress(data.progress || 10);
 
       pollRef.current = setInterval(async () => {
         try {
           const statusRes = await fetch(
-            `${SAMA_API_URL}/api/${agent}/cycle-status${cycleId ? `?cycle_id=${cycleId}` : ''}`
+            `${SAMA_API_URL}/api/${agent}/cycle-status`
           );
           if (!statusRes.ok) return;
 
