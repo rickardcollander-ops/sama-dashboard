@@ -5,7 +5,8 @@ import Link from "next/link";
 import {
   Activity, Search, MessageSquare, TrendingUp, Users, BarChart3,
   Bot, CheckCircle, XCircle, ArrowRight, Zap, AlertTriangle,
-  Clock, RefreshCw, Play, ChevronRight
+  Clock, RefreshCw, Play, ChevronRight, Star, FileText,
+  Linkedin, Shield, Calendar, Timer
 } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
@@ -22,8 +23,16 @@ interface Recommendation {
   effort: string;
 }
 
+interface SchedulerJob {
+  last_run: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  next_run: string | null;
+}
+
 interface AgentDef {
   name: string;
+  key: string;
   desc: string;
   runLabel: string;
   runDesc: string;
@@ -37,48 +46,68 @@ interface AgentDef {
 
 const AGENTS: AgentDef[] = [
   {
-    name: "SEO", desc: "Tracks keyword rankings via Google Search Console, runs technical audits, and monitors Core Web Vitals.",
-    runLabel: "Run Audit", runDesc: "Triggers a full technical SEO audit and keyword ranking update",
+    name: "SEO", key: "seo",
+    desc: "Keyword rankings, technical audits, Core Web Vitals",
+    runLabel: "Run Audit", runDesc: "Full SEO audit + keyword update",
     icon: Search, color: "text-blue-600", bgColor: "bg-blue-50",
     endpoint: "/api/automation/trigger/seo-audit", method: "POST", page: "/seo",
   },
   {
-    name: "Content", desc: "Analyzes content gaps against competitors and generates SEO-optimized blog posts and comparison pages.",
-    runLabel: "Analyze Gaps", runDesc: "Scans competitors and identifies missing content topics",
-    icon: MessageSquare, color: "text-purple-600", bgColor: "bg-purple-50",
+    name: "Content", key: "content",
+    desc: "Gap analysis, blog generation, comparison pages",
+    runLabel: "Analyze", runDesc: "Scan competitors and identify content gaps",
+    icon: FileText, color: "text-purple-600", bgColor: "bg-purple-50",
     endpoint: "/api/content/analyze", method: "POST", page: "/content",
   },
   {
-    name: "Ads", desc: "Manages Google Ads campaigns — optimizes bids, pauses underperformers, and generates ad copy.",
-    runLabel: "Analyze Ads", runDesc: "Reviews all campaigns and generates optimization actions",
+    name: "Ads", key: "ads",
+    desc: "Google Ads campaigns, bid optimization, ad copy",
+    runLabel: "Optimize", runDesc: "Review campaigns and generate actions",
     icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-50",
     endpoint: "/api/ads/analyze", method: "POST", page: "/ads",
   },
   {
-    name: "Social", desc: "Monitors Twitter conversations, generates posts, and schedules content across platforms.",
-    runLabel: "Run Workflow", runDesc: "Finds relevant tweets, generates replies, and queues posts",
+    name: "Social", key: "social",
+    desc: "Twitter monitoring, post scheduling, engagement",
+    runLabel: "Workflow", runDesc: "Find tweets, generate replies, queue posts",
     icon: Users, color: "text-pink-600", bgColor: "bg-pink-50",
     endpoint: "/api/automation/daily-workflow", method: "POST", page: "/social",
   },
   {
-    name: "Reviews", desc: "Monitors G2, Capterra, and Trustpilot reviews, drafts responses, and tracks SLA compliance.",
-    runLabel: "Run Workflow", runDesc: "Checks for new reviews and generates response drafts",
-    icon: BarChart3, color: "text-orange-600", bgColor: "bg-orange-50",
-    endpoint: "/api/automation/daily-workflow", method: "POST", page: "/reviews",
+    name: "Reviews", key: "reviews",
+    desc: "G2, Capterra, Trustpilot monitoring and responses",
+    runLabel: "Monitor", runDesc: "Check new reviews and draft responses",
+    icon: Star, color: "text-orange-600", bgColor: "bg-orange-50",
+    endpoint: "/api/reviews/analyze", method: "POST", page: "/reviews",
   },
   {
-    name: "Analytics", desc: "Aggregates cross-channel metrics, calculates attribution, and generates weekly performance reports.",
-    runLabel: "Get Report", runDesc: "Generates a weekly cross-channel performance summary",
+    name: "Analytics", key: "analytics",
+    desc: "Cross-channel metrics, attribution, ROI reports",
+    runLabel: "Report", runDesc: "Generate weekly performance summary",
     icon: Activity, color: "text-indigo-600", bgColor: "bg-indigo-50",
     endpoint: "/api/analytics/report/weekly", method: "GET", page: "/analytics",
   },
   {
-    name: "AI Visibility", desc: "Checks how Successifier appears in ChatGPT, Perplexity, and other AI assistants.",
-    runLabel: "Check", runDesc: "Queries AI assistants and scores brand visibility",
+    name: "AI Visibility", key: "ai_visibility",
+    desc: "ChatGPT, Claude, Gemini, Perplexity mentions",
+    runLabel: "Check", runDesc: "Query AI assistants and score visibility",
     icon: Bot, color: "text-violet-600", bgColor: "bg-violet-50",
     endpoint: "/api/ai-visibility/check", method: "POST", page: "/ai-visibility",
   },
+  {
+    name: "LinkedIn", key: "linkedin",
+    desc: "Company page posts, thought leadership content",
+    runLabel: "Generate", runDesc: "Generate a LinkedIn post",
+    icon: Linkedin, color: "text-sky-600", bgColor: "bg-sky-50",
+    endpoint: "/api/social/linkedin/generate", method: "POST", page: "/linkedin",
+  },
 ];
+
+const JOB_LABELS: Record<string, { label: string; desc: string }> = {
+  daily_keyword_tracking: { label: "Keyword Tracking", desc: "Fetches GSC rankings for all keywords" },
+  weekly_seo_audit: { label: "SEO Audit", desc: "Full technical audit (Mondays)" },
+  daily_workflow: { label: "Daily Workflow", desc: "Reviews + social post generation" },
+};
 
 export default function Home() {
   const { stats } = useSEOData();
@@ -89,6 +118,8 @@ export default function Home() {
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [dashCounts, setDashCounts] = useState<Record<string, number>>({});
   const [pendingAlerts, setPendingAlerts] = useState(0);
+  const [pendingActions, setPendingActions] = useState<Record<string, number>>({});
+  const [scheduler, setScheduler] = useState<{ running: boolean; jobs: Record<string, SchedulerJob> } | null>(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -102,7 +133,9 @@ export default function Home() {
         const data = await res.json();
         setDashCounts(data.counts || {});
         setRecentLogs(data.recent_activity || []);
-        setPendingAlerts(data.counts?.alerts || 0);
+        setPendingAlerts(data.counts?.pending_actions || data.counts?.alerts || 0);
+        setPendingActions(data.pending_actions || {});
+        if (data.scheduler) setScheduler(data.scheduler);
       }
     } catch { /* silent */ }
   };
@@ -130,6 +163,8 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         setAgentResult({ name: agent.name, ok: true, message: data.message || data.summary || `${agent.name} completed.` });
+        // Refresh dashboard data after agent run
+        setTimeout(fetchDashboard, 2000);
       } else {
         setAgentResult({ name: agent.name, ok: false, message: `Failed (${response.status})` });
       }
@@ -152,15 +187,47 @@ export default function Home() {
     low: 'bg-blue-100 text-blue-700',
   }[p] || 'bg-slate-100 text-slate-600');
 
+  const fmtRelative = (iso: string | null) => {
+    if (!iso) return null;
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const fmtTime = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <div className="mx-auto max-w-7xl px-6 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
-          <p className="mt-1 text-slate-500">
-            Overview of all marketing agents. Each agent collects data, analyzes it with AI, and suggests actions you can review and execute.
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
+            <p className="mt-1 text-slate-500">
+              Autonomous marketing platform for Successifier. Agents collect data, analyze with AI, and suggest actions.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {scheduler?.running && (
+              <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Scheduler Active
+              </span>
+            )}
+            <button onClick={() => { fetchDashboard(); fetchRecommendations(); }}
+              className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm">
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* Agent result toast */}
@@ -180,16 +247,30 @@ export default function Home() {
         )}
 
         {/* KPI Row */}
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
+        <div className="mb-8 grid gap-4 md:grid-cols-5">
           <KPICard label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" />
-          <KPICard label="Total Clicks" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
+          <KPICard label="Total Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
           <KPICard label="Avg CTR" value={stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" />
-          <KPICard label="Keywords Tracked" value={dashCounts.keywords ?? '—'} icon={BarChart3} color="text-orange-600" bgColor="bg-orange-50" />
+          <KPICard label="Keywords" value={dashCounts.keywords ?? '—'} icon={BarChart3} color="text-orange-600" bgColor="bg-orange-50" />
+          <KPICard label="Avg Rating" value={dashCounts.avg_rating ? `${dashCounts.avg_rating} / 5` : '—'} icon={Star} color="text-yellow-600" bgColor="bg-yellow-50" />
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
           {/* Left column: Recommendations + Agents */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Pending Alerts Banner */}
+            {pendingAlerts > 0 && (
+              <Link href="/approvals"
+                className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">{pendingAlerts} Pending Actions</p>
+                  <p className="text-xs text-amber-600">Agent-generated actions awaiting your review</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-amber-400" />
+              </Link>
+            )}
+
             {/* Smart Recommendations */}
             <section>
               <div className="flex items-center justify-between mb-4">
@@ -198,7 +279,7 @@ export default function Home() {
                     <Zap className="h-5 w-5 text-amber-500" />
                     <h2 className="text-lg font-semibold text-slate-900">Smart Recommendations</h2>
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-400 ml-7">AI-generated suggestions based on data from all agents. Click an agent page to act on them.</p>
+                  <p className="mt-0.5 text-xs text-slate-400 ml-7">AI analysis across all agents. Act on these to grow Successifier.</p>
                 </div>
                 <button onClick={fetchRecommendations} disabled={recsLoading}
                   className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white disabled:opacity-50">
@@ -217,7 +298,7 @@ export default function Home() {
               ) : recommendations.length === 0 ? (
                 <div className="rounded-lg border bg-white p-8 text-center">
                   <CheckCircle className="mx-auto h-8 w-8 text-green-400 mb-2" />
-                  <p className="text-sm text-slate-500">Everything looks good! No urgent recommendations.</p>
+                  <p className="text-sm text-slate-500">Everything looks good! No urgent recommendations right now.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -231,16 +312,21 @@ export default function Home() {
                               {rec.priority}
                             </span>
                             {rec.agent !== 'system' && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                              <Link href={`/${rec.agent === 'seo' ? 'seo' : rec.agent}`}
+                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-200">
                                 {rec.agent}
-                              </span>
+                              </Link>
                             )}
                           </div>
                           <p className="text-sm text-slate-600">{rec.description}</p>
+                          <p className="mt-1 text-xs text-slate-400">{rec.action}</p>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-slate-400 flex-shrink-0">
-                          <span title="Impact" className={`rounded px-1.5 py-0.5 ${rec.impact === 'high' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <div className="flex flex-col items-end gap-1 text-xs flex-shrink-0">
+                          <span className={`rounded px-1.5 py-0.5 ${rec.impact === 'high' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                             {rec.impact} impact
+                          </span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
+                            {rec.effort} effort
                           </span>
                         </div>
                       </div>
@@ -254,64 +340,107 @@ export default function Home() {
             <section>
               <div className="mb-4">
                 <h2 className="text-lg font-semibold text-slate-900">Agents</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Each agent operates autonomously on a schedule. Use the buttons below to trigger them manually.</p>
+                <p className="text-xs text-slate-400 mt-0.5">Each agent operates autonomously. Trigger manually or wait for scheduled runs.</p>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {AGENTS.map(agent => (
-                  <div key={agent.name} className="group rounded-lg border bg-white p-4 shadow-sm hover:shadow-md transition-all">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className={`rounded-lg p-2 ${agent.bgColor} flex-shrink-0`}>
-                        <agent.icon className={`h-5 w-5 ${agent.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold text-slate-900">{agent.name}</h3>
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                            <span className="text-[10px] text-slate-400">Active</span>
-                          </span>
+              <div className="grid gap-3 md:grid-cols-2">
+                {AGENTS.map(agent => {
+                  const pending = pendingActions[agent.key] || 0;
+                  return (
+                    <div key={agent.name} className="group rounded-lg border bg-white p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`rounded-lg p-2 ${agent.bgColor} flex-shrink-0`}>
+                          <agent.icon className={`h-5 w-5 ${agent.color}`} />
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{agent.desc}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-slate-900">{agent.name}</h3>
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                              <span className="text-[10px] text-slate-400">Active</span>
+                            </span>
+                            {pending > 0 && (
+                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                {pending} pending
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">{agent.desc}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Link href={agent.page}
+                          className="flex-1 rounded-md bg-slate-50 px-2 py-1.5 text-center text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+                          Open Dashboard
+                        </Link>
+                        <button
+                          onClick={() => runAgent(agent)}
+                          disabled={runningAgent !== null}
+                          title={agent.runDesc}
+                          className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {runningAgent === agent.name ? (
+                            <Clock className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Play className="h-3 w-3" />
+                          )}
+                          {agent.runLabel}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Link href={agent.page}
-                        className="flex-1 rounded-md bg-slate-50 px-2 py-1.5 text-center text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-                        Open Dashboard
-                      </Link>
-                      <button
-                        onClick={() => runAgent(agent)}
-                        disabled={runningAgent !== null}
-                        title={agent.runDesc}
-                        className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {runningAgent === agent.name ? (
-                          <Clock className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Play className="h-3 w-3" />
-                        )}
-                        {agent.runLabel}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>
 
-          {/* Right column: Activity + Quick links */}
+          {/* Right column */}
           <div className="space-y-6">
-            {/* Pending Alerts */}
-            {pendingAlerts > 0 && (
-              <Link href="/approvals"
-                className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
-                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-amber-800">{pendingAlerts} Pending Alerts</p>
-                  <p className="text-xs text-amber-600">Require your attention</p>
+            {/* Autonomous Schedule */}
+            {scheduler && (
+              <div className="rounded-lg border bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-sm font-semibold text-slate-900">Autonomous Schedule</h3>
                 </div>
-                <ChevronRight className="h-4 w-4 text-amber-400" />
-              </Link>
+                <p className="text-[10px] text-slate-400 mb-3">
+                  These jobs run automatically. All times are UTC.
+                </p>
+                <div className="space-y-3">
+                  {Object.entries(scheduler.jobs || {}).map(([jobId, job]) => {
+                    const meta = JOB_LABELS[jobId] || { label: jobId, desc: '' };
+                    return (
+                      <div key={jobId} className="rounded-md border p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-800">{meta.label}</span>
+                          {job.last_status === 'success' && <span className="flex items-center gap-1 text-[10px] text-green-600"><CheckCircle className="h-3 w-3" /> OK</span>}
+                          {job.last_status === 'error' && <span className="flex items-center gap-1 text-[10px] text-red-600"><XCircle className="h-3 w-3" /> Error</span>}
+                          {!job.last_status && <span className="text-[10px] text-slate-400">Not run yet</span>}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mb-1.5">{meta.desc}</p>
+                        <div className="flex gap-3 text-[10px] text-slate-500">
+                          {job.last_run && (
+                            <span className="flex items-center gap-1">
+                              <Timer className="h-2.5 w-2.5" />
+                              Last: {fmtRelative(job.last_run)}
+                            </span>
+                          )}
+                          {job.next_run && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" />
+                              Next: {fmtTime(job.next_run)}
+                            </span>
+                          )}
+                        </div>
+                        {job.last_error && (
+                          <p className="mt-1 text-[10px] text-red-500 truncate" title={job.last_error}>
+                            {job.last_error.slice(0, 80)}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Data Counts */}
@@ -322,8 +451,9 @@ export default function Home() {
                 {[
                   { label: "Keywords tracked", value: dashCounts.keywords ?? 0, href: "/seo" },
                   { label: "Content pieces", value: dashCounts.content_pieces ?? 0, href: "/content" },
+                  { label: "Reviews", value: dashCounts.reviews ?? 0, href: "/reviews" },
                   { label: "SEO audits", value: dashCounts.seo_audits ?? 0, href: "/seo" },
-                  { label: "Alerts", value: dashCounts.alerts ?? 0, href: "/approvals" },
+                  { label: "Pending actions", value: dashCounts.pending_actions ?? 0, href: "/approvals" },
                 ].map(item => (
                   <Link key={item.label} href={item.href}
                     className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-slate-50 transition-colors">
@@ -341,7 +471,7 @@ export default function Home() {
                 <Link href="/logs" className="text-xs text-blue-600 hover:text-blue-800">View all</Link>
               </div>
               {recentLogs.length === 0 ? (
-                <p className="text-xs text-slate-400 py-4 text-center">No recent activity</p>
+                <p className="text-xs text-slate-400 py-4 text-center">No recent activity. Run an agent to get started.</p>
               ) : (
                 <div className="space-y-2">
                   {recentLogs.slice(0, 8).map((log, i) => (
@@ -353,7 +483,7 @@ export default function Home() {
                       }`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-slate-700 truncate">{log.action || log.message || 'Agent activity'}</p>
-                        <p className="text-slate-400">{log.agent || 'system'}</p>
+                        <p className="text-slate-400">{log.agent || 'system'} {log.created_at ? `· ${fmtRelative(log.created_at)}` : ''}</p>
                       </div>
                     </div>
                   ))}
@@ -366,10 +496,11 @@ export default function Home() {
               <h3 className="text-sm font-semibold text-slate-900 mb-3">Quick Actions</h3>
               <div className="space-y-1">
                 {[
-                  { label: "Run SEO Audit", href: "/seo", icon: Search },
-                  { label: "View Anomalies", href: "/anomalies", icon: AlertTriangle },
+                  { label: "AI Visibility Monitor", href: "/ai-visibility", icon: Bot },
+                  { label: "Anomaly Detection", href: "/anomalies", icon: Shield },
                   { label: "Budget Optimizer", href: "/budget-optimizer", icon: TrendingUp },
                   { label: "Content Analytics", href: "/content-analytics", icon: BarChart3 },
+                  { label: "LinkedIn Posts", href: "/linkedin", icon: Linkedin },
                 ].map(link => (
                   <Link key={link.label} href={link.href}
                     className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
@@ -398,7 +529,7 @@ function KPICard({ label, value, icon: Icon, color, bgColor }: {
         </div>
         <div>
           <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className={`text-xl font-bold text-slate-900`}>{value}</p>
+          <p className="text-xl font-bold text-slate-900">{value}</p>
         </div>
       </div>
     </div>

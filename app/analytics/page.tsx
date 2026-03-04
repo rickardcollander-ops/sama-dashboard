@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, DollarSign, Users } from "lucide-react";
+import { BarChart3, TrendingUp, DollarSign, Users, RefreshCw, Play, Clock } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
@@ -36,15 +36,38 @@ export default function AnalyticsPage() {
   });
   const [funnelStages, setFunnelStages] = useState<any[]>([]);
   const [attribution, setAttribution] = useState<AttributionData[]>([]);
+  const [days, setDays] = useState(30);
+  const [collecting, setCollecting] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [days]);
+
+  const collectMetrics = async () => {
+    setCollecting(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/analytics/metrics/collect`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Collected ${data.total_channels || 0} channels`);
+        if (data.errors?.length) {
+          toast.error(`Errors: ${data.errors.map((e: any) => e.error).join(', ').slice(0, 100)}`);
+        }
+        fetchAnalytics();
+      } else {
+        toast.error('Failed to collect metrics');
+      }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setCollecting(false);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
       // Fetch historical metrics from daily_metrics table
-      const response = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=30`);
+      const response = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=${days}`);
       let metrics: any[] = [];
 
       if (response.ok) {
@@ -182,9 +205,30 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
-          <p className="mt-1 text-slate-500 text-sm">Aggregates cross-channel metrics from Google Ads, SEO, and social media. Calculates attribution models and visualizes the conversion funnel.</p>
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
+            <p className="mt-1 text-slate-500 text-sm">Cross-channel metrics from Google Ads, SEO, and social media. Attribution models and conversion funnel.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg border bg-white overflow-hidden">
+              {[7, 14, 30, 90].map(d => (
+                <button key={d} onClick={() => setDays(d)}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${days === d ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+            <button onClick={collectMetrics} disabled={collecting}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-indigo-400">
+              {collecting ? <Clock className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              Collect Now
+            </button>
+            <button onClick={fetchAnalytics} disabled={loading}
+              className="flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
         {loading ? (
           <div className="text-center py-12 text-slate-500">Loading analytics data...</div>
