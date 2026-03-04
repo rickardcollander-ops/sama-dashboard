@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
+import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -36,7 +37,7 @@ export default function ContentPage() {
   const [contentPieces, setContentPieces] = useState<ContentPiece[]>([]);
 
   // Analysis state
-  const [analyzing, setAnalyzing] = useState(false);
+  // analyzing state from useBackgroundAnalysis hook
   const [analysis, setAnalysis] = useState<any>(null);
   const [actions, setActions] = useState<Action[]>([]);
 
@@ -44,6 +45,20 @@ export default function ContentPage() {
   const [executing, setExecuting] = useState<Set<string>>(new Set());
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // Background analysis
+  const fetchActions = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/content/actions`);
+      if (res.ok) { const d = await res.json(); setActions(d.actions || []); }
+    } catch {}
+  };
+  const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
+    useBackgroundAnalysis({
+      agent: 'content',
+      onComplete: () => { fetchLibrary(); fetchActions(); },
+      onError: (err) => setError(err),
+    });
 
   // UI state
   const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
@@ -68,26 +83,9 @@ export default function ContentPage() {
   };
 
   const runAnalysis = async () => {
-    setAnalyzing(true);
     setActiveTab('actions');
     setError(null);
-    try {
-      const response = await fetch(`${SAMA_API_URL}/api/content/analyze`, { method: 'POST' });
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data);
-        setActions(data.actions || []);
-        if (data.content?.length > 0) {
-          setContentPieces(data.content);
-        }
-      } else {
-        setError('Analysis failed. Check backend connection.');
-      }
-    } catch {
-      setError('Error connecting to backend.');
-    } finally {
-      setAnalyzing(false);
-    }
+    await startBgAnalysis();
   };
 
   const executeAction = async (action: Action) => {
@@ -175,6 +173,23 @@ export default function ContentPage() {
             </button>
           </div>
         </div>
+
+        {/* Analysis progress bar */}
+        {analyzing && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 animate-spin text-blue-600" />
+                <p className="text-sm font-medium text-blue-800">{analysisPhase || 'Starting analysis...'}</p>
+              </div>
+              <span className="text-xs font-mono text-blue-600">{analysisProgress}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
+            </div>
+            <p className="mt-1.5 text-xs text-blue-600">You can navigate away — the analysis continues in the background.</p>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="mb-8 grid gap-4 md:grid-cols-4">

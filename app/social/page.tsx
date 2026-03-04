@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
+import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -91,7 +92,6 @@ type TabId = 'actions' | 'interesting' | 'drafts' | 'calendar' | 'mentions' | 'r
 
 export default function SocialPage() {
   const toast = useToast();
-  const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -364,32 +364,16 @@ export default function SocialPage() {
     finally { setSubmittingComment(false); }
   };
 
+  const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
+    useBackgroundAnalysis({
+      agent: 'social',
+      onComplete: () => { fetchDbActions(); },
+      onError: (err) => toast.error(err),
+    });
+
   const runAnalysis = async () => {
-    setAnalyzing(true);
     setActiveTab('actions');
-    try {
-      const response = await fetch(`${SAMA_API_URL}/api/social/analyze`, { method: 'POST' });
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data);
-        // Merge db_id from saved actions
-        const savedActions = (data.actions || []).map((a: Action, i: number) => ({
-          ...a,
-          db_id: data.action_ids?.[i]
-        }));
-        setActions(savedActions);
-        if (data.interesting_tweets?.length) {
-          setInterestingTweets(data.interesting_tweets);
-        }
-        await fetchDbActions();
-      } else {
-        toast.error('Analysis failed. Check backend connection.');
-      }
-    } catch {
-      toast.error('Error connecting to backend.');
-    } finally {
-      setAnalyzing(false);
-    }
+    await startBgAnalysis();
   };
 
   const executeAction = async (action: Action) => {
@@ -498,6 +482,23 @@ export default function SocialPage() {
             {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze &amp; Generate</>}
           </button>
         </div>
+
+        {/* Analysis progress bar */}
+        {analyzing && (
+          <div className="mb-4 rounded-lg border border-pink-200 bg-pink-50 px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 animate-spin text-pink-600" />
+                <p className="text-sm font-medium text-pink-800">{analysisPhase || 'Starting analysis...'}</p>
+              </div>
+              <span className="text-xs font-mono text-pink-600">{analysisProgress}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-pink-100 overflow-hidden">
+              <div className="h-full rounded-full bg-pink-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
+            </div>
+            <p className="mt-1.5 text-xs text-pink-600">You can navigate away — the analysis continues in the background.</p>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="mb-8 grid gap-4 md:grid-cols-5">

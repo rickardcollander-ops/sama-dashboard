@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
+import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -93,7 +94,6 @@ export default function ReviewsPage() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'reviews' | 'platforms' | 'import'>('overview');
-  const [analyzing, setAnalyzing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [executing, setExecuting] = useState<string | null>(null);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
@@ -153,26 +153,19 @@ export default function ReviewsPage() {
     fetchActions();
   }, [fetchDashboard, fetchReviews, fetchActions]);
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Background analysis ─────────────────────────────────────────────────────
+
+  const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
+    useBackgroundAnalysis({
+      agent: 'reviews',
+      onComplete: () => { fetchActions(); fetchDashboard(); fetchReviews(); },
+      onError: (err) => setErrorMsg(err),
+    });
 
   const runAnalysis = async () => {
-    setAnalyzing(true);
     setErrorMsg(null);
     setActiveTab('actions');
-    try {
-      const res = await fetch(`${SAMA_API_URL}/api/reviews/analyze`, { method: 'POST' });
-      if (res.ok) {
-        await fetchActions();
-        await fetchDashboard();
-        await fetchReviews();
-      } else {
-        setErrorMsg('Analysis failed. Check backend connection.');
-      }
-    } catch {
-      setErrorMsg('Error connecting to backend.');
-    } finally {
-      setAnalyzing(false);
-    }
+    await startBgAnalysis();
   };
 
   const executeAction = async (action: Action) => {
@@ -277,6 +270,23 @@ export default function ReviewsPage() {
                 <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
                 <p className="text-sm text-red-700">{errorMsg}</p>
                 <button onClick={() => setErrorMsg(null)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+              </div>
+            )}
+
+            {/* Analysis progress bar */}
+            {analyzing && (
+              <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 animate-spin text-yellow-600" />
+                    <p className="text-sm font-medium text-yellow-800">{analysisPhase || 'Starting analysis...'}</p>
+                  </div>
+                  <span className="text-xs font-mono text-yellow-600">{analysisProgress}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-yellow-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-yellow-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
+                </div>
+                <p className="mt-1.5 text-xs text-yellow-700">You can navigate away — the analysis continues in the background.</p>
               </div>
             )}
 
