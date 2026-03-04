@@ -460,10 +460,10 @@ export default function SocialPage() {
   const engageActions = actions.filter(a => a.type === 'engage_interesting');
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number; dot?: 'green' | 'red' }[] = [
-    { id: 'actions', label: 'All Actions', icon: <Zap className="h-4 w-4" />, count: pendingCount || undefined },
-    { id: 'interesting', label: 'Interesting Tweets', icon: <Sparkles className="h-4 w-4" />, count: interestingTweets.length || engageActions.length || undefined },
-    { id: 'drafts', label: 'Saved Drafts', icon: <FileText className="h-4 w-4" />, count: drafts.length || undefined },
-    { id: 'calendar', label: 'Content Calendar', icon: <Calendar className="h-4 w-4" />, count: calendarActions.length || undefined },
+    { id: 'actions', label: 'Pending Actions', icon: <Zap className="h-4 w-4" />, count: pendingCount || undefined },
+    { id: 'interesting', label: 'Relevant Tweets', icon: <Sparkles className="h-4 w-4" />, count: interestingTweets.length || engageActions.length || undefined },
+    { id: 'drafts', label: 'Draft Posts', icon: <FileText className="h-4 w-4" />, count: drafts.length || undefined },
+    { id: 'calendar', label: 'Scheduled Posts', icon: <Calendar className="h-4 w-4" />, count: calendarActions.length || undefined },
     { id: 'mentions', label: 'Mentions & Replies', icon: <MessageCircle className="h-4 w-4" />, count: mentionActions.length || undefined },
     {
       id: 'reddit',
@@ -490,12 +490,12 @@ export default function SocialPage() {
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Social Strategy</h2>
-            <p className="mt-2 text-slate-600">Analyze → Discover tweets → Generate content → Engage → Publish</p>
+            <h2 className="text-3xl font-bold text-slate-900">Social Media Agent</h2>
+            <p className="mt-2 text-slate-500 text-sm">Monitors Twitter for relevant conversations, generates social posts, and schedules content. Also monitors Reddit and LinkedIn.</p>
           </div>
           <button onClick={runAnalysis} disabled={analyzing}
             className="flex items-center gap-2 rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700 disabled:bg-pink-400 shadow-lg shadow-pink-600/20">
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Social Analysis</>}
+            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze &amp; Generate</>}
           </button>
         </div>
 

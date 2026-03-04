@@ -12,29 +12,30 @@ import {
 interface NavItem {
   href: string;
   label: string;
+  desc: string;
   icon: React.ElementType;
   badge?: string;
   group: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Command Center", icon: Home, group: "main" },
+  { href: "/", label: "Command Center", desc: "Overview & quick actions", icon: Home, group: "main" },
 
-  { href: "/seo", label: "SEO", icon: Search, group: "agents" },
-  { href: "/content", label: "Content", icon: MessageSquare, group: "agents" },
-  { href: "/ads", label: "Google Ads", icon: TrendingUp, group: "agents" },
-  { href: "/social", label: "Social Media", icon: Users, group: "agents" },
-  { href: "/reviews", label: "Reviews", icon: BarChart3, group: "agents" },
-  { href: "/analytics", label: "Analytics", icon: BarChart2, group: "agents" },
-  { href: "/ai-visibility", label: "AI Visibility", icon: Bot, group: "agents" },
+  { href: "/seo", label: "SEO", desc: "Rankings, audits & keywords", icon: Search, group: "agents" },
+  { href: "/content", label: "Content", desc: "AI-generated articles & pages", icon: MessageSquare, group: "agents" },
+  { href: "/ads", label: "Google Ads", desc: "Campaign optimization", icon: TrendingUp, group: "agents" },
+  { href: "/social", label: "Social Media", desc: "Twitter, Reddit & scheduling", icon: Users, group: "agents" },
+  { href: "/reviews", label: "Reviews", desc: "G2, Capterra & responses", icon: BarChart3, group: "agents" },
+  { href: "/analytics", label: "Analytics", desc: "Cross-channel metrics & ROI", icon: BarChart2, group: "agents" },
+  { href: "/ai-visibility", label: "AI Visibility", desc: "Presence in AI assistants", icon: Bot, group: "agents" },
 
-  { href: "/content-analytics", label: "Content Analytics", icon: FileText, group: "insights" },
-  { href: "/budget-optimizer", label: "Budget Optimizer", icon: DollarSign, group: "insights" },
-  { href: "/anomalies", label: "Anomalies", icon: AlertTriangle, group: "insights" },
+  { href: "/content-analytics", label: "Content Analytics", desc: "Performance per article", icon: FileText, group: "insights" },
+  { href: "/budget-optimizer", label: "Budget Optimizer", desc: "Reallocate ad spend", icon: DollarSign, group: "insights" },
+  { href: "/anomalies", label: "Anomalies", desc: "Unexpected metric changes", icon: AlertTriangle, group: "insights" },
 
-  { href: "/approvals", label: "Approvals", icon: Shield, group: "ops" },
-  { href: "/logs", label: "Activity Logs", icon: ClipboardList, group: "ops" },
-  { href: "/linkedin", label: "LinkedIn", icon: Linkedin, group: "ops" },
+  { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
+  { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
+  { href: "/linkedin", label: "LinkedIn", desc: "Company page management", icon: Linkedin, group: "ops" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -97,7 +98,7 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    title={collapsed ? item.label : undefined}
+                    title={collapsed ? `${item.label} — ${item.desc}` : undefined}
                     className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-blue-50 text-blue-700"
@@ -109,7 +110,12 @@ export default function Sidebar() {
                         isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
                       }`}
                     />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && (
+                      <div className="min-w-0 flex-1">
+                        <span className="truncate block">{item.label}</span>
+                        <span className="truncate block text-[10px] font-normal text-slate-400 leading-tight">{item.desc}</span>
+                      </div>
+                    )}
                   </Link>
                 );
               })}

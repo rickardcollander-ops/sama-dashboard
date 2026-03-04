@@ -215,15 +215,15 @@ export default function AdsPage() {
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Google Ads Performance</h2>
-            <p className="mt-2 text-slate-600">Analyze → Optimize → Execute → Track</p>
+            <h2 className="text-3xl font-bold text-slate-900">Google Ads Agent</h2>
+            <p className="mt-2 text-slate-500 text-sm">Manages Google Ads campaigns — optimizes bids, pauses underperformers, harvests negative keywords, and generates ad copy.</p>
           </div>
           <button
             onClick={runAnalysis}
             disabled={analyzing}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-medium text-white hover:bg-green-700 disabled:bg-green-400 shadow-lg shadow-green-600/20"
           >
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Full Analysis</>}
+            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze All Campaigns</>}
           </button>
         </div>
 
@@ -250,9 +250,9 @@ export default function AdsPage() {
         {/* Tabs */}
         <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm">
           {[
-            { id: 'campaigns' as const, label: 'Campaigns', icon: <TrendingUp className="h-4 w-4" /> },
-            { id: 'actions' as const, label: `Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
-            { id: 'rules' as const, label: 'Optimization Rules', icon: <Target className="h-4 w-4" /> },
+            { id: 'campaigns' as const, label: 'Active Campaigns', icon: <TrendingUp className="h-4 w-4" /> },
+            { id: 'actions' as const, label: `Optimization Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
+            { id: 'rules' as const, label: 'Automated Rules', icon: <Target className="h-4 w-4" /> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -270,8 +270,8 @@ export default function AdsPage() {
         {activeTab === 'campaigns' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Campaigns</h3>
-              <p className="mt-1 text-sm text-slate-500">Click "Run Full Analysis" to get actionable optimizations</p>
+              <h3 className="text-lg font-semibold text-slate-900">Active Campaigns</h3>
+              <p className="mt-1 text-sm text-slate-500">Live Google Ads campaigns. Click status to toggle pause/enable. Click &quot;Analyze All Campaigns&quot; to generate optimization actions.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -329,9 +329,13 @@ export default function AdsPage() {
             {analysis && (
               <div className="rounded-lg border bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Analysis Summary</h3>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Campaign Optimization Actions</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">AI-generated actions: bid adjustments, ad copy rewrites, negative keywords, budget changes. Execute individually or all at once.</p>
+                  </div>
                   {pendingCount > 0 && (
                     <button onClick={executeAll} disabled={executing !== null}
+                      title="Executes all pending optimizations via the Ads Agent"
                       className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400">
                       <Play className="h-4 w-4" /> Execute All ({pendingCount})
                     </button>
@@ -362,7 +366,7 @@ export default function AdsPage() {
               <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
                 <Zap className="mx-auto h-12 w-12 text-slate-300" />
                 <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Click "Run Full Analysis" to analyze campaigns and generate optimizations.</p>
+                <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze All Campaigns&quot; to review campaign performance and generate specific optimization actions (bid changes, ad copy, negative keywords).</p>
               </div>
             ) : (
               actions.map((action) => (
@@ -434,8 +438,8 @@ export default function AdsPage() {
         {activeTab === 'rules' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Optimization Rules</h3>
-              <p className="mt-1 text-sm text-slate-500">Automated rules that the Ads Agent applies during analysis</p>
+              <h3 className="text-lg font-semibold text-slate-900">Automated Rules</h3>
+              <p className="mt-1 text-sm text-slate-500">These rules are automatically applied by the Ads Agent during each analysis cycle. The agent checks these conditions and generates actions when triggered.</p>
             </div>
             <div className="divide-y">
               {[

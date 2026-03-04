@@ -151,6 +151,10 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
+          <p className="mt-1 text-slate-500 text-sm">Aggregates cross-channel metrics from Google Ads, SEO, and social media. Calculates attribution models and visualizes the conversion funnel.</p>
+        </div>
         {loading ? (
           <div className="text-center py-12 text-slate-500">Loading analytics data...</div>
         ) : error && channelPerformance.length === 0 ? (
@@ -206,7 +210,8 @@ export default function AnalyticsPage() {
 
         {/* Channel Performance */}
         <div className="mb-8 rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-xl font-semibold text-slate-900">Channel Performance</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Channel Performance</h2>
+          <p className="mb-6 mt-1 text-sm text-slate-400">Breakdown of traffic and conversions by marketing channel over the last 30 days.</p>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -239,7 +244,8 @@ export default function AnalyticsPage() {
 
         {/* Conversion Funnel */}
         <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-xl font-semibold text-slate-900">Conversion Funnel</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Conversion Funnel</h2>
+          <p className="mb-6 mt-1 text-sm text-slate-400">Estimated funnel stages from awareness to paid conversion, derived from actual session and conversion data.</p>
           <div className="space-y-4">
             {funnelStages.map((stage, index) => (
               <div key={stage.stage}>
@@ -267,8 +273,8 @@ export default function AnalyticsPage() {
 
         {/* Attribution Model */}
         <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold text-slate-900">Attribution Model</h2>
-          <p className="text-sm text-slate-500 mb-4">Multi-touch attribution showing channel contribution to conversions</p>
+          <h2 className="text-xl font-semibold text-slate-900">Attribution Model</h2>
+          <p className="text-sm text-slate-400 mb-4">Shows which channels drive conversions using three attribution methods: first interaction, last interaction, and assisted (supporting) channels.</p>
           <div className="grid gap-4 md:grid-cols-3">
             {attribution.length > 0 ? attribution.map((a, i) => {
               const colors = ['text-blue-600', 'text-green-600', 'text-purple-600'];
