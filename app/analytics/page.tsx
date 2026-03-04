@@ -43,17 +43,48 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
-      // Fetch from backend API
+      // Fetch historical metrics from daily_metrics table
       const response = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=30`);
       let metrics: any[] = [];
-      
+
       if (response.ok) {
         const data = await response.json();
         metrics = data.metrics || data || [];
       } else {
         console.error('Error fetching analytics:', response.status);
-        toast.error(`Failed to fetch analytics (HTTP ${response.status})`);
-        setError(`Failed to fetch analytics (HTTP ${response.status})`);
+      }
+
+      // If no historical data, try live metrics from agents
+      if (metrics.length === 0) {
+        try {
+          const liveResponse = await fetch(`${SAMA_API_URL}/api/analytics/metrics/live`);
+          if (liveResponse.ok) {
+            const liveData = await liveResponse.json();
+            const channels = liveData.channels || {};
+            const overview = liveData.overview || {};
+
+            // Convert live data into metrics-like rows so the rest of the code works
+            for (const [channel, chData] of Object.entries(channels)) {
+              const ch = chData as any;
+              if (ch && ch.status !== 'error') {
+                metrics.push({
+                  channel,
+                  total_sessions: ch.total_clicks || 0,
+                  total_conversions: ch.total_conversions || 0,
+                  total_revenue: ch.total_revenue || 0,
+                  total_ad_spend: ch.total_spend || ch.total_ad_spend || 0,
+                });
+              }
+            }
+          }
+        } catch (liveErr) {
+          console.error('Live metrics also failed:', liveErr);
+        }
+      }
+
+      if (metrics.length === 0) {
+        toast.error('No analytics data available. Check that APIs are configured.');
+        setError('No analytics data available');
       }
 
       if (metrics.length > 0) {
