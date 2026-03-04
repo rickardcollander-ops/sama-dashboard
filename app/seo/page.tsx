@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useToast } from "@/components/Toast";
+import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -173,7 +174,6 @@ export default function SEOPage() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp' | 'strategy'>('overview');
-  const [analyzing, setAnalyzing]   = useState(false);
   const [analysis, setAnalysis]     = useState<any>(null);
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
   const [executing, setExecuting]   = useState<string | null>(null);
@@ -203,6 +203,24 @@ export default function SEOPage() {
   const [deletingAction, setDeletingAction] = useState<string | null>(null);
   const [deletingTask, setDeletingTask] = useState<string | null>(null);
   const [resettingSeo, setResettingSeo] = useState(false);
+
+  // ── Background analysis hook ────────────────────────────────────────────────
+
+  const onAnalysisComplete = useCallback(() => {
+    fetchActions();
+    fetchKeywords();
+    fetchVitals();
+    fetchHistory();
+    loadStrategy();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress, error: analysisError } =
+    useBackgroundAnalysis({
+      agent: 'seo',
+      onComplete: onAnalysisComplete,
+      onError: (err) => setErrorMsg(err),
+    });
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
 
@@ -506,30 +524,9 @@ export default function SEOPage() {
   };
 
   const runAnalysis = async () => {
-    setAnalyzing(true);
     setErrorMsg(null);
     setActiveTab('actions');
-    try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/analyze`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setAnalysis(data);
-        // Update strategy state from analysis result
-        if (data.strategy_headline) {
-          await loadStrategy();
-        }
-        await fetchActions();
-        await fetchKeywords();
-        await fetchVitals();
-        await fetchHistory();
-      } else {
-        setErrorMsg('Analysis failed. Check backend connection.');
-      }
-    } catch {
-      setErrorMsg('Error connecting to backend.');
-    } finally {
-      setAnalyzing(false);
-    }
+    await startBgAnalysis();
   };
 
   const executeAction = async (action: Action) => {
@@ -653,11 +650,31 @@ export default function SEOPage() {
             </div>
 
             {/* Error banner */}
-            {errorMsg && (
+            {(errorMsg || analysisError) && (
               <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
                 <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                <p className="text-sm text-red-700">{errorMsg}</p>
+                <p className="text-sm text-red-700">{errorMsg || analysisError}</p>
                 <button onClick={() => setErrorMsg(null)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+              </div>
+            )}
+
+            {/* Analysis progress bar */}
+            {analyzing && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 animate-spin text-blue-600" />
+                    <p className="text-sm font-medium text-blue-800">{analysisPhase || 'Starting analysis...'}</p>
+                  </div>
+                  <span className="text-xs font-mono text-blue-600">{analysisProgress}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all duration-700 ease-out"
+                    style={{ width: `${analysisProgress}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-blue-600">You can navigate away — the analysis continues in the background.</p>
               </div>
             )}
 

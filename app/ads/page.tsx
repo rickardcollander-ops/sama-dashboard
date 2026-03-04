@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TrendingUp, DollarSign, MousePointerClick, Eye, Zap, Clock, Play, CheckCircle, ChevronDown, ChevronUp, FileText, Target, Ban, PlusCircle, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
+import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -43,9 +44,21 @@ export default function AdsPage() {
   const [stats, setStats] = useState({ totalSpend: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
 
   // Analysis state
-  const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [actions, setActions] = useState<Action[]>([]);
+
+  const fetchActions = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/ads/actions`);
+      if (res.ok) { const d = await res.json(); setActions(d.actions || []); }
+    } catch {}
+  };
+  const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
+    useBackgroundAnalysis({
+      agent: 'ads',
+      onComplete: () => { fetchCampaigns(); fetchActions(); },
+      onError: (err) => toast.error(err),
+    });
 
   // Execution state
   const [executing, setExecuting] = useState<string | null>(null);
@@ -94,34 +107,8 @@ export default function AdsPage() {
   };
 
   const runAnalysis = async () => {
-    setAnalyzing(true);
     setActiveTab('actions');
-    try {
-      const response = await fetch(`${SAMA_API_URL}/api/ads/analyze`, { method: 'POST' });
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data);
-        setActions(data.actions || []);
-        if (data.campaigns?.length > 0) {
-          setCampaigns(data.campaigns);
-          const totalSpend = data.campaigns.reduce((s: number, c: any) => s + (c.cost || 0), 0);
-          const totalClicks = data.campaigns.reduce((s: number, c: any) => s + (c.clicks || 0), 0);
-          const totalImpressions = data.campaigns.reduce((s: number, c: any) => s + (c.impressions || 0), 0);
-          setStats({
-            totalSpend: Math.round(totalSpend * 100) / 100,
-            totalClicks,
-            totalImpressions,
-            avgCTR: totalImpressions > 0 ? Math.round((totalClicks / totalImpressions) * 10000) / 100 : 0,
-          });
-        }
-      } else {
-        toast.error('Analysis failed. Check backend connection.');
-      }
-    } catch (error) {
-      toast.error('Error connecting to backend.');
-    } finally {
-      setAnalyzing(false);
-    }
+    await startBgAnalysis();
   };
 
   const executeAction = async (action: Action) => {
@@ -226,6 +213,23 @@ export default function AdsPage() {
             {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze All Campaigns</>}
           </button>
         </div>
+
+        {/* Analysis progress bar */}
+        {analyzing && (
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 animate-spin text-green-600" />
+                <p className="text-sm font-medium text-green-800">{analysisPhase || 'Starting analysis...'}</p>
+              </div>
+              <span className="text-xs font-mono text-green-600">{analysisProgress}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-green-100 overflow-hidden">
+              <div className="h-full rounded-full bg-green-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
+            </div>
+            <p className="mt-1.5 text-xs text-green-600">You can navigate away — the analysis continues in the background.</p>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="mb-8 grid gap-4 md:grid-cols-4">
