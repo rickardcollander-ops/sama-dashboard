@@ -180,6 +180,7 @@ export default function SEOPage() {
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [expandedAction, setExpandedAction]     = useState<string | null>(null);
   const [showCompleted, setShowCompleted]       = useState(false);
+  const [syncingGsc, setSyncingGsc]             = useState(false);
 
   // SERP state
   const [serpKeyword, setSerpKeyword]   = useState('');
@@ -485,6 +486,25 @@ export default function SEOPage() {
     }
   };
 
+  const syncGscKeywords = async () => {
+    setSyncingGsc(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/sync-gsc`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`GSC sync: ${data.inserted} new keywords, ${data.updated} updated (${data.total_gsc} total in GSC)`);
+        await fetchKeywords();
+      } else {
+        setErrorMsg('GSC sync failed');
+      }
+    } catch {
+      setErrorMsg('Could not reach backend');
+    } finally {
+      setSyncingGsc(false);
+    }
+  };
+
   const runAnalysis = async () => {
     setAnalyzing(true);
     setErrorMsg(null);
@@ -609,6 +629,16 @@ export default function SEOPage() {
                   {initializing
                     ? <><Clock className="h-4 w-4 animate-spin" /> Initializing…</>
                     : <><RefreshCw className="h-4 w-4" /> Initialize Keywords</>}
+                </button>
+                <button
+                  onClick={syncGscKeywords}
+                  disabled={syncingGsc || analyzing}
+                  title="Fetch ALL keywords from Google Search Console and add any missing ones to tracking. Also updates metrics for existing keywords."
+                  className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 font-medium text-green-800 hover:bg-green-100 disabled:opacity-50 text-sm"
+                >
+                  {syncingGsc
+                    ? <><Clock className="h-4 w-4 animate-spin" /> Syncing…</>
+                    : <><RefreshCw className="h-4 w-4" /> Sync GSC Keywords</>}
                 </button>
                 <button
                   onClick={runAnalysis}
