@@ -90,6 +90,13 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
   return (
     <div className="rounded-lg border bg-white shadow-sm">
       <div className="border-b p-4">
@@ -122,7 +129,12 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
                   ? "bg-blue-600 text-white" 
                   : "bg-slate-100 text-slate-900"
               }`}>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <div className="text-sm chat-markdown">
+                  {msg.role === "user"
+                    ? <p className="whitespace-pre-wrap">{msg.content}</p>
+                    : <MarkdownContent text={msg.content} />
+                  }
+                </div>
               </div>
             </div>
           ))
@@ -145,13 +157,13 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
 
       <div className="border-t p-4">
         <div className="flex gap-2">
-          <input
-            type="text"
+          <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder="Type your message..."
-            className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message... (Shift+Enter for new line)"
+            rows={1}
+            className="flex-1 resize-none rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 max-h-32"
             disabled={loading}
           />
           <button
@@ -179,4 +191,95 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
       </div>
     </div>
   );
+}
+
+/**
+ * Simple markdown renderer — handles **bold**, `code`, ```code blocks```,
+ * - lists, numbered lists, and line breaks. No external deps.
+ */
+function MarkdownContent({ text }: { text: string }) {
+  const blocks = text.split(/\n\n+/);
+
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, bi) => {
+        const trimmed = block.trim();
+        if (!trimmed) return null;
+
+        // Code block
+        if (trimmed.startsWith('```')) {
+          const lines = trimmed.split('\n');
+          const code = lines.slice(1, lines[lines.length - 1] === '```' ? -1 : undefined).join('\n');
+          return (
+            <pre key={bi} className="rounded-md bg-slate-800 text-slate-100 p-3 text-xs overflow-x-auto whitespace-pre-wrap">
+              <code>{code}</code>
+            </pre>
+          );
+        }
+
+        // List items
+        const listLines = trimmed.split('\n');
+        const isList = listLines.every(l => /^\s*[-*•]\s/.test(l) || /^\s*\d+[.)]\s/.test(l) || l.trim() === '');
+        if (isList && listLines.length > 1) {
+          return (
+            <ul key={bi} className="list-disc pl-5 space-y-0.5">
+              {listLines.filter(l => l.trim()).map((l, li) => (
+                <li key={li} className="text-sm">
+                  <InlineMarkdown text={l.replace(/^\s*[-*•]\s*/, '').replace(/^\s*\d+[.)]\s*/, '')} />
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        // Heading-like lines (### or ## or #)
+        if (/^#{1,3}\s/.test(trimmed)) {
+          const level = trimmed.match(/^(#{1,3})/)?.[1].length || 1;
+          const headText = trimmed.replace(/^#{1,3}\s+/, '');
+          const cls = level === 1 ? 'text-base font-bold' : level === 2 ? 'text-sm font-bold' : 'text-sm font-semibold';
+          return <p key={bi} className={cls}><InlineMarkdown text={headText} /></p>;
+        }
+
+        // Regular paragraph (may contain line breaks)
+        return (
+          <p key={bi} className="whitespace-pre-wrap">
+            <InlineMarkdown text={trimmed} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  // Process inline: **bold**, *italic*, `code`
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Code inline
+    const codeMatch = remaining.match(/^(.*?)`([^`]+)`/);
+    if (codeMatch) {
+      if (codeMatch[1]) parts.push(<span key={key++}>{codeMatch[1]}</span>);
+      parts.push(<code key={key++} className="rounded bg-slate-200 px-1 py-0.5 text-xs font-mono text-slate-800">{codeMatch[2]}</code>);
+      remaining = remaining.slice(codeMatch[0].length);
+      continue;
+    }
+
+    // Bold
+    const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*/);
+    if (boldMatch) {
+      if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
+      parts.push(<strong key={key++}>{boldMatch[2]}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+
+    // No more inline formatting
+    parts.push(<span key={key++}>{remaining}</span>);
+    break;
+  }
+
+  return <>{parts}</>;
 }
