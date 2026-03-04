@@ -1,6 +1,7 @@
 "use client";
 
-import { Activity, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Activity, CheckCircle, XCircle, AlertCircle, Search } from "lucide-react";
 import Link from "next/link";
 import { useActivityLogs } from "@/lib/hooks/useActivityLogs";
 
@@ -15,6 +16,24 @@ interface LogEntry {
 
 export default function LogsPage() {
   const { loading, logs, loadMore, hasMore } = useActivityLogs();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [agentFilter, setAgentFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const uniqueAgents = useMemo(() => {
+    const agents = new Set(logs.map((l: LogEntry) => l.agent));
+    return Array.from(agents).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log: LogEntry) => {
+      const matchesAgent = agentFilter === 'all' || log.agent === agentFilter;
+      const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = !q || log.action.toLowerCase().includes(q) || log.details.toLowerCase().includes(q) || log.agent.toLowerCase().includes(q);
+      return matchesAgent && matchesStatus && matchesSearch;
+    });
+  }, [logs, agentFilter, statusFilter, searchQuery]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -64,13 +83,60 @@ export default function LogsPage() {
           <p className="mt-2 text-slate-600">Real-time logs from all SAMA 2.0 agents</p>
         </div>
 
+        {/* Filters */}
+        <div className="mb-6 flex flex-wrap gap-3 items-center rounded-lg border bg-white p-4 shadow-sm">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search logs..."
+              className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={agentFilter}
+            onChange={e => setAgentFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">All Agents</option>
+            {uniqueAgents.map(agent => (
+              <option key={agent} value={agent}>{agent}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">All Statuses</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+            <option value="warning">Warning</option>
+          </select>
+          {(searchQuery || agentFilter !== 'all' || statusFilter !== 'all') && (
+            <button
+              onClick={() => { setSearchQuery(''); setAgentFilter('all'); setStatusFilter('all'); }}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              Clear Filters
+            </button>
+          )}
+          <span className="text-xs text-slate-400">{filteredLogs.length} of {logs.length} entries</span>
+        </div>
+
         <div className="space-y-4">
           {loading ? (
             <div className="rounded-lg border bg-white p-8 text-center">
               <p className="text-slate-500">Loading logs...</p>
             </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="rounded-lg border bg-white p-8 text-center">
+              <p className="text-slate-500">No logs match your filters.</p>
+            </div>
           ) : (
-            logs.map((log) => (
+            filteredLogs.map((log: LogEntry) => (
               <div key={log.id} className="rounded-lg border bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
@@ -95,7 +161,7 @@ export default function LogsPage() {
 
         {hasMore && (
           <div className="mt-8 flex justify-center">
-            <button 
+            <button
               onClick={loadMore}
               className="rounded-lg border bg-white px-6 py-3 font-medium text-slate-700 hover:bg-slate-50"
             >

@@ -2,41 +2,56 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, MessageSquare, Search, TrendingUp, Users } from "lucide-react";
+import { Activity, BarChart3, MessageSquare, Search, TrendingUp, Users, CheckCircle, XCircle } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
+interface AgentDef {
+  name: string;
+  icon: typeof Search;
+  status: string;
+  color: string;
+  endpoint: string;
+  method: 'GET' | 'POST';
+  payload?: Record<string, unknown>;
+  page: string;
+}
+
 export default function Home() {
   const { stats } = useSEOData();
   const [runningAgent, setRunningAgent] = useState<string | null>(null);
-  
-  const agents = [
-    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500", endpoint: "/api/seo/audit", page: "/seo" },
-    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500", endpoint: "/api/content/blog", page: "/content" },
-    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500", endpoint: "/api/ads/optimize", page: "/ads" },
-    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/social/post/generate", page: "/social" },
-    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/reviews/fetch", page: "/reviews" },
-    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report", page: "/analytics" },
-    { name: "AI Visibility", icon: Activity, status: "active", color: "bg-violet-500", endpoint: "/api/ai-visibility/check", page: "/ai-visibility" },
+  const [agentResult, setAgentResult] = useState<{ name: string; ok: boolean; message: string } | null>(null);
+
+  const agents: AgentDef[] = [
+    { name: "SEO Agent", icon: Search, status: "active", color: "bg-blue-500", endpoint: "/api/automation/trigger/seo-audit", method: "POST", page: "/seo" },
+    { name: "Content Agent", icon: MessageSquare, status: "active", color: "bg-purple-500", endpoint: "/api/content/analyze", method: "POST", page: "/content" },
+    { name: "Ads Agent", icon: TrendingUp, status: "active", color: "bg-green-500", endpoint: "/api/ads/analyze", method: "POST", page: "/ads" },
+    { name: "Social Agent", icon: Users, status: "active", color: "bg-pink-500", endpoint: "/api/automation/daily-workflow", method: "POST", page: "/social" },
+    { name: "Reviews Agent", icon: MessageSquare, status: "active", color: "bg-orange-500", endpoint: "/api/automation/daily-workflow", method: "POST", page: "/reviews" },
+    { name: "Analytics Agent", icon: BarChart3, status: "active", color: "bg-indigo-500", endpoint: "/api/analytics/report/weekly", method: "GET", page: "/analytics" },
+    { name: "AI Visibility", icon: Activity, status: "active", color: "bg-violet-500", endpoint: "/api/ai-visibility/check", method: "POST", page: "/ai-visibility" },
   ];
 
-  const runAgent = async (agentName: string, endpoint: string) => {
-    setRunningAgent(agentName);
+  const runAgent = async (agent: AgentDef) => {
+    setRunningAgent(agent.name);
+    setAgentResult(null);
     try {
-      const response = await fetch(`${SAMA_API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      
+      const options: RequestInit = agent.method === 'POST'
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(agent.payload ?? {}) }
+        : { method: 'GET' };
+
+      const response = await fetch(`${SAMA_API_URL}${agent.endpoint}`, options);
+
       if (response.ok) {
-        alert(`${agentName} started successfully!`);
+        const data = await response.json();
+        setAgentResult({ name: agent.name, ok: true, message: data.message || data.summary || `${agent.name} completed successfully.` });
       } else {
-        alert(`Failed to start ${agentName}`);
+        const errText = await response.text().catch(() => 'Unknown error');
+        setAgentResult({ name: agent.name, ok: false, message: `Failed (${response.status}): ${errText.slice(0, 120)}` });
       }
     } catch (error) {
-      alert(`Error starting ${agentName}`);
+      setAgentResult({ name: agent.name, ok: false, message: `Connection error: ${error instanceof Error ? error.message : 'Unknown'}` });
     } finally {
       setRunningAgent(null);
     }
@@ -68,6 +83,19 @@ export default function Home() {
           <p className="mt-2 text-slate-600">Monitor and control your autonomous marketing agents</p>
         </div>
 
+        {agentResult && (
+          <div className={`mb-6 flex items-center justify-between rounded-lg border p-4 ${agentResult.ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+            <div className="flex items-center gap-3">
+              {agentResult.ok ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
+              <div>
+                <p className={`text-sm font-medium ${agentResult.ok ? 'text-green-800' : 'text-red-800'}`}>{agentResult.name}</p>
+                <p className={`text-sm ${agentResult.ok ? 'text-green-700' : 'text-red-700'}`}>{typeof agentResult.message === 'string' ? agentResult.message : JSON.stringify(agentResult.message).slice(0, 200)}</p>
+              </div>
+            </div>
+            <button onClick={() => setAgentResult(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+          </div>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => {
             return (
@@ -88,9 +116,9 @@ export default function Home() {
                   <Link href={agent.page} className="flex-1 rounded-md bg-slate-100 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-200">
                     View Details
                   </Link>
-                  <button 
-                    onClick={() => runAgent(agent.name, agent.endpoint)}
-                    disabled={runningAgent === agent.name}
+                  <button
+                    onClick={() => runAgent(agent)}
+                    disabled={runningAgent !== null}
                     className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
                   >
                     {runningAgent === agent.name ? 'Running...' : 'Run'}

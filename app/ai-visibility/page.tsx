@@ -178,10 +178,8 @@ export default function AIVisibilityPage() {
     setProgress(0);
     setCheckStatus(null);
 
-    // 5 engines × 16 prompts × ~10s = ~800s ≈ 13 min
-    const TOTAL_MS = 780_000;
     const steps = [
-      { at: 0,  label: 'Startar monitoring-körning...' },
+      { at: 0,  label: 'Starting monitoring run...' },
       { at: 2,  label: 'ChatGPT (GPT-4o) — tool recommendations...' },
       { at: 10, label: 'ChatGPT (GPT-4o) — competitor alternatives...' },
       { at: 18, label: 'Claude (Anthropic) — tool recommendations...' },
@@ -191,54 +189,70 @@ export default function AIVisibilityPage() {
       { at: 58, label: 'Perplexity AI — competitor alternatives...' },
       { at: 70, label: 'Perplexity AI — use cases...' },
       { at: 80, label: 'Microsoft Copilot — buying intent...' },
-      { at: 90, label: 'Sparar resultat och identifierar gaps...' },
-      { at: 97, label: 'Nästan klart...' },
+      { at: 90, label: 'Saving results and identifying gaps...' },
+      { at: 97, label: 'Almost done...' },
     ];
 
-    const startTime = Date.now();
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const pct = Math.min(97, (elapsed / TOTAL_MS) * 100);
-      setProgress(Math.round(pct));
-      const currentStep = [...steps].reverse().find(s => pct >= s.at);
-      if (currentStep) setProgressStep(currentStep.label);
-    }, 1000);
+    const initialCount = checks.length;
+    const EXPECTED_TOTAL = 80; // 5 engines × 16 prompts
 
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/check`, { method: 'POST' });
       if (!res.ok) {
-        clearInterval(timer);
         setRunningCheck(false);
         setProgress(0);
-        setCheckStatus('Misslyckades att starta körning.');
+        setCheckStatus('Failed to start monitoring run.');
         return;
       }
 
+      // Poll for actual progress
       const pollInterval = setInterval(async () => {
         try {
-          const r = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=1`);
-          if (r.ok) { /* backend is alive */ }
-        } catch { /* ignore */ }
-      }, 30_000);
+          const r = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=200`);
+          if (r.ok) {
+            const d = await r.json();
+            const newChecks = d.checks || [];
+            const newCount = newChecks.length;
+            const completed = Math.max(0, newCount - initialCount);
+            const pct = Math.min(97, Math.round((completed / EXPECTED_TOTAL) * 100));
+            setProgress(pct);
+            const currentStep = [...steps].reverse().find(s => pct >= s.at);
+            if (currentStep) setProgressStep(currentStep.label);
 
-      setTimeout(async () => {
-        clearInterval(timer);
+            if (completed >= EXPECTED_TOTAL || pct >= 97) {
+              clearInterval(pollInterval);
+              setProgress(100);
+              setProgressStep('Done!');
+              await fetchAll();
+              setTimeout(() => {
+                setRunningCheck(false);
+                setProgress(0);
+                setProgressStep('');
+              }, 2000);
+            }
+          }
+        } catch { /* ignore poll errors */ }
+      }, 15_000);
+
+      // Timeout fallback at 20 minutes
+      setTimeout(() => {
         clearInterval(pollInterval);
-        setProgress(100);
-        setProgressStep('Klar! ✓');
-        await fetchAll();
-        setTimeout(() => {
-          setRunningCheck(false);
-          setProgress(0);
-          setProgressStep('');
-        }, 2000);
-      }, TOTAL_MS);
+        if (progress < 100) {
+          setProgress(100);
+          setProgressStep('Done!');
+          fetchAll();
+          setTimeout(() => {
+            setRunningCheck(false);
+            setProgress(0);
+            setProgressStep('');
+          }, 2000);
+        }
+      }, 1_200_000);
 
     } catch {
-      clearInterval(timer);
       setRunningCheck(false);
       setProgress(0);
-      setCheckStatus('Kunde inte nå backend.');
+      setCheckStatus('Could not reach backend.');
     }
   };
 
@@ -264,7 +278,7 @@ export default function AIVisibilityPage() {
   };
 
   const clearData = async () => {
-    if (!confirm('Rensa all data? Detta tar bort alla checks och gaps.')) return;
+    if (!confirm('Clear all data? This will remove all checks and gaps.')) return;
     setClearing(true);
     try {
       await fetch(`${SAMA_API_URL}/api/ai-visibility/clear`, { method: 'POST' });
@@ -282,10 +296,10 @@ export default function AIVisibilityPage() {
   const engineStats = summary?.engine_stats ?? {};
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'overview',        label: 'Översikt',   icon: <BarChart2 className="h-4 w-4" /> },
+    { id: 'overview',        label: 'Overview',    icon: <BarChart2 className="h-4 w-4" /> },
     { id: 'checks',          label: 'Checks',     icon: <Eye className="h-4 w-4" />,         count: checks.length || undefined },
     { id: 'gaps',            label: 'Gaps',       icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
-    { id: 'recommendations', label: 'GEO-råd',    icon: <Lightbulb className="h-4 w-4" />,  count: recommendations.length || undefined },
+    { id: 'recommendations', label: 'GEO Advice',    icon: <Lightbulb className="h-4 w-4" />,  count: recommendations.length || undefined },
   ];
 
   return (
@@ -308,28 +322,28 @@ export default function AIVisibilityPage() {
           <div>
             <h2 className="text-3xl font-bold text-slate-900">AI Visibility Monitor</h2>
             <p className="mt-2 text-slate-600">
-              Hur ofta nämner ChatGPT, Claude, Gemini, Perplexity och Copilot Successifier?
+              How often do ChatGPT, Claude, Gemini, Perplexity and Copilot mention Successifier?
             </p>
             {summary?.last_check_at && (
-              <p className="mt-1 text-xs text-slate-400">Senaste check: {fmtDate(summary.last_check_at)}</p>
+              <p className="mt-1 text-xs text-slate-400">Last check: {fmtDate(summary.last_check_at)}</p>
             )}
           </div>
           <div className="flex gap-3">
             <button onClick={clearData} disabled={clearing || runningCheck}
               className="flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
               {clearing ? <Clock className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Rensa data
+              Clear Data
             </button>
             <button onClick={generateRecommendations} disabled={loadingRecs}
               className="flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               {loadingRecs ? <Clock className="h-4 w-4 animate-spin" /> : <Lightbulb className="h-4 w-4" />}
-              GEO-råd
+              GEO Advice
             </button>
             <button onClick={runCheck} disabled={runningCheck}
               className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 font-medium text-white hover:bg-violet-700 disabled:bg-violet-400 shadow-lg shadow-violet-600/20">
               {runningCheck
-                ? <><Clock className="h-5 w-5 animate-spin" /> Kör ({Math.round(progress)}%)</>
-                : <><Play className="h-5 w-5" /> Kör Monitoring</>
+                ? <><Clock className="h-5 w-5 animate-spin" /> Running ({Math.round(progress)}%)</>
+                : <><Play className="h-5 w-5" /> Run Monitoring</>
               }
             </button>
           </div>
@@ -341,7 +355,7 @@ export default function AIVisibilityPage() {
             <div className="flex items-center justify-between mb-2">
               <span className="flex items-center gap-2 text-sm font-medium text-violet-800">
                 <Clock className="h-4 w-4 animate-spin" />
-                {progressStep || 'Startar...'}
+                {progressStep || 'Starting...'}
               </span>
               <span className="text-sm font-bold text-violet-700">{progress}%</span>
             </div>
@@ -354,7 +368,7 @@ export default function AIVisibilityPage() {
                 <EngineBadge key={e} engine={e} />
               ))}
             </div>
-            <p className="mt-2 text-xs text-violet-600">5 motorer × 16 prompts × ~10 sek/prompt ≈ 13 min totalt</p>
+            <p className="mt-2 text-xs text-violet-600">5 engines × 16 prompts × ~10 sec/prompt ≈ 13 min total</p>
           </div>
         )}
 
@@ -366,16 +380,16 @@ export default function AIVisibilityPage() {
 
         {/* Stat cards */}
         <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <StatCard label="Mention Rate" value={loading ? '—' : fmtPct(mentionRate)} sub="totalt över alla motorer"
+          <StatCard label="Mention Rate" value={loading ? '—' : fmtPct(mentionRate)} sub="across all engines"
             trend={summary?.trend}
             valueColor={mentionRate >= 0.5 ? 'text-green-600' : mentionRate >= 0.25 ? 'text-yellow-600' : 'text-red-600'} />
           <StatCard label="Avg Rank" value={loading ? '—' : avgRank ? `#${avgRank.toFixed(1)}` : '—'}
-            sub="när vi nämns" valueColor="text-blue-600" />
-          <StatCard label="Öppna Gaps" value={loading ? '—' : openGaps}
-            sub="prompts/motorer utan omnämnande"
+            sub="when mentioned" valueColor="text-blue-600" />
+          <StatCard label="Open Gaps" value={loading ? '—' : openGaps}
+            sub="prompt/engine combos without mention"
             valueColor={openGaps > 20 ? 'text-red-600' : openGaps > 10 ? 'text-yellow-600' : 'text-green-600'} />
-          <StatCard label="Totala Checks" value={loading ? '—' : summary?.total_checks ?? checks.length}
-            sub="prompt × motor-körningar" valueColor="text-violet-600" />
+          <StatCard label="Total Checks" value={loading ? '—' : summary?.total_checks ?? checks.length}
+            sub="prompt × engine runs" valueColor="text-violet-600" />
         </div>
 
         {/* Tabs */}
@@ -401,9 +415,9 @@ export default function AIVisibilityPage() {
 
             {/* Per-engine mention rate */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-lg font-semibold text-slate-900">Mention rate per AI-motor</h3>
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Mention Rate per AI Engine</h3>
               {Object.keys(engineStats).length === 0 ? (
-                <p className="text-sm text-slate-400">Kör Monitoring för att se per-motor statistik.</p>
+                <p className="text-sm text-slate-400">Run Monitoring to see per-engine statistics.</p>
               ) : (
                 <div className="space-y-3">
                   {Object.entries(engineStats)
@@ -426,18 +440,18 @@ export default function AIVisibilityPage() {
 
             {/* Category breakdown */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-lg font-semibold text-slate-900">Omnämnanden per kategori</h3>
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Mentions by Category</h3>
               {checks.length === 0
-                ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="Inga checks ännu" desc="Kör Monitoring för att starta." />
+                ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="No checks yet" desc="Run Monitoring to get started." />
                 : <CategoryBreakdown checks={checks} />
               }
             </div>
 
             {/* Top competitors */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-lg font-semibold text-slate-900">Konkurrenter i AI-svar</h3>
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Competitors in AI Responses</h3>
               {(summary?.top_competitors ?? []).length === 0 ? (
-                <p className="text-sm text-slate-400">Kör en monitoring-körning för att se konkurrenter.</p>
+                <p className="text-sm text-slate-400">Run a monitoring check to see competitors.</p>
               ) : (
                 <div className="space-y-3">
                   {(summary?.top_competitors ?? []).slice(0, 8).map(c => (
@@ -457,10 +471,10 @@ export default function AIVisibilityPage() {
             {/* Recent checks */}
             <div className="rounded-lg border bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-900">Senaste checks</h3>
+                <h3 className="text-lg font-semibold text-slate-900">Recent Checks</h3>
                 <button onClick={() => setActiveTab('checks')}
                   className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-800">
-                  Visa alla <ArrowRight className="h-3 w-3" />
+                  View all <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
               <div className="space-y-2">
@@ -471,12 +485,12 @@ export default function AIVisibilityPage() {
                     <EngineBadge engine={c.ai_engine} />
                     {c.mentioned
                       ? <span className="flex items-center gap-1 text-xs font-medium text-green-700"><CheckCircle className="h-3.5 w-3.5" /> #{c.rank ?? '?'}</span>
-                      : <span className="flex items-center gap-1 text-xs font-medium text-red-600"><AlertCircle className="h-3.5 w-3.5" /> Ej nämnd</span>
+                      : <span className="flex items-center gap-1 text-xs font-medium text-red-600"><AlertCircle className="h-3.5 w-3.5" /> Not mentioned</span>
                     }
                     <span className="text-xs text-slate-400">{fmtDate(c.checked_at)}</span>
                   </div>
                 ))}
-                {checks.length === 0 && <p className="text-sm text-slate-400">Inga checks ännu.</p>}
+                {checks.length === 0 && <p className="text-sm text-slate-400">No checks yet.</p>}
               </div>
             </div>
           </div>
@@ -486,13 +500,13 @@ export default function AIVisibilityPage() {
         {activeTab === 'checks' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">{checks.length} checks. Klicka för att se hela AI-svaret.</p>
+              <p className="text-sm text-slate-600">{checks.length} checks. Click to view the full AI response.</p>
               <button onClick={fetchChecks} className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                <RefreshCw className="h-4 w-4" /> Uppdatera
+                <RefreshCw className="h-4 w-4" /> Refresh
               </button>
             </div>
             {checks.length === 0
-              ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="Inga checks ännu" desc="Kör Monitoring för att starta." />
+              ? <EmptyState icon={<Eye className="h-10 w-10 text-slate-300" />} title="No checks yet" desc="Run Monitoring to get started." />
               : checks.map(check => (
                 <CheckCard key={check.id} check={check}
                   expanded={expandedCheck === check.id}
@@ -507,14 +521,14 @@ export default function AIVisibilityPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-600">
-                {gaps.filter(g => g.status === 'open').length} öppna gaps — prompt/motor-kombinationer där Successifier inte nämns.
+                {gaps.filter(g => g.status === 'open').length} open gaps — prompt/engine combinations where Successifier is not mentioned.
               </p>
               <button onClick={fetchGaps} className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                <RefreshCw className="h-4 w-4" /> Uppdatera
+                <RefreshCw className="h-4 w-4" /> Refresh
               </button>
             </div>
             {gaps.length === 0
-              ? <EmptyState icon={<CheckCircle className="h-10 w-10 text-slate-300" />} title="Inga gaps hittade" desc="Kör en monitoring-körning för att identifiera gaps." />
+              ? <EmptyState icon={<CheckCircle className="h-10 w-10 text-slate-300" />} title="No gaps found" desc="Run a monitoring check to identify gaps." />
               : gaps.map(gap => <GapCard key={gap.id} gap={gap} onUpdateStatus={updateGapStatus} />)
             }
           </div>
@@ -524,15 +538,15 @@ export default function AIVisibilityPage() {
         {activeTab === 'recommendations' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">Claude-genererade GEO-åtgärder baserade på aktuella gaps.</p>
+              <p className="text-sm text-slate-600">Claude-generated GEO actions based on current gaps.</p>
               <button onClick={generateRecommendations} disabled={loadingRecs}
                 className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-                {loadingRecs ? <><Clock className="h-4 w-4 animate-spin" /> Genererar...</> : <><Zap className="h-4 w-4" /> Generera nya råd</>}
+                {loadingRecs ? <><Clock className="h-4 w-4 animate-spin" /> Generating...</> : <><Zap className="h-4 w-4" /> Generate New Advice</>}
               </button>
             </div>
             {recommendations.length === 0 && !loadingRecs
-              ? <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />} title="Inga råd ännu"
-                  desc='Klicka "Generera nya råd" för att få Claude att analysera dina gaps.' />
+              ? <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />} title="No advice yet"
+                  desc='Click "Generate New Advice" to have Claude analyze your gaps.' />
               : recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)
             }
           </div>
@@ -579,7 +593,7 @@ function CategoryBreakdown({ checks }: { checks: AICheck[] }) {
             <p className={`text-2xl font-bold ${rate >= 0.5 ? 'text-green-600' : rate > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
               {total > 0 ? fmtPct(rate) : '—'}
             </p>
-            <p className="text-xs text-slate-400 mt-0.5">{mentioned}/{total} nämnd</p>
+            <p className="text-xs text-slate-400 mt-0.5">{mentioned}/{total} mentioned</p>
             {total > 0 && (
               <div className="mt-2 rounded-full bg-slate-100 h-1.5 overflow-hidden">
                 <div className={`h-1.5 rounded-full ${rate >= 0.5 ? 'bg-green-500' : rate > 0 ? 'bg-yellow-400' : 'bg-red-400'}`}
@@ -608,10 +622,10 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
                 <EngineBadge engine={check.ai_engine} />
                 {check.mentioned
                   ? <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200">
-                      <CheckCircle className="h-3 w-3" /> Nämnd {check.rank ? `#${check.rank}` : ''}
+                      <CheckCircle className="h-3 w-3" /> Mentioned {check.rank ? `#${check.rank}` : ''}
                     </span>
                   : <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 border border-red-200">
-                      <AlertCircle className="h-3 w-3" /> Ej nämnd
+                      <AlertCircle className="h-3 w-3" /> Not mentioned
                     </span>
                 }
                 {check.sentiment && (
@@ -636,7 +650,7 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
         <div className="border-t px-4 pb-4 pt-3 space-y-3">
           {check.competitors_mentioned?.length > 0 && (
             <div className="rounded-lg bg-orange-50 p-3">
-              <p className="text-xs font-semibold text-orange-700 mb-1">Konkurrenter nämnda</p>
+              <p className="text-xs font-semibold text-orange-700 mb-1">Konkurrenter mentioneda</p>
               <div className="flex flex-wrap gap-1">
                 {check.competitors_mentioned.map(c => (
                   <span key={c} className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-800 border border-orange-200">{c}</span>
@@ -648,10 +662,10 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
           {/* Full AI response */}
           <div className="rounded-lg bg-slate-50 border p-4">
             <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
-              Fullt AI-svar från {check.ai_engine}
+              Full AI response from {check.ai_engine}
             </p>
             <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-              {check.full_response || check.ai_response_excerpt || '(inget svar sparat)'}
+              {check.full_response || check.ai_response_excerpt || '(no response saved)'}
             </div>
           </div>
         </div>
@@ -687,11 +701,11 @@ function GapCard({ gap, onUpdateStatus }: { gap: Gap; onUpdateStatus: (id: strin
         <div className="flex gap-1 flex-shrink-0">
           {gap.status === 'open' && (
             <button onClick={() => onUpdateStatus(gap.id, 'in_progress')}
-              className="rounded-lg border px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">Påbörja</button>
+              className="rounded-lg border px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">Start</button>
           )}
           {gap.status !== 'resolved' && (
             <button onClick={() => onUpdateStatus(gap.id, 'resolved')}
-              className="rounded-lg border px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Löst</button>
+              className="rounded-lg border px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Resolved</button>
           )}
         </div>
       </div>

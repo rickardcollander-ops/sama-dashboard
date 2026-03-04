@@ -149,6 +149,35 @@ export default function AdsPage() {
     }
   };
 
+  const toggleCampaignStatus = async (campaign: Campaign) => {
+    const newStatus = campaign.status === 'ENABLED' ? 'PAUSED' : 'ENABLED';
+    try {
+      const response = await fetch(`${SAMA_API_URL}/api/ads/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `toggle-${campaign.campaign_id || campaign.name}`,
+          type: 'campaign_status',
+          priority: 'high',
+          title: `${newStatus === 'PAUSED' ? 'Pause' : 'Enable'} ${campaign.name}`,
+          description: `Change campaign status to ${newStatus}`,
+          action: `set_status`,
+          campaign: campaign.name,
+          campaign_id: campaign.campaign_id,
+          new_status: newStatus,
+          status: 'pending',
+        }),
+      });
+      if (response.ok) {
+        setCampaigns(prev => prev.map(c =>
+          c.name === campaign.name ? { ...c, status: newStatus } : c
+        ));
+      }
+    } catch (error) {
+      console.error('Error toggling campaign:', error);
+    }
+  };
+
   const getPriorityColor = (p: string) => {
     if (p === 'critical') return 'bg-red-100 text-red-800 border-red-200';
     if (p === 'high') return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -271,9 +300,15 @@ export default function AdsPage() {
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="px-6 py-4 text-sm font-medium text-slate-900">{c.name}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                            c.status === 'ENABLED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
-                          }`}>{c.status}</span>
+                          <button
+                            onClick={() => toggleCampaignStatus(c)}
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 ${
+                              c.status === 'ENABLED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
+                            }`}
+                            title={c.status === 'ENABLED' ? 'Click to pause' : 'Click to enable'}
+                          >
+                            {c.status}
+                          </button>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-900">{c.impressions.toLocaleString()}</td>
                         <td className="px-6 py-4 text-sm text-slate-900">{c.clicks.toLocaleString()}</td>

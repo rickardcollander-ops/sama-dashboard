@@ -114,7 +114,7 @@ export default function ContentPage() {
   };
 
   const executeAll = async () => {
-    if (!window.confirm(`Kör alla ${pendingCount} väntande actions?`)) return;
+    if (!window.confirm(`Run all ${pendingCount} pending actions?`)) return;
     await Promise.all(actions.filter(a => a.status === 'pending').map(action => executeAction(action)));
   };
 
@@ -419,34 +419,7 @@ export default function ContentPage() {
 
         {/* TAB: Content Pillars */}
         {activeTab === 'pillars' && (
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Content Pillars</h3>
-              <p className="mt-1 text-sm text-slate-500">Strategic content themes for topical authority</p>
-            </div>
-            <div className="grid gap-4 p-6 md:grid-cols-3">
-              {[
-                { key: 'churn_prevention', title: 'Churn Prevention', desc: 'Content around detecting and reducing churn', color: 'border-red-200 bg-red-50' },
-                { key: 'health_scoring', title: 'Health Scoring', desc: 'Customer health scoring frameworks', color: 'border-green-200 bg-green-50' },
-                { key: 'cs_automation', title: 'CS Automation', desc: 'Automating workflows and playbooks', color: 'border-blue-200 bg-blue-50' },
-                { key: 'onboarding', title: 'Onboarding', desc: 'Customer onboarding best practices', color: 'border-purple-200 bg-purple-50' },
-                { key: 'nrr_growth', title: 'NRR Growth', desc: 'Net revenue retention strategies', color: 'border-yellow-200 bg-yellow-50' },
-                { key: 'competitor', title: 'Competitor Comparisons', desc: 'vs Gainsight, Totango, ChurnZero', color: 'border-orange-200 bg-orange-50' },
-              ].map(pillar => {
-                const count = contentPieces.filter(cp =>
-                  (cp.target_keyword || '').toLowerCase().includes(pillar.key.replace(/_/g, ' ')) ||
-                  (cp.title || '').toLowerCase().includes(pillar.key.replace(/_/g, ' '))
-                ).length;
-                return (
-                  <div key={pillar.key} className={`rounded-lg border p-4 ${pillar.color}`}>
-                    <h4 className="font-semibold text-slate-900">{pillar.title}</h4>
-                    <p className="mt-1 text-sm text-slate-600">{pillar.desc}</p>
-                    <p className="mt-2 text-xs font-medium text-slate-500">{count} pieces</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <ContentPillarsTab contentPieces={contentPieces} apiUrl={SAMA_API_URL} />
         )}
 
         </div>
@@ -469,6 +442,81 @@ export default function ContentPage() {
         </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+const PILLAR_COLORS = [
+  'border-red-200 bg-red-50', 'border-green-200 bg-green-50', 'border-blue-200 bg-blue-50',
+  'border-purple-200 bg-purple-50', 'border-yellow-200 bg-yellow-50', 'border-orange-200 bg-orange-50',
+  'border-pink-200 bg-pink-50', 'border-cyan-200 bg-cyan-50', 'border-indigo-200 bg-indigo-50',
+];
+
+const DEFAULT_PILLARS = [
+  { key: 'churn_prevention', title: 'Churn Prevention', desc: 'Content around detecting and reducing churn' },
+  { key: 'health_scoring', title: 'Health Scoring', desc: 'Customer health scoring frameworks' },
+  { key: 'cs_automation', title: 'CS Automation', desc: 'Automating workflows and playbooks' },
+  { key: 'onboarding', title: 'Onboarding', desc: 'Customer onboarding best practices' },
+  { key: 'nrr_growth', title: 'NRR Growth', desc: 'Net revenue retention strategies' },
+  { key: 'competitor', title: 'Competitor Comparisons', desc: 'vs Gainsight, Totango, ChurnZero' },
+];
+
+function ContentPillarsTab({ contentPieces, apiUrl }: { contentPieces: ContentPiece[]; apiUrl: string }) {
+  const [pillars, setPillars] = useState(DEFAULT_PILLARS);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (loaded) return;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/content/library`);
+        if (res.ok) {
+          const data = await res.json();
+          const pieces: ContentPiece[] = data.content || [];
+          // Derive pillars from actual target keywords
+          const kwMap = new Map<string, number>();
+          pieces.forEach(p => {
+            const kw = (p.target_keyword || '').toLowerCase().trim();
+            if (kw) kwMap.set(kw, (kwMap.get(kw) || 0) + 1);
+          });
+          if (kwMap.size > 0) {
+            const derived = Array.from(kwMap.entries())
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 12)
+              .map(([kw]) => ({
+                key: kw.replace(/\s+/g, '_'),
+                title: kw.replace(/\b\w/g, l => l.toUpperCase()),
+                desc: `${kwMap.get(kw)} pieces targeting "${kw}"`,
+              }));
+            if (derived.length > 0) setPillars(derived);
+          }
+        }
+      } catch { /* use defaults */ }
+      setLoaded(true);
+    })();
+  }, [loaded, apiUrl]);
+
+  return (
+    <div className="rounded-lg border bg-white shadow-sm">
+      <div className="border-b p-6">
+        <h3 className="text-lg font-semibold text-slate-900">Content Pillars</h3>
+        <p className="mt-1 text-sm text-slate-500">Strategic content themes derived from your content library</p>
+      </div>
+      <div className="grid gap-4 p-6 md:grid-cols-3">
+        {pillars.map((pillar, i) => {
+          const count = contentPieces.filter(cp =>
+            (cp.target_keyword || '').toLowerCase().includes(pillar.key.replace(/_/g, ' ')) ||
+            (cp.title || '').toLowerCase().includes(pillar.key.replace(/_/g, ' '))
+          ).length;
+          return (
+            <div key={pillar.key} className={`rounded-lg border p-4 ${PILLAR_COLORS[i % PILLAR_COLORS.length]}`}>
+              <h4 className="font-semibold text-slate-900">{pillar.title}</h4>
+              <p className="mt-1 text-sm text-slate-600">{pillar.desc}</p>
+              <p className="mt-2 text-xs font-medium text-slate-500">{count} pieces</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
