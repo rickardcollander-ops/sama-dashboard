@@ -235,7 +235,9 @@ export default function SEOPage() {
         totalImpressions,
         avgCTR:           parseFloat(avgCTR.toFixed(1)),
       });
-    } catch { /* silently fail */ }
+    } catch {
+      toast.error("Failed to load keyword data");
+    }
     finally { setLoadingKw(false); }
   }, []);
 
@@ -255,7 +257,9 @@ export default function SEOPage() {
         return acc;
       }, []);
       setActions(deduped);
-    } catch { /* silently fail */ }
+    } catch {
+      console.error("Failed to load SEO actions");
+    }
   }, []);
 
   const fetchVitals = useCallback(async () => {
@@ -266,7 +270,9 @@ export default function SEOPage() {
         const data = await res.json();
         setVitals(data.vitals);
       }
-    } catch { /* silently fail */ }
+    } catch {
+      toast.error("Failed to load web vitals");
+    }
     finally { setLoadingVitals(false); }
   }, []);
 
@@ -278,7 +284,9 @@ export default function SEOPage() {
         const data = await res.json();
         setAuditHistory(data.audits || []);
       }
-    } catch { /* silently fail */ }
+    } catch {
+      console.error("Failed to load audit history");
+    }
     finally { setLoadingHistory(false); }
   }, []);
 
@@ -296,7 +304,9 @@ export default function SEOPage() {
       const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
       const data = await res.json();
       if (data.success && data.strategy) applyStrategyData(data);
-    } catch { /* silent */ }
+    } catch {
+      console.error("Failed to load strategy");
+    }
   }, []);
 
   // Load everything in parallel on mount
@@ -328,7 +338,9 @@ export default function SEOPage() {
         setTrackedKws(prev => new Set([...prev, kw]));
         await fetchKeywords();
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      toast.error("Failed to add keyword");
+    } finally {
       setTrackingKw(null);
     }
   };
@@ -374,8 +386,10 @@ export default function SEOPage() {
       await loadStrategy();
       await fetchVitals();
       await fetchKeywords();
+      toast.success(`SEO data reset successfully`);
     } catch {
       setErrorMsg('Error resetting SEO data.');
+      toast.error('Error resetting SEO data');
     } finally {
       setResettingSeo(false);
     }
@@ -386,7 +400,9 @@ export default function SEOPage() {
     try {
       await fetch(`${SAMA_API_URL}/api/seo/keywords/${encodeURIComponent(keyword)}`, { method: 'DELETE' });
       await fetchKeywords();
-    } catch { /* silent */ } finally {
+    } catch {
+      toast.error("Failed to delete keyword");
+    } finally {
       setDeletingKw(null);
     }
   };
@@ -416,7 +432,9 @@ export default function SEOPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done })
       });
-    } catch { /* silent — optimistic update stays */ }
+    } catch {
+      console.error("Failed to toggle task");
+    }
     finally { setTogglingTask(null); }
   };
 
@@ -426,7 +444,9 @@ export default function SEOPage() {
     setActions(prev => prev.filter(a => a.id !== actionId));
     try {
       await fetch(`${SAMA_API_URL}/api/seo/actions/${actionId}`, { method: 'DELETE' });
-    } catch { /* optimistic stays */ }
+    } catch {
+      console.error('Failed to delete action');
+    }
     finally { setDeletingAction(null); }
   };
 
@@ -440,7 +460,9 @@ export default function SEOPage() {
         const data = await res.json();
         if (data.tasks) setStrategyTasks(data.tasks);
       }
-    } catch { /* optimistic stays */ }
+    } catch {
+      console.error('Failed to delete task');
+    }
     finally { setDeletingTask(null); }
   };
 
