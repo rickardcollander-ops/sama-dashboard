@@ -63,10 +63,10 @@ export default function LogsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900">Agent Activity</h2>
-          <p className="mt-2 text-slate-600">Real-time logs from all SAMA 2.0 agents</p>
+          <h2 className="text-3xl font-bold text-slate-900">Activity Logs</h2>
+          <p className="mt-1 text-slate-500 text-sm">Complete execution history from all agents. Every analysis, content generation, ad optimization, and review response is logged here with timestamps and results.</p>
         </div>
 
         {/* Filters */}

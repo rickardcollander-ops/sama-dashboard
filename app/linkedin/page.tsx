@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { Linkedin, Sparkles, Send, BarChart3 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
 export default function LinkedInPage() {
+  const toast = useToast();
   const [topic, setTopic] = useState("");
   const [style, setStyle] = useState("professional");
   const [generatedContent, setGeneratedContent] = useState("");
@@ -27,11 +29,12 @@ export default function LinkedInPage() {
       if (response.ok) {
         const data = await response.json();
         setGeneratedContent(data.content);
+        toast.success('Post generated successfully');
       } else {
-        alert('Failed to generate post');
+        toast.error('Failed to generate post');
       }
     } catch (error) {
-      alert('Error generating post');
+      toast.error('Error generating post');
     } finally {
       setGenerating(false);
     }
@@ -49,14 +52,14 @@ export default function LinkedInPage() {
       });
 
       if (response.ok) {
-        alert('Post published successfully!');
+        toast.success('Post published successfully!');
         setGeneratedContent("");
         setTopic("");
       } else {
-        alert('Failed to publish post');
+        toast.error('Failed to publish post');
       }
     } catch (error) {
-      alert('Error publishing post');
+      toast.error('Error publishing post');
     } finally {
       setPosting(false);
     }

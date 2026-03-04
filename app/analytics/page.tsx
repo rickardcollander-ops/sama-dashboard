@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, DollarSign, Users } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -23,7 +24,9 @@ interface AttributionData {
 }
 
 export default function AnalyticsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [channelPerformance, setChannelPerformance] = useState<ChannelData[]>([]);
   const [stats, setStats] = useState({
     totalVisits: 0,
@@ -49,6 +52,8 @@ export default function AnalyticsPage() {
         metrics = data.metrics || data || [];
       } else {
         console.error('Error fetching analytics:', response.status);
+        toast.error(`Failed to fetch analytics (HTTP ${response.status})`);
+        setError(`Failed to fetch analytics (HTTP ${response.status})`);
       }
 
       if (metrics.length > 0) {
@@ -91,13 +96,17 @@ export default function AnalyticsPage() {
 
         setChannelPerformance(channels);
 
-        // Build funnel from real metrics
+        // Build funnel from real metrics — derive each stage from actual conversion rate
         const convRate = totalVisits > 0 ? totalConversions / totalVisits : 0;
+        // Estimate intermediate stages as proportional steps between awareness and conversion
+        const visitRate = Math.min(1, Math.max(convRate * 10, convRate > 0 ? 0.1 : 0));
+        const trialRate = Math.max(convRate * 3, convRate > 0 ? 0.01 : 0);
+        const activationRate = Math.max(convRate * 2, convRate > 0 ? 0.005 : 0);
         setFunnelStages([
           { stage: "Awareness", count: totalVisits, percentage: 100 },
-          { stage: "Website Visit", count: Math.floor(totalVisits * 0.76), percentage: 76 },
-          { stage: "Trial Signup", count: Math.floor(totalVisits * Math.max(convRate * 3, 0.01)), percentage: parseFloat((Math.max(convRate * 3, 0.01) * 100).toFixed(1)) },
-          { stage: "Activation", count: Math.floor(totalVisits * Math.max(convRate * 2, 0.005)), percentage: parseFloat((Math.max(convRate * 2, 0.005) * 100).toFixed(1)) },
+          { stage: "Website Visit", count: Math.floor(totalVisits * visitRate), percentage: parseFloat((visitRate * 100).toFixed(1)) },
+          { stage: "Trial Signup", count: Math.floor(totalVisits * trialRate), percentage: parseFloat((trialRate * 100).toFixed(1)) },
+          { stage: "Activation", count: Math.floor(totalVisits * activationRate), percentage: parseFloat((activationRate * 100).toFixed(1)) },
           { stage: "Paid Conversion", count: totalConversions, percentage: parseFloat((convRate * 100).toFixed(1)) }
         ]);
 
@@ -130,6 +139,9 @@ export default function AnalyticsPage() {
       }
     } catch (error) {
       console.error('Error:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to load analytics data';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -139,8 +151,18 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
+          <p className="mt-1 text-slate-500 text-sm">Aggregates cross-channel metrics from Google Ads, SEO, and social media. Calculates attribution models and visualizes the conversion funnel.</p>
+        </div>
         {loading ? (
           <div className="text-center py-12 text-slate-500">Loading analytics data...</div>
+        ) : error && channelPerformance.length === 0 ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-12 text-center">
+            <p className="text-red-700 font-medium">Failed to load analytics</p>
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+            <button onClick={fetchAnalytics} className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Retry</button>
+          </div>
         ) : (
           <>
         {/* Stats */}
@@ -188,7 +210,8 @@ export default function AnalyticsPage() {
 
         {/* Channel Performance */}
         <div className="mb-8 rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-xl font-semibold text-slate-900">Channel Performance</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Channel Performance</h2>
+          <p className="mb-6 mt-1 text-sm text-slate-400">Breakdown of traffic and conversions by marketing channel over the last 30 days.</p>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -221,7 +244,8 @@ export default function AnalyticsPage() {
 
         {/* Conversion Funnel */}
         <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-xl font-semibold text-slate-900">Conversion Funnel</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Conversion Funnel</h2>
+          <p className="mb-6 mt-1 text-sm text-slate-400">Estimated funnel stages from awareness to paid conversion, derived from actual session and conversion data.</p>
           <div className="space-y-4">
             {funnelStages.map((stage, index) => (
               <div key={stage.stage}>
@@ -249,8 +273,8 @@ export default function AnalyticsPage() {
 
         {/* Attribution Model */}
         <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold text-slate-900">Attribution Model</h2>
-          <p className="text-sm text-slate-500 mb-4">Multi-touch attribution showing channel contribution to conversions</p>
+          <h2 className="text-xl font-semibold text-slate-900">Attribution Model</h2>
+          <p className="text-sm text-slate-400 mb-4">Shows which channels drive conversions using three attribution methods: first interaction, last interaction, and assisted (supporting) channels.</p>
           <div className="grid gap-4 md:grid-cols-3">
             {attribution.length > 0 ? attribution.map((a, i) => {
               const colors = ['text-blue-600', 'text-green-600', 'text-purple-600'];

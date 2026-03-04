@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, TrendingUp, TrendingDown, Activity, Search } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -24,10 +25,12 @@ interface Investigation {
 }
 
 export default function AnomaliesPage() {
+  const toast = useToast();
   const [trafficAnomalies, setTrafficAnomalies] = useState<Anomaly[]>([]);
   const [conversionAnomalies, setConversionAnomalies] = useState<Anomaly[]>([]);
   const [spendAnomalies, setSpendAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [investigation, setInvestigation] = useState<Investigation | null>(null);
 
   useEffect(() => {
@@ -59,6 +62,9 @@ export default function AnomaliesPage() {
       }
     } catch (error) {
       console.error('Error detecting anomalies:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to detect anomalies';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -80,6 +86,7 @@ export default function AnomaliesPage() {
       }
     } catch {
       setInvestigation({ anomaly, loading: false, result: null, error: 'Could not reach backend' });
+      toast.error('Could not reach backend for analysis');
     }
   };
 
@@ -151,9 +158,20 @@ export default function AnomaliesPage() {
   return (
     <div className="min-h-screen bg-slate-50">
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-slate-900">Anomaly Detection</h2>
+          <p className="mt-1 text-slate-500 text-sm">Automatically detects unusual changes in traffic, conversions, and ad spend. Uses statistical analysis (2+ standard deviations or 30%+ change) to flag metrics that need attention.</p>
+        </div>
         {loading ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Scanning for anomalies...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-12 text-center">
+            <AlertTriangle className="mx-auto h-12 w-12 text-red-400" />
+            <h3 className="mt-4 text-lg font-semibold text-red-900">Failed to Load Anomalies</h3>
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+            <button onClick={detectAnomalies} className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Retry</button>
           </div>
         ) : trafficAnomalies.length === 0 && conversionAnomalies.length === 0 && spendAnomalies.length === 0 ? (
           <div className="rounded-lg border bg-white p-12 text-center shadow-sm">

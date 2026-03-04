@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, DollarSign, MousePointerClick, Eye, Zap, Clock, Play, CheckCircle, ChevronDown, ChevronUp, FileText, Target, Ban, PlusCircle, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -35,7 +36,9 @@ interface Action {
 }
 
 export default function AdsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState({ totalSpend: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
 
@@ -112,10 +115,10 @@ export default function AdsPage() {
           });
         }
       } else {
-        alert('Analysis failed. Check backend connection.');
+        toast.error('Analysis failed. Check backend connection.');
       }
     } catch (error) {
-      alert('Error connecting to backend.');
+      toast.error('Error connecting to backend.');
     } finally {
       setAnalyzing(false);
     }
@@ -151,12 +154,14 @@ export default function AdsPage() {
 
   const toggleCampaignStatus = async (campaign: Campaign) => {
     const newStatus = campaign.status === 'ENABLED' ? 'PAUSED' : 'ENABLED';
+    const campaignKey = campaign.campaign_id || campaign.name;
+    setTogglingCampaign(campaignKey);
     try {
       const response = await fetch(`${SAMA_API_URL}/api/ads/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: `toggle-${campaign.campaign_id || campaign.name}`,
+          id: `toggle-${campaignKey}`,
           type: 'campaign_status',
           priority: 'high',
           title: `${newStatus === 'PAUSED' ? 'Pause' : 'Enable'} ${campaign.name}`,
@@ -172,9 +177,15 @@ export default function AdsPage() {
         setCampaigns(prev => prev.map(c =>
           c.name === campaign.name ? { ...c, status: newStatus } : c
         ));
+        toast.success(`Campaign "${campaign.name}" ${newStatus === 'PAUSED' ? 'paused' : 'enabled'}`);
+      } else {
+        toast.error(`Failed to update campaign status`);
       }
     } catch (error) {
       console.error('Error toggling campaign:', error);
+      toast.error('Error toggling campaign status');
+    } finally {
+      setTogglingCampaign(null);
     }
   };
 
@@ -204,15 +215,15 @@ export default function AdsPage() {
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Google Ads Performance</h2>
-            <p className="mt-2 text-slate-600">Analyze → Optimize → Execute → Track</p>
+            <h2 className="text-3xl font-bold text-slate-900">Google Ads Agent</h2>
+            <p className="mt-2 text-slate-500 text-sm">Manages Google Ads campaigns — optimizes bids, pauses underperformers, harvests negative keywords, and generates ad copy.</p>
           </div>
           <button
             onClick={runAnalysis}
             disabled={analyzing}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-medium text-white hover:bg-green-700 disabled:bg-green-400 shadow-lg shadow-green-600/20"
           >
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Run Full Analysis</>}
+            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze All Campaigns</>}
           </button>
         </div>
 
@@ -239,9 +250,9 @@ export default function AdsPage() {
         {/* Tabs */}
         <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm">
           {[
-            { id: 'campaigns' as const, label: 'Campaigns', icon: <TrendingUp className="h-4 w-4" /> },
-            { id: 'actions' as const, label: `Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
-            { id: 'rules' as const, label: 'Optimization Rules', icon: <Target className="h-4 w-4" /> },
+            { id: 'campaigns' as const, label: 'Active Campaigns', icon: <TrendingUp className="h-4 w-4" /> },
+            { id: 'actions' as const, label: `Optimization Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
+            { id: 'rules' as const, label: 'Automated Rules', icon: <Target className="h-4 w-4" /> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -259,8 +270,8 @@ export default function AdsPage() {
         {activeTab === 'campaigns' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Campaigns</h3>
-              <p className="mt-1 text-sm text-slate-500">Click "Run Full Analysis" to get actionable optimizations</p>
+              <h3 className="text-lg font-semibold text-slate-900">Active Campaigns</h3>
+              <p className="mt-1 text-sm text-slate-500">Live Google Ads campaigns. Click status to toggle pause/enable. Click &quot;Analyze All Campaigns&quot; to generate optimization actions.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -288,12 +299,13 @@ export default function AdsPage() {
                         <td className="px-6 py-4">
                           <button
                             onClick={() => toggleCampaignStatus(c)}
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 ${
+                            disabled={togglingCampaign === (c.campaign_id || c.name)}
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold cursor-pointer hover:opacity-80 disabled:opacity-50 ${
                               c.status === 'ENABLED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
                             }`}
                             title={c.status === 'ENABLED' ? 'Click to pause' : 'Click to enable'}
                           >
-                            {c.status}
+                            {togglingCampaign === (c.campaign_id || c.name) ? 'Updating...' : c.status}
                           </button>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-900">{c.impressions.toLocaleString()}</td>
@@ -317,9 +329,13 @@ export default function AdsPage() {
             {analysis && (
               <div className="rounded-lg border bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Analysis Summary</h3>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Campaign Optimization Actions</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">AI-generated actions: bid adjustments, ad copy rewrites, negative keywords, budget changes. Execute individually or all at once.</p>
+                  </div>
                   {pendingCount > 0 && (
                     <button onClick={executeAll} disabled={executing !== null}
+                      title="Executes all pending optimizations via the Ads Agent"
                       className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400">
                       <Play className="h-4 w-4" /> Execute All ({pendingCount})
                     </button>
@@ -350,7 +366,7 @@ export default function AdsPage() {
               <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
                 <Zap className="mx-auto h-12 w-12 text-slate-300" />
                 <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Click "Run Full Analysis" to analyze campaigns and generate optimizations.</p>
+                <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze All Campaigns&quot; to review campaign performance and generate specific optimization actions (bid changes, ad copy, negative keywords).</p>
               </div>
             ) : (
               actions.map((action) => (
@@ -422,8 +438,8 @@ export default function AdsPage() {
         {activeTab === 'rules' && (
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="border-b p-6">
-              <h3 className="text-lg font-semibold text-slate-900">Optimization Rules</h3>
-              <p className="mt-1 text-sm text-slate-500">Automated rules that the Ads Agent applies during analysis</p>
+              <h3 className="text-lg font-semibold text-slate-900">Automated Rules</h3>
+              <p className="mt-1 text-sm text-slate-500">These rules are automatically applied by the Ads Agent during each analysis cycle. The agent checks these conditions and generates actions when triggered.</p>
             </div>
             <div className="divide-y">
               {[

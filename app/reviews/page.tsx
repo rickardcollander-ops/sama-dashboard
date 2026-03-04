@@ -257,8 +257,8 @@ export default function ReviewsPage() {
             {/* Header */}
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-slate-900">Review Management</h2>
-                <p className="mt-1 text-slate-500 text-sm">Monitor → Respond → Request → Analyze</p>
+                <h2 className="text-3xl font-bold text-slate-900">Reviews Agent</h2>
+                <p className="mt-1 text-slate-500 text-sm">Monitors reviews on G2, Capterra, and Trustpilot. Drafts responses, tracks SLA compliance, and identifies sentiment trends.</p>
               </div>
               <button
                 onClick={runAnalysis}
@@ -267,7 +267,7 @@ export default function ReviewsPage() {
               >
                 {analyzing
                   ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing…</>
-                  : <><Zap className="h-4 w-4" /> Run Review Analysis</>}
+                  : <><Zap className="h-4 w-4" /> Analyze Reviews</>}
               </button>
             </div>
 
@@ -450,7 +450,7 @@ export default function ReviewsPage() {
                 <div className="rounded-xl border bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="font-medium text-slate-900">{actions.length} total actions</span>
+                      <span className="font-medium text-slate-900">{actions.length} actions</span>
                       <label className="flex items-center gap-1.5 text-slate-500 cursor-pointer">
                         <input type="checkbox" checked={showCompleted} onChange={e => setShowCompleted(e.target.checked)} className="rounded" />
                         Show completed ({completedActions.length})
@@ -472,7 +472,7 @@ export default function ReviewsPage() {
                   <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
                     <Zap className="mx-auto h-12 w-12 text-slate-200" />
                     <h3 className="mt-4 font-semibold text-slate-900">No Actions Yet</h3>
-                    <p className="mt-2 text-sm text-slate-500">Click "Run Review Analysis" to generate actionable recommendations.</p>
+                    <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze Reviews&quot; to scan all platforms. The agent will draft responses for unresponded reviews, flag SLA violations, and suggest review request campaigns.</p>
                   </div>
                 ) : (
                   displayedActions.map(action => {

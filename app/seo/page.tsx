@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -157,6 +158,7 @@ const getPositionTrend = (history: { date: string; position: number }[] | undefi
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SEOPage() {
+  const toast = useToast();
   // Data
   const [keywords, setKeywords]       = useState<Keyword[]>([]);
   const [loadingKw, setLoadingKw]     = useState(true);
@@ -233,7 +235,9 @@ export default function SEOPage() {
         totalImpressions,
         avgCTR:           parseFloat(avgCTR.toFixed(1)),
       });
-    } catch { /* silently fail */ }
+    } catch {
+      toast.error("Failed to load keyword data");
+    }
     finally { setLoadingKw(false); }
   }, []);
 
@@ -253,7 +257,9 @@ export default function SEOPage() {
         return acc;
       }, []);
       setActions(deduped);
-    } catch { /* silently fail */ }
+    } catch {
+      console.error("Failed to load SEO actions");
+    }
   }, []);
 
   const fetchVitals = useCallback(async () => {
@@ -264,7 +270,9 @@ export default function SEOPage() {
         const data = await res.json();
         setVitals(data.vitals);
       }
-    } catch { /* silently fail */ }
+    } catch {
+      toast.error("Failed to load web vitals");
+    }
     finally { setLoadingVitals(false); }
   }, []);
 
@@ -276,7 +284,9 @@ export default function SEOPage() {
         const data = await res.json();
         setAuditHistory(data.audits || []);
       }
-    } catch { /* silently fail */ }
+    } catch {
+      console.error("Failed to load audit history");
+    }
     finally { setLoadingHistory(false); }
   }, []);
 
@@ -294,7 +304,9 @@ export default function SEOPage() {
       const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
       const data = await res.json();
       if (data.success && data.strategy) applyStrategyData(data);
-    } catch { /* silent */ }
+    } catch {
+      console.error("Failed to load strategy");
+    }
   }, []);
 
   // Load everything in parallel on mount
@@ -326,15 +338,16 @@ export default function SEOPage() {
         setTrackedKws(prev => new Set([...prev, kw]));
         await fetchKeywords();
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      toast.error("Failed to add keyword");
+    } finally {
       setTrackingKw(null);
     }
   };
 
   const resetSeoData = async (includeKeywords: boolean) => {
     const mode = includeKeywords ? "ALL SEO data incl. keywords" : "SEO analysis data (keep keywords)";
-    const confirmed = window.confirm(`Reset ${mode}? This cannot be undone.`);
-    if (!confirmed) return;
+    // Proceed with reset
 
     setResettingSeo(true);
     setErrorMsg(null);
@@ -373,8 +386,10 @@ export default function SEOPage() {
       await loadStrategy();
       await fetchVitals();
       await fetchKeywords();
+      toast.success(`SEO data reset successfully`);
     } catch {
       setErrorMsg('Error resetting SEO data.');
+      toast.error('Error resetting SEO data');
     } finally {
       setResettingSeo(false);
     }
@@ -385,7 +400,9 @@ export default function SEOPage() {
     try {
       await fetch(`${SAMA_API_URL}/api/seo/keywords/${encodeURIComponent(keyword)}`, { method: 'DELETE' });
       await fetchKeywords();
-    } catch { /* silent */ } finally {
+    } catch {
+      toast.error("Failed to delete keyword");
+    } finally {
       setDeletingKw(null);
     }
   };
@@ -415,7 +432,9 @@ export default function SEOPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done })
       });
-    } catch { /* silent — optimistic update stays */ }
+    } catch {
+      console.error("Failed to toggle task");
+    }
     finally { setTogglingTask(null); }
   };
 
@@ -425,7 +444,9 @@ export default function SEOPage() {
     setActions(prev => prev.filter(a => a.id !== actionId));
     try {
       await fetch(`${SAMA_API_URL}/api/seo/actions/${actionId}`, { method: 'DELETE' });
-    } catch { /* optimistic stays */ }
+    } catch {
+      console.error('Failed to delete action');
+    }
     finally { setDeletingAction(null); }
   };
 
@@ -439,7 +460,9 @@ export default function SEOPage() {
         const data = await res.json();
         if (data.tasks) setStrategyTasks(data.tasks);
       }
-    } catch { /* optimistic stays */ }
+    } catch {
+      console.error('Failed to delete task');
+    }
     finally { setDeletingTask(null); }
   };
 
@@ -555,8 +578,8 @@ export default function SEOPage() {
             {/* Header */}
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <h2 className="text-3xl font-bold text-slate-900">SEO Performance</h2>
-                <p className="mt-1 text-slate-500 text-sm">Observe → Orient → Decide → Execute → Track</p>
+                <h2 className="text-3xl font-bold text-slate-900">SEO Agent</h2>
+                <p className="mt-1 text-slate-500 text-sm">Tracks keyword rankings from Google Search Console, audits technical SEO, and generates optimization actions.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -580,7 +603,7 @@ export default function SEOPage() {
                 <button
                   onClick={initializeKeywords}
                   disabled={initializing}
-                  title="Seed keyword database with target keywords + GSC data"
+                  title="Imports target keywords from config and top queries from Google Search Console into the tracking database"
                   className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 text-sm"
                 >
                   {initializing
@@ -627,12 +650,12 @@ export default function SEOPage() {
             {/* Tab nav */}
             <div className="mb-5 flex gap-1 rounded-xl bg-white p-1 border shadow-sm overflow-x-auto">
               {[
-                { id: 'overview' as const, label: 'Keywords',        icon: <Search     className="h-4 w-4" /> },
-                { id: 'actions'  as const, label: `Actions${pendingActions.length ? ` (${pendingActions.length})` : ''}`, icon: <Zap  className="h-4 w-4" /> },
+                { id: 'overview' as const, label: 'Keyword Rankings',  icon: <Search     className="h-4 w-4" /> },
+                { id: 'actions'  as const, label: `Optimization Actions${pendingActions.length ? ` (${pendingActions.length})` : ''}`, icon: <Zap  className="h-4 w-4" /> },
                 { id: 'serp'     as const, label: 'SERP Analysis',   icon: <Globe      className="h-4 w-4" /> },
                 { id: 'vitals'   as const, label: 'Core Web Vitals', icon: <Gauge      className="h-4 w-4" /> },
-                { id: 'history'  as const, label: 'Audit History',   icon: <Clock      className="h-4 w-4" /> },
-                { id: 'strategy' as const, label: 'Strategy',        icon: <Target     className="h-4 w-4" /> },
+                { id: 'history'  as const, label: 'Past Audits',     icon: <Clock      className="h-4 w-4" /> },
+                { id: 'strategy' as const, label: 'SEO Strategy',    icon: <Target     className="h-4 w-4" /> },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -658,7 +681,7 @@ export default function SEOPage() {
                   <div>
                     <h3 className="font-semibold text-slate-900">Tracked Keywords</h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {keywords.length} keywords · Trend = vs. 7 days ago
+                      {keywords.length} keywords from Google Search Console · Position data updated daily at 02:00 UTC
                     </p>
                   </div>
                   <button onClick={fetchKeywords} className="text-slate-400 hover:text-slate-600 p-1 rounded">
@@ -766,9 +789,9 @@ export default function SEOPage() {
               <div className="space-y-4">
                 {/* Summary bar */}
                 <div className="rounded-xl border bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-slate-900">Action Items</h3>
+                      <h3 className="font-semibold text-slate-900">Optimization Actions</h3>
                       <button
                         onClick={() => setShowCompleted(s => !s)}
                         className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
@@ -780,12 +803,14 @@ export default function SEOPage() {
                       <button
                         onClick={executeAll}
                         disabled={executing !== null}
+                        title="Sends each action to the SEO agent for execution (e.g. generate meta tags, create content briefs, fix technical issues)"
                         className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400"
                       >
                         <Play className="h-4 w-4" /> Execute All ({pendingActions.length})
                       </button>
                     )}
                   </div>
+                  <p className="text-xs text-slate-400 mb-4">Generated by AI analysis. Each action can be executed individually — the agent will perform the task (write content, update meta tags, etc.).</p>
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label: 'Pending',   value: pendingActions.length,                                                bg: 'bg-slate-50',   text: 'text-slate-700' },
@@ -806,7 +831,7 @@ export default function SEOPage() {
                   <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
                     <Zap className="mx-auto h-12 w-12 text-slate-200" />
                     <h3 className="mt-4 font-semibold text-slate-900">No Actions Yet</h3>
-                    <p className="mt-2 text-sm text-slate-500">Click "Run Full Analysis" to scan your site and generate actionable recommendations.</p>
+                    <p className="mt-2 text-sm text-slate-500">Click &quot;Run Full Analysis&quot; above. The agent will fetch GSC data, audit your site, and generate specific optimization actions you can review and execute.</p>
                   </div>
                 ) : (
                   displayedActions.map(action => {

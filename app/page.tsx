@@ -24,6 +24,9 @@ interface Recommendation {
 
 interface AgentDef {
   name: string;
+  desc: string;
+  runLabel: string;
+  runDesc: string;
   icon: React.ElementType;
   color: string;
   bgColor: string;
@@ -33,13 +36,48 @@ interface AgentDef {
 }
 
 const AGENTS: AgentDef[] = [
-  { name: "SEO", icon: Search, color: "text-blue-600", bgColor: "bg-blue-50", endpoint: "/api/automation/trigger/seo-audit", method: "POST", page: "/seo" },
-  { name: "Content", icon: MessageSquare, color: "text-purple-600", bgColor: "bg-purple-50", endpoint: "/api/content/analyze", method: "POST", page: "/content" },
-  { name: "Ads", icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-50", endpoint: "/api/ads/analyze", method: "POST", page: "/ads" },
-  { name: "Social", icon: Users, color: "text-pink-600", bgColor: "bg-pink-50", endpoint: "/api/automation/daily-workflow", method: "POST", page: "/social" },
-  { name: "Reviews", icon: BarChart3, color: "text-orange-600", bgColor: "bg-orange-50", endpoint: "/api/automation/daily-workflow", method: "POST", page: "/reviews" },
-  { name: "Analytics", icon: Activity, color: "text-indigo-600", bgColor: "bg-indigo-50", endpoint: "/api/analytics/report/weekly", method: "GET", page: "/analytics" },
-  { name: "AI Visibility", icon: Bot, color: "text-violet-600", bgColor: "bg-violet-50", endpoint: "/api/ai-visibility/check", method: "POST", page: "/ai-visibility" },
+  {
+    name: "SEO", desc: "Tracks keyword rankings via Google Search Console, runs technical audits, and monitors Core Web Vitals.",
+    runLabel: "Run Audit", runDesc: "Triggers a full technical SEO audit and keyword ranking update",
+    icon: Search, color: "text-blue-600", bgColor: "bg-blue-50",
+    endpoint: "/api/automation/trigger/seo-audit", method: "POST", page: "/seo",
+  },
+  {
+    name: "Content", desc: "Analyzes content gaps against competitors and generates SEO-optimized blog posts and comparison pages.",
+    runLabel: "Analyze Gaps", runDesc: "Scans competitors and identifies missing content topics",
+    icon: MessageSquare, color: "text-purple-600", bgColor: "bg-purple-50",
+    endpoint: "/api/content/analyze", method: "POST", page: "/content",
+  },
+  {
+    name: "Ads", desc: "Manages Google Ads campaigns — optimizes bids, pauses underperformers, and generates ad copy.",
+    runLabel: "Analyze Ads", runDesc: "Reviews all campaigns and generates optimization actions",
+    icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-50",
+    endpoint: "/api/ads/analyze", method: "POST", page: "/ads",
+  },
+  {
+    name: "Social", desc: "Monitors Twitter conversations, generates posts, and schedules content across platforms.",
+    runLabel: "Run Workflow", runDesc: "Finds relevant tweets, generates replies, and queues posts",
+    icon: Users, color: "text-pink-600", bgColor: "bg-pink-50",
+    endpoint: "/api/automation/daily-workflow", method: "POST", page: "/social",
+  },
+  {
+    name: "Reviews", desc: "Monitors G2, Capterra, and Trustpilot reviews, drafts responses, and tracks SLA compliance.",
+    runLabel: "Run Workflow", runDesc: "Checks for new reviews and generates response drafts",
+    icon: BarChart3, color: "text-orange-600", bgColor: "bg-orange-50",
+    endpoint: "/api/automation/daily-workflow", method: "POST", page: "/reviews",
+  },
+  {
+    name: "Analytics", desc: "Aggregates cross-channel metrics, calculates attribution, and generates weekly performance reports.",
+    runLabel: "Get Report", runDesc: "Generates a weekly cross-channel performance summary",
+    icon: Activity, color: "text-indigo-600", bgColor: "bg-indigo-50",
+    endpoint: "/api/analytics/report/weekly", method: "GET", page: "/analytics",
+  },
+  {
+    name: "AI Visibility", desc: "Checks how Successifier appears in ChatGPT, Perplexity, and other AI assistants.",
+    runLabel: "Check", runDesc: "Queries AI assistants and scores brand visibility",
+    icon: Bot, color: "text-violet-600", bgColor: "bg-violet-50",
+    endpoint: "/api/ai-visibility/check", method: "POST", page: "/ai-visibility",
+  },
 ];
 
 export default function Home() {
@@ -120,7 +158,9 @@ export default function Home() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
-          <p className="mt-1 text-slate-500">Cross-agent intelligence and strategic overview</p>
+          <p className="mt-1 text-slate-500">
+            Overview of all marketing agents. Each agent collects data, analyzes it with AI, and suggests actions you can review and execute.
+          </p>
         </div>
 
         {/* Agent result toast */}
@@ -153,9 +193,12 @@ export default function Home() {
             {/* Smart Recommendations */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-amber-500" />
-                  <h2 className="text-lg font-semibold text-slate-900">Smart Recommendations</h2>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-amber-500" />
+                    <h2 className="text-lg font-semibold text-slate-900">Smart Recommendations</h2>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-400 ml-7">AI-generated suggestions based on data from all agents. Click an agent page to act on them.</p>
                 </div>
                 <button onClick={fetchRecommendations} disabled={recsLoading}
                   className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white disabled:opacity-50">
@@ -209,38 +252,45 @@ export default function Home() {
 
             {/* Agent Grid */}
             <section>
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Agents</h2>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-slate-900">Agents</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Each agent operates autonomously on a schedule. Use the buttons below to trigger them manually.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {AGENTS.map(agent => (
                   <div key={agent.name} className="group rounded-lg border bg-white p-4 shadow-sm hover:shadow-md transition-all">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`rounded-lg p-2 ${agent.bgColor}`}>
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className={`rounded-lg p-2 ${agent.bgColor} flex-shrink-0`}>
                         <agent.icon className={`h-5 w-5 ${agent.color}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-slate-900 truncate">{agent.name}</h3>
-                        <div className="flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                          <span className="text-[10px] text-slate-400">Active</span>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold text-slate-900">{agent.name}</h3>
+                          <span className="flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                            <span className="text-[10px] text-slate-400">Active</span>
+                          </span>
                         </div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{agent.desc}</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <Link href={agent.page}
                         className="flex-1 rounded-md bg-slate-50 px-2 py-1.5 text-center text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-                        Open
+                        Open Dashboard
                       </Link>
                       <button
                         onClick={() => runAgent(agent)}
                         disabled={runningAgent !== null}
-                        className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+                        title={agent.runDesc}
+                        className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
                       >
                         {runningAgent === agent.name ? (
                           <Clock className="h-3 w-3 animate-spin" />
                         ) : (
                           <Play className="h-3 w-3" />
                         )}
-                        Run
+                        {agent.runLabel}
                       </button>
                     </div>
                   </div>
@@ -266,7 +316,8 @@ export default function Home() {
 
             {/* Data Counts */}
             <div className="rounded-lg border bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Platform Data</h3>
+              <h3 className="text-sm font-semibold text-slate-900 mb-1">Platform Data</h3>
+              <p className="text-[10px] text-slate-400 mb-3">Stored in Supabase, updated by agents</p>
               <div className="space-y-2">
                 {[
                   { label: "Keywords tracked", value: dashCounts.keywords ?? 0, href: "/seo" },

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CheckCircle, XCircle, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -19,9 +20,12 @@ interface Approval {
 }
 
 export default function ApprovalsPage() {
+  const toast = useToast();
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [confirmingApproval, setConfirmingApproval] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -38,6 +42,9 @@ export default function ApprovalsPage() {
       }
     } catch (error) {
       console.error('Error fetching approvals:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to load approvals';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -54,11 +61,16 @@ export default function ApprovalsPage() {
 
       if (response.ok) {
         setApprovals(approvals.filter(a => a.id !== approvalId));
+        toast.success('Approval granted successfully');
+      } else {
+        toast.error('Failed to approve action');
       }
     } catch (error) {
       console.error('Error approving:', error);
+      toast.error('Error processing approval');
     } finally {
       setProcessing(null);
+      setConfirmingApproval(null);
     }
   };
 
@@ -83,9 +95,13 @@ export default function ApprovalsPage() {
 
       if (response.ok) {
         setApprovals(approvals.filter(a => a.id !== rejectingId));
+        toast.success('Action rejected');
+      } else {
+        toast.error('Failed to reject action');
       }
     } catch (error) {
       console.error('Error rejecting:', error);
+      toast.error('Error processing rejection');
     } finally {
       setProcessing(null);
       setRejectingId(null);
@@ -107,6 +123,10 @@ export default function ApprovalsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-slate-900">Approvals</h2>
+          <p className="mt-1 text-slate-500 text-sm">High-impact changes flagged by agents for human review. Budget changes over 30%, negative review responses, and other critical actions appear here before being executed.</p>
+        </div>
         {loading ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Loading approvals...</p>
@@ -164,14 +184,33 @@ export default function ApprovalsPage() {
                   </div>
                   
                   <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => handleApprove(approval.id)}
-                      disabled={processing === approval.id}
-                      className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      {processing === approval.id ? 'Processing...' : 'Approve'}
-                    </button>
+                    {confirmingApproval === approval.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Confirm?</span>
+                        <button
+                          onClick={() => handleApprove(approval.id)}
+                          disabled={processing === approval.id}
+                          className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:bg-green-400"
+                        >
+                          {processing === approval.id ? 'Processing...' : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingApproval(null)}
+                          className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingApproval(approval.id)}
+                        disabled={processing === approval.id}
+                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Approve
+                      </button>
+                    )}
                     <button
                       onClick={() => openRejectModal(approval.id)}
                       disabled={processing === approval.id}

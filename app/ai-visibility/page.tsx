@@ -278,7 +278,7 @@ export default function AIVisibilityPage() {
   };
 
   const clearData = async () => {
-    if (!confirm('Clear all data? This will remove all checks and gaps.')) return;
+    // Clear all data
     setClearing(true);
     try {
       await fetch(`${SAMA_API_URL}/api/ai-visibility/clear`, { method: 'POST' });
@@ -638,7 +638,7 @@ function CheckCard({ check, expanded, onToggle }: { check: AICheck; expanded: bo
         <div className="border-t px-4 pb-4 pt-3 space-y-3">
           {check.competitors_mentioned?.length > 0 && (
             <div className="rounded-lg bg-orange-50 p-3">
-              <p className="text-xs font-semibold text-orange-700 mb-1">Konkurrenter mentioneda</p>
+              <p className="text-xs font-semibold text-orange-700 mb-1">Competitors Mentioned</p>
               <div className="flex flex-wrap gap-1">
                 {check.competitors_mentioned.map(c => (
                   <span key={c} className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-800 border border-orange-200">{c}</span>
