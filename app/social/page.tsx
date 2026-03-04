@@ -925,7 +925,7 @@ function RedditTab({
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium text-yellow-800">Reddit ej konfigurerat</p>
+            <p className="font-medium text-yellow-800">Reddit not configured</p>
             {status.message && <p className="mt-0.5 text-sm text-yellow-700">{status.message}</p>}
           </div>
         </div>
@@ -947,7 +947,7 @@ function RedditTab({
                 type="text"
                 value={topic}
                 onChange={e => setTopic(e.target.value)}
-                placeholder="t.ex. Hur vi minskade churn med 30%..."
+                placeholder="e.g. How we reduced churn by 30%..."
                 className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
@@ -962,7 +962,7 @@ function RedditTab({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Typ</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
               <select
                 value={postType}
                 onChange={e => setPostType(e.target.value as typeof postType)}
@@ -980,7 +980,7 @@ function RedditTab({
                 disabled={generating || !topic.trim() || !subreddit}
                 className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:bg-orange-300"
               >
-                {generating ? <><Clock className="h-4 w-4 animate-spin" /> Genererar...</> : <><Sparkles className="h-4 w-4" /> Generera</>}
+                {generating ? <><Clock className="h-4 w-4 animate-spin" /> Generating...</> : <><Sparkles className="h-4 w-4" /> Generate</>}
               </button>
               <button
                 onClick={onGenerateAndPublish}
@@ -988,7 +988,7 @@ function RedditTab({
                 {...(!configured ? { title: 'Configure Reddit API keys' } : {})}
                 className="flex items-center gap-2 rounded-lg border border-orange-300 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
               >
-                {quickPublishing ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Generera & Publicera direkt</>}
+                {quickPublishing ? <><Clock className="h-4 w-4 animate-spin" /> Publishing...</> : <><Send className="h-4 w-4" /> Generate & Publish</>}
               </button>
             </div>
           </div>
@@ -1018,10 +1018,10 @@ function RedditTab({
                   {...publishDisabledProps}
                   className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                 >
-                  {publishing ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Publicera</>}
+                  {publishing ? <><Clock className="h-4 w-4 animate-spin" /> Publishing...</> : <><Send className="h-4 w-4" /> Publish</>}
                 </button>
                 <button onClick={() => setDraft(null)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                  Kassera
+                  Discard
                 </button>
               </div>
             </div>
@@ -1032,7 +1032,7 @@ function RedditTab({
       {/* --- RELEVANT DISCUSSIONS --- */}
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-6 py-4 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Relevanta diskussioner</h3>
+          <h3 className="font-semibold text-slate-900">Relevant Discussions</h3>
           <button onClick={onRefreshRelevant} disabled={loadingRelevant}
             className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw className={`h-4 w-4 ${loadingRelevant ? 'animate-spin' : ''}`} /> Fetch
@@ -1047,7 +1047,7 @@ function RedditTab({
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-6 py-4 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-slate-900">Konkurrentbevakning</h3>
+            <h3 className="font-semibold text-slate-900">Competitor Monitoring</h3>
             <p className="text-xs text-slate-500 mt-0.5">Gainsight / Totango / ChurnZero – mentions</p>
           </div>
           <button onClick={onRefreshCompetitors} disabled={loadingCompetitors}
@@ -1090,7 +1090,7 @@ function RedditTab({
                   {m.context && (
                     <a href={`https://reddit.com${m.context}`} target="_blank" rel="noopener noreferrer"
                       className="flex-shrink-0 flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
-                      <ArrowUpRight className="h-3.5 w-3.5" /> Visa
+                      <ArrowUpRight className="h-3.5 w-3.5" /> View
                     </a>
                   )}
                 </div>
@@ -1103,7 +1103,7 @@ function RedditTab({
       {/* --- SUBREDDIT EXPLORATION --- */}
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-6 py-4">
-          <h3 className="font-semibold text-slate-900">Utforska subreddit</h3>
+          <h3 className="font-semibold text-slate-900">Explore Subreddit</h3>
         </div>
         <div className="p-6">
           <div className="flex gap-2 mb-4">
@@ -1114,7 +1114,7 @@ function RedditTab({
                 value={hotSubredditInput}
                 onChange={e => setHotSubredditInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && onFetchHot()}
-                placeholder="Subredditnamn, t.ex. CustomerSuccess"
+                placeholder="Subreddit name, e.g. CustomerSuccess"
                 className="w-full rounded-lg border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
@@ -1126,7 +1126,7 @@ function RedditTab({
           </div>
           {hotPosts.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs font-medium text-slate-500">Hot posts i r/{hotSubredditSearch}</p>
+              <p className="text-xs font-medium text-slate-500">Hot posts in r/{hotSubredditSearch}</p>
               {hotPosts.map(post => (
                 <div key={post.id} className="rounded-lg border bg-slate-50 p-3">
                   <div className="flex items-start justify-between gap-2">
@@ -1155,7 +1155,7 @@ function RedditTab({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl">
             <div className="border-b px-6 py-4 flex items-center justify-between">
-              <h4 className="font-semibold text-slate-900">Genererat svar</h4>
+              <h4 className="font-semibold text-slate-900">Generated Reply</h4>
               <button onClick={() => setCommentModal(null)} className="rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
                 <X className="h-5 w-5" />
               </button>
@@ -1167,7 +1167,7 @@ function RedditTab({
                 <p className="text-xs text-slate-400 mt-1">r/{commentModal.post.subreddit} · u/{commentModal.post.author}</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Ditt svar (redigerbart)</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Your reply (editable)</label>
                 <textarea
                   value={commentModal.generatedComment}
                   onChange={e => setCommentModal({ ...commentModal, generatedComment: e.target.value })}
@@ -1182,10 +1182,10 @@ function RedditTab({
                   {...(!configured ? { title: 'Configure Reddit API keys' } : {})}
                   className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                 >
-                  {submittingComment ? <><Clock className="h-4 w-4 animate-spin" /> Publicerar...</> : <><Send className="h-4 w-4" /> Publicera kommentar</>}
+                  {submittingComment ? <><Clock className="h-4 w-4 animate-spin" /> Publishing...</> : <><Send className="h-4 w-4" /> Publish Comment</>}
                 </button>
                 <button onClick={() => setCommentModal(null)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                  Avbryt
+                  Cancel
                 </button>
               </div>
             </div>
@@ -1218,10 +1218,10 @@ function RedditPostTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-slate-50 text-left">
-            <th className="px-4 py-3 font-medium text-slate-600">Titel</th>
+            <th className="px-4 py-3 font-medium text-slate-600">Title</th>
             <th className="px-4 py-3 font-medium text-slate-600">Subreddit</th>
             <th className="px-4 py-3 font-medium text-slate-600 text-right">Score</th>
-            <th className="px-4 py-3 font-medium text-slate-600 text-right">Kommentarer</th>
+            <th className="px-4 py-3 font-medium text-slate-600 text-right">Comments</th>
             <th className="px-4 py-3 font-medium text-slate-600">Link</th>
             <th className="px-4 py-3 font-medium text-slate-600">Action</th>
           </tr>
@@ -1260,8 +1260,8 @@ function RedditPostTable({
                   className="flex items-center gap-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
                 >
                   {generatingComment === post.id
-                    ? <><Clock className="h-3 w-3 animate-spin" /> Genererar...</>
-                    : <><MessageCircle className="h-3 w-3" /> Generera svar</>}
+                    ? <><Clock className="h-3 w-3 animate-spin" /> Generating...</>
+                    : <><MessageCircle className="h-3 w-3" /> Generate Reply</>}
                 </button>
               </td>
             </tr>
