@@ -457,19 +457,7 @@ export default function SocialPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <Users className="h-8 w-8 text-pink-600" />
-              <h1 className="text-2xl font-bold text-slate-900">Social Agent</h1>
-            </Link>
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">← Back to Dashboard</Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Social Strategy</h2>

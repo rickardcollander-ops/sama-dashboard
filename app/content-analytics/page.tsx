@@ -76,24 +76,7 @@ export default function ContentAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Content Analytics (GA4)</h1>
-              <p className="text-sm text-slate-500">Real-time performance tracking</p>
-            </div>
-            <Link
-              href="/"
-              className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-            >
-              Back to Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Metric Selector */}
         <div className="mb-6 flex gap-2">
           {['pageviews', 'engagement_rate', 'conversions', 'time_on_page'].map((m) => (

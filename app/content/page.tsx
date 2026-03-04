@@ -148,19 +148,7 @@ export default function ContentPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <FileText className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-slate-900">Content Agent</h1>
-            </Link>
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">← Back to Dashboard</Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="px-4 py-8 sm:px-6 lg:px-8">
+<main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex gap-6 max-w-[1400px] mx-auto">
         {/* Left: Content Area */}
         <div className="max-w-4xl flex-1 min-w-0">

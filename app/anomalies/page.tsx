@@ -150,37 +150,7 @@ export default function AnomaliesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Anomaly Detection</h1>
-                <p className="text-sm text-slate-500">Automatic monitoring and alerts</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={detectAnomalies}
-                disabled={loading}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
-              >
-                <Search className="h-4 w-4" />
-                {loading ? 'Scanning...' : 'Scan Now'}
-              </button>
-              <Link
-                href="/"
-                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {loading ? (
           <div className="text-center py-12">
             <p className="text-slate-500">Scanning for anomalies...</p>

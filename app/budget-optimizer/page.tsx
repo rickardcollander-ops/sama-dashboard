@@ -92,27 +92,7 @@ export default function BudgetOptimizerPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-8 w-8 text-green-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Budget Optimizer</h1>
-                <p className="text-sm text-slate-500">Dynamic budget reallocation</p>
-              </div>
-            </div>
-            <Link
-              href="/"
-              className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-            >
-              Back to Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex gap-4">
           <button
             onClick={analyzeCampaigns}
