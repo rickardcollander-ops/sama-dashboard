@@ -1,264 +1,224 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, DollarSign, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Play, Trash2, AlertTriangle, FileText, Search, BarChart3, MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
-interface Approval {
+interface PendingAction {
   id: string;
-  type: string;
-  severity: string;
+  agent_name: string;
+  action_type: string;
+  priority: string;
   title: string;
-  message: string;
-  data: any;
-  agent: string;
-  timestamp: string;
+  description: string;
+  keyword?: string;
+  competitor?: string;
   status: string;
+  created_at: string;
 }
+
+const AGENT_ICONS: Record<string, any> = {
+  content: FileText,
+  seo: Search,
+  ads: BarChart3,
+  social: MessageSquare,
+  reviews: Star,
+};
+
+const PRIORITY_STYLES: Record<string, string> = {
+  high: "bg-red-100 text-red-700",
+  medium: "bg-amber-100 text-amber-700",
+  low: "bg-slate-100 text-slate-600",
+};
 
 export default function ApprovalsPage() {
   const toast = useToast();
-  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [confirmingApproval, setConfirmingApproval] = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [executing, setExecuting] = useState<string | null>(null);
+  const [filterAgent, setFilterAgent] = useState<string>("all");
 
   useEffect(() => {
-    fetchApprovals();
+    fetchPendingActions();
   }, []);
 
-  const fetchApprovals = async () => {
+  const fetchPendingActions = async () => {
     try {
-      const response = await fetch(`${SAMA_API_URL}/api/alerts/pending`);
-      if (response.ok) {
-        const data = await response.json();
-        setApprovals(data.approvals || []);
+      const res = await fetch(`${SAMA_API_URL}/api/dashboard/pending-actions`);
+      if (res.ok) {
+        const data = await res.json();
+        setActions(data.actions || []);
       }
     } catch (error) {
-      console.error('Error fetching approvals:', error);
-      const msg = error instanceof Error ? error.message : 'Failed to load approvals';
-      setError(msg);
-      toast.error(msg);
+      console.error('Error fetching pending actions:', error);
+      toast.error('Failed to load pending actions');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (approvalId: string) => {
-    setProcessing(approvalId);
+  const handleExecute = async (action: PendingAction) => {
+    setExecuting(action.id);
     try {
-      const response = await fetch(`${SAMA_API_URL}/api/alerts/${approvalId}/approve`, {
+      const res = await fetch(`${SAMA_API_URL}/api/${action.agent_name}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved_by: 'Dashboard User' })
+        body: JSON.stringify({ action_id: action.id })
       });
-
-      if (response.ok) {
-        setApprovals(approvals.filter(a => a.id !== approvalId));
-        toast.success('Approval granted successfully');
+      if (res.ok) {
+        setActions(prev => prev.filter(a => a.id !== action.id));
+        toast.success(`Executed: ${action.title}`);
       } else {
-        toast.error('Failed to approve action');
+        toast.error('Execution failed');
       }
-    } catch (error) {
-      console.error('Error approving:', error);
-      toast.error('Error processing approval');
+    } catch {
+      toast.error('Error executing action');
     } finally {
-      setProcessing(null);
-      setConfirmingApproval(null);
+      setExecuting(null);
     }
   };
 
-  const openRejectModal = (approvalId: string) => {
-    setRejectingId(approvalId);
-    setRejectReason('');
-  };
-
-  const handleReject = async () => {
-    if (!rejectingId || !rejectReason.trim()) return;
-
-    setProcessing(rejectingId);
+  const handleDismiss = async (actionId: string) => {
     try {
-      const response = await fetch(`${SAMA_API_URL}/api/alerts/${rejectingId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rejected_by: 'Dashboard User',
-          reason: rejectReason.trim()
-        })
+      const res = await fetch(`${SAMA_API_URL}/api/content/actions/${actionId}`, {
+        method: 'DELETE'
       });
-
-      if (response.ok) {
-        setApprovals(approvals.filter(a => a.id !== rejectingId));
-        toast.success('Action rejected');
-      } else {
-        toast.error('Failed to reject action');
+      if (res.ok) {
+        setActions(prev => prev.filter(a => a.id !== actionId));
+        toast.success('Action dismissed');
       }
-    } catch (error) {
-      console.error('Error rejecting:', error);
-      toast.error('Error processing rejection');
-    } finally {
-      setProcessing(null);
-      setRejectingId(null);
-      setRejectReason('');
+    } catch {
+      toast.error('Error dismissing action');
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'budget_change':
-        return <DollarSign className="h-6 w-6 text-green-600" />;
-      case 'review_negative':
-        return <AlertTriangle className="h-6 w-6 text-red-600" />;
-      default:
-        return <Clock className="h-6 w-6 text-blue-600" />;
-    }
-  };
+  const agents = Array.from(new Set(actions.map(a => a.agent_name)));
+  const filtered = filterAgent === "all" ? actions : actions.filter(a => a.agent_name === filterAgent);
 
   return (
     <div className="min-h-screen bg-slate-50">
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900">Approvals</h2>
-          <p className="mt-1 text-slate-500 text-sm">High-impact changes flagged by agents for human review. Budget changes over 30%, negative review responses, and other critical actions appear here before being executed.</p>
+          <h2 className="text-3xl font-bold text-slate-900">Pending Actions</h2>
+          <p className="mt-1 text-slate-500 text-sm">
+            {actions.length} actions recommended by agents awaiting your review.
+          </p>
         </div>
+
+        {/* Agent filter tabs */}
+        {agents.length > 1 && (
+          <div className="mb-6 flex gap-2 flex-wrap">
+            <button
+              onClick={() => setFilterAgent("all")}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                filterAgent === "all"
+                  ? "bg-slate-900 text-white"
+                  : "bg-white text-slate-600 border hover:bg-slate-50"
+              }`}
+            >
+              All ({actions.length})
+            </button>
+            {agents.map(agent => {
+              const count = actions.filter(a => a.agent_name === agent).length;
+              return (
+                <button
+                  key={agent}
+                  onClick={() => setFilterAgent(agent)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                    filterAgent === agent
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 border hover:bg-slate-50"
+                  }`}
+                >
+                  {agent} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-slate-500">Loading approvals...</p>
+            <p className="text-slate-500">Loading pending actions...</p>
           </div>
-        ) : approvals.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
             <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
             <h3 className="mt-4 text-lg font-semibold text-slate-900">All caught up!</h3>
-            <p className="mt-2 text-sm text-slate-500">No pending approvals at this time.</p>
+            <p className="mt-2 text-sm text-slate-500">No pending actions at this time.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {approvals.map((approval) => (
-              <div
-                key={approval.id}
-                className="rounded-lg border bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className="rounded-lg bg-slate-100 p-3">
-                      {getTypeIcon(approval.type)}
-                    </div>
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-slate-900">{approval.title}</h3>
-                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                          approval.severity === 'critical' 
-                            ? 'bg-red-100 text-red-700'
-                            : approval.severity === 'warning'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {approval.severity}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          {approval.agent}
-                        </span>
+          <div className="space-y-3">
+            {filtered.map((action) => {
+              const IconComponent = AGENT_ICONS[action.agent_name] || Clock;
+              return (
+                <div
+                  key={action.id}
+                  className="rounded-lg border bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                      <div className="rounded-lg bg-slate-100 p-2.5 flex-shrink-0">
+                        <IconComponent className="h-5 w-5 text-slate-600" />
                       </div>
-                      
-                      <p className="text-sm text-slate-600 mb-3">{approval.message}</p>
-                      
-                      {approval.data && (
-                        <div className="rounded-md bg-slate-50 p-3 text-xs font-mono">
-                          <pre className="whitespace-pre-wrap">
-                            {JSON.stringify(approval.data, null, 2)}
-                          </pre>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className="font-semibold text-slate-900 truncate">{action.title}</h3>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${PRIORITY_STYLES[action.priority] || PRIORITY_STYLES.medium}`}>
+                            {action.priority}
+                          </span>
+                          <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 capitalize">
+                            {action.agent_name}
+                          </span>
+                          <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-500">
+                            {action.action_type}
+                          </span>
                         </div>
-                      )}
-                      
-                      <p className="mt-3 text-xs text-slate-400">
-                        {new Date(approval.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2 ml-4">
-                    {confirmingApproval === approval.id ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500">Confirm?</span>
-                        <button
-                          onClick={() => handleApprove(approval.id)}
-                          disabled={processing === approval.id}
-                          className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:bg-green-400"
-                        >
-                          {processing === approval.id ? 'Processing...' : 'Yes'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmingApproval(null)}
-                          className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
-                        >
-                          No
-                        </button>
+
+                        <p className="text-sm text-slate-600 line-clamp-2">{action.description}</p>
+
+                        {(action.keyword || action.competitor) && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {action.keyword && <>Keyword: <span className="font-medium text-slate-500">{action.keyword}</span></>}
+                            {action.keyword && action.competitor && " · "}
+                            {action.competitor && <>Competitor: <span className="font-medium text-slate-500">{action.competitor}</span></>}
+                          </p>
+                        )}
+
+                        <p className="mt-1.5 text-xs text-slate-400">
+                          {new Date(action.created_at).toLocaleString()}
+                        </p>
                       </div>
-                    ) : (
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0">
                       <button
-                        onClick={() => setConfirmingApproval(approval.id)}
-                        disabled={processing === approval.id}
-                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed flex items-center gap-2"
+                        onClick={() => handleExecute(action)}
+                        disabled={executing === action.id}
+                        className="rounded-md bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center gap-1.5"
                       >
-                        <CheckCircle className="h-4 w-4" />
-                        Approve
+                        <Play className="h-3.5 w-3.5" />
+                        {executing === action.id ? 'Running...' : 'Execute'}
                       </button>
-                    )}
-                    <button
-                      onClick={() => openRejectModal(approval.id)}
-                      disabled={processing === approval.id}
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      {processing === approval.id ? 'Processing...' : 'Reject'}
-                    </button>
+                      <button
+                        onClick={() => handleDismiss(action.id)}
+                        className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
-
-      {/* Rejection Modal */}
-      {rejectingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Reject Approval</h3>
-            <p className="mt-1 text-sm text-slate-500">Please provide a reason for rejecting this action.</p>
-            <textarea
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              placeholder="Reason for rejection..."
-              rows={3}
-              autoFocus
-              className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => { setRejectingId(null); setRejectReason(''); }}
-                className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={!rejectReason.trim() || processing === rejectingId}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
-              >
-                {processing === rejectingId ? 'Rejecting...' : 'Reject'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
