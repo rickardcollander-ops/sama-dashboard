@@ -50,8 +50,13 @@ export default function ContentPage() {
   const fetchActions = async () => {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/content/actions`);
-      if (res.ok) { const d = await res.json(); setActions(d.actions || []); }
-    } catch {}
+      if (res.ok) {
+        const d = await res.json();
+        setActions(d.actions || []);
+      }
+    } catch {
+      // silently ignore — actions will stay as-is
+    }
   };
   const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
     useBackgroundAnalysis({
@@ -72,7 +77,8 @@ export default function ContentPage() {
     try {
       const response = await fetch(`${SAMA_API_URL}/api/content/library`);
       if (response.ok) {
-        const data = await response.json();
+        let data: any;
+        try { data = await response.json(); } catch { data = {}; }
         setContentPieces(data.content || []);
       }
     } catch (error) {
