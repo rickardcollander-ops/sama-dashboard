@@ -16,6 +16,12 @@ interface ChannelData {
   roas: string;
 }
 
+interface GA4Overview {
+  total_sessions: number;
+  total_pageviews: number;
+  bounce_rate: number;
+}
+
 interface AttributionData {
   model: string;
   top_channel: string;
@@ -34,6 +40,7 @@ export default function AnalyticsPage() {
     avgConversionRate: 0,
     totalRevenue: 0
   });
+  const [ga4, setGa4] = useState<GA4Overview>({ total_sessions: 0, total_pageviews: 0, bounce_rate: 0 });
   const [funnelStages, setFunnelStages] = useState<any[]>([]);
   const [attribution, setAttribution] = useState<AttributionData[]>([]);
   const [days, setDays] = useState(30);
@@ -86,10 +93,19 @@ export default function AnalyticsPage() {
             const channels = liveData.channels || {};
             const overview = liveData.overview || {};
 
+            // Capture GA4 overview data
+            if (overview.total_sessions) {
+              setGa4({
+                total_sessions: overview.total_sessions || 0,
+                total_pageviews: overview.total_pageviews || 0,
+                bounce_rate: overview.bounce_rate || 0,
+              });
+            }
+
             // Convert live data into metrics-like rows so the rest of the code works
             for (const [channel, chData] of Object.entries(channels)) {
               const ch = chData as any;
-              if (ch && ch.status !== 'error') {
+              if (ch && ch.status !== 'error' && channel !== 'ga4') {
                 metrics.push({
                   channel,
                   total_sessions: ch.total_clicks || 0,
@@ -102,6 +118,17 @@ export default function AnalyticsPage() {
           }
         } catch (liveErr) {
           console.error('Live metrics also failed:', liveErr);
+        }
+      } else {
+        // Check if historical metrics include ga4 channel for session data
+        const ga4Rows = metrics.filter((m: any) => m.channel === 'ga4');
+        if (ga4Rows.length > 0) {
+          const totalSessions = ga4Rows.reduce((sum: number, m: any) => sum + (m.total_impressions || 0), 0);
+          const totalPageviews = ga4Rows.reduce((sum: number, m: any) => sum + (m.total_clicks || 0), 0);
+          const lastBounce = ga4Rows[0]?.avg_position || 0; // bounce_rate stored in avg_position
+          setGa4({ total_sessions: totalSessions, total_pageviews: totalPageviews, bounce_rate: lastBounce });
+          // Remove ga4 rows from channel performance table (it's shown in overview)
+          metrics = metrics.filter((m: any) => m.channel !== 'ga4');
         }
       }
 
@@ -245,8 +272,9 @@ export default function AnalyticsPage() {
           <div className="rounded-lg border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Total Visits</p>
-                <p className="text-3xl font-bold text-slate-900">{stats.totalVisits.toLocaleString()}</p>
+                <p className="text-sm text-slate-500">{ga4.total_sessions > 0 ? 'Sessions (GA4)' : 'Search Clicks'}</p>
+                <p className="text-3xl font-bold text-slate-900">{ga4.total_sessions > 0 ? ga4.total_sessions.toLocaleString() : stats.totalVisits.toLocaleString()}</p>
+                {ga4.total_pageviews > 0 && <p className="text-xs text-slate-400 mt-1">{ga4.total_pageviews.toLocaleString()} pageviews</p>}
               </div>
               <Users className="h-8 w-8 text-blue-500" />
             </div>
@@ -255,8 +283,9 @@ export default function AnalyticsPage() {
           <div className="rounded-lg border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Conversions</p>
-                <p className="text-3xl font-bold text-slate-900">{stats.totalConversions}</p>
+                <p className="text-sm text-slate-500">{ga4.bounce_rate > 0 ? 'Bounce Rate' : 'Conversions'}</p>
+                <p className="text-3xl font-bold text-slate-900">{ga4.bounce_rate > 0 ? `${ga4.bounce_rate}%` : stats.totalConversions}</p>
+                {ga4.bounce_rate > 0 && stats.totalConversions > 0 && <p className="text-xs text-slate-400 mt-1">{stats.totalConversions} conversions</p>}
               </div>
               <TrendingUp className="h-8 w-8 text-green-500" />
             </div>
@@ -292,7 +321,7 @@ export default function AnalyticsPage() {
               <thead>
                 <tr className="border-b border-slate-200">
                   <th className="pb-3 text-left text-sm font-medium text-slate-500">Channel</th>
-                  <th className="pb-3 text-right text-sm font-medium text-slate-500">Visits</th>
+                  <th className="pb-3 text-right text-sm font-medium text-slate-500">Clicks</th>
                   <th className="pb-3 text-right text-sm font-medium text-slate-500">Conversions</th>
                   <th className="pb-3 text-right text-sm font-medium text-slate-500">Conv. Rate</th>
                   <th className="pb-3 text-right text-sm font-medium text-slate-500">Cost</th>
