@@ -52,10 +52,16 @@ export function useBackgroundAnalysis({
 
     try {
       const res = await fetch(`${SAMA_API_URL}/api/${agent}/analyze`, { method: 'POST' });
-      const data = await res.json();
+
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Backend returned non-JSON response (status ${res.status})`);
+      }
 
       if (!res.ok || data.error) {
-        throw new Error(data.error || data.detail || 'Failed to start analysis');
+        throw new Error(data.error || data.detail || `Analysis failed (status ${res.status})`);
       }
 
       // If backend returned full result (background=false or old backend), we're done
@@ -78,7 +84,12 @@ export function useBackgroundAnalysis({
           );
           if (!statusRes.ok) return;
 
-          const status: CycleStatus = await statusRes.json();
+          let status: CycleStatus;
+          try {
+            status = await statusRes.json();
+          } catch {
+            return; // non-JSON response, retry next interval
+          }
           setPhase(status.phase);
           setProgress(status.progress);
 
