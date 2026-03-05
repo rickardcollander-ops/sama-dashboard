@@ -863,7 +863,7 @@ export default function SocialPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-medium text-slate-900">{action.title}</h4>
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{action.type.replace(/_/g, ' ')}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{action.type?.replace(/_/g, ' ') || 'action'}</span>
                         </div>
                         <p className="text-sm text-slate-500 italic">"{action.description}"</p>
                         {executionResults[action.id]?.result?.reply && (
@@ -1349,7 +1349,7 @@ function ActionsList({
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h4 className="font-medium text-slate-900">{action.title}</h4>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type.replace(/_/g, ' ')}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type?.replace(/_/g, ' ') || 'action'}</span>
                     {action.scheduled_date && <span className="text-xs text-slate-400">{action.scheduled_date}</span>}
                     {action.status === 'completed' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Done</span>}
                   </div>
