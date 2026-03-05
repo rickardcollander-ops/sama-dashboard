@@ -101,6 +101,8 @@ export default function ReviewsPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [deletingAction, setDeletingAction] = useState<string | null>(null);
   const [deletingReview, setDeletingReview] = useState<string | null>(null);
+  const [draftingResponse, setDraftingResponse] = useState<string | null>(null);
+  const [draftedResponses, setDraftedResponses] = useState<Record<string, string>>({});
 
   // Import form
   const [importForm, setImportForm] = useState({ platform: 'G2', rating: 5, author: '', title: '', content: '', review_url: '' });
@@ -194,6 +196,33 @@ export default function ReviewsPage() {
       await fetch(`${SAMA_API_URL}/api/reviews/actions/${actionId}`, { method: 'DELETE' });
     } catch { /* optimistic stays */ }
     finally { setDeletingAction(null); }
+  };
+
+  const draftResponse = async (review: Review) => {
+    setDraftingResponse(review.id);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `draft-${review.id}`,
+          type: 'respond',
+          priority: review.rating <= 2 ? 'high' : 'medium',
+          title: `Draft response for ${review.author}`,
+          description: review.content,
+          action: 'generate_response',
+          review,
+          platform: review.platform,
+          status: 'pending',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const draft = data.result?.response || data.suggestions || data.message || 'Response drafted successfully. Check actions tab.';
+        setDraftedResponses(prev => ({ ...prev, [review.id]: draft }));
+      }
+    } catch { /* silent */ }
+    finally { setDraftingResponse(null); }
   };
 
   const deleteReview = async (reviewId: string) => {
@@ -626,15 +655,34 @@ export default function ReviewsPage() {
                               <p className="text-xs text-slate-700">{review.response_text}</p>
                             </div>
                           )}
+                          {draftedResponses[review.id] && (
+                            <div className="mt-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                              <p className="text-xs font-medium text-blue-700 mb-0.5">AI Draft:</p>
+                              <p className="text-xs text-slate-700 whitespace-pre-wrap">{draftedResponses[review.id]}</p>
+                            </div>
+                          )}
                         </div>
-                        <button
-                          onClick={() => deleteReview(review.id)}
-                          disabled={deletingReview === review.id}
-                          title="Delete review"
-                          className="rounded-lg p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 flex-shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          {!review.responded && !draftedResponses[review.id] && (
+                            <button
+                              onClick={() => draftResponse(review)}
+                              disabled={draftingResponse === review.id}
+                              title="AI-draft a response"
+                              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 border border-blue-200 disabled:opacity-50"
+                            >
+                              {draftingResponse === review.id ? <Clock className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                              Draft
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteReview(review.id)}
+                            disabled={deletingReview === review.id}
+                            title="Delete review"
+                            className="rounded-lg p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, DollarSign, Users } from "lucide-react";
+import { BarChart3, TrendingUp, DollarSign, Users, RefreshCw, Play, Clock, Zap, Target } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
@@ -36,15 +36,38 @@ export default function AnalyticsPage() {
   });
   const [funnelStages, setFunnelStages] = useState<any[]>([]);
   const [attribution, setAttribution] = useState<AttributionData[]>([]);
+  const [days, setDays] = useState(30);
+  const [collecting, setCollecting] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [days]);
+
+  const collectMetrics = async () => {
+    setCollecting(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/analytics/metrics/collect`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Collected ${data.total_channels || 0} channels`);
+        if (data.errors?.length) {
+          toast.error(`Errors: ${data.errors.map((e: any) => e.error).join(', ').slice(0, 100)}`);
+        }
+        fetchAnalytics();
+      } else {
+        toast.error('Failed to collect metrics');
+      }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setCollecting(false);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
       // Fetch historical metrics from daily_metrics table
-      const response = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=30`);
+      const response = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=${days}`);
       let metrics: any[] = [];
 
       if (response.ok) {
@@ -182,9 +205,30 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
 <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
-          <p className="mt-1 text-slate-500 text-sm">Aggregates cross-channel metrics from Google Ads, SEO, and social media. Calculates attribution models and visualizes the conversion funnel.</p>
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
+            <p className="mt-1 text-slate-500 text-sm">Cross-channel metrics from Google Ads, SEO, and social media. Attribution models and conversion funnel.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg border bg-white overflow-hidden">
+              {[7, 14, 30, 90].map(d => (
+                <button key={d} onClick={() => setDays(d)}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${days === d ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+            <button onClick={collectMetrics} disabled={collecting}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-indigo-400">
+              {collecting ? <Clock className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              Collect Now
+            </button>
+            <button onClick={fetchAnalytics} disabled={loading}
+              className="flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
         {loading ? (
           <div className="text-center py-12 text-slate-500">Loading analytics data...</div>
@@ -299,6 +343,60 @@ export default function AnalyticsPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* AI Weekly Takeaways */}
+        <div className="mt-8 rounded-lg border border-indigo-200 bg-indigo-50/50 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-xl font-semibold text-slate-900">AI Takeaways</h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {channelPerformance.length > 0 ? (() => {
+              const best = [...channelPerformance].sort((a, b) => b.conversions - a.conversions)[0];
+              const worst = [...channelPerformance].sort((a, b) => a.conversionRate - b.conversionRate)[0];
+              const totalCost = channelPerformance.reduce((s, c) => s + c.cost, 0);
+              const takeaways = [
+                { text: `${best?.channel || '—'} is your top converter with ${best?.conversions || 0} conversions`, color: 'text-green-700 bg-green-50 border-green-200' },
+                { text: `${worst?.channel || '—'} has the lowest conversion rate (${worst?.conversionRate || 0}%) — consider optimizing`, color: 'text-amber-700 bg-amber-50 border-amber-200' },
+                { text: `Total marketing spend: $${totalCost.toLocaleString()} across ${channelPerformance.length} channels`, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+                { text: stats.avgConversionRate > 3 ? 'Conversion rate is above average for B2B SaaS — keep scaling' : 'Conversion rate is below B2B average (3%) — focus on landing page optimization', color: stats.avgConversionRate > 3 ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200' },
+              ];
+              return takeaways.map((t, i) => (
+                <div key={i} className={`rounded-lg border p-3 text-sm ${t.color}`}>{t.text}</div>
+              ));
+            })() : (
+              <p className="text-sm text-slate-500 col-span-2">Collect metrics to generate AI takeaways.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Goal Tracking */}
+        <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Target className="h-5 w-5 text-purple-600" />
+            <h2 className="text-xl font-semibold text-slate-900">Goal Tracking</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { label: 'Monthly Visits', current: stats.totalVisits, target: 10000, color: 'blue' },
+              { label: 'Monthly Conversions', current: stats.totalConversions, target: 100, color: 'green' },
+              { label: 'Revenue Target', current: stats.totalRevenue, target: 50000, color: 'purple', isMoney: true },
+            ].map(goal => {
+              const pct = Math.min((goal.current / goal.target) * 100, 100);
+              const display = goal.isMoney ? `$${(goal.current / 1000).toFixed(1)}k / $${(goal.target / 1000).toFixed(0)}k` : `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}`;
+              return (
+                <div key={goal.label} className="rounded-lg border p-4">
+                  <p className="text-sm font-medium text-slate-700 mb-2">{goal.label}</p>
+                  <p className="text-lg font-bold text-slate-900 mb-2">{display}</p>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all bg-${goal.color}-500`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">{pct.toFixed(0)}% of target</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 

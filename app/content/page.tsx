@@ -139,6 +139,35 @@ export default function ContentPage() {
     return matchesStatus && matchesSearch;
   });
 
+  const [suggestingNext, setSuggestingNext] = useState(false);
+  const [nextArticleSuggestion, setNextArticleSuggestion] = useState<string | null>(null);
+
+  const suggestNextArticle = async () => {
+    setSuggestingNext(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/content/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `suggest-next-${Date.now()}`,
+          type: 'blog_post',
+          priority: 'high',
+          title: 'AI-suggested next article',
+          description: 'Based on content gaps and keyword opportunities, generate the next article for Successifier',
+          action: 'suggest_next_article',
+          status: 'pending',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNextArticleSuggestion(data.result?.title || data.suggestions || data.message || 'Suggestion generated — check the actions tab.');
+        fetchActions();
+        fetchLibrary();
+      }
+    } catch { /* silent */ }
+    finally { setSuggestingNext(false); }
+  };
+
   const pendingCount = actions.filter(a => a.status === 'pending').length;
   const completedCount = actions.filter(a => a.status === 'completed').length;
   const publishedCount = contentPieces.filter(c => c.status === 'published').length;
@@ -157,6 +186,16 @@ export default function ContentPage() {
           </div>
         )}
 
+        {nextArticleSuggestion && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-blue-600" />
+              <p className="text-sm text-blue-800"><span className="font-medium">Next article suggestion:</span> {nextArticleSuggestion}</p>
+            </div>
+            <button onClick={() => setNextArticleSuggestion(null)} className="ml-4 font-bold text-blue-400 hover:text-blue-600">✕</button>
+          </div>
+        )}
+
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Content Agent</h2>
@@ -167,6 +206,10 @@ export default function ContentPage() {
               className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
               <TrendingUp className="h-4 w-4 text-green-600" /> Analytics
             </Link>
+            <button onClick={suggestNextArticle} disabled={suggestingNext || analyzing}
+              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {suggestingNext ? <><Clock className="h-4 w-4 animate-spin" /> Suggesting...</> : <><BookOpen className="h-4 w-4" /> Suggest Next Article</>}
+            </button>
             <button onClick={runAnalysis} disabled={analyzing}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
               {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze Content Gaps</>}
