@@ -449,7 +449,7 @@ export default function SocialPage() {
         });
       }
       await fetchDrafts();
-      await fetchActions();
+      await fetchDbActions();
     } catch { /* silent */ }
     finally { setGeneratingWeek(false); }
   };
