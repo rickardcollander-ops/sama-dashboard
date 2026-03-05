@@ -63,7 +63,25 @@ interface Recommendation {
   effort: string;
 }
 
-type TabId = 'overview' | 'checks' | 'gaps' | 'recommendations';
+interface PriorityAction {
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+  effort: 'low' | 'medium' | 'high';
+  timeline: string;
+  engine_target: string;
+}
+
+interface StrategicAnalysis {
+  verdict: 'critical' | 'weak' | 'improving' | 'strong' | 'unknown';
+  headline: string;
+  analysis: string;
+  priority_actions: PriorityAction[];
+  blind_spots: string[];
+  competitor_insight: string;
+}
+
+type TabId = 'overview' | 'checks' | 'gaps' | 'strategy';
 
 // ── Engine config ──────────────────────────────────────────────────────────────
 
@@ -135,9 +153,11 @@ export default function AIVisibilityPage() {
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [gaps, setGaps] = useState<Gap[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [strategicAnalysis, setStrategicAnalysis] = useState<StrategicAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningCheck, setRunningCheck] = useState(false);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [loadingStrategy, setLoadingStrategy] = useState(false);
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
   const [checkStatus, setCheckStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -258,12 +278,26 @@ export default function AIVisibilityPage() {
 
   const generateRecommendations = async () => {
     setLoadingRecs(true);
-    setActiveTab('recommendations');
+    setActiveTab('strategy');
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/recommendations`, { method: 'POST' });
       if (res.ok) { const d = await res.json(); setRecommendations(d.recommendations || []); }
     } catch { /* silent */ }
     finally { setLoadingRecs(false); }
+  };
+
+  const generateStrategicAnalysis = async () => {
+    setLoadingStrategy(true);
+    setActiveTab('strategy');
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/strategic-analysis`, { method: 'POST' });
+      if (res.ok) {
+        let data: StrategicAnalysis;
+        try { data = await res.json(); } catch { return; }
+        setStrategicAnalysis(data);
+      }
+    } catch { /* silent */ }
+    finally { setLoadingStrategy(false); }
   };
 
   const updateGapStatus = async (gapId: string, status: Gap['status']) => {
@@ -296,10 +330,10 @@ export default function AIVisibilityPage() {
   const engineStats = summary?.engine_stats ?? {};
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'overview',        label: 'Overview',    icon: <BarChart2 className="h-4 w-4" /> },
-    { id: 'checks',          label: 'Checks',     icon: <Eye className="h-4 w-4" />,         count: checks.length || undefined },
-    { id: 'gaps',            label: 'Gaps',       icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
-    { id: 'recommendations', label: 'GEO Advice',    icon: <Lightbulb className="h-4 w-4" />,  count: recommendations.length || undefined },
+    { id: 'overview',  label: 'Overview',  icon: <BarChart2 className="h-4 w-4" /> },
+    { id: 'checks',    label: 'Checks',    icon: <Eye className="h-4 w-4" />,         count: checks.length || undefined },
+    { id: 'gaps',      label: 'Gaps',      icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
+    { id: 'strategy',  label: 'Strategic Analysis', icon: <Lightbulb className="h-4 w-4" /> },
   ];
 
   return (
@@ -322,10 +356,10 @@ export default function AIVisibilityPage() {
               {clearing ? <Clock className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Clear Data
             </button>
-            <button onClick={generateRecommendations} disabled={loadingRecs}
-              className="flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-              {loadingRecs ? <Clock className="h-4 w-4 animate-spin" /> : <Lightbulb className="h-4 w-4" />}
-              GEO Advice
+            <button onClick={generateStrategicAnalysis} disabled={loadingStrategy}
+              className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+              {loadingStrategy ? <Clock className="h-4 w-4 animate-spin" /> : <Lightbulb className="h-4 w-4" />}
+              Deep Analysis
             </button>
             <button onClick={runCheck} disabled={runningCheck}
               className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 font-medium text-white hover:bg-violet-700 disabled:bg-violet-400 shadow-lg shadow-violet-600/20">
@@ -522,21 +556,156 @@ export default function AIVisibilityPage() {
           </div>
         )}
 
-        {/* ── RECOMMENDATIONS ── */}
-        {activeTab === 'recommendations' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">Claude-generated GEO actions based on current gaps.</p>
-              <button onClick={generateRecommendations} disabled={loadingRecs}
-                className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-                {loadingRecs ? <><Clock className="h-4 w-4 animate-spin" /> Generating...</> : <><Zap className="h-4 w-4" /> Generate New Advice</>}
-              </button>
+        {/* ── STRATEGIC ANALYSIS ── */}
+        {activeTab === 'strategy' && (
+          <div className="space-y-6">
+            {/* Controls */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <p className="text-sm text-slate-600">Comprehensive AI-powered analysis of your GEO position.</p>
+              <div className="flex gap-2">
+                <button onClick={generateRecommendations} disabled={loadingRecs}
+                  className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  {loadingRecs ? <><Clock className="h-4 w-4 animate-spin" /> Loading...</> : <><Zap className="h-4 w-4" /> Quick Tips</>}
+                </button>
+                <button onClick={generateStrategicAnalysis} disabled={loadingStrategy}
+                  className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                  {loadingStrategy ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing...</> : <><Lightbulb className="h-4 w-4" /> Run Deep Analysis</>}
+                </button>
+              </div>
             </div>
-            {recommendations.length === 0 && !loadingRecs
-              ? <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />} title="No advice yet"
-                  desc='Click "Generate New Advice" to have Claude analyze your gaps.' />
-              : recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)
-            }
+
+            {/* Strategic Analysis Card */}
+            {loadingStrategy && (
+              <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-8 text-center">
+                <Clock className="h-8 w-8 animate-spin text-amber-600 mx-auto mb-3" />
+                <p className="font-semibold text-amber-800">Running deep strategic analysis...</p>
+                <p className="text-sm text-amber-600 mt-1">Analyzing all checks, gaps, competitors, and engine patterns. This takes ~30 seconds.</p>
+              </div>
+            )}
+
+            {strategicAnalysis && !loadingStrategy && (
+              <>
+                {/* Verdict Banner */}
+                <div className={`rounded-xl border-2 p-6 ${
+                  strategicAnalysis.verdict === 'critical' ? 'border-red-300 bg-red-50' :
+                  strategicAnalysis.verdict === 'weak' ? 'border-orange-300 bg-orange-50' :
+                  strategicAnalysis.verdict === 'improving' ? 'border-blue-300 bg-blue-50' :
+                  strategicAnalysis.verdict === 'strong' ? 'border-green-300 bg-green-50' :
+                  'border-slate-300 bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className={`rounded-full px-3 py-1 text-sm font-bold uppercase tracking-wide ${
+                      strategicAnalysis.verdict === 'critical' ? 'bg-red-200 text-red-800' :
+                      strategicAnalysis.verdict === 'weak' ? 'bg-orange-200 text-orange-800' :
+                      strategicAnalysis.verdict === 'improving' ? 'bg-blue-200 text-blue-800' :
+                      strategicAnalysis.verdict === 'strong' ? 'bg-green-200 text-green-800' :
+                      'bg-slate-200 text-slate-800'
+                    }`}>{strategicAnalysis.verdict}</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">{strategicAnalysis.headline}</h3>
+                </div>
+
+                {/* Main Analysis */}
+                <div className="rounded-xl border bg-white p-6 shadow-sm">
+                  <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <Target className="h-5 w-5 text-violet-600" /> Strategic Analysis
+                  </h4>
+                  <div className="prose prose-sm prose-slate max-w-none">
+                    <MarkdownRenderer text={strategicAnalysis.analysis} />
+                  </div>
+                </div>
+
+                {/* Priority Actions */}
+                {strategicAnalysis.priority_actions?.length > 0 && (
+                  <div className="rounded-xl border bg-white p-6 shadow-sm">
+                    <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-amber-600" /> Priority Actions (90-Day Plan)
+                    </h4>
+                    <div className="space-y-4">
+                      {strategicAnalysis.priority_actions.map((action, i) => (
+                        <div key={i} className="rounded-lg border p-4 hover:border-amber-300 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                              action.impact === 'high' ? 'bg-red-100 text-red-700' :
+                              action.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>{i + 1}</span>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <h5 className="font-semibold text-slate-900">{action.title}</h5>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${
+                                  action.impact === 'high' ? 'bg-red-100 text-red-700 border-red-200' :
+                                  action.impact === 'medium' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                  'bg-blue-100 text-blue-700 border-blue-200'
+                                }`}>Impact: {action.impact}</span>
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
+                                  Effort: {action.effort}
+                                </span>
+                                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 border border-violet-200">
+                                  {action.timeline}
+                                </span>
+                                {action.engine_target && action.engine_target !== 'all' && (
+                                  <span className="text-xs text-slate-400">Target: {action.engine_target}</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-600">{action.description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Blind Spots & Competitor Insight */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {strategicAnalysis.blind_spots?.length > 0 && (
+                    <div className="rounded-xl border border-orange-200 bg-orange-50 p-6">
+                      <h4 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-orange-600" /> Blind Spots
+                      </h4>
+                      <ul className="space-y-2">
+                        {strategicAnalysis.blind_spots.map((spot, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-orange-800">
+                            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                            {spot}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {strategicAnalysis.competitor_insight && (
+                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-6">
+                      <h4 className="text-lg font-semibold text-violet-900 mb-3 flex items-center gap-2">
+                        <Target className="h-5 w-5 text-violet-600" /> Competitor Intelligence
+                      </h4>
+                      <div className="text-sm text-violet-800 space-y-2">
+                        <MarkdownRenderer text={strategicAnalysis.competitor_insight} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {!strategicAnalysis && !loadingStrategy && (
+              <EmptyState icon={<Lightbulb className="h-10 w-10 text-slate-300" />}
+                title="No strategic analysis yet"
+                desc='Click "Run Deep Analysis" to generate a comprehensive GEO strategy based on your monitoring data.' />
+            )}
+
+            {/* Quick Tips (Recommendations) */}
+            {recommendations.length > 0 && (
+              <div className="rounded-xl border bg-white p-6 shadow-sm">
+                <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-blue-600" /> Quick GEO Tips
+                </h4>
+                <div className="space-y-3">
+                  {recommendations.map((rec, i) => <RecommendationCard key={i} rec={rec} />)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -726,6 +895,57 @@ function RecommendationCard({ rec }: { rec: Recommendation }) {
       </div>
     </div>
   );
+}
+
+function MarkdownRenderer({ text }: { text: string }) {
+  const blocks = text.split(/\n\n+/);
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, bi) => {
+        const trimmed = block.trim();
+        if (!trimmed) return null;
+
+        // Heading
+        if (/^#{1,3}\s/.test(trimmed)) {
+          const headText = trimmed.replace(/^#{1,3}\s+/, '');
+          return <p key={bi} className="font-bold text-slate-900">{headText}</p>;
+        }
+
+        // List
+        const lines = trimmed.split('\n');
+        const isList = lines.every(l => /^\s*[-*•]\s/.test(l) || /^\s*\d+[.)]\s/.test(l) || !l.trim());
+        if (isList && lines.length > 1) {
+          return (
+            <ul key={bi} className="list-disc pl-5 space-y-1">
+              {lines.filter(l => l.trim()).map((l, li) => (
+                <li key={li}>{formatInline(l.replace(/^\s*[-*•]\s*/, '').replace(/^\s*\d+[.)]\s*/, ''))}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        return <p key={bi} className="whitespace-pre-wrap">{formatInline(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
+function formatInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+  while (remaining.length > 0) {
+    const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*/);
+    if (boldMatch) {
+      if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);
+      parts.push(<strong key={key++}>{boldMatch[2]}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+    parts.push(<span key={key++}>{remaining}</span>);
+    break;
+  }
+  return <>{parts}</>;
 }
 
 function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
