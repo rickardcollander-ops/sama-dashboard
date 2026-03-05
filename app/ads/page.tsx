@@ -395,7 +395,7 @@ export default function AdsPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium text-slate-900">{action.title}</h4>
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type.replace(/_/g, ' ')}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type?.replace(/_/g, ' ') || 'action'}</span>
                           </div>
                           <p className="text-sm text-slate-600">{action.description}</p>
                         </div>
