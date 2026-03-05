@@ -304,19 +304,19 @@ export default function AIVisibilityPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">AI Visibility Monitor</h2>
-            <p className="mt-2 text-slate-600">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">AI Visibility Monitor</h2>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-slate-600">
               How often do ChatGPT, Claude, Gemini, Perplexity and Copilot mention Successifier?
             </p>
             {summary?.last_check_at && (
               <p className="mt-1 text-xs text-slate-400">Last check: {fmtDate(summary.last_check_at)}</p>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 flex-wrap">
             <button onClick={clearData} disabled={clearing || runningCheck}
               className="flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
               {clearing ? <Clock className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -367,7 +367,7 @@ export default function AIVisibilityPage() {
         )}
 
         {/* Stat cards */}
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
           <StatCard label="Mention Rate" value={loading ? '—' : fmtPct(mentionRate)} sub="across all engines"
             trend={summary?.trend}
             valueColor={mentionRate >= 0.5 ? 'text-green-600' : mentionRate >= 0.25 ? 'text-yellow-600' : 'text-red-600'} />
