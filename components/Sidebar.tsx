@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
-  Bot, Shield, AlertTriangle, FileText, DollarSign, Linkedin,
+  Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2
 } from "lucide-react";
 
@@ -35,7 +35,6 @@ const NAV_ITEMS: NavItem[] = [
 
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
-  { href: "/linkedin", label: "LinkedIn", desc: "Company page management", icon: Linkedin, group: "ops" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {

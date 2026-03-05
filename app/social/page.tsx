@@ -420,6 +420,40 @@ export default function SocialPage() {
     setInterestingTweets(prev => prev.filter(t => t.id !== id));
   };
 
+  const [generatingWeek, setGeneratingWeek] = useState(false);
+  const generateWeekPosts = async () => {
+    setGeneratingWeek(true);
+    try {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const topics = [
+        'Customer churn prevention tip',
+        'Health scoring best practice',
+        'CS automation insight',
+        'NRR growth strategy',
+        'Customer success industry trend',
+      ];
+      for (let i = 0; i < days.length; i++) {
+        await fetch(`${SAMA_API_URL}/api/social/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: `week-post-${Date.now()}-${i}`,
+            type: 'generate_post',
+            priority: 'medium',
+            title: `${days[i]} post: ${topics[i]}`,
+            description: `Generate a social post about ${topics[i]} for ${days[i]}`,
+            action: 'generate_post',
+            topic: topics[i],
+            status: 'pending',
+          }),
+        });
+      }
+      await fetchDrafts();
+      await fetchActions();
+    } catch { /* silent */ }
+    finally { setGeneratingWeek(false); }
+  };
+
   const getPriorityColor = (p: string) => {
     if (p === 'critical') return 'bg-red-100 text-red-800 border-red-200';
     if (p === 'high') return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -477,10 +511,16 @@ export default function SocialPage() {
             <h2 className="text-3xl font-bold text-slate-900">Social Media Agent</h2>
             <p className="mt-2 text-slate-500 text-sm">Monitors Twitter for relevant conversations, generates social posts, and schedules content. Also monitors Reddit and LinkedIn.</p>
           </div>
-          <button onClick={runAnalysis} disabled={analyzing}
-            className="flex items-center gap-2 rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700 disabled:bg-pink-400 shadow-lg shadow-pink-600/20">
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze &amp; Generate</>}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={generateWeekPosts} disabled={generatingWeek || analyzing}
+              className="flex items-center gap-2 rounded-lg border border-pink-300 bg-white px-4 py-3 font-medium text-pink-700 hover:bg-pink-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {generatingWeek ? <><Clock className="h-5 w-5 animate-spin" /> Generating...</> : <><Calendar className="h-5 w-5" /> Generate Week</>}
+            </button>
+            <button onClick={runAnalysis} disabled={analyzing}
+              className="flex items-center gap-2 rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700 disabled:bg-pink-400 shadow-lg shadow-pink-600/20">
+              {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze &amp; Generate</>}
+            </button>
+          </div>
         </div>
 
         {/* Analysis progress bar */}

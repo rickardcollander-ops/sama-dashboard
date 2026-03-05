@@ -289,13 +289,14 @@ export default function AdsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">CTR</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Conv</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">CPA</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">ROAS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {loading ? (
-                    <tr><td colSpan={8} className="px-6 py-4 text-center text-sm text-slate-500">Loading...</td></tr>
+                    <tr><td colSpan={9} className="px-6 py-4 text-center text-sm text-slate-500">Loading...</td></tr>
                   ) : campaigns.length === 0 ? (
-                    <tr><td colSpan={8} className="px-6 py-8 text-center text-sm text-slate-500">No campaigns found. Run analysis to discover opportunities.</td></tr>
+                    <tr><td colSpan={9} className="px-6 py-8 text-center text-sm text-slate-500">No campaigns found. Run analysis to discover opportunities.</td></tr>
                   ) : (
                     campaigns.map((c, i) => (
                       <tr key={i} className="hover:bg-slate-50">
@@ -318,6 +319,17 @@ export default function AdsPage() {
                         <td className="px-6 py-4 text-sm text-slate-900">{(c.ctr || 0).toFixed(2)}%</td>
                         <td className="px-6 py-4 text-sm text-slate-900">{(c.conversions || 0).toFixed(0)}</td>
                         <td className="px-6 py-4 text-sm text-slate-900">${(c.cpa || 0).toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold">
+                          {c.roas != null ? (
+                            <span className={
+                              c.roas >= 3 ? 'text-green-600' :
+                              c.roas >= 1.5 ? 'text-yellow-600' :
+                              c.roas > 0 ? 'text-red-600' : 'text-slate-400'
+                            }>
+                              {c.roas.toFixed(1)}x
+                            </span>
+                          ) : <span className="text-slate-400">—</span>}
+                        </td>
                       </tr>
                     ))
                   )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, DollarSign, Users, RefreshCw, Play, Clock } from "lucide-react";
+import { BarChart3, TrendingUp, DollarSign, Users, RefreshCw, Play, Clock, Zap, Target } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
@@ -343,6 +343,60 @@ export default function AnalyticsPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* AI Weekly Takeaways */}
+        <div className="mt-8 rounded-lg border border-indigo-200 bg-indigo-50/50 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-xl font-semibold text-slate-900">AI Takeaways</h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {channelPerformance.length > 0 ? (() => {
+              const best = [...channelPerformance].sort((a, b) => b.conversions - a.conversions)[0];
+              const worst = [...channelPerformance].sort((a, b) => a.conversionRate - b.conversionRate)[0];
+              const totalCost = channelPerformance.reduce((s, c) => s + c.cost, 0);
+              const takeaways = [
+                { text: `${best?.channel || '—'} is your top converter with ${best?.conversions || 0} conversions`, color: 'text-green-700 bg-green-50 border-green-200' },
+                { text: `${worst?.channel || '—'} has the lowest conversion rate (${worst?.conversionRate || 0}%) — consider optimizing`, color: 'text-amber-700 bg-amber-50 border-amber-200' },
+                { text: `Total marketing spend: $${totalCost.toLocaleString()} across ${channelPerformance.length} channels`, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+                { text: stats.avgConversionRate > 3 ? 'Conversion rate is above average for B2B SaaS — keep scaling' : 'Conversion rate is below B2B average (3%) — focus on landing page optimization', color: stats.avgConversionRate > 3 ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200' },
+              ];
+              return takeaways.map((t, i) => (
+                <div key={i} className={`rounded-lg border p-3 text-sm ${t.color}`}>{t.text}</div>
+              ));
+            })() : (
+              <p className="text-sm text-slate-500 col-span-2">Collect metrics to generate AI takeaways.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Goal Tracking */}
+        <div className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Target className="h-5 w-5 text-purple-600" />
+            <h2 className="text-xl font-semibold text-slate-900">Goal Tracking</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { label: 'Monthly Visits', current: stats.totalVisits, target: 10000, color: 'blue' },
+              { label: 'Monthly Conversions', current: stats.totalConversions, target: 100, color: 'green' },
+              { label: 'Revenue Target', current: stats.totalRevenue, target: 50000, color: 'purple', isMoney: true },
+            ].map(goal => {
+              const pct = Math.min((goal.current / goal.target) * 100, 100);
+              const display = goal.isMoney ? `$${(goal.current / 1000).toFixed(1)}k / $${(goal.target / 1000).toFixed(0)}k` : `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}`;
+              return (
+                <div key={goal.label} className="rounded-lg border p-4">
+                  <p className="text-sm font-medium text-slate-700 mb-2">{goal.label}</p>
+                  <p className="text-lg font-bold text-slate-900 mb-2">{display}</p>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all bg-${goal.color}-500`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">{pct.toFixed(0)}% of target</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 

@@ -174,6 +174,7 @@ export default function SEOPage() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp' | 'strategy'>('overview');
+  const [kwFilter, setKwFilter] = useState<'all' | 'quick_wins'>('all');
   const [analysis, setAnalysis]     = useState<any>(null);
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
   const [executing, setExecuting]   = useState<string | null>(null);
@@ -731,9 +732,23 @@ export default function SEOPage() {
                       {keywords.length} keywords from Google Search Console · Position data updated daily at 02:00 UTC
                     </p>
                   </div>
-                  <button onClick={fetchKeywords} className="text-slate-400 hover:text-slate-600 p-1 rounded">
-                    <RefreshCw className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setKwFilter(f => f === 'quick_wins' ? 'all' : 'quick_wins')}
+                      className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        kwFilter === 'quick_wins' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'border text-slate-500 hover:bg-slate-50'
+                      }`}>
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      Quick Wins
+                      {keywords.filter(k => k.position >= 4 && k.position <= 10 && k.impressions >= 100).length > 0 && (
+                        <span className="ml-1 rounded-full bg-amber-200 px-1.5 text-[10px] font-bold text-amber-800">
+                          {keywords.filter(k => k.position >= 4 && k.position <= 10 && k.impressions >= 100).length}
+                        </span>
+                      )}
+                    </button>
+                    <button onClick={fetchKeywords} className="text-slate-400 hover:text-slate-600 p-1 rounded">
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -756,10 +771,13 @@ export default function SEOPage() {
                           </td>
                         </tr>
                       ) : (
-                        keywords.map(kw => {
+                        (kwFilter === 'quick_wins'
+                          ? keywords.filter(k => k.position >= 4 && k.position <= 10 && k.impressions >= 100)
+                          : keywords
+                        ).map(kw => {
                           const trend = getPositionTrend(kw.position_history, kw.position);
                           return (
-                            <tr key={kw.keyword} className="group hover:bg-slate-50 transition-colors">
+                            <tr key={kw.keyword} className={`group hover:bg-slate-50 transition-colors ${kwFilter === 'quick_wins' ? 'bg-amber-50/30' : ''}`}>
                               <td className="px-5 py-3.5 font-medium text-slate-900">
                                 <div className="flex items-center gap-2">
                                   {kw.keyword}

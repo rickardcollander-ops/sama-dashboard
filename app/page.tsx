@@ -6,7 +6,7 @@ import {
   Activity, Search, MessageSquare, TrendingUp, Users, BarChart3,
   Bot, CheckCircle, XCircle, ArrowRight, Zap, AlertTriangle,
   Clock, RefreshCw, Play, ChevronRight, Star, FileText,
-  Linkedin, Shield, Calendar, Timer
+  Shield, Calendar, Timer, ArrowUp, ArrowDown, Minus
 } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 
@@ -94,19 +94,17 @@ const AGENTS: AgentDef[] = [
     icon: Bot, color: "text-violet-600", bgColor: "bg-violet-50",
     endpoint: "/api/ai-visibility/check", method: "POST", page: "/ai-visibility",
   },
-  {
-    name: "LinkedIn", key: "linkedin",
-    desc: "Company page posts, thought leadership content",
-    runLabel: "Generate", runDesc: "Generate a LinkedIn post",
-    icon: Linkedin, color: "text-sky-600", bgColor: "bg-sky-50",
-    endpoint: "/api/social/linkedin/generate", method: "POST", page: "/linkedin",
-  },
 ];
 
 const JOB_LABELS: Record<string, { label: string; desc: string }> = {
   daily_keyword_tracking: { label: "Keyword Tracking", desc: "Fetches GSC rankings for all keywords" },
   weekly_seo_audit: { label: "SEO Audit", desc: "Full technical audit (Mondays)" },
   daily_workflow: { label: "Daily Workflow", desc: "Reviews + social post generation" },
+  daily_metrics: { label: "Metrics Collection", desc: "Cross-channel metrics into Supabase" },
+  daily_ads_check: { label: "Ads Check", desc: "Flag underperforming campaigns" },
+  weekly_content_analysis: { label: "Content Analysis", desc: "Gap analysis + actions (Wednesdays)" },
+  weekly_ai_visibility: { label: "AI Visibility", desc: "Check AI assistant mentions (Thursdays)" },
+  midday_review_check: { label: "Midday Reviews", desc: "Catch reviews posted during the day" },
 };
 
 export default function Home() {
@@ -120,6 +118,8 @@ export default function Home() {
   const [pendingAlerts, setPendingAlerts] = useState(0);
   const [pendingActions, setPendingActions] = useState<Record<string, number>>({});
   const [scheduler, setScheduler] = useState<{ running: boolean; jobs: Record<string, SchedulerJob> } | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
+  const [marketingScore, setMarketingScore] = useState<number | null>(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -136,8 +136,39 @@ export default function Home() {
         setPendingAlerts(data.counts?.pending_actions || data.counts?.alerts || 0);
         setPendingActions(data.pending_actions || {});
         if (data.scheduler) setScheduler(data.scheduler);
+        // Compute marketing score (0-100) from available data
+        const c = data.counts || {};
+        let score = 0;
+        if (c.keywords > 0) score += 15;
+        if (c.content_pieces > 0) score += 15;
+        if (c.reviews > 0) score += 10;
+        if (c.seo_audits > 0) score += 10;
+        if (data.scheduler?.running) score += 20;
+        if ((c.avg_rating || 0) >= 4) score += 15;
+        if (c.keywords >= 20) score += 5;
+        if (c.content_pieces >= 10) score += 5;
+        if (c.reviews >= 10) score += 5;
+        setMarketingScore(Math.min(100, score));
       }
     } catch { /* silent */ }
+  };
+
+  const runAllAgents = async () => {
+    setRunningAll(true);
+    const agentsToRun = AGENTS.filter(a => a.key !== 'linkedin');
+    for (const agent of agentsToRun) {
+      setRunningAgent(agent.name);
+      try {
+        const options: RequestInit = agent.method === 'POST'
+          ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
+          : { method: 'GET' };
+        await fetch(`${SAMA_API_URL}${agent.endpoint}`, options);
+      } catch { /* continue */ }
+    }
+    setRunningAgent(null);
+    setRunningAll(false);
+    setAgentResult({ name: 'All Agents', ok: true, message: 'All agents have been triggered.' });
+    fetchDashboard();
   };
 
   const fetchRecommendations = async () => {
@@ -223,6 +254,11 @@ export default function Home() {
                 Scheduler Active
               </span>
             )}
+            <button onClick={runAllAgents} disabled={runningAll || runningAgent !== null}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm">
+              {runningAll ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              {runningAll ? 'Running...' : 'Run All Agents'}
+            </button>
             <button onClick={() => { fetchDashboard(); fetchRecommendations(); }}
               className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
@@ -247,9 +283,29 @@ export default function Home() {
         )}
 
         {/* KPI Row */}
-        <div className="mb-8 grid gap-4 md:grid-cols-5">
+        <div className="mb-8 grid gap-4 md:grid-cols-6">
+          {/* Marketing Score */}
+          <div className="rounded-lg border bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <svg className="h-12 w-12" viewBox="0 0 36 36">
+                  <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+                  <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                    stroke={marketingScore !== null ? (marketingScore >= 70 ? '#22c55e' : marketingScore >= 40 ? '#eab308' : '#ef4444') : '#94a3b8'}
+                    strokeWidth="3" strokeDasharray={`${marketingScore ?? 0}, 100`} strokeLinecap="round" />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-900">{marketingScore ?? '—'}</span>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">Marketing Score</p>
+                <p className="text-sm font-semibold text-slate-700">
+                  {marketingScore !== null ? (marketingScore >= 70 ? 'Good' : marketingScore >= 40 ? 'Growing' : 'Needs Work') : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
           <KPICard label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" />
-          <KPICard label="Total Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
+          <KPICard label="Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
           <KPICard label="Avg CTR" value={stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" />
           <KPICard label="Keywords" value={dashCounts.keywords ?? '—'} icon={BarChart3} color="text-orange-600" bgColor="bg-orange-50" />
           <KPICard label="Avg Rating" value={dashCounts.avg_rating ? `${dashCounts.avg_rating} / 5` : '—'} icon={Star} color="text-yellow-600" bgColor="bg-yellow-50" />
@@ -500,7 +556,6 @@ export default function Home() {
                   { label: "Anomaly Detection", href: "/anomalies", icon: Shield },
                   { label: "Budget Optimizer", href: "/budget-optimizer", icon: TrendingUp },
                   { label: "Content Analytics", href: "/content-analytics", icon: BarChart3 },
-                  { label: "LinkedIn Posts", href: "/linkedin", icon: Linkedin },
                 ].map(link => (
                   <Link key={link.label} href={link.href}
                     className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
