@@ -199,18 +199,18 @@ export default function AdsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-start justify-between">
+<main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Google Ads Agent</h2>
-            <p className="mt-2 text-slate-500 text-sm">Manages Google Ads campaigns — optimizes bids, pauses underperformers, harvests negative keywords, and generates ad copy.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Google Ads Agent</h2>
+            <p className="mt-1 sm:mt-2 text-slate-500 text-sm">Manages Google Ads campaigns — optimizes bids, pauses underperformers, and generates ad copy.</p>
           </div>
           <button
             onClick={runAnalysis}
             disabled={analyzing}
-            className="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-medium text-white hover:bg-green-700 disabled:bg-green-400 shadow-lg shadow-green-600/20"
+            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 sm:px-6 py-2.5 sm:py-3 font-medium text-white hover:bg-green-700 disabled:bg-green-400 shadow-lg shadow-green-600/20 text-sm sm:text-base self-start"
           >
-            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze All Campaigns</>}
+            {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze Campaigns</>}
           </button>
         </div>
 
@@ -232,7 +232,7 @@ export default function AdsPage() {
         )}
 
         {/* Stats */}
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
           <div className="rounded-lg border bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-slate-500">Total Spend</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">${stats.totalSpend}</p>
@@ -252,7 +252,7 @@ export default function AdsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm">
+        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
           {[
             { id: 'campaigns' as const, label: 'Active Campaigns', icon: <TrendingUp className="h-4 w-4" /> },
             { id: 'actions' as const, label: `Optimization Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },

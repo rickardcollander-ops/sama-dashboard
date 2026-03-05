@@ -588,18 +588,18 @@ export default function SEOPage() {
 
       {/* Nav */}
 <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex gap-6 max-w-[1400px] mx-auto">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto">
 
           {/* ── Left: main content ─────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
 
             {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-bold text-slate-900">SEO Agent</h2>
-                <p className="mt-1 text-slate-500 text-sm">Tracks keyword rankings from Google Search Console, audits technical SEO, and generates optimization actions.</p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">SEO Agent</h2>
+                <p className="mt-1 text-slate-500 text-sm">Tracks keyword rankings, audits technical SEO, and generates optimization actions.</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => resetSeoData(false)}
                   disabled={resettingSeo || analyzing || initializing}
@@ -680,7 +680,7 @@ export default function SEOPage() {
             )}
 
             {/* Stats Grid */}
-            <div className="mb-6 grid gap-4 md:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
               {[
                 { label: 'Avg Position',   value: stats.avgPosition || '—',  sub: 'keywords with data',    trend: undefined },
                 { label: 'Total Clicks',   value: stats.totalClicks,          sub: 'last 28 days',           trend: undefined },
@@ -696,7 +696,7 @@ export default function SEOPage() {
             </div>
 
             {/* Tab nav */}
-            <div className="mb-5 flex gap-1 rounded-xl bg-white p-1 border shadow-sm overflow-x-auto">
+            <div className="mb-5 flex gap-1 rounded-xl bg-white p-1 border shadow-sm overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1">
               {[
                 { id: 'overview' as const, label: 'Keyword Rankings',  icon: <Search     className="h-4 w-4" /> },
                 { id: 'actions'  as const, label: `Optimization Actions${pendingActions.length ? ` (${pendingActions.length})` : ''}`, icon: <Zap  className="h-4 w-4" /> },

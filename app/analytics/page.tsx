@@ -204,13 +204,13 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+<main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Analytics Agent</h2>
-            <p className="mt-1 text-slate-500 text-sm">Cross-channel metrics from Google Ads, SEO, and social media. Attribution models and conversion funnel.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Analytics Agent</h2>
+            <p className="mt-1 text-slate-500 text-sm">Cross-channel metrics, attribution models and conversion funnel.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="flex rounded-lg border bg-white overflow-hidden">
               {[7, 14, 30, 90].map(d => (
                 <button key={d} onClick={() => setDays(d)}
@@ -241,7 +241,7 @@ export default function AnalyticsPage() {
         ) : (
           <>
         {/* Stats */}
-        <div className="grid gap-6 md:grid-cols-4 mb-8">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 sm:grid-cols-4 mb-6 sm:mb-8">
           <div className="rounded-lg border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>

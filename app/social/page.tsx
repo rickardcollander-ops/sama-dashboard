@@ -505,20 +505,20 @@ export default function SocialPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-start justify-between">
+<main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Social Media Agent</h2>
-            <p className="mt-2 text-slate-500 text-sm">Monitors Twitter for relevant conversations, generates social posts, and schedules content. Also monitors Reddit and LinkedIn.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Social Media Agent</h2>
+            <p className="mt-1 sm:mt-2 text-slate-500 text-sm">Monitors Twitter, generates social posts, and schedules content. Also monitors Reddit.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={generateWeekPosts} disabled={generatingWeek || analyzing}
-              className="flex items-center gap-2 rounded-lg border border-pink-300 bg-white px-4 py-3 font-medium text-pink-700 hover:bg-pink-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              {generatingWeek ? <><Clock className="h-5 w-5 animate-spin" /> Generating...</> : <><Calendar className="h-5 w-5" /> Generate Week</>}
+              className="flex items-center gap-2 rounded-lg border border-pink-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-pink-700 hover:bg-pink-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {generatingWeek ? <><Clock className="h-4 w-4 animate-spin" /> Generating...</> : <><Calendar className="h-4 w-4" /> Generate Week</>}
             </button>
             <button onClick={runAnalysis} disabled={analyzing}
-              className="flex items-center gap-2 rounded-lg bg-pink-600 px-6 py-3 font-medium text-white hover:bg-pink-700 disabled:bg-pink-400 shadow-lg shadow-pink-600/20">
-              {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze &amp; Generate</>}
+              className="flex items-center gap-2 rounded-lg bg-pink-600 px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium text-white hover:bg-pink-700 disabled:bg-pink-400 shadow-lg shadow-pink-600/20">
+              {analyzing ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing...</> : <><Zap className="h-4 w-4" /> Analyze</>}
             </button>
           </div>
         </div>
@@ -541,7 +541,7 @@ export default function SocialPage() {
         )}
 
         {/* Stats */}
-        <div className="mb-8 grid gap-4 md:grid-cols-5">
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-5">
           <div className="rounded-lg border bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-slate-500">Pending Actions</p>
             <p className="mt-1 text-2xl font-bold text-orange-600">{pendingCount}</p>

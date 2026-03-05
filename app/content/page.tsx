@@ -176,9 +176,9 @@ export default function ContentPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
 <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex gap-6 max-w-[1400px] mx-auto">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto">
         {/* Left: Content Area */}
-        <div className="max-w-4xl flex-1 min-w-0">
+        <div className="lg:max-w-4xl flex-1 min-w-0">
         {error && (
           <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <span>{error}</span>
@@ -196,23 +196,23 @@ export default function ContentPage() {
           </div>
         )}
 
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Content Agent</h2>
-            <p className="mt-2 text-slate-500 text-sm">Analyzes content gaps vs. competitors, generates SEO-optimized blog posts and comparison pages, and manages publishing.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Agent</h2>
+            <p className="mt-1 sm:mt-2 text-slate-500 text-sm">Analyzes content gaps, generates SEO-optimized blog posts and comparison pages.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <Link href="/content-analytics"
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
-              <TrendingUp className="h-4 w-4 text-green-600" /> Analytics
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
+              <TrendingUp className="h-4 w-4 text-green-600" /> <span className="hidden sm:inline">Analytics</span>
             </Link>
             <button onClick={suggestNextArticle} disabled={suggestingNext || analyzing}
-              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              {suggestingNext ? <><Clock className="h-4 w-4 animate-spin" /> Suggesting...</> : <><BookOpen className="h-4 w-4" /> Suggest Next Article</>}
+              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {suggestingNext ? <><Clock className="h-4 w-4 animate-spin" /> Suggesting...</> : <><BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">Suggest</span> Next</>}
             </button>
             <button onClick={runAnalysis} disabled={analyzing}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
-              {analyzing ? <><Clock className="h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="h-5 w-5" /> Analyze Content Gaps</>}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
+              {analyzing ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing...</> : <><Zap className="h-4 w-4" /> Analyze</>}
             </button>
           </div>
         </div>
@@ -255,7 +255,7 @@ export default function ContentPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm">
+        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
           {[
             { id: 'library' as const, label: 'Content Library', icon: <BookOpen className="h-4 w-4" /> },
             { id: 'actions' as const, label: `Pending Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },

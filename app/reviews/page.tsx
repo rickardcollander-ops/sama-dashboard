@@ -271,21 +271,21 @@ export default function ReviewsPage() {
 
       {/* Nav */}
 <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex gap-6 max-w-[1400px] mx-auto">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto">
 
           {/* ── Left: main content ─────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
 
             {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-bold text-slate-900">Reviews Agent</h2>
-                <p className="mt-1 text-slate-500 text-sm">Monitors reviews on G2, Capterra, and Trustpilot. Drafts responses, tracks SLA compliance, and identifies sentiment trends.</p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Reviews Agent</h2>
+                <p className="mt-1 text-slate-500 text-sm">Monitors reviews on G2, Capterra, and Trustpilot. Drafts responses and tracks SLA compliance.</p>
               </div>
               <button
                 onClick={runAnalysis}
                 disabled={analyzing}
-                className="flex items-center gap-2 rounded-lg bg-yellow-600 px-5 py-2.5 font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400 shadow-lg shadow-yellow-600/20 text-sm"
+                className="flex items-center gap-2 rounded-lg bg-yellow-600 px-5 py-2.5 font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400 shadow-lg shadow-yellow-600/20 text-sm self-start"
               >
                 {analyzing
                   ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing…</>
@@ -320,7 +320,7 @@ export default function ReviewsPage() {
             )}
 
             {/* Stats Grid */}
-            <div className="mb-6 grid gap-4 md:grid-cols-5">
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-5">
               {[
                 { label: 'Avg Rating', value: dashStats?.avg_rating ? `${dashStats.avg_rating}` : '—', sub: '/ 5 stars', color: 'text-yellow-600' },
                 { label: 'Total Reviews', value: dashStats?.total_reviews ?? 0, sub: 'all platforms', color: 'text-slate-900' },

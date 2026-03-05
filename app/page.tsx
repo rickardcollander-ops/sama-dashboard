@@ -238,30 +238,31 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
-            <p className="mt-1 text-slate-500">
-              Autonomous marketing platform for Successifier. Agents collect data, analyze with AI, and suggest actions.
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Command Center</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Autonomous marketing platform for Successifier.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {scheduler?.running && (
               <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                Scheduler Active
+                Active
               </span>
             )}
             <button onClick={runAllAgents} disabled={runningAll || runningAgent !== null}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm">
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm">
               {runningAll ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-              {runningAll ? 'Running...' : 'Run All Agents'}
+              {runningAll ? 'Running...' : 'Run All'}
             </button>
             <button onClick={() => { fetchDashboard(); fetchRecommendations(); }}
-              className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm">
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm">
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
@@ -283,12 +284,12 @@ export default function Home() {
         )}
 
         {/* KPI Row */}
-        <div className="mb-8 grid gap-4 md:grid-cols-6">
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {/* Marketing Score */}
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
+          <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm col-span-2 sm:col-span-1">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <svg className="h-12 w-12" viewBox="0 0 36 36">
+              <div className="relative flex-shrink-0">
+                <svg className="h-10 w-10 sm:h-12 sm:w-12" viewBox="0 0 36 36">
                   <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3" />
                   <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
                     stroke={marketingScore !== null ? (marketingScore >= 70 ? '#22c55e' : marketingScore >= 40 ? '#eab308' : '#ef4444') : '#94a3b8'}
@@ -398,7 +399,7 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-slate-900">Agents</h2>
                 <p className="text-xs text-slate-400 mt-0.5">Each agent operates autonomously. Trigger manually or wait for scheduled runs.</p>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                 {AGENTS.map(agent => {
                   const pending = pendingActions[agent.key] || 0;
                   return (
@@ -577,14 +578,14 @@ function KPICard({ label, value, icon: Icon, color, bgColor }: {
   label: string; value: string | number; icon: React.ElementType; color: string; bgColor: string;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className={`rounded-lg p-2 ${bgColor}`}>
-          <Icon className={`h-5 w-5 ${color}`} />
+    <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className={`rounded-lg p-1.5 sm:p-2 ${bgColor} flex-shrink-0`}>
+          <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${color}`} />
         </div>
-        <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className="text-xl font-bold text-slate-900">{value}</p>
+        <div className="min-w-0">
+          <p className="text-[10px] sm:text-xs font-medium text-slate-500 truncate">{label}</p>
+          <p className="text-base sm:text-xl font-bold text-slate-900">{value}</p>
         </div>
       </div>
     </div>
