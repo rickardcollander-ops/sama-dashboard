@@ -732,7 +732,7 @@ export default function SocialPage() {
                           }`}>
                             {draft.content_type === 'thread' ? '🧵 Thread' : '🐦 Tweet'}
                           </span>
-                          <span className="text-xs text-slate-400">{new Date(draft.created_at).toLocaleDateString('sv-SE')}</span>
+                          <span className="text-xs text-slate-400">{new Date(draft.created_at).toLocaleDateString('en-US')}</span>
                           {draft.word_count > 0 && <span className="text-xs text-slate-400">{draft.word_count} words</span>}
                         </div>
                         <h4 className="font-medium text-slate-900 mb-2">{draft.title}</h4>
@@ -1123,7 +1123,7 @@ function RedditTab({
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-medium text-slate-900 text-sm">u/{m.author}</span>
                       <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">r/{m.subreddit}</span>
-                      <span className="text-xs text-slate-400">{new Date(m.created_utc * 1000).toLocaleDateString('sv-SE')}</span>
+                      <span className="text-xs text-slate-400">{new Date(m.created_utc * 1000).toLocaleDateString('en-US')}</span>
                     </div>
                     {m.subject && <p className="text-xs font-medium text-slate-500 mb-1">{m.subject}</p>}
                     <p className="text-sm text-slate-700 line-clamp-2">{m.body}</p>

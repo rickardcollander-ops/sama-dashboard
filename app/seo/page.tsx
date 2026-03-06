@@ -1526,7 +1526,7 @@ export default function SEOPage() {
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           {strategyCreatedAt && (
                             <span className="text-xs text-slate-400">
-                              Generated {new Date(strategyCreatedAt).toLocaleDateString('sv-SE')}
+                              Generated {new Date(strategyCreatedAt).toLocaleDateString('en-US')}
                             </span>
                           )}
                           {strategyCached && (
@@ -1646,7 +1646,7 @@ export default function SEOPage() {
                                       <span className="text-xs text-slate-400">{task.timeframe}</span>
                                     )}
                                     {task.done_at && (
-                                      <span className="text-xs text-slate-300">{new Date(task.done_at).toLocaleDateString('sv-SE')}</span>
+                                      <span className="text-xs text-slate-300">{new Date(task.done_at).toLocaleDateString('en-US')}</span>
                                     )}
                                     <button
                                       onClick={() => deleteTask(task.id)}

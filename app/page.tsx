@@ -233,7 +233,7 @@ export default function Home() {
   const fmtTime = (iso: string | null) => {
     if (!iso) return '—';
     const d = new Date(iso);
-    return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
