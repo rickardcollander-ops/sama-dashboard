@@ -175,6 +175,7 @@ export default function SEOPage() {
   // UI state
   const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp' | 'strategy'>('overview');
   const [kwFilter, setKwFilter] = useState<'all' | 'quick_wins'>('all');
+  const [kwSort, setKwSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'position', dir: 'asc' });
   const [analysis, setAnalysis]     = useState<any>(null);
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
   const [executing, setExecuting]   = useState<string | null>(null);
@@ -754,8 +755,29 @@ export default function SEOPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b">
                       <tr>
-                        {['Keyword','Intent','Priority','Position','Trend','Clicks','Impressions','CTR',''].map(h => (
-                          <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">{h}</th>
+                        {[
+                          { label: 'Keyword', key: 'keyword' },
+                          { label: 'Intent', key: 'intent' },
+                          { label: 'Priority', key: 'priority' },
+                          { label: 'Position', key: 'position' },
+                          { label: 'Trend', key: 'trend' },
+                          { label: 'Clicks', key: 'clicks' },
+                          { label: 'Impressions', key: 'impressions' },
+                          { label: 'CTR', key: 'ctr' },
+                          { label: '', key: '' },
+                        ].map(h => (
+                          <th
+                            key={h.key || '_actions'}
+                            className={`px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 ${h.key ? 'cursor-pointer select-none hover:text-slate-700' : ''}`}
+                            onClick={() => h.key && setKwSort(prev => ({ col: h.key, dir: prev.col === h.key && prev.dir === 'asc' ? 'desc' : 'asc' }))}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {h.label}
+                              {h.key && kwSort.col === h.key && (
+                                kwSort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+                              )}
+                            </span>
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -774,7 +796,26 @@ export default function SEOPage() {
                         (kwFilter === 'quick_wins'
                           ? keywords.filter(k => k.position >= 4 && k.position <= 10 && k.impressions >= 100)
                           : keywords
-                        ).map(kw => {
+                        ).slice().sort((a, b) => {
+                          const dir = kwSort.dir === 'asc' ? 1 : -1;
+                          const col = kwSort.col;
+                          if (col === 'keyword') return dir * a.keyword.localeCompare(b.keyword);
+                          if (col === 'intent') return dir * (a.intent || '').localeCompare(b.intent || '');
+                          if (col === 'priority') {
+                            const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+                            return dir * ((order[a.priority || ''] ?? 4) - (order[b.priority || ''] ?? 4));
+                          }
+                          if (col === 'trend') {
+                            const tA = getPositionTrend(a.position_history, a.position);
+                            const tB = getPositionTrend(b.position_history, b.position);
+                            const order: Record<string, number> = { up: 0, flat: 1, down: 2 };
+                            return dir * ((order[tA] ?? 3) - (order[tB] ?? 3));
+                          }
+                          if (col === 'position' || col === 'clicks' || col === 'impressions' || col === 'ctr') {
+                            return dir * ((a[col] || 0) - (b[col] || 0));
+                          }
+                          return 0;
+                        }).map(kw => {
                           const trend = getPositionTrend(kw.position_history, kw.position);
                           return (
                             <tr key={kw.keyword} className={`group hover:bg-slate-50 transition-colors ${kwFilter === 'quick_wins' ? 'bg-amber-50/30' : ''}`}>
