@@ -46,10 +46,6 @@ export default function ContentPage() {
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
 
-  // Edit-before-execute state
-  const [editingAction, setEditingAction] = useState<Action | null>(null);
-  const [editedDesc, setEditedDesc] = useState('');
-
   // Background analysis
   const fetchActions = async () => {
     try {
@@ -436,16 +432,10 @@ export default function ContentPage() {
                       </div>
                       <div className="flex items-center gap-2 ml-4">
                         {action.status === 'pending' && (
-                          <>
-                            <button onClick={() => { setEditingAction(action); setEditedDesc(action.description); }}
-                              className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                              <PenTool className="h-3 w-3" /> Edit
-                            </button>
-                            <button onClick={() => executeAction(action)} disabled={executing.has(action.id)}
-                              className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                              {executing.has(action.id) ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
-                            </button>
-                          </>
+                          <button onClick={() => executeAction(action)} disabled={executing.has(action.id)}
+                            className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
+                            {executing.has(action.id) ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
+                          </button>
                         )}
                         <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)} className="rounded p-1 hover:bg-slate-100">
                           {expandedAction === action.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -508,37 +498,6 @@ export default function ContentPage() {
         </div>
         </div>
       </main>
-
-      {/* Edit Action Modal */}
-      {editingAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditingAction(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">{editingAction.title}</h3>
-            <p className="text-xs text-slate-400 mb-4">Edit the action details before executing</p>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
-            <textarea
-              value={editedDesc}
-              onChange={e => setEditedDesc(e.target.value)}
-              rows={4}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingAction(null)} className="rounded-lg border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button
-                onClick={() => {
-                  const updated = { ...editingAction, description: editedDesc };
-                  setActions(prev => prev.map(a => a.id === updated.id ? updated : a));
-                  setEditingAction(null);
-                  executeAction(updated);
-                }}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Save & Execute
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

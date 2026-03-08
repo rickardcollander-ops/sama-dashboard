@@ -104,10 +104,6 @@ export default function ReviewsPage() {
   const [draftingResponse, setDraftingResponse] = useState<string | null>(null);
   const [draftedResponses, setDraftedResponses] = useState<Record<string, string>>({});
 
-  // Edit-before-execute
-  const [editingAction, setEditingAction] = useState<Action | null>(null);
-  const [editedActionDesc, setEditedActionDesc] = useState('');
-
   // Import form
   const [importForm, setImportForm] = useState({ platform: 'G2', rating: 5, author: '', title: '', content: '', review_url: '' });
   const [importing, setImporting] = useState(false);
@@ -545,23 +541,15 @@ export default function ReviewsPage() {
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {action.status === 'pending' && (
-                                <>
-                                  <button
-                                    onClick={() => { setEditingAction(action); setEditedActionDesc(action.description); }}
-                                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                  >
-                                    <MessageSquare className="h-3 w-3" /> Edit
-                                  </button>
-                                  <button
-                                    onClick={() => executeAction(action)}
-                                    disabled={executing === action.id}
-                                    className="flex items-center gap-1.5 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400"
-                                  >
-                                    {executing === action.id
-                                      ? <><Clock className="h-3 w-3 animate-spin" /> Running…</>
-                                      : <><Play className="h-3 w-3" /> Execute</>}
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => executeAction(action)}
+                                  disabled={executing === action.id}
+                                  className="flex items-center gap-1.5 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400"
+                                >
+                                  {executing === action.id
+                                    ? <><Clock className="h-3 w-3 animate-spin" /> Running…</>
+                                    : <><Play className="h-3 w-3" /> Execute</>}
+                                </button>
                               )}
                               <button
                                 onClick={() => deleteAction(action.id)}
@@ -879,36 +867,6 @@ export default function ReviewsPage() {
 
         </div>
       </main>
-
-      {/* Edit Action Modal */}
-      {editingAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditingAction(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">{editingAction.title}</h3>
-            <p className="text-xs text-slate-400 mb-4">Edit the response before publishing</p>
-            <textarea
-              value={editedActionDesc}
-              onChange={e => setEditedActionDesc(e.target.value)}
-              rows={5}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingAction(null)} className="rounded-lg border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button
-                onClick={() => {
-                  const updated = { ...editingAction, description: editedActionDesc };
-                  setActions(prev => prev.map(a => a.id === updated.id ? updated : a));
-                  setEditingAction(null);
-                  executeAction(updated);
-                }}
-                className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700"
-              >
-                Save & Execute
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
