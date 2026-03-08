@@ -4,12 +4,30 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Target, Users, TrendingUp, Zap, BarChart3, RefreshCw,
   ChevronRight, ArrowUp, ArrowDown, Minus, Clock,
-  Crosshair, Megaphone, GitBranch, CheckCircle, AlertTriangle
+  Crosshair, Megaphone, GitBranch, CheckCircle, AlertTriangle,
+  Mail, MessageSquare, Play, Pause, Sparkles, Trash2, ChevronDown, ChevronUp, Edit3
 } from "lucide-react";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
-type Tab = 'overview' | 'icp' | 'strategy' | 'signals' | 'pipeline';
+type Tab = 'overview' | 'icp' | 'strategy' | 'signals' | 'pipeline' | 'sequences';
+
+interface SequenceStep {
+  day: number;
+  channel: string;
+  action: string;
+  template: string;
+}
+
+interface Sequence {
+  id: string;
+  name: string;
+  description: string;
+  target_persona: string;
+  steps: SequenceStep[];
+  status: string;
+  created_at?: string;
+}
 
 interface DashboardData {
   icp: Record<string, unknown> | null;
@@ -31,6 +49,8 @@ export default function GTMPage() {
   const [strategyResult, setStrategyResult] = useState<Record<string, unknown> | null>(null);
   const [signalsResult, setSignalsResult] = useState<Record<string, unknown> | null>(null);
   const [reviewResult, setReviewResult] = useState<Record<string, unknown> | null>(null);
+  const [sequences, setSequences] = useState<Sequence[]>([]);
+  const [seqLoading, setSeqLoading] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -48,7 +68,17 @@ export default function GTMPage() {
     }
   }, []);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  const fetchSequences = useCallback(async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/gtm/sequences`);
+      if (res.ok) {
+        const data = await res.json();
+        setSequences(data.sequences || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchDashboard(); fetchSequences(); }, [fetchDashboard, fetchSequences]);
 
   const runAction = async (action: string) => {
     setRunning(action);
@@ -90,6 +120,7 @@ export default function GTMPage() {
     { id: 'strategy', label: 'Strategy', icon: Megaphone },
     { id: 'signals', label: 'Signals', icon: Zap },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+    { id: 'sequences', label: 'Sequences', icon: Mail },
   ];
 
   return (
@@ -169,6 +200,45 @@ export default function GTMPage() {
         <PipelineTab
           pipeline={dashboard?.pipeline || {}}
           loading={loading}
+        />
+      )}
+      {activeTab === 'sequences' && (
+        <SequencesTab
+          sequences={sequences}
+          loading={seqLoading}
+          onRefresh={fetchSequences}
+          onGenerate={async (count: number, focus?: string) => {
+            setSeqLoading(true);
+            try {
+              const res = await fetch(`${SAMA_API_URL}/api/gtm/sequences/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count, focus }),
+              });
+              if (res.ok) {
+                await fetchSequences();
+              }
+            } catch { /* silent */ }
+            finally { setSeqLoading(false); }
+          }}
+          onDelete={async (id: string) => {
+            try {
+              await fetch(`${SAMA_API_URL}/api/gtm/sequences/${id}`, { method: 'DELETE' });
+              setSequences(prev => prev.filter(s => s.id !== id));
+            } catch { /* silent */ }
+          }}
+          onToggleStatus={async (id: string, status: string) => {
+            try {
+              const res = await fetch(`${SAMA_API_URL}/api/gtm/sequences/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status }),
+              });
+              if (res.ok) {
+                setSequences(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+              }
+            } catch { /* silent */ }
+          }}
         />
       )}
     </div>
@@ -540,6 +610,167 @@ function PipelineTab({ pipeline, loading }: {
           {JSON.stringify(pipeline, null, 2)}
         </pre>
       </div>
+    </div>
+  );
+}
+
+
+// ── Sequences Tab ──────────────────────────────────────────────────
+
+const CHANNEL_STYLES: Record<string, { icon: React.ElementType; label: string; color: string; bg: string }> = {
+  linkedin_dm: { icon: MessageSquare, label: 'LinkedIn DM', color: 'text-blue-700', bg: 'bg-blue-50' },
+  email: { icon: Mail, label: 'Email', color: 'text-green-700', bg: 'bg-green-50' },
+  linkedin_comment: { icon: MessageSquare, label: 'LinkedIn Comment', color: 'text-indigo-700', bg: 'bg-indigo-50' },
+  twitter: { icon: MessageSquare, label: 'Twitter', color: 'text-sky-700', bg: 'bg-sky-50' },
+};
+
+function SequencesTab({ sequences, loading, onRefresh, onGenerate, onDelete, onToggleStatus }: {
+  sequences: Sequence[];
+  loading: boolean;
+  onRefresh: () => void;
+  onGenerate: (count: number, focus?: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onToggleStatus: (id: string, status: string) => Promise<void>;
+}) {
+  const [expandedSeq, setExpandedSeq] = useState<string | null>(null);
+  const [genFocus, setGenFocus] = useState('');
+
+  const activeCount = sequences.filter(s => s.status === 'active').length;
+  const draftCount = sequences.filter(s => s.status === 'draft').length;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Outreach Sequences</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {sequences.length} sequences · {activeCount} active · {draftCount} drafts
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Focus (e.g. enterprise, startup...)"
+            value={genFocus}
+            onChange={e => setGenFocus(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 w-48 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          <button
+            onClick={() => onGenerate(5, genFocus || undefined)}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+          >
+            {loading ? <Clock className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {loading ? 'Generating...' : 'AI Generate 5'}
+          </button>
+          <button
+            onClick={onRefresh}
+            className="rounded-lg border p-2 text-slate-500 hover:bg-slate-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Sequences List */}
+      {sequences.length === 0 ? (
+        <EmptyState
+          icon={Mail}
+          title="No sequences yet"
+          desc="Click 'AI Generate 5' to create outreach sequences, or they'll be loaded automatically."
+        />
+      ) : (
+        <div className="space-y-3">
+          {sequences.map(seq => {
+            const isExpanded = expandedSeq === seq.id;
+            const statusColor = seq.status === 'active' ? 'bg-green-100 text-green-700' :
+                               seq.status === 'paused' ? 'bg-amber-100 text-amber-700' :
+                               'bg-slate-100 text-slate-600';
+
+            return (
+              <div key={seq.id} className="rounded-lg border bg-white shadow-sm">
+                {/* Sequence header */}
+                <div className="flex items-center gap-4 p-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-semibold text-slate-900">{seq.name}</h3>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
+                        {seq.status}
+                      </span>
+                      <span className="text-xs text-slate-400">{seq.steps.length} steps</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{seq.description}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Target: {seq.target_persona}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => onToggleStatus(seq.id, seq.status === 'active' ? 'paused' : 'active')}
+                      title={seq.status === 'active' ? 'Pause' : 'Activate'}
+                      className={`rounded-lg p-1.5 transition-colors ${
+                        seq.status === 'active'
+                          ? 'text-amber-500 hover:bg-amber-50'
+                          : 'text-green-500 hover:bg-green-50'
+                      }`}
+                    >
+                      {seq.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={() => onDelete(seq.id)}
+                      className="rounded-lg p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setExpandedSeq(isExpanded ? null : seq.id)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded steps */}
+                {isExpanded && (
+                  <div className="border-t px-4 py-3">
+                    <div className="relative">
+                      {/* Timeline line */}
+                      <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-200" />
+
+                      <div className="space-y-4">
+                        {seq.steps.map((step, i) => {
+                          const ch = CHANNEL_STYLES[step.channel] || CHANNEL_STYLES.email;
+                          const StepIcon = ch.icon;
+                          return (
+                            <div key={i} className="relative flex items-start gap-4 pl-2">
+                              {/* Timeline dot */}
+                              <div className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full ${ch.bg} flex-shrink-0 ring-4 ring-white`}>
+                                <StepIcon className={`h-3.5 w-3.5 ${ch.color}`} />
+                              </div>
+                              <div className="flex-1 min-w-0 pb-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-semibold text-slate-700">Day {step.day}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ch.bg} ${ch.color}`}>
+                                    {ch.label}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">{step.action.replace(/_/g, ' ')}</span>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2">
+                                  {step.template}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
