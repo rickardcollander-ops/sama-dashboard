@@ -133,7 +133,7 @@ const actionTypeLabel: Record<string, string> = {
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US');
+  return new Date(iso).toLocaleDateString('sv-SE');
 };
 
 const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
