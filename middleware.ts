@@ -15,16 +15,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  const cookie = req.cookies.get('sama_auth')?.value;
   const secret = process.env.MISSION_SECRET;
 
-  // If MISSION_SECRET is not configured, skip auth entirely (open mode)
-  if (!secret) {
-    return NextResponse.next();
-  }
-
-  const cookie = req.cookies.get('sama_auth')?.value;
-
-  if (!cookie) {
+  if (!secret || !cookie) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
