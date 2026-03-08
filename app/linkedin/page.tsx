@@ -248,7 +248,7 @@ export default function LinkedInPage() {
                       className="w-full text-left rounded-md border p-3 hover:bg-slate-50 transition-colors">
                       <p className="text-xs font-medium text-slate-800 truncate">{post.topic}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        {post.style} · {new Date(post.created).toLocaleDateString('en-US')}
+                        {post.style} · {new Date(post.created).toLocaleDateString('sv-SE')}
                       </p>
                       <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{post.content.slice(0, 100)}...</p>
                     </button>

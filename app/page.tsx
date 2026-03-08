@@ -120,31 +120,11 @@ export default function Home() {
   const [scheduler, setScheduler] = useState<{ running: boolean; jobs: Record<string, SchedulerJob> } | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   const [marketingScore, setMarketingScore] = useState<number | null>(null);
-  const [kpiTrends, setKpiTrends] = useState<Record<string, number[]>>({});
 
   useEffect(() => {
     fetchDashboard();
     fetchRecommendations();
-    fetchKpiTrends();
   }, []);
-
-  const fetchKpiTrends = async () => {
-    try {
-      const res = await fetch(`${SAMA_API_URL}/api/analytics/metrics?days=30`);
-      if (res.ok) {
-        const data = await res.json();
-        const metrics = data.metrics || [];
-        if (metrics.length > 0) {
-          setKpiTrends({
-            clicks: metrics.map((m: any) => m.clicks || 0).slice(-14),
-            impressions: metrics.map((m: any) => m.impressions || 0).slice(-14),
-            ctr: metrics.map((m: any) => m.ctr || 0).slice(-14),
-            position: metrics.map((m: any) => m.avg_position || 0).slice(-14),
-          });
-        }
-      }
-    } catch { /* silent */ }
-  };
 
   const fetchDashboard = async () => {
     try {
@@ -253,7 +233,7 @@ export default function Home() {
   const fmtTime = (iso: string | null) => {
     if (!iso) return '—';
     const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -325,9 +305,9 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <KPICard label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" sparkData={kpiTrends.position} sparkColor="#3b82f6" />
-          <KPICard label="Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" sparkData={kpiTrends.clicks} sparkColor="#22c55e" />
-          <KPICard label="Avg CTR" value={stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" sparkData={kpiTrends.ctr} sparkColor="#8b5cf6" />
+          <KPICard label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" />
+          <KPICard label="Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
+          <KPICard label="Avg CTR" value={stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" />
           <KPICard label="Keywords" value={dashCounts.keywords ?? '—'} icon={BarChart3} color="text-orange-600" bgColor="bg-orange-50" />
           <KPICard label="Avg Rating" value={dashCounts.avg_rating ? `${dashCounts.avg_rating} / 5` : '—'} icon={Star} color="text-yellow-600" bgColor="bg-yellow-50" />
         </div>
@@ -594,23 +574,8 @@ export default function Home() {
   );
 }
 
-function Sparkline({ data, color = '#3b82f6' }: { data: number[]; color?: string }) {
-  if (data.length < 2) return null;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const w = 60, h = 20;
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
-  return (
-    <svg width={w} height={h} className="flex-shrink-0">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function KPICard({ label, value, icon: Icon, color, bgColor, sparkData, sparkColor }: {
+function KPICard({ label, value, icon: Icon, color, bgColor }: {
   label: string; value: string | number; icon: React.ElementType; color: string; bgColor: string;
-  sparkData?: number[]; sparkColor?: string;
 }) {
   return (
     <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm">
@@ -618,12 +583,9 @@ function KPICard({ label, value, icon: Icon, color, bgColor, sparkData, sparkCol
         <div className={`rounded-lg p-1.5 sm:p-2 ${bgColor} flex-shrink-0`}>
           <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${color}`} />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <p className="text-[10px] sm:text-xs font-medium text-slate-500 truncate">{label}</p>
-          <div className="flex items-center gap-2">
-            <p className="text-base sm:text-xl font-bold text-slate-900">{value}</p>
-            {sparkData && sparkData.length > 1 && <Sparkline data={sparkData} color={sparkColor} />}
-          </div>
+          <p className="text-base sm:text-xl font-bold text-slate-900">{value}</p>
         </div>
       </div>
     </div>
