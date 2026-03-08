@@ -7,8 +7,9 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X
+  Menu, X, LogOut, Settings, CalendarDays
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface NavItem {
   href: string;
@@ -30,12 +31,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/analytics", label: "Analytics", desc: "Cross-channel metrics & ROI", icon: BarChart2, group: "agents" },
   { href: "/ai-visibility", label: "AI Visibility", desc: "Presence in AI assistants", icon: Bot, group: "agents" },
 
+  { href: "/calendar", label: "Content Calendar", desc: "Plan content across channels", icon: CalendarDays, group: "insights" },
   { href: "/content-analytics", label: "Content Analytics", desc: "Performance per article", icon: FileText, group: "insights" },
   { href: "/budget-optimizer", label: "Budget Optimizer", desc: "Reallocate ad spend", icon: DollarSign, group: "insights" },
   { href: "/anomalies", label: "Anomalies", desc: "Unexpected metric changes", icon: AlertTriangle, group: "insights" },
 
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
+  { href: "/settings", label: "Settings", desc: "Configuration & preferences", icon: Settings, group: "ops" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -99,6 +102,7 @@ function NavContent({ collapsed }: { collapsed: boolean }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -106,6 +110,12 @@ export default function Sidebar() {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth', { method: 'DELETE' });
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <>
@@ -133,9 +143,11 @@ export default function Sidebar() {
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <NavContent collapsed={false} />
-        <div className="border-t px-4 py-3">
-          <p className="text-[10px] text-slate-400">Successifier Marketing AI</p>
-          <p className="text-[10px] text-slate-400">v2.0</p>
+        <div className="border-t px-4 py-3 space-y-2">
+          <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
+            <LogOut className="h-4 w-4" /> Logga ut
+          </button>
+          <p className="text-[10px] text-slate-400">Successifier Marketing AI v2.0</p>
         </div>
       </div>
 
@@ -168,12 +180,17 @@ export default function Sidebar() {
 
         <NavContent collapsed={collapsed} />
 
-        {!collapsed && (
-          <div className="border-t px-4 py-3">
-            <p className="text-[10px] text-slate-400">Successifier Marketing AI</p>
-            <p className="text-[10px] text-slate-400">v2.0</p>
-          </div>
-        )}
+        <div className="border-t px-3 py-3">
+          <button
+            onClick={handleLogout}
+            title="Logga ut"
+            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${collapsed ? 'justify-center' : ''}`}
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            {!collapsed && <span>Logga ut</span>}
+          </button>
+          {!collapsed && <p className="text-[10px] text-slate-400 mt-1 px-3">Successifier Marketing AI v2.0</p>}
+        </div>
       </aside>
     </>
   );
