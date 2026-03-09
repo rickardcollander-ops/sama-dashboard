@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Target, Users, TrendingUp, Zap, BarChart3, RefreshCw,
   ChevronRight, ArrowUp, ArrowDown, Minus, Clock,
-  Crosshair, Megaphone, GitBranch, CheckCircle, AlertTriangle
+  Crosshair, Megaphone, GitBranch, CheckCircle, AlertTriangle,
+  DollarSign, UserCheck
 } from "lucide-react";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
@@ -532,14 +533,175 @@ function PipelineTab({ pipeline, loading }: {
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900">Pipeline from Growth Hub</h2>
-      <div className="rounded-lg border bg-white p-5">
-        <pre className="text-xs text-slate-700 overflow-x-auto whitespace-pre-wrap">
-          {JSON.stringify(pipeline, null, 2)}
-        </pre>
+  const prospects = pipeline.prospects as { total?: number; byStatus?: Record<string, number> } | undefined;
+  const deals = pipeline.deals as { total?: number; byStage?: Record<string, { count: number; value: number }> } | undefined;
+  const outreach = pipeline.outreach as { total?: number; byStatus?: Record<string, number> } | undefined;
+  const revenue = pipeline.revenue as { totalRevenue?: number; totalMRR?: number } | undefined;
+
+  const hasStructuredData = prospects || deals || revenue;
+
+  const funnelStatusColors: Record<string, string> = {
+    new: 'bg-slate-400',
+    researched: 'bg-blue-400',
+    contacted: 'bg-indigo-400',
+    replied: 'bg-violet-500',
+    demo_booked: 'bg-purple-500',
+    won: 'bg-green-500',
+    lost: 'bg-red-400',
+  };
+
+  const dealStageColors: Record<string, string> = {
+    qualification: 'bg-blue-400',
+    discovery: 'bg-indigo-400',
+    proposal: 'bg-violet-500',
+    negotiation: 'bg-purple-500',
+    closed_won: 'bg-green-500',
+    closed_lost: 'bg-red-400',
+  };
+
+  const formatCurrency = (val: number) => {
+    if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `$${(val / 1000).toFixed(1)}K`;
+    return `$${val}`;
+  };
+
+  // Compute stats
+  const totalProspects = prospects?.total ?? 0;
+  const totalDeals = deals?.total ?? 0;
+  const wonCount = deals?.byStage?.closed_won?.count ?? prospects?.byStatus?.won ?? 0;
+  const lostCount = deals?.byStage?.closed_lost?.count ?? prospects?.byStatus?.lost ?? 0;
+  const winRate = (wonCount + lostCount) > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : 0;
+  const pipelineValue = deals?.byStage
+    ? Object.values(deals.byStage).reduce((sum, s) => sum + (s.value || 0), 0)
+    : 0;
+
+  if (!hasStructuredData) {
+    // Fallback: formatted JSON
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-slate-900">Pipeline from Growth Hub</h2>
+        <div className="rounded-lg border bg-white p-5">
+          <pre className="text-xs text-slate-700 overflow-x-auto whitespace-pre-wrap">
+            {JSON.stringify(pipeline, null, 2)}
+          </pre>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-slate-900">Pipeline from Growth Hub</h2>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="rounded-lg p-1.5 bg-blue-50 text-blue-600"><Users className="h-4 w-4" /></div>
+            <span className="text-xs font-medium text-slate-500">Total Prospects</span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{totalProspects}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="rounded-lg p-1.5 bg-indigo-50 text-indigo-600"><GitBranch className="h-4 w-4" /></div>
+            <span className="text-xs font-medium text-slate-500">Total Deals</span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{totalDeals}</p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="rounded-lg p-1.5 bg-green-50 text-green-600"><UserCheck className="h-4 w-4" /></div>
+            <span className="text-xs font-medium text-slate-500">Win Rate</span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{winRate}%</p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="rounded-lg p-1.5 bg-purple-50 text-purple-600"><DollarSign className="h-4 w-4" /></div>
+            <span className="text-xs font-medium text-slate-500">Pipeline Value</span>
+          </div>
+          <p className="text-2xl font-bold text-slate-900">{pipelineValue > 0 ? formatCurrency(pipelineValue) : (revenue?.totalRevenue ? formatCurrency(revenue.totalRevenue) : '$0')}</p>
+          {revenue?.totalMRR ? <p className="text-xs text-slate-500 mt-0.5">MRR: {formatCurrency(revenue.totalMRR)}</p> : null}
+        </div>
+      </div>
+
+      {/* Prospect Funnel */}
+      {prospects?.byStatus && Object.keys(prospects.byStatus).length > 0 && (
+        <div className="rounded-lg border bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Prospect Funnel</h3>
+          <div className="space-y-3">
+            {Object.entries(prospects.byStatus)
+              .sort(([a], [b]) => {
+                const order = ['new', 'researched', 'contacted', 'replied', 'demo_booked', 'won', 'lost'];
+                return order.indexOf(a) - order.indexOf(b);
+              })
+              .map(([status, count]) => {
+                const maxCount = Math.max(...Object.values(prospects.byStatus!));
+                const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                return (
+                  <div key={status} className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-slate-500 w-28 text-right capitalize">
+                      {status.replace(/_/g, ' ')}
+                    </span>
+                    <div className="flex-1 h-7 bg-slate-100 rounded-md overflow-hidden relative">
+                      <div
+                        className={`h-full rounded-md transition-all ${funnelStatusColors[status] || 'bg-slate-400'}`}
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-slate-900 w-12 text-right">{count}</span>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Deal Stages */}
+      {deals?.byStage && Object.keys(deals.byStage).length > 0 && (
+        <div className="rounded-lg border bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">Deal Stages</h3>
+          <div className="space-y-3">
+            {Object.entries(deals.byStage).map(([stage, data]) => {
+              const maxVal = Math.max(...Object.values(deals.byStage!).map(s => s.value || 0));
+              const pct = maxVal > 0 ? ((data.value || 0) / maxVal) * 100 : 0;
+              return (
+                <div key={stage} className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-slate-500 w-28 text-right capitalize">
+                    {stage.replace(/_/g, ' ')}
+                  </span>
+                  <div className="flex-1 h-7 bg-slate-100 rounded-md overflow-hidden">
+                    <div
+                      className={`h-full rounded-md transition-all ${dealStageColors[stage] || 'bg-slate-400'}`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                  <div className="text-right w-28">
+                    <span className="text-sm font-bold text-slate-900">{formatCurrency(data.value || 0)}</span>
+                    <span className="text-xs text-slate-500 ml-1">({data.count})</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Outreach Stats */}
+      {outreach?.byStatus && Object.keys(outreach.byStatus).length > 0 && (
+        <div className="rounded-lg border bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Outreach Activity</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {Object.entries(outreach.byStatus).map(([status, count]) => (
+              <div key={status} className="rounded-lg bg-slate-50 p-3 text-center">
+                <p className="text-lg font-bold text-slate-900">{count}</p>
+                <p className="text-xs text-slate-500 capitalize">{status.replace(/_/g, ' ')}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
