@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Star, MessageSquare, Zap, Clock, Play, ChevronDown, ChevronUp, CheckCircle,
   AlertTriangle, Mail, BarChart3, Trash2, Plus, Upload, XCircle, TrendingUp,
-  TrendingDown, Minus, RefreshCw, Shield, ExternalLink
+  TrendingDown, Minus, RefreshCw, Shield, ExternalLink, Users, Target, Search,
+  Eye, Crosshair
 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
@@ -62,6 +63,45 @@ interface DashboardStats {
   sla_warnings: number;
 }
 
+interface CompetitorSnapshot {
+  name: string;
+  category: string;
+  avg_rating: number;
+  total_reviews: number;
+  last_monitored: string | null;
+  sentiment: string;
+  top_weakness: string;
+  threat_level: string;
+}
+
+interface ProspectData {
+  high_intent: Array<{
+    profile: string;
+    source_competitor: string;
+    pain_points: string[];
+    trigger_events?: string[];
+    company_characteristics?: { size?: string; industry?: string };
+    outreach_angle: string;
+    urgency: string;
+  }>;
+  medium_intent: Array<{
+    profile: string;
+    source_competitor: string;
+    pain_points: string[];
+    nurture_strategy: string;
+  }>;
+  search_queries?: {
+    linkedin?: string[];
+    google?: string[];
+    job_boards?: string[];
+  };
+  icp_refinement?: {
+    best_fit_from_competitor?: string;
+    reasoning?: string;
+    estimated_tam?: string;
+  };
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const getPriorityColor = (p: string) => {
@@ -93,7 +133,7 @@ export default function ReviewsPage() {
   const [loadingDash, setLoadingDash] = useState(true);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'reviews' | 'platforms' | 'import'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'reviews' | 'platforms' | 'competitors' | 'prospects' | 'import'>('overview');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [executing, setExecuting] = useState<string | null>(null);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
@@ -107,6 +147,17 @@ export default function ReviewsPage() {
   // Import form
   const [importForm, setImportForm] = useState({ platform: 'G2', rating: 5, author: '', title: '', content: '', review_url: '' });
   const [importing, setImporting] = useState(false);
+
+  // Competitor intelligence
+  const [competitorSnapshot, setCompetitorSnapshot] = useState<Record<string, CompetitorSnapshot>>({});
+  const [loadingCompetitors, setLoadingCompetitors] = useState(false);
+  const [monitoringCompetitor, setMonitoringCompetitor] = useState<string | null>(null);
+
+  // Prospect finder
+  const [prospectData, setProspectData] = useState<ProspectData | null>(null);
+  const [outreachTemplates, setOutreachTemplates] = useState<any>(null);
+  const [loadingProspects, setLoadingProspects] = useState(false);
+  const [findingProspects, setFindingProspects] = useState(false);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
 
@@ -148,12 +199,74 @@ export default function ReviewsPage() {
     } catch { /* silent */ }
   }, []);
 
+  const fetchCompetitorSnapshot = useCallback(async () => {
+    setLoadingCompetitors(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/competitor/snapshot`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setCompetitorSnapshot(data.snapshot || {});
+      }
+    } catch { /* silent */ }
+    finally { setLoadingCompetitors(false); }
+  }, []);
+
+  const monitorCompetitor = async (key: string) => {
+    setMonitoringCompetitor(key);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/competitor/monitor/${key}`, { method: 'POST' });
+      if (res.ok) await fetchCompetitorSnapshot();
+    } catch { /* silent */ }
+    finally { setMonitoringCompetitor(null); }
+  };
+
+  const monitorAllCompetitors = async () => {
+    setMonitoringCompetitor('all');
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/competitor/monitor-all`, { method: 'POST' });
+      if (res.ok) await fetchCompetitorSnapshot();
+    } catch { /* silent */ }
+    finally { setMonitoringCompetitor(null); }
+  };
+
+  const fetchProspects = useCallback(async () => {
+    setLoadingProspects(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/prospects/latest`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setProspectData(data.prospects || null);
+          setOutreachTemplates(data.outreach_templates || null);
+        }
+      }
+    } catch { /* silent */ }
+    finally { setLoadingProspects(false); }
+  }, []);
+
+  const findNewProspects = async () => {
+    setFindingProspects(true);
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/reviews/prospects/find`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setProspectData(data.prospects || null);
+          setOutreachTemplates(data.outreach_templates || null);
+        }
+      }
+    } catch { setErrorMsg('Failed to find prospects'); }
+    finally { setFindingProspects(false); }
+  };
+
   // Load everything on mount
   useEffect(() => {
     fetchDashboard();
     fetchReviews();
     fetchActions();
-  }, [fetchDashboard, fetchReviews, fetchActions]);
+    fetchCompetitorSnapshot();
+    fetchProspects();
+  }, [fetchDashboard, fetchReviews, fetchActions, fetchCompetitorSnapshot, fetchProspects]);
 
   // ── Background analysis ─────────────────────────────────────────────────────
 
@@ -280,7 +393,7 @@ export default function ReviewsPage() {
             <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Reviews Agent</h2>
-                <p className="mt-1 text-slate-500 text-sm">Monitors reviews on G2, Capterra, and Trustpilot. Drafts responses and tracks SLA compliance.</p>
+                <p className="mt-1 text-slate-500 text-sm">Monitors reviews across 5 platforms. Competitor intelligence, prospect finding, SLA compliance.</p>
               </div>
               <button
                 onClick={runAnalysis}
@@ -388,6 +501,8 @@ export default function ReviewsPage() {
                 { id: 'actions' as const, label: `Actions${pendingActions.length ? ` (${pendingActions.length})` : ''}`, icon: <Zap className="h-4 w-4" /> },
                 { id: 'reviews' as const, label: `Reviews (${reviews.length})`, icon: <Star className="h-4 w-4" /> },
                 { id: 'platforms' as const, label: 'Platforms', icon: <Shield className="h-4 w-4" /> },
+                { id: 'competitors' as const, label: `Competitors (${Object.keys(competitorSnapshot).length})`, icon: <Eye className="h-4 w-4" /> },
+                { id: 'prospects' as const, label: 'Prospects', icon: <Target className="h-4 w-4" /> },
                 { id: 'import' as const, label: 'Import', icon: <Upload className="h-4 w-4" /> },
               ].map(tab => (
                 <button
@@ -751,6 +866,303 @@ export default function ReviewsPage() {
               </div>
             )}
 
+            {/* ── TAB: Competitors ─────────────────────────────────────────── */}
+            {activeTab === 'competitors' && (
+              <div className="space-y-4">
+                {/* Header with actions */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Competitor Intelligence</h3>
+                    <p className="text-sm text-slate-500">AI-powered analysis of competitor reviews across 5 platforms</p>
+                  </div>
+                  <button
+                    onClick={monitorAllCompetitors}
+                    disabled={monitoringCompetitor === 'all'}
+                    className="flex items-center gap-2 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400"
+                  >
+                    {monitoringCompetitor === 'all'
+                      ? <><Clock className="h-4 w-4 animate-spin" /> Scanning all...</>
+                      : <><Search className="h-4 w-4" /> Monitor All</>}
+                  </button>
+                </div>
+
+                {/* Competitor Grid */}
+                {loadingCompetitors ? (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Clock className="mx-auto h-8 w-8 animate-spin text-slate-300" />
+                    <p className="mt-2 text-sm text-slate-500">Loading competitor data...</p>
+                  </div>
+                ) : Object.keys(competitorSnapshot).length === 0 ? (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Eye className="mx-auto h-12 w-12 text-slate-200" />
+                    <h3 className="mt-4 font-semibold text-slate-900">No Competitor Data Yet</h3>
+                    <p className="mt-2 text-sm text-slate-500">Click &quot;Monitor All&quot; to scan competitor reviews across G2, Capterra, Trustpilot, TrustRadius, and Software Advice.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {Object.entries(competitorSnapshot).map(([key, comp]) => {
+                      const sentimentColor = comp.sentiment === 'positive' ? 'text-green-600 bg-green-50' : comp.sentiment === 'negative' ? 'text-red-600 bg-red-50' : 'text-yellow-600 bg-yellow-50';
+                      const threatColor = comp.threat_level === 'high' ? 'bg-red-100 text-red-700' : comp.threat_level === 'low' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+                      return (
+                        <div key={key} className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="font-semibold text-slate-900">{comp.name}</h4>
+                              <span className="text-xs text-slate-500">{comp.category}</span>
+                            </div>
+                            <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${threatColor}`}>
+                              {comp.threat_level || 'unknown'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 mb-3">
+                            <div className="text-center">
+                              <p className="text-lg font-bold text-yellow-600">{comp.avg_rating || '—'}</p>
+                              <p className="text-xs text-slate-500">rating</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-lg font-bold text-slate-900">{comp.total_reviews || 0}</p>
+                              <p className="text-xs text-slate-500">reviews</p>
+                            </div>
+                            <div className="text-center">
+                              <span className={`inline-block text-xs rounded-full px-2 py-0.5 font-medium ${sentimentColor}`}>
+                                {comp.sentiment || 'unknown'}
+                              </span>
+                              <p className="text-xs text-slate-500 mt-0.5">sentiment</p>
+                            </div>
+                          </div>
+
+                          {comp.top_weakness && (
+                            <div className="mb-3 p-2 rounded-lg bg-orange-50 border border-orange-100">
+                              <p className="text-xs font-medium text-orange-700">Top weakness:</p>
+                              <p className="text-xs text-orange-600 mt-0.5">{comp.top_weakness}</p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-400">
+                              {comp.last_monitored ? `Updated ${new Date(comp.last_monitored).toLocaleDateString()}` : 'Never scanned'}
+                            </span>
+                            <button
+                              onClick={() => monitorCompetitor(key)}
+                              disabled={monitoringCompetitor === key}
+                              className="text-xs text-yellow-600 hover:text-yellow-700 font-medium disabled:text-yellow-400"
+                            >
+                              {monitoringCompetitor === key ? 'Scanning...' : 'Refresh'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Prospects ──────────────────────────────────────────────── */}
+            {activeTab === 'prospects' && (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Prospect Finder</h3>
+                    <p className="text-sm text-slate-500">AI identifies potential customers from competitor review analysis</p>
+                  </div>
+                  <button
+                    onClick={findNewProspects}
+                    disabled={findingProspects}
+                    className="flex items-center gap-2 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:bg-yellow-400"
+                  >
+                    {findingProspects
+                      ? <><Clock className="h-4 w-4 animate-spin" /> Finding prospects...</>
+                      : <><Crosshair className="h-4 w-4" /> Find Prospects</>}
+                  </button>
+                </div>
+
+                {loadingProspects ? (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Clock className="mx-auto h-8 w-8 animate-spin text-slate-300" />
+                    <p className="mt-2 text-sm text-slate-500">Loading prospect data...</p>
+                  </div>
+                ) : !prospectData ? (
+                  <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
+                    <Target className="mx-auto h-12 w-12 text-slate-200" />
+                    <h3 className="mt-4 font-semibold text-slate-900">No Prospect Data Yet</h3>
+                    <p className="mt-2 text-sm text-slate-500">Click &quot;Find Prospects&quot; to analyze competitor reviews and identify potential customers.</p>
+                    <p className="mt-1 text-xs text-slate-400">Requires competitor data - run competitor monitoring first.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* ICP Refinement */}
+                    {prospectData.icp_refinement?.best_fit_from_competitor && (
+                      <div className="rounded-xl border bg-gradient-to-r from-yellow-50 to-orange-50 p-5 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Target className="h-5 w-5 text-yellow-600" />
+                          <h4 className="font-semibold text-slate-900">ICP Insight</h4>
+                        </div>
+                        <p className="text-sm text-slate-700">
+                          <span className="font-medium">Best displacement target:</span> {prospectData.icp_refinement.best_fit_from_competitor}
+                        </p>
+                        {prospectData.icp_refinement.reasoning && (
+                          <p className="text-sm text-slate-600 mt-1">{prospectData.icp_refinement.reasoning}</p>
+                        )}
+                        {prospectData.icp_refinement.estimated_tam && (
+                          <p className="text-xs text-slate-500 mt-1">Est. TAM: {prospectData.icp_refinement.estimated_tam}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* High Intent Prospects */}
+                    {prospectData.high_intent?.length > 0 && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-red-500" /> High Intent Prospects
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{prospectData.high_intent.length}</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {prospectData.high_intent.map((p, i) => (
+                            <div key={i} className="p-3 rounded-lg border border-red-100 bg-red-50/50">
+                              <div className="flex items-start justify-between mb-2">
+                                <p className="text-sm font-medium text-slate-900">{p.profile}</p>
+                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                                  from {p.source_competitor}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {p.pain_points?.map((pp, j) => (
+                                  <span key={j} className="text-xs bg-white text-slate-600 px-2 py-0.5 rounded border">{pp}</span>
+                                ))}
+                              </div>
+                              {p.outreach_angle && (
+                                <p className="text-xs text-slate-600"><span className="font-medium">Approach:</span> {p.outreach_angle}</p>
+                              )}
+                              {p.company_characteristics?.size && (
+                                <p className="text-xs text-slate-500 mt-1">Size: {p.company_characteristics.size} | Industry: {p.company_characteristics.industry || 'Various'}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Medium Intent Prospects */}
+                    {prospectData.medium_intent?.length > 0 && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-yellow-500" /> Medium Intent - Nurture
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">{prospectData.medium_intent.length}</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {prospectData.medium_intent.map((p, i) => (
+                            <div key={i} className="p-3 rounded-lg border border-yellow-100 bg-yellow-50/50">
+                              <div className="flex items-start justify-between mb-2">
+                                <p className="text-sm font-medium text-slate-900">{p.profile}</p>
+                                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                                  from {p.source_competitor}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {p.pain_points?.map((pp, j) => (
+                                  <span key={j} className="text-xs bg-white text-slate-600 px-2 py-0.5 rounded border">{pp}</span>
+                                ))}
+                              </div>
+                              {p.nurture_strategy && (
+                                <p className="text-xs text-slate-600"><span className="font-medium">Nurture:</span> {p.nurture_strategy}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Search Queries */}
+                    {prospectData.search_queries && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                          <Search className="h-4 w-4 text-blue-600" /> Search Queries for Prospecting
+                        </h4>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          {prospectData.search_queries.linkedin?.length ? (
+                            <div>
+                              <p className="text-xs font-medium text-blue-700 mb-2">LinkedIn</p>
+                              {prospectData.search_queries.linkedin.map((q, i) => (
+                                <p key={i} className="text-xs text-slate-600 mb-1 p-1.5 rounded bg-blue-50 border border-blue-100">{q}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                          {prospectData.search_queries.google?.length ? (
+                            <div>
+                              <p className="text-xs font-medium text-green-700 mb-2">Google</p>
+                              {prospectData.search_queries.google.map((q, i) => (
+                                <p key={i} className="text-xs text-slate-600 mb-1 p-1.5 rounded bg-green-50 border border-green-100">{q}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                          {prospectData.search_queries.job_boards?.length ? (
+                            <div>
+                              <p className="text-xs font-medium text-purple-700 mb-2">Job Boards</p>
+                              {prospectData.search_queries.job_boards.map((q, i) => (
+                                <p key={i} className="text-xs text-slate-600 mb-1 p-1.5 rounded bg-purple-50 border border-purple-100">{q}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Outreach Templates */}
+                    {outreachTemplates?.email_templates?.length > 0 && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-green-600" /> Outreach Templates
+                        </h4>
+                        <div className="space-y-3">
+                          {outreachTemplates.email_templates.map((t: any, i: number) => (
+                            <details key={i} className="group">
+                              <summary className="cursor-pointer p-3 rounded-lg border hover:bg-slate-50 flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-slate-900">{t.name}</p>
+                                  <p className="text-xs text-slate-500">{t.target_segment}</p>
+                                </div>
+                                <ChevronDown className="h-4 w-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                              </summary>
+                              <div className="mt-2 p-3 rounded-lg bg-slate-50 border">
+                                <p className="text-xs font-medium text-slate-700 mb-1">Subject: {t.subject_line}</p>
+                                <p className="text-xs text-slate-600 whitespace-pre-wrap">{t.body}</p>
+                                {t.follow_up && (
+                                  <div className="mt-2 pt-2 border-t">
+                                    <p className="text-xs font-medium text-slate-700">Follow-up:</p>
+                                    <p className="text-xs text-slate-600">{t.follow_up}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ad Copy */}
+                    {outreachTemplates?.ad_copy?.length > 0 && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h4 className="font-semibold text-slate-900 mb-3">Ad Copy Suggestions</h4>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {outreachTemplates.ad_copy.map((ad: any, i: number) => (
+                            <div key={i} className="p-3 rounded-lg border bg-gradient-to-r from-blue-50 to-indigo-50">
+                              <p className="text-xs text-slate-500 mb-1">{ad.target_segment}</p>
+                              <p className="text-sm font-bold text-slate-900">{ad.headline}</p>
+                              <p className="text-xs text-slate-600 mt-1">{ad.description}</p>
+                              <p className="text-xs font-medium text-blue-600 mt-1">{ad.cta}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {/* ── TAB: Import ──────────────────────────────────────────────── */}
             {activeTab === 'import' && (
               <div className="space-y-4">
@@ -767,6 +1179,8 @@ export default function ReviewsPage() {
                         <option>G2</option>
                         <option>Capterra</option>
                         <option>Trustpilot</option>
+                        <option>TrustRadius</option>
+                        <option>SoftwareAdvice</option>
                         <option>Product Hunt</option>
                         <option>Google</option>
                         <option>App Store</option>
