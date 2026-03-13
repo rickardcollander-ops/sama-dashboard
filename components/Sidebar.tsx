@@ -7,7 +7,7 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target
+  Menu, X, Target, Crosshair
 } from "lucide-react";
 
 interface NavItem {
@@ -22,6 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Command Center", desc: "Overview & quick actions", icon: Home, group: "main" },
   { href: "/gtm", label: "GTM Strategy", desc: "ICP, strategy & pipeline", icon: Target, group: "main" },
+  { href: "/prospects", label: "Prospects", desc: "Pipeline control center", icon: Crosshair, group: "main" },
 
   { href: "/seo", label: "SEO", desc: "Rankings, audits & keywords", icon: Search, group: "agents" },
   { href: "/content", label: "Content", desc: "AI-generated articles & pages", icon: MessageSquare, group: "agents" },
