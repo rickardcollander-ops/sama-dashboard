@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Send, Search, MessageSquare, TrendingUp, Users, BarChart3,
-  BarChart2, Zap, Bot, User, Loader2, Radio, Wrench,
+  BarChart2, Zap, Bot, User, Loader2, Radio, Wrench, ChevronDown, ChevronRight, Terminal,
 } from "lucide-react";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
@@ -15,6 +15,13 @@ interface AgentInfo {
   emoji: string;
 }
 
+interface ToolCall {
+  name: string;
+  label: string;
+  input: string;
+  result: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -23,6 +30,7 @@ interface ChatMessage {
   agentName?: string;
   agentEmoji?: string;
   timestamp: string;
+  toolCalls?: ToolCall[];
 }
 
 const AGENT_ICONS: Record<string, React.ElementType> = {
@@ -168,6 +176,40 @@ function AgentSelector({
   );
 }
 
+function ToolCallsBlock({ toolCalls }: { toolCalls: ToolCall[] }) {
+  const [open, setOpen] = useState(false);
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-xl border border-orange-200 bg-orange-50 text-xs overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-orange-700 font-medium hover:bg-orange-100 transition-colors"
+      >
+        <Terminal className="h-3.5 w-3.5 flex-shrink-0" />
+        <span>{toolCalls.length} åtgärd{toolCalls.length > 1 ? "er" : ""} utförd{toolCalls.length > 1 ? "a" : ""}</span>
+        {open ? (
+          <ChevronDown className="ml-auto h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="ml-auto h-3.5 w-3.5" />
+        )}
+      </button>
+      {open && (
+        <div className="divide-y divide-orange-100 border-t border-orange-200">
+          {toolCalls.map((tc, i) => (
+            <div key={i} className="px-3 py-2">
+              <p className="font-semibold text-orange-800">🔧 {tc.label}</p>
+              <pre className="mt-1 whitespace-pre-wrap font-mono text-[11px] text-slate-600 leading-relaxed">
+                {tc.result}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
 
@@ -193,12 +235,17 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   return (
     <div className="flex gap-2">
       <AgentAvatar agentId={agentId} size="sm" />
-      <div className="max-w-[75%]">
+      <div className="max-w-[80%]">
         <p className={`mb-1 text-[11px] font-bold ${colors.text}`}>
           {msg.agentName || agentId.toUpperCase()} {msg.agentEmoji || ""}
         </p>
         <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-slate-700 shadow-sm border border-slate-100">
-          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+          {msg.toolCalls && msg.toolCalls.length > 0 && (
+            <ToolCallsBlock toolCalls={msg.toolCalls} />
+          )}
+          <p className={`whitespace-pre-wrap leading-relaxed ${msg.toolCalls && msg.toolCalls.length > 0 ? "mt-3" : ""}`}>
+            {msg.content}
+          </p>
           <p className="mt-1 text-[10px] text-slate-300">
             {new Date(msg.timestamp).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
           </p>
@@ -397,6 +444,7 @@ export default function AgentChatPage() {
             agentName: r.agent_name,
             agentEmoji: r.agent_emoji,
             timestamp: r.timestamp || new Date().toISOString(),
+            toolCalls: r.tool_calls || [],
           }));
           setMessages((prev) => [...prev, ...agentMsgs]);
         } else {
@@ -423,6 +471,7 @@ export default function AgentChatPage() {
             agentName: data.agent_name,
             agentEmoji: data.agent_emoji,
             timestamp: data.timestamp || new Date().toISOString(),
+            toolCalls: data.tool_calls || [],
           };
           setMessages((prev) => [...prev, agentMsg]);
         } else {
