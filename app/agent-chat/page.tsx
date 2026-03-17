@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Send, Search, MessageSquare, TrendingUp, Users, BarChart3,
-  BarChart2, Zap, Bot, User, Loader2, Radio,
+  BarChart2, Zap, Bot, User, Loader2, Radio, Wrench,
 } from "lucide-react";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
@@ -32,6 +32,7 @@ const AGENT_ICONS: Record<string, React.ElementType> = {
   social: Users,
   reviews: BarChart3,
   analytics: BarChart2,
+  dev: Wrench,
 };
 
 const AGENT_COLORS: Record<string, { bg: string; ring: string; text: string; gradient: string }> = {
@@ -42,6 +43,7 @@ const AGENT_COLORS: Record<string, { bg: string; ring: string; text: string; gra
   reviews:   { bg: "bg-amber-500",   ring: "ring-amber-300",   text: "text-amber-600",   gradient: "from-amber-500 to-amber-600" },
   analytics: { bg: "bg-cyan-500",    ring: "ring-cyan-300",    text: "text-cyan-600",    gradient: "from-cyan-500 to-cyan-600" },
   dev:       { bg: "bg-orange-500",  ring: "ring-orange-300",  text: "text-orange-600",  gradient: "from-orange-500 to-orange-600" },
+  team:      { bg: "bg-slate-700",   ring: "ring-slate-400",   text: "text-slate-700",   gradient: "from-slate-700 to-slate-900" },
 };
 
 const AGENT_PERSONAS: Record<string, AgentInfo> = {
@@ -54,7 +56,7 @@ const AGENT_PERSONAS: Record<string, AgentInfo> = {
   dev:       { id: "dev",       name: "FORGE",    title: "System Architect",       emoji: "🔧" },
 };
 
-const ALL_AGENTS: AgentInfo = { id: "all", name: "ALLA", title: "Broadcast till alla agenter", emoji: "📢" };
+const TEAM_AGENT: AgentInfo = { id: "team", name: "Ledningsgruppen", title: "Rätt agent(er) svarar automatiskt", emoji: "👥" };
 
 function AgentAvatar({ agentId, size = "md" }: { agentId: string; size?: "sm" | "md" | "lg" }) {
   const colors = AGENT_COLORS[agentId] || AGENT_COLORS.seo;
@@ -67,7 +69,7 @@ function AgentAvatar({ agentId, size = "md" }: { agentId: string; size?: "sm" | 
 
   return (
     <div className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-gradient-to-br ${colors.gradient} text-white shadow-lg`}>
-      {persona?.emoji || "🤖"}
+      {persona?.emoji || (agentId === "team" ? "👥" : "🤖")}
     </div>
   );
 }
@@ -83,32 +85,32 @@ function AgentSelector({
 }) {
   return (
     <div className="flex flex-col gap-1 p-3">
-      {/* Broadcast option */}
+      {/* Team mode (default) */}
       <button
-        onClick={() => onSelect("all")}
+        onClick={() => onSelect("team")}
         className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all ${
-          selected === "all"
+          selected === "team"
             ? "bg-gradient-to-r from-slate-800 to-slate-700 text-white shadow-md"
             : "text-slate-600 hover:bg-slate-100"
         }`}
       >
-        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
-          selected === "all" ? "bg-white/20" : "bg-slate-200"
+        <div className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${
+          selected === "team" ? "bg-white/20" : "bg-slate-200"
         }`}>
-          <Radio className="h-5 w-5" />
+          👥
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">ALLA</p>
-          <p className={`text-[11px] ${selected === "all" ? "text-white/70" : "text-slate-400"}`}>
-            Broadcast
+          <p className="text-sm font-bold">Ledningsgruppen</p>
+          <p className={`text-[11px] ${selected === "team" ? "text-white/70" : "text-slate-400"}`}>
+            Naturlig diskussion
           </p>
         </div>
       </button>
 
       <div className="my-1 border-t border-slate-100" />
 
-      {/* Marketing agents */}
-      <p className="px-3 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Marketing</p>
+      {/* Marketing agents — 1:1 chat */}
+      <p className="px-3 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Direkt 1:1</p>
       {agents.filter((id) => id !== "dev").map((id) => {
         const persona = AGENT_PERSONAS[id];
         const colors = AGENT_COLORS[id];
@@ -166,7 +168,7 @@ function AgentSelector({
   );
 }
 
-function MessageBubble({ msg, isLast }: { msg: ChatMessage; isLast: boolean }) {
+function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
 
   if (isUser) {
@@ -206,11 +208,23 @@ function MessageBubble({ msg, isLast }: { msg: ChatMessage; isLast: boolean }) {
   );
 }
 
+/** Small pill showing which agents were routed to */
+function RoutingPill({ agents }: { agents: string[] }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 py-1">
+      <span className="text-[10px] text-slate-400">
+        {agents.map((a) => AGENT_PERSONAS[a]?.name || a.toUpperCase()).join(", ")} svarar
+      </span>
+    </div>
+  );
+}
+
 export default function AgentChatPage() {
-  const [selectedAgent, setSelectedAgent] = useState<string>("all");
+  const [selectedAgent, setSelectedAgent] = useState<string>("team");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationIds, setConversationIds] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -224,6 +238,12 @@ export default function AgentChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Clear messages when switching agent/mode
+  const handleAgentSelect = (id: string) => {
+    setSelectedAgent(id);
+    setMessages([]);
+  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -240,17 +260,37 @@ export default function AgentChatPage() {
     setSending(true);
 
     try {
-      if (selectedAgent === "all") {
-        // Broadcast to all agents
-        const res = await fetch(`${SAMA_API_URL}/api/agents/chat/broadcast`, {
+      if (selectedAgent === "team") {
+        // Team chat — intelligent routing
+        const res = await fetch(`${SAMA_API_URL}/api/agents/chat/team`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({
+            message: text,
+            conversation_id: conversationId || undefined,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
-          const agentMsgs: ChatMessage[] = (data.responses || []).map((r: any) => ({
-            id: `agent_${r.agent}_${Date.now()}`,
+          if (data.conversation_id) {
+            setConversationId(data.conversation_id);
+          }
+          // Show routing indicator
+          if (data.routed_to && data.routed_to.length > 0) {
+            // Add a system message showing who was routed to
+            const routingMsg: ChatMessage = {
+              id: `routing_${Date.now()}`,
+              role: "assistant",
+              content: `_${data.routed_to.map((a: string) => AGENT_PERSONAS[a]?.name || a).join(", ")} tar upp frågan_`,
+              agent: "team",
+              agentName: "",
+              agentEmoji: "",
+              timestamp: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, routingMsg]);
+          }
+          const agentMsgs: ChatMessage[] = (data.responses || []).map((r: any, i: number) => ({
+            id: `agent_${r.agent}_${Date.now()}_${i}`,
             role: "assistant" as const,
             content: r.reply,
             agent: r.agent,
@@ -259,9 +299,11 @@ export default function AgentChatPage() {
             timestamp: r.timestamp || new Date().toISOString(),
           }));
           setMessages((prev) => [...prev, ...agentMsgs]);
+        } else {
+          throw new Error(`Server error: ${res.status}`);
         }
       } else {
-        // Single agent
+        // Single agent 1:1
         const convId = conversationIds[selectedAgent];
         const res = await fetch(`${SAMA_API_URL}/api/agents/chat/${selectedAgent}`, {
           method: "POST",
@@ -283,14 +325,16 @@ export default function AgentChatPage() {
             timestamp: data.timestamp || new Date().toISOString(),
           };
           setMessages((prev) => [...prev, agentMsg]);
+        } else {
+          throw new Error(`Server error: ${res.status}`);
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       const errorMsg: ChatMessage = {
         id: `error_${Date.now()}`,
         role: "assistant",
-        content: "Kunde inte nå agenterna. Kontrollera att backend är igång.",
-        agent: selectedAgent === "all" ? "seo" : selectedAgent,
+        content: `Kunde inte nå agenterna: ${e.message || "okänt fel"}`,
+        agent: selectedAgent === "team" ? "analytics" : selectedAgent,
         agentName: "System",
         agentEmoji: "⚠️",
         timestamp: new Date().toISOString(),
@@ -308,36 +352,36 @@ export default function AgentChatPage() {
     }
   };
 
-  const activeAgent = selectedAgent === "all" ? ALL_AGENTS : AGENT_PERSONAS[selectedAgent];
-  const activeColors = AGENT_COLORS[selectedAgent] || { gradient: "from-slate-700 to-slate-800" };
+  const activeAgent = selectedAgent === "team" ? TEAM_AGENT : AGENT_PERSONAS[selectedAgent];
+  const activeColors = AGENT_COLORS[selectedAgent] || AGENT_COLORS.team;
 
   return (
     <div className="flex h-[calc(100vh-64px)] max-h-[calc(100vh-64px)]">
       {/* Agent sidebar */}
       <div className="w-64 flex-shrink-0 border-r bg-white overflow-y-auto">
         <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-bold text-slate-800">Agenter</h2>
-          <p className="text-[11px] text-slate-400">Välj vem du vill prata med</p>
+          <h2 className="text-sm font-bold text-slate-800">Agent Chat</h2>
+          <p className="text-[11px] text-slate-400">Din marknadsföringsledning</p>
         </div>
-        <AgentSelector agents={agentIds} selected={selectedAgent} onSelect={setSelectedAgent} />
+        <AgentSelector agents={agentIds} selected={selectedAgent} onSelect={handleAgentSelect} />
       </div>
 
       {/* Chat area */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Chat header */}
         <div className={`flex items-center gap-3 border-b bg-gradient-to-r ${activeColors.gradient} px-5 py-3 text-white`}>
-          {selectedAgent !== "all" ? (
-            <AgentAvatar agentId={selectedAgent} size="md" />
+          {selectedAgent === "team" ? (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-lg">👥</div>
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-lg">📢</div>
+            <AgentAvatar agentId={selectedAgent} size="md" />
           )}
           <div>
             <h3 className="text-sm font-bold">{activeAgent.name}</h3>
             <p className="text-[11px] text-white/70">{activeAgent.title}</p>
           </div>
-          {selectedAgent === "all" && (
+          {selectedAgent === "team" && (
             <div className="ml-auto flex -space-x-2">
-              {agentIds.slice(0, 6).map((id) => (
+              {agentIds.filter(id => id !== "dev").slice(0, 6).map((id) => (
                 <div key={id} className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/30 bg-white/20 text-xs">
                   {AGENT_PERSONAS[id].emoji}
                 </div>
@@ -352,22 +396,27 @@ export default function AgentChatPage() {
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-5xl mb-4">{activeAgent.emoji}</div>
               <h3 className="text-lg font-bold text-slate-700">
-                {selectedAgent === "all"
-                  ? "Prata med hela teamet"
+                {selectedAgent === "team"
+                  ? "Din marknadsföringsledningsgrupp"
                   : `Prata med ${activeAgent.name}`}
               </h3>
               <p className="text-sm text-slate-400 mt-1 max-w-md">
-                {selectedAgent === "all"
-                  ? "Skriv ett meddelande så svarar alla agenter med sin expertis."
-                  : `${activeAgent.name} är redo att svara på frågor om ${activeAgent.title.toLowerCase()}.`}
+                {selectedAgent === "team"
+                  ? "Skriv ett meddelande och rätt agent(er) svarar. Chatten fungerar som ett naturligt möte — agenterna bygger på varandras svar."
+                  : `${activeAgent.name} har tillgång till sin egen data och svarar utifrån sitt expertområde.`}
               </p>
               <div className="mt-6 flex flex-wrap gap-2 justify-center max-w-lg">
-                {[
+                {(selectedAgent === "team" ? [
+                  "Ge mig en lägesrapport",
+                  "Vad bör vi prioritera just nu?",
+                  "Hur ser vår pipeline ut?",
+                  "Vilka problem behöver vi lösa?",
+                ] : [
                   "Vad har du gjort de senaste 24 timmarna?",
                   "Vad behöver förbättras?",
-                  "Hur mår systemet just nu?",
+                  "Visa mig dina siffror",
                   "Vilka är de viktigaste prioriteringarna?",
-                ].map((q) => (
+                ]).map((q) => (
                   <button
                     key={q}
                     onClick={() => { setInput(q); inputRef.current?.focus(); }}
@@ -379,14 +428,24 @@ export default function AgentChatPage() {
               </div>
             </div>
           )}
-          {messages.map((msg, i) => (
-            <MessageBubble key={msg.id} msg={msg} isLast={i === messages.length - 1} />
-          ))}
+          {messages.map((msg) => {
+            // Routing indicator (system message)
+            if (msg.agent === "team" && msg.content.startsWith("_")) {
+              return (
+                <div key={msg.id} className="flex justify-center">
+                  <span className="text-[11px] text-slate-400 italic">
+                    {msg.content.replace(/^_|_$/g, "")}
+                  </span>
+                </div>
+              );
+            }
+            return <MessageBubble key={msg.id} msg={msg} />;
+          })}
           {sending && (
             <div className="flex gap-2 items-center text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-xs">
-                {selectedAgent === "all" ? "Agenterna tänker..." : `${activeAgent.name} tänker...`}
+                {selectedAgent === "team" ? "Ledningsgruppen diskuterar..." : `${activeAgent.name} tänker...`}
               </span>
             </div>
           )}
@@ -402,8 +461,8 @@ export default function AgentChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                selectedAgent === "all"
-                  ? "Skriv till alla agenter..."
+                selectedAgent === "team"
+                  ? "Skriv till ledningsgruppen..."
                   : `Skriv till ${activeAgent.name}...`
               }
               rows={1}
@@ -413,11 +472,7 @@ export default function AgentChatPage() {
             <button
               onClick={sendMessage}
               disabled={!input.trim() || sending}
-              className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-all disabled:opacity-40 ${
-                selectedAgent === "all"
-                  ? "bg-slate-800 hover:bg-slate-700"
-                  : `bg-gradient-to-r ${activeColors.gradient} hover:opacity-90`
-              }`}
+              className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-all disabled:opacity-40 bg-gradient-to-r ${activeColors.gradient} hover:opacity-90`}
             >
               <Send className="h-4 w-4" />
             </button>
