@@ -41,6 +41,7 @@ const AGENT_COLORS: Record<string, { bg: string; ring: string; text: string; gra
   social:    { bg: "bg-pink-500",    ring: "ring-pink-300",    text: "text-pink-600",    gradient: "from-pink-500 to-pink-600" },
   reviews:   { bg: "bg-amber-500",   ring: "ring-amber-300",   text: "text-amber-600",   gradient: "from-amber-500 to-amber-600" },
   analytics: { bg: "bg-cyan-500",    ring: "ring-cyan-300",    text: "text-cyan-600",    gradient: "from-cyan-500 to-cyan-600" },
+  dev:       { bg: "bg-orange-500",  ring: "ring-orange-300",  text: "text-orange-600",  gradient: "from-orange-500 to-orange-600" },
 };
 
 const AGENT_PERSONAS: Record<string, AgentInfo> = {
@@ -50,6 +51,7 @@ const AGENT_PERSONAS: Record<string, AgentInfo> = {
   social:    { id: "social",    name: "ECHO",     title: "Social Pulse",           emoji: "📡" },
   reviews:   { id: "reviews",   name: "SENTINEL", title: "Reputation Guardian",    emoji: "🛡️" },
   analytics: { id: "analytics", name: "ORACLE",   title: "Data Prophet",           emoji: "📊" },
+  dev:       { id: "dev",       name: "FORGE",    title: "System Architect",       emoji: "🔧" },
 };
 
 const ALL_AGENTS: AgentInfo = { id: "all", name: "ALLA", title: "Broadcast till alla agenter", emoji: "📢" };
@@ -105,8 +107,9 @@ function AgentSelector({
 
       <div className="my-1 border-t border-slate-100" />
 
-      {/* Individual agents */}
-      {agents.map((id) => {
+      {/* Marketing agents */}
+      <p className="px-3 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Marketing</p>
+      {agents.filter((id) => id !== "dev").map((id) => {
         const persona = AGENT_PERSONAS[id];
         const colors = AGENT_COLORS[id];
         const isActive = selected === id;
@@ -131,6 +134,34 @@ function AgentSelector({
           </button>
         );
       })}
+
+      {/* Dev agent — FORGE */}
+      <div className="my-1 border-t border-slate-100" />
+      <p className="px-3 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">System</p>
+      {(() => {
+        const id = "dev";
+        const persona = AGENT_PERSONAS[id];
+        const colors = AGENT_COLORS[id];
+        const isActive = selected === id;
+        return (
+          <button
+            onClick={() => onSelect(id)}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all ${
+              isActive
+                ? `bg-gradient-to-r ${colors.gradient} text-white shadow-md`
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <AgentAvatar agentId={id} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">{persona.name}</p>
+              <p className={`text-[11px] truncate ${isActive ? "text-white/70" : "text-slate-400"}`}>
+                {persona.title}
+              </p>
+            </div>
+          </button>
+        );
+      })()}
     </div>
   );
 }
