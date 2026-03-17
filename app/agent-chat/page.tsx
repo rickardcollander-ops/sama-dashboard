@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Send, Search, MessageSquare, TrendingUp, Users, BarChart3,
   BarChart2, Zap, Bot, User, Loader2, Radio, Wrench,
@@ -219,18 +219,47 @@ function RoutingPill({ agents }: { agents: string[] }) {
   );
 }
 
+// --- localStorage helpers for chat persistence ---
+const CACHE_KEY = "sama-agent-chat";
+
+function loadCachedChat(mode: string): { messages: ChatMessage[]; conversationId: string | null } {
+  if (typeof window === "undefined") return { messages: [], conversationId: null };
+  try {
+    const raw = localStorage.getItem(`${CACHE_KEY}-${mode}`);
+    if (!raw) return { messages: [], conversationId: null };
+    return JSON.parse(raw);
+  } catch {
+    return { messages: [], conversationId: null };
+  }
+}
+
+function saveChatCache(mode: string, messages: ChatMessage[], conversationId: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    // Keep only the last 100 messages per mode to avoid storage bloat
+    const trimmed = messages.slice(-100);
+    localStorage.setItem(`${CACHE_KEY}-${mode}`, JSON.stringify({ messages: trimmed, conversationId }));
+  } catch { /* storage full */ }
+}
+
 export default function AgentChatPage() {
   const [selectedAgent, setSelectedAgent] = useState<string>("team");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadCachedChat("team").messages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(() => loadCachedChat("team").conversationId);
   const [conversationIds, setConversationIds] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const agentIds = Object.keys(AGENT_PERSONAS);
+
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    const cid = selectedAgent === "team" ? conversationId : (conversationIds[selectedAgent] || null);
+    saveChatCache(selectedAgent, messages, cid);
+  }, [messages, selectedAgent, conversationId, conversationIds]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -240,9 +269,11 @@ export default function AgentChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  /** Load the latest conversation for a given mode/agent */
+  /** Load the latest conversation for a given mode/agent from backend */
   const loadConversation = async (mode: string) => {
-    setLoadingHistory(true);
+    // Only show loading spinner if there are no cached messages to display
+    const hasCachedMessages = loadCachedChat(mode).messages.length > 0;
+    if (!hasCachedMessages) setLoadingHistory(true);
     try {
       // Find the most recent conversation for this mode
       const convRes = await fetch(
@@ -294,16 +325,23 @@ export default function AgentChatPage() {
     setLoadingHistory(false);
   };
 
-  // Load history on mount (team mode) and when switching
+  // On mount, try to refresh from backend (cache is already loaded via initial state)
   useEffect(() => {
-    loadConversation(selectedAgent);
+    loadConversation("team");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAgentSelect = (id: string) => {
     setSelectedAgent(id);
-    setMessages([]);
-    setConversationId(null);
+    // Restore from cache immediately so the user sees history right away
+    const cached = loadCachedChat(id);
+    setMessages(cached.messages);
+    if (id === "team") {
+      setConversationId(cached.conversationId);
+    } else if (cached.conversationId) {
+      setConversationIds((prev) => ({ ...prev, [id]: cached.conversationId! }));
+    }
+    // Then try to refresh from backend in the background
     loadConversation(id);
   };
 
