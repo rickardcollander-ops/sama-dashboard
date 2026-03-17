@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Activity, Search, MessageSquare, TrendingUp, Users, BarChart3,
@@ -9,6 +9,7 @@ import {
   Shield, Calendar, Timer, ArrowUp, ArrowDown, Minus
 } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
+import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 
@@ -120,6 +121,19 @@ export default function Home() {
   const [scheduler, setScheduler] = useState<{ running: boolean; jobs: Record<string, SchedulerJob> } | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   const [marketingScore, setMarketingScore] = useState<number | null>(null);
+
+  // Realtime: auto-update when agent actions change
+  const { connected: realtimeConnected } = useRealtimeSubscription<{ id: string }>({
+    table: 'agent_actions',
+    onInsert: useCallback(() => fetchDashboard(), []),
+    onUpdate: useCallback(() => fetchDashboard(), []),
+  });
+
+  // Realtime: live alerts
+  useRealtimeSubscription<{ id: string }>({
+    table: 'alerts',
+    onInsert: useCallback(() => fetchDashboard(), []),
+  });
 
   useEffect(() => {
     fetchDashboard();
@@ -252,6 +266,12 @@ export default function Home() {
               <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                 Active
+              </span>
+            )}
+            {realtimeConnected && (
+              <span className="flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Live
               </span>
             )}
             <button onClick={runAllAgents} disabled={runningAll || runningAgent !== null}

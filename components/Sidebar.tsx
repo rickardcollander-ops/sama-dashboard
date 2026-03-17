@@ -35,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/budget-optimizer", label: "Budget Optimizer", desc: "Reallocate ad spend", icon: DollarSign, group: "insights" },
   { href: "/anomalies", label: "Anomalies", desc: "Unexpected metric changes", icon: AlertTriangle, group: "insights" },
 
+  { href: "/goals", label: "Goals", desc: "Agent targets & progress", icon: Target, group: "ops" },
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
 ];
