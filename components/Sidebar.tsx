@@ -7,7 +7,7 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target, HeartPulse, FileBarChart
+  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle
 } from "lucide-react";
 
 interface NavItem {
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
 
   { href: "/goals", label: "Goals", desc: "Agent targets & progress", icon: Target, group: "ops" },
   { href: "/agent-reports", label: "Agent Reports", desc: "Daily agent status & needs", icon: FileBarChart, group: "ops" },
+  { href: "/agent-chat", label: "Agent Chat", desc: "Chat with your agents", icon: MessageCircle, group: "ops" },
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/system-health", label: "System Health", desc: "Dev agent diagnostics", icon: HeartPulse, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
