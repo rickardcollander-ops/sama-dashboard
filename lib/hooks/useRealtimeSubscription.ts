@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useRef, useState } from 'react';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 type RealtimeEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
 
 interface UseRealtimeOptions<T> {
   table: string;
   event?: RealtimeEvent;
-  filter?: string; // e.g. "status=eq.pending"
+  filter?: string;
   onInsert?: (payload: T) => void;
   onUpdate?: (payload: T) => void;
   onDelete?: (payload: T) => void;
@@ -14,17 +14,7 @@ interface UseRealtimeOptions<T> {
 
 /**
  * Subscribe to Supabase Realtime changes on a table.
- *
- * Returns a `connected` boolean so the UI can show a "Live" indicator.
- *
- * Usage:
- *   const { connected } = useRealtimeSubscription<PendingAction>({
- *     table: 'agent_actions',
- *     filter: 'status=eq.pending',
- *     onInsert: (row) => setActions(prev => [row, ...prev]),
- *     onUpdate: (row) => setActions(prev => prev.map(a => a.id === row.id ? row : a)),
- *     onDelete: (row) => setActions(prev => prev.filter(a => a.id !== row.id)),
- *   });
+ * Gracefully disabled when Supabase credentials are missing.
  */
 export function useRealtimeSubscription<T extends { id: string }>({
   table,
@@ -37,7 +27,6 @@ export function useRealtimeSubscription<T extends { id: string }>({
   const [connected, setConnected] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Stable callback refs to avoid re-subscribing on every render
   const onInsertRef = useRef(onInsert);
   const onUpdateRef = useRef(onUpdate);
   const onDeleteRef = useRef(onDelete);
@@ -46,10 +35,12 @@ export function useRealtimeSubscription<T extends { id: string }>({
   onDeleteRef.current = onDelete;
 
   useEffect(() => {
-    // Don't subscribe if Supabase isn't configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    // Don't subscribe if Supabase isn't properly configured
+    if (!isSupabaseConfigured) return;
 
     const channelName = `realtime-${table}-${filter || 'all'}`;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
 
     const pgChangesConfig: any = {
       event,
@@ -83,7 +74,20 @@ export function useRealtimeSubscription<T extends { id: string }>({
         }
       )
       .subscribe((status: string) => {
-        setConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          setConnected(true);
+          retryCount = 0;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnected(false);
+          retryCount++;
+          // Stop retrying after MAX_RETRIES to prevent console spam
+          if (retryCount >= MAX_RETRIES) {
+            console.warn(`[realtime] Gave up on ${channelName} after ${MAX_RETRIES} retries`);
+            supabase.removeChannel(channel);
+          }
+        } else {
+          setConnected(false);
+        }
       });
 
     channelRef.current = channel;

@@ -224,6 +224,7 @@ export default function AgentChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationIds, setConversationIds] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -239,10 +240,71 @@ export default function AgentChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Clear messages when switching agent/mode
+  /** Load the latest conversation for a given mode/agent */
+  const loadConversation = async (mode: string) => {
+    setLoadingHistory(true);
+    try {
+      // Find the most recent conversation for this mode
+      const convRes = await fetch(
+        `${SAMA_API_URL}/api/agents/chat/conversations?mode=${mode}`
+      );
+      if (!convRes.ok) { setLoadingHistory(false); return; }
+      const convData = await convRes.json();
+      const convos = convData.conversations || [];
+      if (convos.length === 0) { setLoadingHistory(false); return; }
+
+      const latestConvo = convos[0];
+      const cid = latestConvo.conversation_id;
+
+      // Fetch messages for that conversation
+      const msgRes = await fetch(
+        `${SAMA_API_URL}/api/agents/chat/history/${encodeURIComponent(cid)}`
+      );
+      if (!msgRes.ok) { setLoadingHistory(false); return; }
+      const msgData = await msgRes.json();
+      const rawMessages = msgData.messages || [];
+
+      if (rawMessages.length === 0) { setLoadingHistory(false); return; }
+
+      // Convert to ChatMessage format
+      const loaded: ChatMessage[] = rawMessages.map((m: any, i: number) => {
+        const agentKey = m.agent_name || "";
+        const persona = AGENT_PERSONAS[agentKey];
+        return {
+          id: m.id || `hist_${i}`,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          agent: m.role === "assistant" ? agentKey : undefined,
+          agentName: m.role === "assistant" ? (persona?.name || agentKey.toUpperCase()) : undefined,
+          agentEmoji: m.role === "assistant" ? (persona?.emoji || "") : undefined,
+          timestamp: m.created_at || new Date().toISOString(),
+        };
+      });
+
+      setMessages(loaded);
+      // Restore conversation ID so new messages continue the same thread
+      if (mode === "team") {
+        setConversationId(cid);
+      } else {
+        setConversationIds((prev) => ({ ...prev, [mode]: cid }));
+      }
+    } catch (e) {
+      // Silent — just start fresh
+    }
+    setLoadingHistory(false);
+  };
+
+  // Load history on mount (team mode) and when switching
+  useEffect(() => {
+    loadConversation(selectedAgent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleAgentSelect = (id: string) => {
     setSelectedAgent(id);
     setMessages([]);
+    setConversationId(null);
+    loadConversation(id);
   };
 
   const sendMessage = async () => {
@@ -392,7 +454,13 @@ export default function AgentChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-4 space-y-4">
-          {messages.length === 0 && (
+          {loadingHistory && messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-slate-300" />
+              <p className="mt-3 text-sm text-slate-400">Laddar konversation...</p>
+            </div>
+          )}
+          {messages.length === 0 && !loadingHistory && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-5xl mb-4">{activeAgent.emoji}</div>
               <h3 className="text-lg font-bold text-slate-700">
