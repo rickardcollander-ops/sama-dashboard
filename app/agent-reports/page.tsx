@@ -167,28 +167,48 @@ export default function AgentReportsPage() {
   const [reports, setReports] = useState<AgentReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** Normalize reports to always have agent_name (backend sometimes returns "agent") */
+  const normalizeReports = (raw: any[]): AgentReport[] =>
+    raw.map((r) => ({
+      ...r,
+      agent_name: r.agent_name || r.agent || "unknown",
+      created_at: r.created_at || r.generated_at || "",
+    }));
 
   const fetchReports = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`${SAMA_API_URL}/api/agents/reports`);
       if (res.ok) {
         const data = await res.json();
-        setReports(data.reports || []);
+        setReports(normalizeReports(data.reports || []));
+      } else {
+        setError(`Kunde inte hämta rapporter (${res.status})`);
       }
-    } catch { /* silent */ }
+    } catch (e: any) {
+      setError(`Nätverksfel: ${e.message || "kunde inte nå API:et"}`);
+    }
     setLoading(false);
   };
 
   const generateReports = async () => {
     setGenerating(true);
+    setError(null);
     try {
       const res = await fetch(`${SAMA_API_URL}/api/agents/reports/generate`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
-        setReports(data.reports || []);
+        setReports(normalizeReports(data.reports || []));
+      } else {
+        const text = await res.text().catch(() => "");
+        setError(`Generering misslyckades (${res.status}): ${text.slice(0, 200)}`);
       }
-    } catch { /* silent */ }
+    } catch (e: any) {
+      setError(`Nätverksfel: ${e.message || "kunde inte nå API:et"}`);
+    }
     setGenerating(false);
   };
 
@@ -255,8 +275,16 @@ export default function AgentReportsPage() {
         </div>
       )}
 
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+          <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
       {/* Reports grid */}
-      {reports.length === 0 && !loading && (
+      {reports.length === 0 && !loading && !error && (
         <div className="rounded-xl border bg-white p-12 text-center">
           <MessageSquare className="mx-auto h-12 w-12 text-slate-300" />
           <p className="mt-4 text-sm text-slate-500">Inga rapporter genererade ännu.</p>
