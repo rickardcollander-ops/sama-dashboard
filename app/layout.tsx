@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+import LayoutShell from "@/components/LayoutShell";
 import { ToastProvider } from "@/components/Toast";
-import NotificationBell from "@/components/NotificationBell";
 
 export const metadata: Metadata = {
   title: "SAMA 2.0 — Successifier Marketing AI",
@@ -18,15 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased">
         <ToastProvider>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
-            <main className="relative flex-1 overflow-y-auto w-0 min-w-0 pt-14 md:pt-0">
-              <div className="fixed top-3 right-4 z-40 md:absolute md:top-4 md:right-6">
-                <NotificationBell />
-              </div>
-              {children}
-            </main>
-          </div>
+          <LayoutShell>{children}</LayoutShell>
         </ToastProvider>
       </body>
     </html>
