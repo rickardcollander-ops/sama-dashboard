@@ -7,8 +7,10 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle
+  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle,
+  Settings, LogOut
 } from "lucide-react";
+import { useUser } from "@/lib/hooks/useUser";
 
 interface NavItem {
   href: string;
@@ -41,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/system-health", label: "System Health", desc: "Dev agent diagnostics", icon: HeartPulse, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
+  { href: "/settings", label: "Settings", desc: "API keys, brand & GEO config", icon: Settings, group: "settings" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -48,11 +51,12 @@ const GROUP_LABELS: Record<string, string> = {
   agents: "Agents",
   insights: "Insights",
   ops: "Operations",
+  settings: "",
 };
 
 function NavContent({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
-  const groups = ["main", "agents", "insights", "ops"];
+  const groups = ["main", "agents", "insights", "ops", "settings"];
 
   return (
     <nav className="flex-1 overflow-y-auto py-2 px-2">
@@ -102,6 +106,26 @@ function NavContent({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function UserMenu({ collapsed }: { collapsed: boolean }) {
+  const { user, signOut } = useUser();
+
+  return (
+    <div className="border-t px-2 py-2">
+      {user && !collapsed && (
+        <p className="px-3 mb-1 text-[10px] text-slate-400 truncate">{user.email}</p>
+      )}
+      <button
+        onClick={signOut}
+        title="Logga ut"
+        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full ${collapsed ? "justify-center" : ""}`}
+      >
+        <LogOut className="h-4 w-4 flex-shrink-0" />
+        {!collapsed && "Logga ut"}
+      </button>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -138,10 +162,7 @@ export default function Sidebar() {
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <NavContent collapsed={false} />
-        <div className="border-t px-4 py-3">
-          <p className="text-[10px] text-slate-400">Successifier Marketing AI</p>
-          <p className="text-[10px] text-slate-400">v2.0</p>
-        </div>
+        <UserMenu collapsed={false} />
       </div>
 
       {/* ── Desktop: persistent sidebar ─────────────────────── */}
@@ -172,13 +193,7 @@ export default function Sidebar() {
         </div>
 
         <NavContent collapsed={collapsed} />
-
-        {!collapsed && (
-          <div className="border-t px-4 py-3">
-            <p className="text-[10px] text-slate-400">Successifier Marketing AI</p>
-            <p className="text-[10px] text-slate-400">v2.0</p>
-          </div>
-        )}
+        <UserMenu collapsed={collapsed} />
       </aside>
     </>
   );
