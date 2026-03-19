@@ -15,11 +15,6 @@ export const supabase: SupabaseClient = createClient(
         eventsPerSecond: 2,
       },
     },
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
     // Disable realtime auto-connect if not configured
     ...(isSupabaseConfigured ? {} : {
       realtime: { params: { eventsPerSecond: 0 } },
