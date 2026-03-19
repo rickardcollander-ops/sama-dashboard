@@ -6,18 +6,19 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 /** Whether Supabase is properly configured (both URL and key present) */
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
+/** Whether Supabase Realtime is enabled (opt-in via env var) */
+export const isRealtimeEnabled =
+  isSupabaseConfigured &&
+  process.env.NEXT_PUBLIC_SUPABASE_REALTIME !== 'false';
+
 export const supabase: SupabaseClient = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key',
   {
     realtime: {
       params: {
-        eventsPerSecond: 2,
+        eventsPerSecond: isRealtimeEnabled ? 2 : 0,
       },
     },
-    // Disable realtime auto-connect if not configured
-    ...(isSupabaseConfigured ? {} : {
-      realtime: { params: { eventsPerSecond: 0 } },
-    }),
   }
 );

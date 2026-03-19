@@ -46,7 +46,7 @@ export default function ApprovalsPage() {
   const [dismissReason, setDismissReason] = useState<{ id: string; reason: string } | null>(null);
   const [detailAction, setDetailAction] = useState<PendingAction | null>(null);
 
-  // Realtime subscription for live updates
+  // Realtime subscription for live updates (falls back to polling)
   const { connected } = useRealtimeSubscription<PendingAction>({
     table: 'agent_actions',
     filter: 'status=eq.pending',
@@ -67,6 +67,7 @@ export default function ApprovalsPage() {
     onDelete: useCallback((row: PendingAction) => {
       setActions(prev => prev.filter(a => a.id !== row.id));
     }, []),
+    onPoll: useCallback(() => fetchPendingActions(), []),
   });
 
   useEffect(() => {
