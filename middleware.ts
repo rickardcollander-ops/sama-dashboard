@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // ── Customer portal (/c/*) — Supabase Auth ──────────────────────────────────
-  if (pathname.startsWith('/c/')) {
-    // Allow customer login page and auth callback
+  if (pathname.startsWith('/c/') || pathname === '/c') {
+    // Always allow customer login page and auth callback
     if (pathname === '/c/login' || pathname === '/c/auth/callback') {
       return NextResponse.next();
     }
@@ -15,37 +14,42 @@ export async function middleware(req: NextRequest) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      // Supabase not configured — block customer portal
       return NextResponse.redirect(new URL('/c/login', req.url));
     }
 
-    let supabaseResponse = NextResponse.next({ request: req });
+    try {
+      const { createServerClient } = await import('@supabase/ssr');
 
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
+      let supabaseResponse = NextResponse.next({ request: req });
+
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+          getAll() {
+            return req.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              req.cookies.set(name, value);
+              supabaseResponse.cookies.set(name, value, options);
+            });
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            req.cookies.set(name, value);
-            supabaseResponse.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
+      });
 
-    const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+      if (!user) {
+        return NextResponse.redirect(new URL('/c/login', req.url));
+      }
+
+      return supabaseResponse;
+    } catch {
       return NextResponse.redirect(new URL('/c/login', req.url));
     }
-
-    return supabaseResponse;
   }
 
   // ── Admin dashboard (everything else) — MISSION_SECRET ───────────────────────
-  if (pathname === '/login' || pathname.startsWith('/api/auth')) {
+  if (pathname === '/login' || pathname.startsWith('/api/auth') || pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
 
