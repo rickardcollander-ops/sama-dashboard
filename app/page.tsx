@@ -122,17 +122,19 @@ export default function Home() {
   const [runningAll, setRunningAll] = useState(false);
   const [marketingScore, setMarketingScore] = useState<number | null>(null);
 
-  // Realtime: auto-update when agent actions change
+  // Realtime: auto-update when agent actions change (falls back to polling)
   const { connected: realtimeConnected } = useRealtimeSubscription<{ id: string }>({
     table: 'agent_actions',
     onInsert: useCallback(() => fetchDashboard(), []),
     onUpdate: useCallback(() => fetchDashboard(), []),
+    onPoll: useCallback(() => fetchDashboard(), []),
   });
 
-  // Realtime: live alerts
+  // Realtime: live alerts (falls back to polling)
   useRealtimeSubscription<{ id: string }>({
     table: 'alerts',
     onInsert: useCallback(() => fetchDashboard(), []),
+    onPoll: useCallback(() => fetchDashboard(), []),
   });
 
   useEffect(() => {

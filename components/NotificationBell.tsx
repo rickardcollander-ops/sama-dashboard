@@ -30,7 +30,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Realtime: new notifications appear instantly
+  // Realtime: new notifications appear instantly (falls back to polling)
   useRealtimeSubscription<Notification>({
     table: "notifications",
     filter: "read=eq.false",
@@ -40,6 +40,7 @@ export default function NotificationBell() {
         return [row, ...prev].slice(0, 20);
       });
     }, []),
+    onPoll: useCallback(() => fetchNotifications(), []),
   });
 
   useEffect(() => {
