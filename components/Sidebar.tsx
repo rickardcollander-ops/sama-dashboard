@@ -7,7 +7,7 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle
+  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle, UserPlus
 } from "lucide-react";
 
 interface NavItem {
@@ -35,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/budget-optimizer", label: "Budget Optimizer", desc: "Reallocate ad spend", icon: DollarSign, group: "insights" },
   { href: "/anomalies", label: "Anomalies", desc: "Unexpected metric changes", icon: AlertTriangle, group: "insights" },
 
+  { href: "/leads", label: "Lead Pipeline", desc: "Leads, scoring & attribution", icon: UserPlus, group: "insights" },
   { href: "/goals", label: "Goals", desc: "Agent targets & progress", icon: Target, group: "ops" },
   { href: "/agent-reports", label: "Agent Reports", desc: "Daily agent status & needs", icon: FileBarChart, group: "ops" },
   { href: "/agent-chat", label: "Agent Chat", desc: "Chat with your agents", icon: MessageCircle, group: "ops" },
