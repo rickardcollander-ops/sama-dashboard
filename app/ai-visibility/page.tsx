@@ -331,8 +331,8 @@ export default function AIVisibilityPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'overview',  label: 'Overview',  icon: <BarChart2 className="h-4 w-4" /> },
-    { id: 'checks',    label: 'Checks',    icon: <Eye className="h-4 w-4" />,         count: checks.length || undefined },
-    { id: 'gaps',      label: 'Gaps',      icon: <AlertCircle className="h-4 w-4" />, count: openGaps || undefined },
+    { id: 'checks',    label: 'Checks',    icon: <Eye className="h-4 w-4" />,         count: checks.length },
+    { id: 'gaps',      label: 'Gaps',      icon: <AlertCircle className="h-4 w-4" />, count: openGaps ?? 0 },
     { id: 'strategy',  label: 'Strategic Analysis', icon: <Lightbulb className="h-4 w-4" /> },
   ];
 

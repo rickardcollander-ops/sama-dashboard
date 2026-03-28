@@ -47,7 +47,10 @@ export default function GoalsPage() {
         const data = await res.json();
         setGoals(data.goals || []);
       }
-    } catch { /* silent */ }
+    } catch (error) {
+      console.error('Failed to fetch goals:', error);
+      toast.error('Failed to load goals');
+    }
     finally { setLoading(false); }
   };
 

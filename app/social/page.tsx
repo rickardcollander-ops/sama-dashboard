@@ -411,7 +411,7 @@ export default function SocialPage() {
   const dismissAction = (id: string) => {
     const action = actions.find(a => a.id === id);
     if (action?.db_id) {
-      fetch(`${SAMA_API_URL}/api/social/actions/${action.db_id}`, { method: 'DELETE' }).catch(() => {});
+      fetch(`${SAMA_API_URL}/api/social/actions/${action.db_id}`, { method: 'DELETE' }).catch((error) => { console.error('Failed to dismiss social action:', error); });
     }
     setActions(prev => prev.filter(a => a.id !== id));
   };
@@ -450,7 +450,7 @@ export default function SocialPage() {
       }
       await fetchDrafts();
       await fetchDbActions();
-    } catch { /* silent */ }
+    } catch (error) { console.error('Failed to generate week posts:', error); toast.error('Failed to generate weekly posts'); }
     finally { setGeneratingWeek(false); }
   };
 
@@ -478,11 +478,11 @@ export default function SocialPage() {
   const engageActions = actions.filter(a => a.type === 'engage_interesting');
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; count?: number; dot?: 'green' | 'red' }[] = [
-    { id: 'actions', label: 'Pending Actions', icon: <Zap className="h-4 w-4" />, count: pendingCount || undefined },
-    { id: 'interesting', label: 'Relevant Tweets', icon: <Sparkles className="h-4 w-4" />, count: interestingTweets.length || engageActions.length || undefined },
-    { id: 'drafts', label: 'Draft Posts', icon: <FileText className="h-4 w-4" />, count: drafts.length || undefined },
-    { id: 'calendar', label: 'Scheduled Posts', icon: <Calendar className="h-4 w-4" />, count: calendarActions.length || undefined },
-    { id: 'mentions', label: 'Mentions & Replies', icon: <MessageCircle className="h-4 w-4" />, count: mentionActions.length || undefined },
+    { id: 'actions', label: 'Pending Actions', icon: <Zap className="h-4 w-4" />, count: pendingCount },
+    { id: 'interesting', label: 'Relevant Tweets', icon: <Sparkles className="h-4 w-4" />, count: interestingTweets.length || engageActions.length },
+    { id: 'drafts', label: 'Draft Posts', icon: <FileText className="h-4 w-4" />, count: drafts.length },
+    { id: 'calendar', label: 'Scheduled Posts', icon: <Calendar className="h-4 w-4" />, count: calendarActions.length },
+    { id: 'mentions', label: 'Mentions & Replies', icon: <MessageCircle className="h-4 w-4" />, count: mentionActions.length },
     {
       id: 'reddit',
       label: 'Reddit',

@@ -24,6 +24,9 @@ export default function CustomerDashboard() {
   const { user } = useUser();
   const [settings, setSettings] = useState<CustomerSettings>({});
   const [geoSummary, setGeoSummary] = useState<any>(null);
+  const [seoStats, setSeoStats] = useState<{ totalKeywords: number; avgPosition: number; totalClicks: number } | null>(null);
+  const [contentCount, setContentCount] = useState<number | null>(null);
+  const [leadStats, setLeadStats] = useState<{ total: number; meetings: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +37,7 @@ export default function CustomerDashboard() {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([loadSettings(), loadGeoSummary()]);
+    await Promise.all([loadSettings(), loadGeoSummary(), loadSeoStats(), loadContentCount(), loadLeadStats()]);
     setLoading(false);
   };
 
@@ -47,8 +50,8 @@ export default function CustomerDashboard() {
         .eq("user_id", user.id)
         .single();
       if (data?.settings) setSettings(data.settings);
-    } catch {
-      // No settings yet
+    } catch (error) {
+      console.error('Failed to load user settings:', error);
     }
   };
 
@@ -56,8 +59,49 @@ export default function CustomerDashboard() {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/summary`);
       if (res.ok) setGeoSummary(await res.json());
-    } catch {
-      // silent
+    } catch (error) {
+      console.error('Failed to load GEO summary:', error);
+    }
+  };
+
+  const loadSeoStats = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setSeoStats({
+          totalKeywords: data.total_keywords ?? data.totalKeywords ?? 0,
+          avgPosition: data.avg_position ?? data.avgPosition ?? 0,
+          totalClicks: data.total_clicks ?? data.totalClicks ?? 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load SEO stats:', error);
+    }
+  };
+
+  const loadContentCount = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/content/pieces?limit=1`);
+      if (res.ok) {
+        const data = await res.json();
+        setContentCount(data.total ?? data.pieces?.length ?? 0);
+      }
+    } catch (error) {
+      console.error('Failed to load content count:', error);
+    }
+  };
+
+  const loadLeadStats = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/leads/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        const s = data.stats || {};
+        setLeadStats({ total: s.total ?? 0, meetings: s.meeting_booked ?? 0 });
+      }
+    } catch (error) {
+      console.error('Failed to load lead stats:', error);
     }
   };
 
@@ -148,10 +192,26 @@ export default function CustomerDashboard() {
                 <p className="text-xs text-slate-500">Rankings, tekniska audits & nyckelord</p>
               </div>
             </div>
-            <p className="text-sm text-slate-400 mb-4">Keyword-tracking, Core Web Vitals och tekniska audits.</p>
-            <div className="rounded-lg bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
-              Kommer snart
-            </div>
+            {seoStats ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Nyckelord</span>
+                  <span className="text-lg font-bold text-slate-900">{seoStats.totalKeywords}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Snittposition</span>
+                  <span className={`text-lg font-bold ${seoStats.avgPosition <= 10 ? 'text-green-600' : seoStats.avgPosition <= 30 ? 'text-yellow-600' : 'text-slate-900'}`}>
+                    {seoStats.avgPosition > 0 ? seoStats.avgPosition.toFixed(1) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Klick (senaste 28d)</span>
+                  <span className="text-lg font-bold text-slate-900">{seoStats.totalClicks}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Laddar SEO-data...</p>
+            )}
           </div>
 
           {/* Content */}
@@ -165,9 +225,23 @@ export default function CustomerDashboard() {
                 <p className="text-xs text-slate-500">AI-genererade artiklar & sidor</p>
               </div>
             </div>
-            <p className="text-sm text-slate-400 mb-4">Blogginlägg, landningssidor och jämförelsesidor.</p>
-            <div className="rounded-lg bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
-              Kommer snart
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">Content-delar</span>
+                <span className="text-lg font-bold text-slate-900">{contentCount ?? '—'}</span>
+              </div>
+              {leadStats && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Leads genererade</span>
+                    <span className="text-lg font-bold text-blue-600">{leadStats.total}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Möten bokade</span>
+                    <span className="text-lg font-bold text-green-600">{leadStats.meetings}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -182,9 +256,17 @@ export default function CustomerDashboard() {
                 <p className="text-xs text-slate-500">Cross-channel metrics & ROI</p>
               </div>
             </div>
-            <p className="text-sm text-slate-400 mb-4">Attribution, anomaly-detektering och rapporter.</p>
-            <div className="rounded-lg bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
-              Kommer snart
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">Agenter aktiva</span>
+                <span className="text-lg font-bold text-green-600">6</span>
+              </div>
+              <p className="text-sm text-slate-400">
+                SEO, Content, Ads, Social, Reviews & Analytics arbetar kontinuerligt.
+              </p>
+              <Link href="/c/geo" className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                <TrendingUp className="h-3.5 w-3.5" /> Se detaljerade rapporter
+              </Link>
             </div>
           </div>
         </div>

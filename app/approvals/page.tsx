@@ -128,6 +128,9 @@ export default function ApprovalsPage() {
     setDismissReason(null);
   };
 
+  const agents = Array.from(new Set(actions.map(a => a.agent_name)));
+  const filtered = filterAgent === "all" ? actions : actions.filter(a => a.agent_name === filterAgent);
+
   // Bulk actions
   const handleBulkExecute = async () => {
     const toExecute = filtered.filter(a => selected.has(a.id));
@@ -160,9 +163,6 @@ export default function ApprovalsPage() {
       setSelected(new Set(filtered.map(a => a.id)));
     }
   };
-
-  const agents = Array.from(new Set(actions.map(a => a.agent_name)));
-  const filtered = filterAgent === "all" ? actions : actions.filter(a => a.agent_name === filterAgent);
 
   return (
     <div className="min-h-screen bg-slate-50">
