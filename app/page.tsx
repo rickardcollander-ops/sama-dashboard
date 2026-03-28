@@ -109,7 +109,7 @@ const JOB_LABELS: Record<string, { label: string; desc: string }> = {
 };
 
 export default function Home() {
-  const { stats } = useSEOData();
+  const { stats, error: seoError } = useSEOData();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [recsLoading, setRecsLoading] = useState(true);
   const [runningAgent, setRunningAgent] = useState<string | null>(null);
@@ -121,6 +121,7 @@ export default function Home() {
   const [scheduler, setScheduler] = useState<{ running: boolean; jobs: Record<string, SchedulerJob> } | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   const [marketingScore, setMarketingScore] = useState<number | null>(null);
+  const [scoreBreakdown, setScoreBreakdown] = useState<{ label: string; points: number; max: number }[]>([]);
 
   // Realtime: auto-update when agent actions change (falls back to polling)
   const { connected: realtimeConnected } = useRealtimeSubscription<{ id: string }>({
@@ -152,21 +153,23 @@ export default function Home() {
         setPendingAlerts(data.counts?.pending_actions || data.counts?.alerts || 0);
         setPendingActions(data.pending_actions || {});
         if (data.scheduler) setScheduler(data.scheduler);
-        // Compute marketing score (0-100) from available data
+        // Compute marketing score with transparent breakdown
         const c = data.counts || {};
-        let score = 0;
-        if (c.keywords > 0) score += 15;
-        if (c.content_pieces > 0) score += 15;
-        if (c.reviews > 0) score += 10;
-        if (c.seo_audits > 0) score += 10;
-        if (data.scheduler?.running) score += 20;
-        if ((c.avg_rating || 0) >= 4) score += 15;
-        if (c.keywords >= 20) score += 5;
-        if (c.content_pieces >= 10) score += 5;
-        if (c.reviews >= 10) score += 5;
-        setMarketingScore(Math.min(100, score));
+        const breakdown = [
+          { label: "SEO Keywords", points: c.keywords > 0 ? (c.keywords >= 20 ? 20 : 15) : 0, max: 20 },
+          { label: "Content", points: c.content_pieces > 0 ? (c.content_pieces >= 10 ? 20 : 15) : 0, max: 20 },
+          { label: "Reviews", points: c.reviews > 0 ? (c.reviews >= 10 ? 15 : 10) : 0, max: 15 },
+          { label: "SEO Audits", points: c.seo_audits > 0 ? 10 : 0, max: 10 },
+          { label: "Scheduler", points: data.scheduler?.running ? 20 : 0, max: 20 },
+          { label: "Rating (4+)", points: (c.avg_rating || 0) >= 4 ? 15 : 0, max: 15 },
+        ];
+        const score = Math.min(100, breakdown.reduce((s, b) => s + b.points, 0));
+        setScoreBreakdown(breakdown);
+        setMarketingScore(score);
       }
-    } catch { /* silent */ }
+    } catch {
+      // Dashboard API unreachable — don't show fake data
+    }
   };
 
   const runAllAgents = async () => {
@@ -308,7 +311,7 @@ export default function Home() {
         {/* KPI Row */}
         <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {/* Marketing Score */}
-          <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm col-span-2 sm:col-span-1">
+          <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm col-span-2 sm:col-span-1 group relative">
             <div className="flex items-center gap-3">
               <div className="relative flex-shrink-0">
                 <svg className="h-10 w-10 sm:h-12 sm:w-12" viewBox="0 0 36 36">
@@ -326,10 +329,24 @@ export default function Home() {
                 </p>
               </div>
             </div>
+            {/* Score breakdown tooltip */}
+            {scoreBreakdown.length > 0 && (
+              <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block w-56 rounded-lg border bg-white p-3 shadow-lg">
+                <p className="text-[10px] font-semibold text-slate-500 mb-2 uppercase">Score Breakdown</p>
+                {scoreBreakdown.map(b => (
+                  <div key={b.label} className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-slate-600">{b.label}</span>
+                    <span className={`font-medium ${b.points > 0 ? 'text-green-600' : 'text-slate-300'}`}>
+                      {b.points}/{b.max}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <KPICard label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" />
-          <KPICard label="Clicks (28d)" value={stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" />
-          <KPICard label="Avg CTR" value={stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" />
+          <KPICard label="Avg Position" value={stats && stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} icon={Search} color="text-blue-600" bgColor="bg-blue-50" error={seoError} />
+          <KPICard label="Clicks (28d)" value={stats && stats.totalClicks > 0 ? stats.totalClicks.toLocaleString() : '—'} icon={TrendingUp} color="text-green-600" bgColor="bg-green-50" error={seoError} />
+          <KPICard label="Avg CTR" value={stats && stats.avgCTR > 0 ? `${stats.avgCTR.toFixed(1)}%` : '—'} icon={Activity} color="text-violet-600" bgColor="bg-violet-50" error={seoError} />
           <KPICard label="Keywords" value={dashCounts.keywords ?? '—'} icon={BarChart3} color="text-orange-600" bgColor="bg-orange-50" />
           <KPICard label="Avg Rating" value={dashCounts.avg_rating ? `${dashCounts.avg_rating} / 5` : '—'} icon={Star} color="text-yellow-600" bgColor="bg-yellow-50" />
         </div>
@@ -433,10 +450,7 @@ export default function Home() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h3 className="text-sm font-semibold text-slate-900">{agent.name}</h3>
-                            <span className="flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                              <span className="text-[10px] text-slate-400">Active</span>
-                            </span>
+                            <AgentStatusBadge agentKey={agent.key} scheduler={scheduler} />
                             {pending > 0 && (
                               <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                                 {pending} pending
@@ -596,20 +610,89 @@ export default function Home() {
   );
 }
 
-function KPICard({ label, value, icon: Icon, color, bgColor }: {
-  label: string; value: string | number; icon: React.ElementType; color: string; bgColor: string;
+function KPICard({ label, value, icon: Icon, color, bgColor, error }: {
+  label: string; value: string | number; icon: React.ElementType; color: string; bgColor: string; error?: string | null;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-3 sm:p-5 shadow-sm">
+    <div className={`rounded-lg border bg-white p-3 sm:p-5 shadow-sm ${error ? 'border-red-200' : ''}`}>
       <div className="flex items-center gap-2 sm:gap-3">
-        <div className={`rounded-lg p-1.5 sm:p-2 ${bgColor} flex-shrink-0`}>
-          <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${color}`} />
+        <div className={`rounded-lg p-1.5 sm:p-2 ${error ? 'bg-red-50' : bgColor} flex-shrink-0`}>
+          {error ? <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-400" /> : <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${color}`} />}
         </div>
         <div className="min-w-0">
           <p className="text-[10px] sm:text-xs font-medium text-slate-500 truncate">{label}</p>
-          <p className="text-base sm:text-xl font-bold text-slate-900">{value}</p>
+          {error ? (
+            <p className="text-xs text-red-500 truncate" title={error}>Kunde inte ladda</p>
+          ) : (
+            <p className="text-base sm:text-xl font-bold text-slate-900">{value}</p>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+// Agent-to-scheduler-job mapping
+const AGENT_JOB_MAP: Record<string, string[]> = {
+  seo: ['daily_keyword_tracking', 'weekly_seo_audit'],
+  content: ['weekly_content_analysis'],
+  ads: ['daily_ads_check'],
+  social: ['daily_workflow', 'weekly_social_analysis'],
+  reviews: ['midday_review_check', 'daily_workflow'],
+  analytics: ['daily_metrics'],
+  ai_visibility: ['weekly_ai_visibility'],
+};
+
+function AgentStatusBadge({ agentKey, scheduler }: {
+  agentKey: string;
+  scheduler: { running: boolean; jobs: Record<string, SchedulerJob> } | null;
+}) {
+  if (!scheduler?.running) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        <span className="text-[10px] text-slate-400">Offline</span>
+      </span>
+    );
+  }
+
+  const jobIds = AGENT_JOB_MAP[agentKey] || [];
+  const jobs = jobIds.map(id => scheduler.jobs?.[id]).filter(Boolean);
+
+  if (jobs.length === 0) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        <span className="text-[10px] text-slate-400">No schedule</span>
+      </span>
+    );
+  }
+
+  const hasError = jobs.some(j => j?.last_status === 'error');
+  const hasRun = jobs.some(j => j?.last_run);
+
+  if (hasError) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+        <span className="text-[10px] text-red-500">Error</span>
+      </span>
+    );
+  }
+
+  if (hasRun) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        <span className="text-[10px] text-slate-400">Active</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+      <span className="text-[10px] text-slate-400">Scheduled</span>
+    </span>
   );
 }
