@@ -91,10 +91,9 @@ export default function ApprovalsPage() {
   const handleExecute = async (action: PendingAction) => {
     setExecuting(action.id);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/${action.agent_name}/execute`, {
+      const res = await fetch(`${SAMA_API_URL}/api/dashboard/actions/${action.id}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action_id: action.id })
       });
       if (res.ok) {
         setActions(prev => prev.filter(a => a.id !== action.id));
@@ -112,7 +111,7 @@ export default function ApprovalsPage() {
 
   const handleDismiss = async (actionId: string, reason?: string) => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/content/actions/${actionId}`, {
+      const res = await fetch(`${SAMA_API_URL}/api/dashboard/actions/${actionId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reason || 'Dismissed by user' }),
