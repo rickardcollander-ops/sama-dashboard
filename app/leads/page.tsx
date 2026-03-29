@@ -26,9 +26,10 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
 };
 
 function ScoreBadge({ score }: { score: number }) {
-  if (score >= 70) return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"><Star className="h-3 w-3" /> {score}</span>;
-  if (score >= 40) return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{score}</span>;
-  return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{score}</span>;
+  const s = typeof score === "number" && !isNaN(score) ? score : 0;
+  if (s >= 70) return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"><Star className="h-3 w-3" /> {s}</span>;
+  if (s >= 40) return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{s}</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{s}</span>;
 }
 
 function FunnelBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {

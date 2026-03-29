@@ -54,8 +54,8 @@ export default function ContentPage() {
         const d = await res.json();
         setActions(d.actions || []);
       }
-    } catch {
-      // silently ignore — actions will stay as-is
+    } catch (error) {
+      console.error('Failed to fetch content actions:', error);
     }
   };
   const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
@@ -78,7 +78,7 @@ export default function ContentPage() {
       const response = await fetch(`${SAMA_API_URL}/api/content/library`);
       if (response.ok) {
         let data: any;
-        try { data = await response.json(); } catch { data = {}; }
+        try { data = await response.json(); } catch (e) { console.error('Failed to parse content library JSON:', e); data = {}; }
         setContentPieces(data.content || []);
       }
     } catch (error) {
@@ -170,7 +170,7 @@ export default function ContentPage() {
         fetchActions();
         fetchLibrary();
       }
-    } catch { /* silent */ }
+    } catch (error) { console.error('Failed to suggest next article:', error); }
     finally { setSuggestingNext(false); }
   };
 
@@ -547,7 +547,7 @@ function ContentPillarsTab({ contentPieces, apiUrl }: { contentPieces: ContentPi
             if (derived.length > 0) setPillars(derived);
           }
         }
-      } catch { /* use defaults */ }
+      } catch (error) { console.error('Failed to load content pillars:', error); }
       setLoaded(true);
     })();
   }, [loaded, apiUrl]);
