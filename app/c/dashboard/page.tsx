@@ -10,8 +10,7 @@ import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { createBrowserClient } from "@supabase/ssr";
-
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
+import { tenantApi } from "@/lib/api";
 
 interface CustomerSettings {
   brand_name?: string;
@@ -91,19 +90,22 @@ export default function CustomerDashboard() {
   };
 
   const loadGeoSummary = async () => {
+    if (!user) return;
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/summary`);
-      if (res.ok) setGeoSummary(await res.json());
+      const client = tenantApi(user.id);
+      const data = await client.get("/api/ai-visibility/summary");
+      if (data) setGeoSummary(data);
     } catch (error) {
       console.error('Failed to load GEO summary:', error);
     }
   };
 
   const loadSeoStats = async () => {
+    if (!user) return;
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/stats`);
-      if (res.ok) {
-        const data = await res.json();
+      const client = tenantApi(user.id);
+      const data = await client.get("/api/seo/stats");
+      if (data) {
         setSeoStats({
           totalKeywords: data.total_keywords ?? data.totalKeywords ?? 0,
           avgPosition: data.avg_position ?? data.avgPosition ?? 0,
@@ -116,10 +118,11 @@ export default function CustomerDashboard() {
   };
 
   const loadContentCount = async () => {
+    if (!user) return;
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/content/pieces?limit=1`);
-      if (res.ok) {
-        const data = await res.json();
+      const client = tenantApi(user.id);
+      const data = await client.get("/api/content/pieces?limit=1");
+      if (data) {
         setContentCount(data.total ?? data.pieces?.length ?? 0);
       }
     } catch (error) {
@@ -128,10 +131,11 @@ export default function CustomerDashboard() {
   };
 
   const loadLeadStats = async () => {
+    if (!user) return;
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/leads/stats`);
-      if (res.ok) {
-        const data = await res.json();
+      const client = tenantApi(user.id);
+      const data = await client.get("/api/leads/stats");
+      if (data) {
         const s = data.stats || {};
         setLeadStats({ total: s.total ?? 0, meetings: s.meeting_booked ?? 0 });
       }
