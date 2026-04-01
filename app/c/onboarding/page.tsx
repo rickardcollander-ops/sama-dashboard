@@ -135,7 +135,14 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="mx-auto max-w-2xl px-4 py-12">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="relative text-center mb-10">
+          <button
+            onClick={() => router.push("/c/dashboard")}
+            className="absolute right-0 top-0 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+            title="Hoppa över"
+          >
+            <X className="h-5 w-5" />
+          </button>
           <h1 className="text-3xl font-bold">Set up SAMA</h1>
           <p className="mt-2 text-zinc-400">
             Let&apos;s configure your autonomous marketing agents
