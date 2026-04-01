@@ -56,10 +56,10 @@ export default function CustomerSocialPage() {
       } else if (IS_DEMO) {
         setPosts(demoSocialPosts);
       } else {
-        setError(`Kunde inte ladda data: ${err?.message || err}`);
+        setError("Kunde inte ladda data. Försök igen.");
       }
       if (statsData.status === "fulfilled") setStats(statsData.value);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch social data:", err);
       if (IS_DEMO) {
         setPosts(demoSocialPosts);

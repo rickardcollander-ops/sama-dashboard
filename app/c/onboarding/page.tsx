@@ -117,7 +117,7 @@ export default function OnboardingPage() {
       );
 
       router.push("/c/dashboard");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save onboarding data:", err);
     }
     setSaving(false);

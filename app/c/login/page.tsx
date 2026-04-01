@@ -40,6 +40,7 @@ export default function CustomerLoginPage() {
           setError(signUpError.message);
         } else {
           setMessage("Konto skapat! Du kan nu logga in.");
+          setMode("login");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({

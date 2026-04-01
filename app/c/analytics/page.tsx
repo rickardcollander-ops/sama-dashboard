@@ -58,7 +58,7 @@ export default function CustomerAnalyticsPage() {
       const result = await client.get<AnalyticsData>("/api/analytics/overview");
       const hasData = result.channels?.length || result.daily?.length || result.totals;
       setData(hasData ? result : IS_DEMO ? demoAnalytics : result);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch analytics:", err);
       if (IS_DEMO) {
         setData(demoAnalytics);

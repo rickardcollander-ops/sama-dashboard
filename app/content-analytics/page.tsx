@@ -50,7 +50,7 @@ export default function ContentAnalyticsPage() {
         const data = await underResponse.json();
         setUnderperforming(data.content || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Failed to load content analytics';
       setError(msg);
       toast.error(msg);

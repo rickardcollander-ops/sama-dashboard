@@ -56,7 +56,7 @@ export default function CustomerGeoPage() {
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
       else if (checksData?.checks) setChecks(checksData.checks);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load GEO data:", err);
       setError(`Kunde inte ladda data: ${err?.message || err}`);
     }
@@ -70,7 +70,7 @@ export default function CustomerGeoPage() {
       const client = tenantApi(user.id);
       await client.post("/api/ai-visibility/check");
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to run check:", err);
       setError(`Kunde inte köra check: ${err?.message || err}`);
     }

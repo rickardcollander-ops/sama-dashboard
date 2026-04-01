@@ -43,7 +43,7 @@ export default function CustomerSeoPage() {
       const data = await client.get<{ keywords?: Keyword[] }>("/api/seo/keywords");
       const kws = data.keywords || [];
       setKeywords(kws.length > 0 ? kws : IS_DEMO ? demoSeoKeywords : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch keywords:", err);
       if (IS_DEMO) {
         setKeywords(demoSeoKeywords);
@@ -62,7 +62,7 @@ export default function CustomerSeoPage() {
       await client.post("/api/seo/check");
       // Refresh after a short delay to let the check start
       setTimeout(() => fetchKeywords(), 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to trigger SEO check:", err);
       setError(`Kunde inte köra SEO-check: ${err?.message || err}`);
     }

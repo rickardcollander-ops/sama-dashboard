@@ -165,7 +165,7 @@ export default function CustomerAdsPage() {
       const client = tenantApi(user.id);
       const data = await client.get<{ creatives?: AdCreative[] }>("/api/ads/creatives");
       setDrafts(data.creatives || []);
-    } catch {
+    } catch (err: any) {
       if (IS_DEMO) {
         setDrafts(demoAdCreatives as AdCreative[]);
       } else {
@@ -308,7 +308,7 @@ export default function CustomerAdsPage() {
 
       const client = tenantApi(user.id);
       const result = await client.post<AnalysisResult>("/api/ads/analyze-screenshot", {
-        image: base64,
+        image_base64: base64,
         platform: analysisPlatform,
       });
       setAnalysisResult(result);
