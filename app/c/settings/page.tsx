@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
-  AlertCircle, Eye, EyeOff, Plus, X, Loader2
+  AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
+  ChevronDown, ChevronUp, Unplug,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/hooks/useUser";
@@ -25,6 +26,12 @@ interface UserSettings {
   competitors: string[];
   geo_queries: string[];
   geo_platforms: string[];
+  meta_ads_token: string;
+  meta_ads_account_id: string;
+  linkedin_ads_token: string;
+  linkedin_ads_account_id: string;
+  google_ads_token: string;
+  google_ads_account_id: string;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -43,6 +50,12 @@ const DEFAULT_SETTINGS: UserSettings = {
   competitors: [],
   geo_queries: [],
   geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
+  meta_ads_token: "",
+  meta_ads_account_id: "",
+  linkedin_ads_token: "",
+  linkedin_ads_account_id: "",
+  google_ads_token: "",
+  google_ads_account_id: "",
 };
 
 const AVAILABLE_PLATFORMS = ["ChatGPT", "Perplexity", "Claude", "Google AIO", "Gemini", "Microsoft Copilot"];
@@ -57,6 +70,7 @@ export default function CustomerSettingsPage() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
+  const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) loadSettings();
@@ -331,6 +345,143 @@ export default function CustomerSettingsPage() {
                   >
                     {p}
                   </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* ── Ad Platforms ── */}
+          <Section icon={Megaphone} title="Annonsplattformar" desc="Anslut dina annonskonton för automatisk synk och analys">
+            <div className="space-y-4">
+              {([
+                {
+                  key: "meta",
+                  label: "Meta Ads",
+                  tokenField: "meta_ads_token" as const,
+                  accountField: "meta_ads_account_id" as const,
+                  instructions: [
+                    "Gå till developers.facebook.com och skapa en app",
+                    "Generera en User Access Token med ads_read behörighet",
+                    "Kopiera ditt Ad Account ID från Ads Manager",
+                    "Klistra in båda värdena nedan",
+                  ],
+                },
+                {
+                  key: "linkedin",
+                  label: "LinkedIn Ads",
+                  tokenField: "linkedin_ads_token" as const,
+                  accountField: "linkedin_ads_account_id" as const,
+                  instructions: [
+                    "Gå till linkedin.com/developers och skapa en app",
+                    "Begär Marketing Developer Platform-åtkomst",
+                    "Generera en OAuth 2.0 access token",
+                    "Hämta ditt Sponsored Account ID från Campaign Manager",
+                  ],
+                },
+                {
+                  key: "google",
+                  label: "Google Ads",
+                  tokenField: "google_ads_token" as const,
+                  accountField: "google_ads_account_id" as const,
+                  instructions: [
+                    "Gå till console.cloud.google.com och aktivera Google Ads API",
+                    "Skapa OAuth2-credentials och generera en refresh token",
+                    "Hämta ditt Customer ID från Google Ads (xxx-xxx-xxxx)",
+                    "Klistra in båda värdena nedan",
+                  ],
+                },
+              ]).map(({ key, label, tokenField, accountField, instructions }) => {
+                const isConnected = !!(settings[tokenField] && settings[accountField]);
+                const isExpanded = expandedAdPlatform === key;
+                return (
+                  <div key={key} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`rounded-lg p-2 ${isConnected ? "bg-emerald-50" : "bg-slate-100"}`}>
+                          <Megaphone className={`h-4 w-4 ${isConnected ? "text-emerald-500" : "text-slate-400"}`} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-slate-900">{label}</h4>
+                          <p className={`text-xs ${isConnected ? "text-emerald-600" : "text-slate-400"}`}>
+                            {isConnected ? "Ansluten" : "Ej ansluten"}
+                            {isConnected && <CheckCircle className="h-3 w-3 inline ml-1" />}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setExpandedAdPlatform(isExpanded ? null : key)}
+                        className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 px-4 py-4 space-y-4">
+                        {isConnected ? (
+                          <>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-slate-500">Access Token</span>
+                                <span className="font-mono text-xs text-slate-400">
+                                  {"*".repeat(8)}...{settings[tokenField].slice(-4)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-slate-500">Account ID</span>
+                                <span className="font-mono text-xs text-slate-400">{settings[accountField]}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  [tokenField]: "",
+                                  [accountField]: "",
+                                }));
+                              }}
+                              className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
+                            >
+                              <Unplug className="h-3.5 w-3.5" /> Koppla från
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* Setup instructions */}
+                            <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
+                              <p className="text-xs font-medium text-blue-800 mb-2">Så här ansluter du:</p>
+                              <ol className="space-y-1 list-decimal list-inside text-xs text-blue-700">
+                                {instructions.map((step, i) => (
+                                  <li key={i}>{step}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Access Token</label>
+                                <input
+                                  type="password"
+                                  value={settings[tokenField]}
+                                  onChange={(e) => updateField(tokenField, e.target.value)}
+                                  placeholder="Klistra in din access token..."
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Account ID</label>
+                                <input
+                                  type="text"
+                                  value={settings[accountField]}
+                                  onChange={(e) => updateField(accountField, e.target.value)}
+                                  placeholder="Ditt konto-ID..."
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

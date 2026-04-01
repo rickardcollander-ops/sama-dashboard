@@ -8,6 +8,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import { IS_DEMO, demoSocialPosts } from "@/lib/demo-data";
 
 interface SocialPost {
   id: string;
@@ -49,11 +50,20 @@ export default function CustomerSocialPage() {
         client.get<{ posts?: SocialPost[] }>("/api/social/posts"),
         client.get<SocialStats>("/api/social/stats"),
       ]);
-      if (postsData.status === "fulfilled") setPosts(postsData.value.posts || []);
+      if (postsData.status === "fulfilled") {
+        const p = postsData.value.posts || [];
+        setPosts(p.length > 0 ? p : IS_DEMO ? demoSocialPosts : []);
+      } else if (IS_DEMO) {
+        setPosts(demoSocialPosts);
+      }
       if (statsData.status === "fulfilled") setStats(statsData.value);
     } catch (err) {
       console.error("Failed to fetch social data:", err);
-      setError("Could not load social data. The social agent may not be active yet.");
+      if (IS_DEMO) {
+        setPosts(demoSocialPosts);
+      } else {
+        setError("Could not load social data. The social agent may not be active yet.");
+      }
     }
     setLoading(false);
   };
@@ -200,7 +210,7 @@ export default function CustomerSocialPage() {
                       {(post.impressions ?? 0) > 0 && (
                         <span className="flex items-center gap-1">
                           <Eye className="h-3 w-3" />
-                          {post.impressions?.toLocaleString()}
+                          {(post.impressions ?? 0).toLocaleString()}
                         </span>
                       )}
                     </div>
