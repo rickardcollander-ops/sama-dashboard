@@ -34,6 +34,13 @@ export default function CustomerSeoPage() {
     if (user) fetchKeywords();
   }, [user]);
 
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   const fetchKeywords = async () => {
     if (!user) return;
     setLoading(true);

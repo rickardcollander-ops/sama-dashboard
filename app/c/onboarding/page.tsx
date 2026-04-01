@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Globe, Key, Star, Rocket, ChevronRight, ChevronLeft,
-  Plus, X, Loader2, CheckCircle, Eye, EyeOff,
+  Plus, X, Loader2, CheckCircle, Eye, EyeOff, Search,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
@@ -19,6 +19,7 @@ function getSupabase() {
 const STEPS = [
   { label: "Brand Info", icon: Building2 },
   { label: "Competitors", icon: Globe },
+  { label: "GEO Queries", icon: Search },
   { label: "API Keys", icon: Key },
   { label: "Reviews", icon: Star },
   { label: "Launch", icon: Rocket },
@@ -30,6 +31,7 @@ interface OnboardingData {
   brand_description: string;
   target_audience: string;
   competitors: string[];
+  geo_queries: string[];
   anthropic_api_key: string;
   google_api_key: string;
   openai_api_key: string;
@@ -44,6 +46,7 @@ const INITIAL: OnboardingData = {
   brand_description: "",
   target_audience: "",
   competitors: [],
+  geo_queries: [],
   anthropic_api_key: "",
   google_api_key: "",
   openai_api_key: "",
@@ -59,6 +62,7 @@ export default function OnboardingPage() {
   const [data, setData] = useState<OnboardingData>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState("");
+  const [newGeoQuery, setNewGeoQuery] = useState("");
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -83,11 +87,23 @@ export default function OnboardingPage() {
     setData((prev) => ({ ...prev, competitors: prev.competitors.filter((x) => x !== c) }));
   };
 
+  const addGeoQuery = () => {
+    const q = newGeoQuery.trim();
+    if (q && !data.geo_queries.includes(q)) {
+      setData((prev) => ({ ...prev, geo_queries: [...prev.geo_queries, q] }));
+      setNewGeoQuery("");
+    }
+  };
+
+  const removeGeoQuery = (q: string) => {
+    setData((prev) => ({ ...prev, geo_queries: prev.geo_queries.filter((x) => x !== q) }));
+  };
+
   const toggleKey = (k: string) => setShowKeys((p) => ({ ...p, [k]: !p[k] }));
 
   const canAdvance = () => {
     if (step === 0) return data.brand_name.trim() && data.domain.trim();
-    if (step === 2) return data.anthropic_api_key.trim();
+    if (step === 3) return data.anthropic_api_key.trim();
     return true;
   };
 
@@ -107,7 +123,7 @@ export default function OnboardingPage() {
         review_g2_url: data.review_g2_url,
         review_capterra_url: data.review_capterra_url,
         review_trustpilot_url: data.review_trustpilot_url,
-        geo_queries: [],
+        geo_queries: data.geo_queries,
         geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
       };
 
@@ -228,6 +244,39 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
+                <h2 className="text-xl font-semibold mb-1">GEO Queries</h2>
+                <p className="text-sm text-zinc-400">Add search phrases you want to monitor in AI assistants (e.g. ChatGPT, Claude, Perplexity).</p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newGeoQuery}
+                  onChange={(e) => setNewGeoQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addGeoQuery())}
+                  placeholder='e.g. "best CRM for startups"'
+                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button onClick={addGeoQuery} className="rounded-lg bg-zinc-700 px-3 py-2 text-sm hover:bg-zinc-600 transition-colors">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {data.geo_queries.length === 0 && (
+                  <p className="text-sm text-zinc-500">No queries added yet. You can add them later in Settings.</p>
+                )}
+                {data.geo_queries.map((q) => (
+                  <div key={q} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2">
+                    <span className="text-sm text-zinc-300">&ldquo;{q}&rdquo;</span>
+                    <button onClick={() => removeGeoQuery(q)} className="text-zinc-500 hover:text-red-400"><X className="h-3 w-3" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6">
+              <div>
                 <h2 className="text-xl font-semibold mb-1">API Keys</h2>
                 <p className="text-sm text-zinc-400">SAMA needs API keys to power its agents. At minimum, provide an Anthropic key.</p>
               </div>
@@ -237,7 +286,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-1">Review Platforms</h2>
@@ -249,7 +298,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="space-y-6 text-center py-6">
               <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
                 <Rocket className="h-8 w-8 text-emerald-400" />
@@ -264,6 +313,7 @@ export default function OnboardingPage() {
                 <SummaryRow label="Brand" value={data.brand_name} />
                 <SummaryRow label="Domain" value={data.domain} />
                 <SummaryRow label="Competitors" value={data.competitors.length > 0 ? data.competitors.join(", ") : "None"} />
+                <SummaryRow label="GEO Queries" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} queries` : "None"} />
                 <SummaryRow label="API Keys" value={[data.anthropic_api_key && "Anthropic", data.openai_api_key && "OpenAI", data.google_api_key && "Google"].filter(Boolean).join(", ") || "None"} />
               </div>
             </div>

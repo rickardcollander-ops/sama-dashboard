@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
+  Maximize2, Minimize2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -33,10 +34,18 @@ export default function CustomerContentPage() {
   const [modalGenerating, setModalGenerating] = useState(false);
   const [modalContent, setModalContent] = useState("");
   const [modalSaving, setModalSaving] = useState(false);
+  const [modalFullscreen, setModalFullscreen] = useState(false);
 
   useEffect(() => {
     if (user) fetchContent();
   }, [user]);
+
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
 
   const fetchContent = async () => {
     if (!user) return;
@@ -118,7 +127,7 @@ export default function CustomerContentPage() {
         title: modalTopic,
         type: modalType === "blogg" ? "blog_post" : modalType === "epost" ? "email" : "linkedin_post",
         status: "draft",
-        word_count: modalContent.split(/\s+/).length,
+        word_count: modalContent.split(/\s+/).filter(Boolean).length,
         target_keyword: "",
         created_at: new Date().toISOString(),
       },
@@ -301,20 +310,29 @@ export default function CustomerContentPage() {
         {/* Generate Modal */}
         {showModal && (
           <>
-            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); }} />
+            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); }} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="w-full max-w-lg rounded-2xl border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className={`w-full rounded-2xl border bg-white shadow-2xl overflow-y-auto transition-all ${modalFullscreen ? "max-w-6xl h-[90vh]" : "max-w-lg max-h-[90vh]"}`}>
                 <div className="flex items-center justify-between border-b px-6 py-4">
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-purple-500" />
                     Generera nytt innehåll
                   </h3>
-                  <button
-                    onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); }}
-                    className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setModalFullscreen(!modalFullscreen)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                      title={modalFullscreen ? "Minimera" : "Fullskärm"}
+                    >
+                      {modalFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                    </button>
+                    <button
+                      onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); }}
+                      className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
                 <div className="p-6 space-y-5">
                   {/* Type selector */}

@@ -106,7 +106,7 @@ export default function CustomerNav() {
       {mobileOpen && (
         <>
           <div className="fixed inset-0 z-30 bg-black/30 sm:hidden" onClick={() => setMobileOpen(false)} />
-          <nav className="fixed top-14 left-0 right-0 z-30 bg-white border-b shadow-lg sm:hidden p-2">
+          <nav className="fixed top-14 left-0 right-0 z-30 bg-white border-b shadow-lg sm:hidden p-2 overflow-y-auto max-h-[calc(100vh-3.5rem)]">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
               return (

@@ -18,8 +18,9 @@ const TIERS = [
       "Basic analytics dashboard",
     ],
     cta: "Start Free Trial",
-    href: "/c/login",
+    href: "/c/dashboard",
     highlighted: false,
+    currentPlan: false,
   },
   {
     name: "Growth",
@@ -36,9 +37,10 @@ const TIERS = [
       "AI Visibility monitoring",
     ],
     cta: "Get Started",
-    href: "/c/login",
+    href: "/c/dashboard",
     highlighted: true,
     badge: "Most Popular",
+    currentPlan: true,
   },
   {
     name: "Enterprise",
@@ -55,8 +57,9 @@ const TIERS = [
       "SLA & uptime guarantees",
     ],
     cta: "Contact Us",
-    href: "/c/login",
+    href: "mailto:hello@successifier.com",
     highlighted: false,
+    currentPlan: false,
   },
 ];
 
@@ -93,6 +96,13 @@ export default function PricingPage() {
                   </span>
                 </div>
               )}
+              {tier.currentPlan && (
+                <div className="absolute -top-3 right-4">
+                  <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white">
+                    Nuvarande plan
+                  </span>
+                </div>
+              )}
 
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -126,16 +136,29 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <Link
-                href={tier.href}
-                className={`block w-full rounded-lg py-3 text-center text-sm font-semibold transition-colors ${
-                  tier.highlighted
-                    ? "bg-blue-500 text-white hover:bg-blue-600"
-                    : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
-                }`}
-              >
-                {tier.cta}
-              </Link>
+              {tier.href.startsWith("mailto:") ? (
+                <a
+                  href={tier.href}
+                  className={`block w-full rounded-lg py-3 text-center text-sm font-semibold transition-colors ${
+                    tier.highlighted
+                      ? "bg-blue-500 text-white hover:bg-blue-600"
+                      : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                  }`}
+                >
+                  {tier.cta}
+                </a>
+              ) : (
+                <Link
+                  href={tier.href}
+                  className={`block w-full rounded-lg py-3 text-center text-sm font-semibold transition-colors ${
+                    tier.highlighted
+                      ? "bg-blue-500 text-white hover:bg-blue-600"
+                      : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                  }`}
+                >
+                  {tier.cta}
+                </Link>
+              )}
             </div>
           ))}
         </div>

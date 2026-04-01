@@ -69,6 +69,13 @@ export default function CustomerDashboard() {
     }
   }, [user, checkedOnboarding]);
 
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   const loadData = async () => {
     setLoading(true);
     setError("");
@@ -153,6 +160,47 @@ export default function CustomerDashboard() {
   const hasSetup = !!(settings.brand_name && settings.domain);
   const mentionRate = geoSummary?.mention_rate ?? 0;
 
+  if (loading && checkedOnboarding) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+        <CustomerNav />
+        <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
+          <div className="mb-8">
+            <div className="h-8 w-64 rounded-lg bg-slate-200 animate-pulse" />
+            <div className="mt-2 h-4 w-48 rounded bg-slate-200 animate-pulse" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl border bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-11 w-11 rounded-lg bg-slate-200 animate-pulse" />
+                  <div>
+                    <div className="h-4 w-24 rounded bg-slate-200 animate-pulse" />
+                    <div className="mt-1 h-3 w-40 rounded bg-slate-200 animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <div className="h-4 w-20 rounded bg-slate-200 animate-pulse" />
+                    <div className="h-4 w-10 rounded bg-slate-200 animate-pulse" />
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="h-4 w-24 rounded bg-slate-200 animate-pulse" />
+                    <div className="h-4 w-8 rounded bg-slate-200 animate-pulse" />
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="h-4 w-28 rounded bg-slate-200 animate-pulse" />
+                    <div className="h-4 w-12 rounded bg-slate-200 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
@@ -161,7 +209,7 @@ export default function CustomerDashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-            {settings.brand_name ? `${settings.brand_name} Dashboard` : "Dashboard"}
+            {settings.brand_name ? `Välkommen, ${settings.brand_name}` : "Dashboard"}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             Överblick av dina marknadsföringsagenter

@@ -43,6 +43,13 @@ export default function CustomerGeoPage() {
     if (user) loadData();
   }, [user]);
 
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
@@ -183,11 +190,24 @@ export default function CustomerGeoPage() {
         <div>
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Senaste checks</h2>
           {checks.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-              <Bot className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">
-                Inga checks körda ännu. Klicka &quot;Kör check&quot; för att starta.
-              </p>
+            <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
+              <div className="flex flex-col items-center text-center">
+                <div className="rounded-full bg-violet-100 p-4 mb-4">
+                  <Eye className="h-8 w-8 text-violet-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Ingen AI-synlighetsdata ännu</h3>
+                <p className="text-sm text-slate-500 max-w-md mb-6">
+                  Kör din första check för att se hur synligt ditt varumärke är i AI-assistenter som ChatGPT, Claude och Perplexity.
+                </p>
+                <button
+                  onClick={runCheck}
+                  disabled={running}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
+                >
+                  {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  {running ? "Kör..." : "Kör check"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
