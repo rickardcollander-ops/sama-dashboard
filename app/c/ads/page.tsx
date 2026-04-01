@@ -88,14 +88,61 @@ export default function CustomerAdsPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [editingDraft, setEditingDraft] = useState<string | null>(null);
 
+  // Brand context (loaded from settings)
+  const [brandContext, setBrandContext] = useState<{
+    brand_name?: string; domain?: string; brand_description?: string;
+    target_audience?: string; competitors?: string[]; tone_of_voice?: string;
+  }>({});
+
+  // Competitor analysis
+  const [competitorData, setCompetitorData] = useState<{
+    competitors?: { name: string; positioning: string; key_messages: string[]; strengths: string[]; weaknesses: string[]; estimated_ad_spend: string; primary_cta: string }[];
+    opportunities?: { opportunity: string; reasoning: string; suggested_angle: string; priority: string }[];
+    differentiation_tips?: string[];
+  } | null>(null);
+  const [analyzingCompetitors, setAnalyzingCompetitors] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       checkConnection();
       loadDrafts();
+      loadBrandContext();
     }
   }, [user]);
+
+  const loadBrandContext = async () => {
+    if (!user) return;
+    try {
+      const { createBrowserClient } = await import("@supabase/ssr");
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      );
+      const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
+      if (data?.settings) setBrandContext(data.settings);
+    } catch {}
+  };
+
+  const analyzeCompetitors = async () => {
+    if (!user || !brandContext.competitors?.length) return;
+    setAnalyzingCompetitors(true);
+    try {
+      const client = tenantApi(user.id);
+      const data = await client.post("/api/ads/competitor-analysis", {
+        competitors: brandContext.competitors,
+        platform,
+        brand_name: brandContext.brand_name,
+        brand_description: brandContext.brand_description,
+        target_audience: brandContext.target_audience,
+      });
+      setCompetitorData(data);
+    } catch {
+      setCompetitorData(null);
+    }
+    setAnalyzingCompetitors(false);
+  };
 
   const checkConnection = async () => {
     if (!user) return;
@@ -132,9 +179,12 @@ export default function CustomerAdsPage() {
         platform,
         format,
         goal,
-        headline,
-        body,
-        cta,
+        brand_name: brandContext.brand_name || "",
+        brand_description: brandContext.brand_description || "",
+        target_audience: brandContext.target_audience || "",
+        competitors: (brandContext.competitors || []).join(", "),
+        tone_of_voice: brandContext.tone_of_voice || "",
+        domain: brandContext.domain || "",
       });
       if (result.headline) setHeadline(result.headline);
       if (result.body) setBody(result.body);
@@ -614,7 +664,127 @@ export default function CustomerAdsPage() {
           </section>
         )}
 
-        {/* Section 4: Saved Drafts */}
+        {/* Section 4: Competitor Analysis */}
+        <section className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <BarChart2 className="h-5 w-5 text-purple-500" />
+                Konkurrentanalys
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                AI-analys av konkurrenternas annonsstrategi
+                {brandContext.competitors?.length ? ` (${brandContext.competitors.join(", ")})` : ""}
+              </p>
+            </div>
+            <button
+              onClick={analyzeCompetitors}
+              disabled={analyzingCompetitors || !brandContext.competitors?.length}
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300 transition-colors"
+            >
+              {analyzingCompetitors ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {analyzingCompetitors ? "Analyserar..." : "Analysera konkurrenter"}
+            </button>
+          </div>
+
+          {!brandContext.competitors?.length && (
+            <div className="text-center py-8">
+              <AlertCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500">Lägg till konkurrenter i <Link href="/c/settings" className="text-blue-600 hover:underline">Inställningar</Link> för att analysera deras annonser.</p>
+            </div>
+          )}
+
+          {competitorData?.competitors && competitorData.competitors.length > 0 && (
+            <div className="space-y-6">
+              {/* Competitor cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {competitorData.competitors.map((comp, i) => (
+                  <div key={i} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-900">{comp.name}</h3>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        comp.estimated_ad_spend === "High" ? "bg-red-100 text-red-700" :
+                        comp.estimated_ad_spend === "Medium" ? "bg-amber-100 text-amber-700" :
+                        "bg-emerald-100 text-emerald-700"
+                      }`}>
+                        {comp.estimated_ad_spend} spend
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 mb-3">{comp.positioning}</p>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 uppercase">Budskap</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {comp.key_messages?.map((msg, j) => (
+                            <span key={j} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{msg}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs font-medium text-emerald-600">Styrkor</p>
+                          {comp.strengths?.map((s, j) => (
+                            <p key={j} className="text-xs text-slate-600">+ {s}</p>
+                          ))}
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-red-500">Svagheter</p>
+                          {comp.weaknesses?.map((w, j) => (
+                            <p key={j} className="text-xs text-slate-600">- {w}</p>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">CTA: <span className="font-medium">{comp.primary_cta}</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Opportunities */}
+              {competitorData.opportunities && competitorData.opportunities.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-3">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    Möjligheter för {brandContext.brand_name || "ditt varumärke"}
+                  </h3>
+                  <div className="space-y-3">
+                    {competitorData.opportunities.map((opp, i) => (
+                      <div key={i} className="rounded-lg border-l-4 border-l-amber-400 bg-amber-50 p-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            opp.priority === "high" ? "bg-red-100 text-red-700" :
+                            opp.priority === "medium" ? "bg-amber-100 text-amber-700" :
+                            "bg-slate-100 text-slate-600"
+                          }`}>{opp.priority}</span>
+                          <p className="text-sm font-medium text-slate-900">{opp.opportunity}</p>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1">{opp.reasoning}</p>
+                        <p className="text-xs text-blue-700 font-medium mt-2">Annonsvinkel: {opp.suggested_angle}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Differentiation tips */}
+              {competitorData.differentiation_tips && competitorData.differentiation_tips.length > 0 && (
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">Så sticker du ut</h3>
+                  <ul className="space-y-1">
+                    {competitorData.differentiation_tips.map((tip, i) => (
+                      <li key={i} className="text-sm text-blue-800 flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Section 5: Saved Drafts */}
         <section className="rounded-xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
             <Save className="h-5 w-5 text-emerald-500" />
