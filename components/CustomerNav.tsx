@@ -3,13 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart2, Settings, LogOut, Menu, X, Bot } from "lucide-react";
+import {
+  Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
+  Search, FileText, Share2, TrendingUp, CreditCard,
+} from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 
 const NAV_ITEMS = [
   { href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
+  { href: "/c/seo", label: "SEO", icon: Search },
+  { href: "/c/content", label: "Content", icon: FileText },
+  { href: "/c/social", label: "Social", icon: Share2 },
   { href: "/c/geo", label: "GEO Monitor", icon: Bot },
-  { href: "/c/settings", label: "Inställningar", icon: Settings },
+  { href: "/c/analytics", label: "Analytics", icon: TrendingUp },
+  { href: "/c/settings", label: "Settings", icon: Settings },
+  { href: "/c/pricing", label: "Plan", icon: CreditCard },
 ];
 
 export default function CustomerNav() {
