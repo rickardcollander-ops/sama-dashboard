@@ -64,7 +64,7 @@ export default function CustomerSeoPage() {
       setTimeout(() => fetchKeywords(), 2000);
     } catch (err) {
       console.error("Failed to trigger SEO check:", err);
-      setError("Kunde inte köra SEO-check. Kontrollera att backend är igång.");
+      setError(`Kunde inte köra SEO-check: ${err?.message || err}`);
     }
     setChecking(false);
   };

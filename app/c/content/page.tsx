@@ -68,7 +68,7 @@ export default function CustomerContentPage() {
       setTimeout(() => fetchContent(), 3000);
     } catch (err) {
       console.error("Failed to trigger content generation:", err);
-      setError("Kunde inte generera innehåll. Kontrollera att backend är igång.");
+      setError(`Kunde inte generera innehåll: ${err?.message || err}`);
     }
     setGenerating(false);
   };
@@ -84,7 +84,8 @@ export default function CustomerContentPage() {
         topic: modalTopic,
       });
       setModalContent(result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`);
-    } catch {
+    } catch (err: any) {
+      setError(`Kunde inte generera: ${err?.message || err}`);
       // Fallback placeholder
       const templates: Record<string, string> = {
         linkedin: `Visste du att ${modalTopic}? Här är tre insikter som kan förändra ditt perspektiv.\n\n1. Första insikten\n2. Andra insikten\n3. Tredje insikten\n\nVad tycker du? Dela dina tankar i kommentarerna!`,

@@ -75,7 +75,7 @@ export default function CustomerDashboard() {
     const results = await Promise.allSettled([loadSettings(), loadGeoSummary(), loadSeoStats(), loadContentCount(), loadLeadStats()]);
     const failures = results.filter((r) => r.status === "rejected");
     if (failures.length === results.length) {
-      setError("Kunde inte ladda data. Kontrollera att backend är igång.");
+      setError(`Kunde inte ladda data: ${err?.message || err}`);
     }
     setLoading(false);
   };

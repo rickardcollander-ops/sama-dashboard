@@ -141,7 +141,7 @@ export default function CustomerAdsPage() {
       setCompetitorData(data);
     } catch {
       setCompetitorData(null);
-      setError("Kunde inte ladda konkurrentanalys. Kontrollera att backend är igång.");
+      setError(`Kunde inte ladda konkurrentanalys: ${err?.message || err}`);
     }
     setAnalyzingCompetitors(false);
   };
@@ -169,7 +169,7 @@ export default function CustomerAdsPage() {
       if (IS_DEMO) {
         setDrafts(demoAdCreatives as AdCreative[]);
       } else {
-        setError("Kunde inte ladda sparade utkast. Kontrollera att backend är igång.");
+        setError(`Kunde inte ladda sparade utkast: ${err?.message || err}`);
       }
     }
   };
@@ -194,8 +194,8 @@ export default function CustomerAdsPage() {
       if (result.headline) setHeadline(result.headline);
       if (result.body) setBody(result.body);
       setGenerated(true);
-    } catch {
-      setError("Kunde inte generera annonstext. Kontrollera att backend är igång.");
+    } catch (err: any) {
+      setError(`Kunde inte generera annonstext: ${err?.message || err}`);
       // Fallback: generate a simple placeholder if API fails
       if (!headline) {
         const placeholders: Record<Platform, string> = {

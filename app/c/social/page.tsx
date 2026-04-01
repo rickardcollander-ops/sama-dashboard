@@ -56,7 +56,7 @@ export default function CustomerSocialPage() {
       } else if (IS_DEMO) {
         setPosts(demoSocialPosts);
       } else {
-        setError("Kunde inte ladda data. Kontrollera att backend är igång.");
+        setError(`Kunde inte ladda data: ${err?.message || err}`);
       }
       if (statsData.status === "fulfilled") setStats(statsData.value);
     } catch (err) {

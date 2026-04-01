@@ -58,7 +58,7 @@ export default function CustomerGeoPage() {
       else if (checksData?.checks) setChecks(checksData.checks);
     } catch (err) {
       console.error("Failed to load GEO data:", err);
-      setError("Kunde inte ladda data. Kontrollera att backend är igång.");
+      setError(`Kunde inte ladda data: ${err?.message || err}`);
     }
     setLoading(false);
   };
@@ -72,7 +72,7 @@ export default function CustomerGeoPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to run check:", err);
-      setError("Kunde inte köra check. Kontrollera att backend är igång.");
+      setError(`Kunde inte köra check: ${err?.message || err}`);
     }
     setRunning(false);
   };
