@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
-  Clock, PenTool, Search, X, Sparkles, Save,
+  Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -44,10 +44,10 @@ export default function CustomerContentPage() {
     setError(null);
     try {
       const client = tenantApi(user.id);
-      const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/library");
+      const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
       const pcs = data.pieces || [];
       setPieces(pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch content:", err);
       if (IS_DEMO) {
         setPieces(demoContentPieces);
@@ -66,8 +66,9 @@ export default function CustomerContentPage() {
       await client.post("/api/content/generate");
       // Refresh after a delay to let generation start
       setTimeout(() => fetchContent(), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to trigger content generation:", err);
+      setError(`Kunde inte generera innehåll: ${err?.message || err}`);
     }
     setGenerating(false);
   };
@@ -83,7 +84,8 @@ export default function CustomerContentPage() {
         topic: modalTopic,
       });
       setModalContent(result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`);
-    } catch {
+    } catch (err: any) {
+      setError(`Kunde inte generera: ${err?.message || err}`);
       // Fallback placeholder
       const templates: Record<string, string> = {
         linkedin: `Visste du att ${modalTopic}? Här är tre insikter som kan förändra ditt perspektiv.\n\n1. Första insikten\n2. Andra insikten\n3. Tredje insikten\n\nVad tycker du? Dela dina tankar i kommentarerna!`,
@@ -100,7 +102,7 @@ export default function CustomerContentPage() {
     setModalSaving(true);
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/content/save-draft", {
+      await client.post("/api/content/pieces", {
         title: modalTopic,
         type: modalType,
         content: modalContent,
@@ -213,8 +215,12 @@ export default function CustomerContentPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
@@ -295,7 +301,7 @@ export default function CustomerContentPage() {
         {/* Generate Modal */}
         {showModal && (
           <>
-            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowModal(false)} />
+            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); }} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="w-full max-w-lg rounded-2xl border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between border-b px-6 py-4">
@@ -304,7 +310,7 @@ export default function CustomerContentPage() {
                     Generera nytt innehåll
                   </h3>
                   <button
-                    onClick={() => setShowModal(false)}
+                    onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); }}
                     className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                   >
                     <X className="h-5 w-5" />

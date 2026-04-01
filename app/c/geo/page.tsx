@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Bot, TrendingUp, TrendingDown, AlertCircle, CheckCircle,
-  Play, RefreshCw, Minus, Eye
+  Play, RefreshCw, Minus, Eye, X,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -37,6 +37,7 @@ export default function CustomerGeoPage() {
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (user) loadData();
@@ -45,6 +46,7 @@ export default function CustomerGeoPage() {
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
+    setError("");
     const client = tenantApi(user.id);
     try {
       const [summaryData, checksData] = await Promise.all([
@@ -54,8 +56,9 @@ export default function CustomerGeoPage() {
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
       else if (checksData?.checks) setChecks(checksData.checks);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load GEO data:", err);
+      setError(`Kunde inte ladda data: ${err?.message || err}`);
     }
     setLoading(false);
   };
@@ -67,8 +70,9 @@ export default function CustomerGeoPage() {
       const client = tenantApi(user.id);
       await client.post("/api/ai-visibility/check");
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to run check:", err);
+      setError(`Kunde inte köra check: ${err?.message || err}`);
     }
     setRunning(false);
   };
@@ -113,6 +117,16 @@ export default function CustomerGeoPage() {
             {running ? "Kör..." : "Kör check"}
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Summary cards */}
         {summary && (

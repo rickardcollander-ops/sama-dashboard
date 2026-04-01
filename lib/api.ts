@@ -25,13 +25,13 @@ async function fetchWithRetry(
   url: string,
   options: FetchOptions = {}
 ): Promise<Response> {
-  const { retries = 2, retryDelay = 1000, ...fetchOpts } = options;
+  const { retries = 1, retryDelay = 1000, ...fetchOpts } = options;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
         ...fetchOpts,
-        signal: fetchOpts.signal || AbortSignal.timeout(15000),
+        signal: fetchOpts.signal || AbortSignal.timeout(10000),
       });
 
       if (response.ok || response.status < 500) {
@@ -61,7 +61,10 @@ export const api = {
 
   async get<T = any>(path: string, options?: FetchOptions): Promise<T> {
     const res = await fetchWithRetry(`${BASE_URL}${path}`, { method: 'GET', ...options });
-    if (!res.ok) throw new ApiError(`GET ${path} failed`, res.status);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new ApiError(`GET ${path}: ${res.status} ${detail.slice(0, 200)}`, res.status);
+    }
     return res.json();
   },
 
@@ -72,7 +75,10 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
       ...options,
     });
-    if (!res.ok) throw new ApiError(`POST ${path} failed`, res.status);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new ApiError(`POST ${path}: ${res.status} ${detail.slice(0, 200)}`, res.status);
+    }
     return res.json();
   },
 

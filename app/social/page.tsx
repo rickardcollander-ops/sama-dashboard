@@ -143,7 +143,7 @@ export default function SocialPage() {
         const data = await res.json();
         setDrafts(data.drafts || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       toast.error('Failed to load drafts');
     }
     finally { setLoadingDrafts(false); }

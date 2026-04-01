@@ -87,6 +87,7 @@ export default function CustomerAdsPage() {
   const [drafts, setDrafts] = useState<AdCreative[]>([]);
   const [savingDraft, setSavingDraft] = useState(false);
   const [editingDraft, setEditingDraft] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   // Brand context (loaded from settings)
   const [brandContext, setBrandContext] = useState<{
@@ -138,8 +139,9 @@ export default function CustomerAdsPage() {
         target_audience: brandContext.target_audience,
       });
       setCompetitorData(data);
-    } catch {
+    } catch (err: any) {
       setCompetitorData(null);
+      setError(`Kunde inte ladda konkurrentanalys: ${err?.message || err}`);
     }
     setAnalyzingCompetitors(false);
   };
@@ -163,9 +165,11 @@ export default function CustomerAdsPage() {
       const client = tenantApi(user.id);
       const data = await client.get<{ creatives?: AdCreative[] }>("/api/ads/creatives");
       setDrafts(data.creatives || []);
-    } catch {
+    } catch (err: any) {
       if (IS_DEMO) {
         setDrafts(demoAdCreatives as AdCreative[]);
+      } else {
+        setError(`Kunde inte ladda sparade utkast: ${err?.message || err}`);
       }
     }
   };
@@ -173,6 +177,7 @@ export default function CustomerAdsPage() {
   const generateCopy = async () => {
     if (!user) return;
     setGenerating(true);
+    setError("");
     try {
       const client = tenantApi(user.id);
       const result = await client.post<{ headline?: string; body?: string }>("/api/ads/generate-copy", {
@@ -189,7 +194,8 @@ export default function CustomerAdsPage() {
       if (result.headline) setHeadline(result.headline);
       if (result.body) setBody(result.body);
       setGenerated(true);
-    } catch {
+    } catch (err: any) {
+      setError(`Kunde inte generera annonstext: ${err?.message || err}`);
       // Fallback: generate a simple placeholder if API fails
       if (!headline) {
         const placeholders: Record<Platform, string> = {
@@ -210,6 +216,7 @@ export default function CustomerAdsPage() {
   const saveDraft = async () => {
     if (!user) return;
     setSavingDraft(true);
+    setError("");
     try {
       const client = tenantApi(user.id);
       const result = await client.post<{ creative?: AdCreative }>("/api/ads/creatives", {
@@ -301,7 +308,7 @@ export default function CustomerAdsPage() {
 
       const client = tenantApi(user.id);
       const result = await client.post<AnalysisResult>("/api/ads/analyze-screenshot", {
-        image: base64,
+        image_base64: base64,
         platform: analysisPlatform,
       });
       setAnalysisResult(result);
@@ -357,6 +364,16 @@ export default function CustomerAdsPage() {
             Skapa annonstexer med AI och analysera kampanjresultat
           </p>
         </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Info banner — manual mode */}
         {!connected && (

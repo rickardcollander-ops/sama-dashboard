@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Share2, Loader2, Calendar, ThumbsUp, MessageCircle,
-  Eye, Send, Twitter, Linkedin,
+  Eye, Send, Twitter, Linkedin, AlertCircle, X,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -55,9 +55,11 @@ export default function CustomerSocialPage() {
         setPosts(p.length > 0 ? p : IS_DEMO ? demoSocialPosts : []);
       } else if (IS_DEMO) {
         setPosts(demoSocialPosts);
+      } else {
+        setError("Kunde inte ladda data. Försök igen.");
       }
       if (statsData.status === "fulfilled") setStats(statsData.value);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch social data:", err);
       if (IS_DEMO) {
         setPosts(demoSocialPosts);
@@ -139,8 +141,12 @@ export default function CustomerSocialPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 

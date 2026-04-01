@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, Bot, BarChart2, FileText, RefreshCw, Play, Clock,
-  CheckCircle, XCircle, ArrowRight, TrendingUp
+  CheckCircle, XCircle, ArrowRight, TrendingUp, AlertCircle, X,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -36,6 +36,7 @@ export default function CustomerDashboard() {
   const [contentCount, setContentCount] = useState<number | null>(null);
   const [leadStats, setLeadStats] = useState<{ total: number; meetings: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
 
   // Redirect to onboarding if user has no settings
@@ -70,7 +71,12 @@ export default function CustomerDashboard() {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([loadSettings(), loadGeoSummary(), loadSeoStats(), loadContentCount(), loadLeadStats()]);
+    setError("");
+    const results = await Promise.allSettled([loadSettings(), loadGeoSummary(), loadSeoStats(), loadContentCount(), loadLeadStats()]);
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length === results.length) {
+      setError("Kunde inte ladda data. Försök igen.");
+    }
     setLoading(false);
   };
 
@@ -161,6 +167,16 @@ export default function CustomerDashboard() {
             Överblick av dina marknadsföringsagenter
           </p>
         </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Setup prompt */}
         {!hasSetup && (

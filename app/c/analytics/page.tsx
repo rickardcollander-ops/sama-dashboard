@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   TrendingUp, Loader2, BarChart2, Users, MousePointerClick,
-  Eye, DollarSign, ArrowUpRight, ArrowDownRight,
+  Eye, DollarSign, ArrowUpRight, ArrowDownRight, AlertCircle, X,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -58,7 +58,7 @@ export default function CustomerAnalyticsPage() {
       const result = await client.get<AnalyticsData>("/api/analytics/overview");
       const hasData = result.channels?.length || result.daily?.length || result.totals;
       setData(hasData ? result : IS_DEMO ? demoAnalytics : result);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch analytics:", err);
       if (IS_DEMO) {
         setData(demoAnalytics);
@@ -123,8 +123,12 @@ export default function CustomerAnalyticsPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
