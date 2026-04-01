@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
-  ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink,
+  ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
@@ -295,14 +295,23 @@ function CustomerSettingsPageInner() {
               Konfigurera API-nycklar, varumärke och GEO-övervakning
             </p>
           </div>
-          <button
-            onClick={saveSettings}
-            disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Sparar…" : "Spara"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.location.href = "/c/onboarding"}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+            >
+              <Rocket className="h-4 w-4" />
+              Kör onboarding
+            </button>
+            <button
+              onClick={saveSettings}
+              disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Sparar…" : "Spara"}
+            </button>
+          </div>
         </div>
 
         {saved && (
