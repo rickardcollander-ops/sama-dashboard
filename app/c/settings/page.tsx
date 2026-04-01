@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
-  ChevronDown, ChevronUp, Unplug,
+  ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
+import { api } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
 interface UserSettings {
@@ -60,7 +69,49 @@ const DEFAULT_SETTINGS: UserSettings = {
 
 const AVAILABLE_PLATFORMS = ["ChatGPT", "Perplexity", "Claude", "Google AIO", "Gemini", "Microsoft Copilot"];
 
+interface GoogleServiceStatus {
+  search_console: boolean;
+  analytics: boolean;
+  ads: boolean;
+}
+
+const GOOGLE_SERVICES = [
+  {
+    key: "search_console" as const,
+    label: "Google Search Console",
+    icon: Search,
+    description: "Visa sökdata, klick och positioner från Google",
+  },
+  {
+    key: "analytics" as const,
+    label: "Google Analytics (GA4)",
+    icon: BarChart2,
+    description: "Visa trafik, konverteringar och beteendedata",
+  },
+  {
+    key: "ads" as const,
+    label: "Google Ads",
+    icon: Megaphone,
+    description: "Hantera kampanjer och se annonsresultat",
+  },
+];
+
 export default function CustomerSettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+        <CustomerNav />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    }>
+      <CustomerSettingsPageInner />
+    </Suspense>
+  );
+}
+
+function CustomerSettingsPageInner() {
   const { user } = useUser();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -71,15 +122,74 @@ export default function CustomerSettingsPage() {
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<GoogleServiceStatus>({
+    search_console: false,
+    analytics: false,
+    ads: false,
+  });
+  const [googleLoading, setGoogleLoading] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [googleError, setGoogleError] = useState("");
+
+  const searchParams = useSearchParams();
+  const googleConnected = searchParams.get("google_connected");
+  const googleErrorParam = searchParams.get("google_error");
 
   useEffect(() => {
     if (user) loadSettings();
   }, [user]);
 
+  useEffect(() => {
+    if (user) loadGoogleStatus();
+  }, [user]);
+
+  useEffect(() => {
+    if (googleConnected) {
+      setSuccessMessage(`${googleConnected} ansluten!`);
+      window.history.replaceState({}, "", "/c/settings");
+      loadGoogleStatus();
+    }
+    if (googleErrorParam) {
+      setGoogleError("Kunde inte ansluta till Google. Försök igen.");
+      window.history.replaceState({}, "", "/c/settings");
+    }
+  }, [googleConnected, googleErrorParam]);
+
+  const loadGoogleStatus = async () => {
+    if (!user) return;
+    try {
+      const data = await api.get<GoogleServiceStatus>(
+        `/api/auth/google/status?tenant_id=${user.id}`
+      );
+      setGoogleStatus(data);
+    } catch {
+      // Status endpoint not yet available
+    }
+  };
+
+  const connectGoogle = (service: string) => {
+    if (!user) return;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${user.id}`;
+  };
+
+  const disconnectGoogle = async (service: string) => {
+    if (!user) return;
+    setGoogleLoading(service);
+    try {
+      await api.delete(
+        `/api/auth/google/disconnect?service=${service}&tenant_id=${user.id}`
+      );
+      await loadGoogleStatus();
+    } catch {
+      setGoogleError("Kunde inte koppla från. Försök igen.");
+    }
+    setGoogleLoading(null);
+  };
+
   const loadSettings = async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from("user_settings")
         .select("*")
         .eq("user_id", user.id)
@@ -100,7 +210,7 @@ export default function CustomerSettingsPage() {
     setSaved(false);
 
     try {
-      const { error: upsertError } = await supabase
+      const { error: upsertError } = await getSupabase()
         .from("user_settings")
         .upsert({
           user_id: user.id,
@@ -204,6 +314,28 @@ export default function CustomerSettingsPage() {
         {error && (
           <div className="mb-6 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             <AlertCircle className="h-4 w-4" /> {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" /> {successMessage}
+            </div>
+            <button onClick={() => setSuccessMessage("")} className="text-emerald-600 hover:text-emerald-800">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {googleError && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" /> {googleError}
+            </div>
+            <button onClick={() => setGoogleError("")} className="text-red-600 hover:text-red-800">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
@@ -345,6 +477,56 @@ export default function CustomerSettingsPage() {
                   >
                     {p}
                   </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* ── Google Integrations ── */}
+          <Section icon={Globe} title="Google-integrationer" desc="Anslut dina Google-tjänster via OAuth för automatisk datasynk">
+            <div className="space-y-4">
+              {GOOGLE_SERVICES.map(({ key, label, icon: ServiceIcon, description }) => {
+                const connected = googleStatus[key];
+                const isLoading = googleLoading === key;
+                return (
+                  <div key={key} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`rounded-lg p-2 ${connected ? "bg-emerald-50" : "bg-slate-100"}`}>
+                          <ServiceIcon className={`h-5 w-5 ${connected ? "text-emerald-500" : "text-slate-400"}`} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-slate-900">{label}</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        {connected ? (
+                          <>
+                            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                              <CheckCircle className="h-3.5 w-3.5" /> Ansluten
+                            </span>
+                            <button
+                              onClick={() => disconnectGoogle(key)}
+                              disabled={isLoading}
+                              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            >
+                              {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
+                              Koppla från
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => connectGoogle(key)}
+                            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Anslut
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>

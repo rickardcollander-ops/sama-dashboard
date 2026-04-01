@@ -9,7 +9,7 @@ import {
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
 
@@ -19,6 +19,13 @@ interface CustomerSettings {
   geo_queries?: string[];
   geo_platforms?: string[];
   competitors?: string[];
+}
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
 }
 
 export default function CustomerDashboard() {
@@ -37,6 +44,7 @@ export default function CustomerDashboard() {
     if (!user || userLoading) return;
     (async () => {
       try {
+        const supabase = getSupabase();
         const { data } = await supabase
           .from("user_settings")
           .select("settings")
@@ -70,7 +78,8 @@ export default function CustomerDashboard() {
   const loadSettings = async () => {
     if (!user) return;
     try {
-      const { data } = await supabase
+      const sb = getSupabase();
+      const { data } = await sb
         .from("user_settings")
         .select("settings")
         .eq("user_id", user.id)

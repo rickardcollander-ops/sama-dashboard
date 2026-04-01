@@ -6,8 +6,15 @@ import {
   Building2, Globe, Key, Star, Rocket, ChevronRight, ChevronLeft,
   Plus, X, Loader2, CheckCircle, Eye, EyeOff,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 
 const STEPS = [
   { label: "Brand Info", icon: Building2 },
@@ -104,7 +111,7 @@ export default function OnboardingPage() {
         geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
       };
 
-      await supabase.from("user_settings").upsert(
+      await getSupabase().from("user_settings").upsert(
         { user_id: user.id, settings, updated_at: new Date().toISOString() },
         { onConflict: "user_id" }
       );
