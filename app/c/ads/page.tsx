@@ -139,7 +139,7 @@ export default function CustomerAdsPage() {
         target_audience: brandContext.target_audience,
       });
       setCompetitorData(data);
-    } catch {
+    } catch (err: any) {
       setCompetitorData(null);
       setError(`Kunde inte ladda konkurrentanalys: ${err?.message || err}`);
     }
