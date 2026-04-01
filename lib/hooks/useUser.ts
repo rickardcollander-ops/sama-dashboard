@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useState, useEffect, useMemo } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
+
+const isSupabaseConfigured = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const supabase = useMemo(() => {
+    if (!isSupabaseConfigured) return null;
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }, []);
+
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    if (!supabase) {
       setLoading(false);
       return;
     }
@@ -24,15 +36,14 @@ export function useUser() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   const signOut = async () => {
-    if (isSupabaseConfigured) {
+    if (supabase) {
       await supabase.auth.signOut();
     }
-    // Also clear legacy cookie
     document.cookie = "sama_auth=; path=/; max-age=0";
-    window.location.href = "/login";
+    window.location.href = "/c/login";
   };
 
   return { user, loading, signOut, isSupabaseConfigured };
