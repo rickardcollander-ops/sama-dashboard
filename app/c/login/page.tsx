@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 
 export default function CustomerLoginPage() {
   const [email, setEmail] = useState("");
@@ -21,6 +28,8 @@ export default function CustomerLoginPage() {
     setMessage("");
     setLoading(true);
 
+    const supabase = getSupabase();
+
     try {
       if (mode === "signup") {
         const { error: signUpError } = await supabase.auth.signUp({
@@ -30,7 +39,7 @@ export default function CustomerLoginPage() {
         if (signUpError) {
           setError(signUpError.message);
         } else {
-          setMessage("Konto skapat! Kolla din e-post för att verifiera.");
+          setMessage("Konto skapat! Du kan nu logga in.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
