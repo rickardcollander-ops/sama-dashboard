@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search, Bot, BarChart2, FileText, RefreshCw, Play, Clock,
   CheckCircle, XCircle, ArrowRight, TrendingUp
@@ -21,19 +22,44 @@ interface CustomerSettings {
 }
 
 export default function CustomerDashboard() {
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
+  const router = useRouter();
   const [settings, setSettings] = useState<CustomerSettings>({});
   const [geoSummary, setGeoSummary] = useState<any>(null);
   const [seoStats, setSeoStats] = useState<{ totalKeywords: number; avgPosition: number; totalClicks: number } | null>(null);
   const [contentCount, setContentCount] = useState<number | null>(null);
   const [leadStats, setLeadStats] = useState<{ total: number; meetings: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+
+  // Redirect to onboarding if user has no settings
+  useEffect(() => {
+    if (!user || userLoading) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", user.id)
+          .single();
+        if (!data?.settings?.brand_name) {
+          router.push("/c/onboarding");
+          return;
+        }
+      } catch {
+        // No row at all — redirect to onboarding
+        router.push("/c/onboarding");
+        return;
+      }
+      setCheckedOnboarding(true);
+    })();
+  }, [user, userLoading, router]);
 
   useEffect(() => {
-    if (user) {
+    if (user && checkedOnboarding) {
       loadData();
     }
-  }, [user]);
+  }, [user, checkedOnboarding]);
 
   const loadData = async () => {
     setLoading(true);

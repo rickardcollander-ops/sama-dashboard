@@ -86,3 +86,28 @@ export const api = {
     if (!res.ok) throw new ApiError(`DELETE ${path} failed`, res.status);
   },
 };
+
+/**
+ * Creates a tenant-scoped API client that automatically includes the
+ * X-Tenant-ID header on every request.
+ */
+export function tenantApi(tenantId: string) {
+  const tenantHeaders = { 'X-Tenant-ID': tenantId };
+  return {
+    get: <T = any>(path: string, options?: FetchOptions): Promise<T> =>
+      api.get<T>(path, {
+        ...options,
+        headers: { ...tenantHeaders, ...options?.headers },
+      }),
+    post: <T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> =>
+      api.post<T>(path, body, {
+        ...options,
+        headers: { ...tenantHeaders, ...options?.headers },
+      }),
+    delete: (path: string, body?: any, options?: FetchOptions): Promise<void> =>
+      api.delete(path, body, {
+        ...options,
+        headers: { ...tenantHeaders, ...options?.headers },
+      }),
+  };
+}
