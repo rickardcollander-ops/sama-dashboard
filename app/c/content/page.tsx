@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
-  Clock, PenTool, Search, X, Sparkles, Save,
+  Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -68,6 +68,7 @@ export default function CustomerContentPage() {
       setTimeout(() => fetchContent(), 3000);
     } catch (err) {
       console.error("Failed to trigger content generation:", err);
+      setError("Kunde inte generera innehåll. Kontrollera att backend är igång.");
     }
     setGenerating(false);
   };
@@ -213,8 +214,12 @@ export default function CustomerContentPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
+            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 

@@ -163,7 +163,7 @@ function CustomerSettingsPageInner() {
       );
       setGoogleStatus(data);
     } catch {
-      // Status endpoint not yet available
+      setGoogleStatus({ search_console: false, analytics: false, ads: false });
     }
   };
 
