@@ -7,8 +7,15 @@ import {
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 import { api } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
@@ -182,7 +189,7 @@ function CustomerSettingsPageInner() {
   const loadSettings = async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from("user_settings")
         .select("*")
         .eq("user_id", user.id)
@@ -203,7 +210,7 @@ function CustomerSettingsPageInner() {
     setSaved(false);
 
     try {
-      const { error: upsertError } = await supabase
+      const { error: upsertError } = await getSupabase()
         .from("user_settings")
         .upsert({
           user_id: user.id,
