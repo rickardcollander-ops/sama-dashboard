@@ -12,6 +12,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
 
 interface ChannelMetric {
   channel: string;
@@ -55,10 +56,15 @@ export default function CustomerAnalyticsPage() {
     try {
       const client = tenantApi(user.id);
       const result = await client.get<AnalyticsData>("/api/analytics/overview");
-      setData(result);
+      const hasData = result.channels?.length || result.daily?.length || result.totals;
+      setData(hasData ? result : IS_DEMO ? demoAnalytics : result);
     } catch (err) {
       console.error("Failed to fetch analytics:", err);
-      setError("Could not load analytics data. Data will appear once agents have been running.");
+      if (IS_DEMO) {
+        setData(demoAnalytics);
+      } else {
+        setError("Could not load analytics data. Data will appear once agents have been running.");
+      }
     }
     setLoading(false);
   };
@@ -96,22 +102,22 @@ export default function CustomerAnalyticsPage() {
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <MetricCard
             label="Total Clicks"
-            value={totals.clicks.toLocaleString()}
+            value={(totals.clicks ?? 0).toLocaleString()}
             icon={<MousePointerClick className="h-5 w-5 text-blue-500" />}
           />
           <MetricCard
             label="Impressions"
-            value={totals.impressions.toLocaleString()}
+            value={(totals.impressions ?? 0).toLocaleString()}
             icon={<Eye className="h-5 w-5 text-violet-500" />}
           />
           <MetricCard
             label="Conversions"
-            value={totals.conversions.toLocaleString()}
+            value={(totals.conversions ?? 0).toLocaleString()}
             icon={<Users className="h-5 w-5 text-emerald-500" />}
           />
           <MetricCard
             label="Total Spend"
-            value={`$${totals.spend.toLocaleString()}`}
+            value={`$${(totals.spend ?? 0).toLocaleString()}`}
             icon={<DollarSign className="h-5 w-5 text-amber-500" />}
           />
         </div>
@@ -203,10 +209,10 @@ export default function CustomerAnalyticsPage() {
                       {data.channels.map((ch) => (
                         <tr key={ch.channel} className="border-b border-slate-50">
                           <td className="px-4 py-3 font-medium text-slate-700">{ch.channel}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">{ch.clicks.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">{ch.impressions.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">{ch.conversions.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">${ch.spend.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">{(ch.clicks ?? 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">{(ch.impressions ?? 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">{(ch.conversions ?? 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-slate-600">${(ch.spend ?? 0).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

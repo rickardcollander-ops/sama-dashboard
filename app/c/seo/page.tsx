@@ -11,6 +11,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 
 interface Keyword {
   keyword: string;
@@ -40,10 +41,15 @@ export default function CustomerSeoPage() {
     try {
       const client = tenantApi(user.id);
       const data = await client.get<{ keywords?: Keyword[] }>("/api/seo/keywords");
-      setKeywords(data.keywords || []);
+      const kws = data.keywords || [];
+      setKeywords(kws.length > 0 ? kws : IS_DEMO ? demoSeoKeywords : []);
     } catch (err) {
       console.error("Failed to fetch keywords:", err);
-      setError("Could not load keyword data. The SEO agent may not have run yet.");
+      if (IS_DEMO) {
+        setKeywords(demoSeoKeywords);
+      } else {
+        setError("Could not load keyword data. The SEO agent may not have run yet.");
+      }
     }
     setLoading(false);
   };
@@ -130,12 +136,12 @@ export default function CustomerSeoPage() {
           />
           <StatCard
             label="Total Clicks"
-            value={totalClicks.toLocaleString()}
+            value={(totalClicks ?? 0).toLocaleString()}
             icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
           />
           <StatCard
             label="Impressions"
-            value={totalImpressions.toLocaleString()}
+            value={(totalImpressions ?? 0).toLocaleString()}
             icon={<Search className="h-5 w-5 text-amber-500" />}
           />
         </div>
@@ -275,13 +281,13 @@ export default function CustomerSeoPage() {
                         <PositionBadge position={kw.position} />
                       </td>
                       <td className="px-4 py-3 text-right text-slate-600">
-                        {kw.clicks.toLocaleString()}
+                        {(kw.clicks ?? 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right text-slate-600">
-                        {kw.impressions.toLocaleString()}
+                        {(kw.impressions ?? 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right text-slate-600">
-                        {(kw.ctr * 100).toFixed(1)}%
+                        {((kw.ctr ?? 0) * 100).toFixed(1)}%
                       </td>
                       <td className="px-4 py-3 text-center">
                         {kw.position_history && kw.position_history.length > 0 ? (
