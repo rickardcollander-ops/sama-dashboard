@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Search, TrendingUp, ArrowUp, ArrowDown, Minus, RefreshCw,
-  Loader2, BarChart2, Target, AlertCircle, X,
+  Loader2, BarChart2, Target, AlertCircle, X, Plus, Sparkles, Trash2,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,6 +12,8 @@ import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
+import { createBrowserClient } from "@supabase/ssr";
+import Link from "next/link";
 
 interface Keyword {
   keyword: string;
@@ -29,9 +31,21 @@ export default function CustomerSeoPage() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedKeyword, setSelectedKeyword] = useState<Keyword | null>(null);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [addingKeyword, setAddingKeyword] = useState(false);
+  const [gscConnected, setGscConnected] = useState<boolean | null>(null);
+  const [suggestingKeywords, setSuggestingKeywords] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [brandContext, setBrandContext] = useState<{
+    brand_name?: string; domain?: string; brand_description?: string;
+    target_audience?: string; competitors?: string[];
+  }>({});
 
   useEffect(() => {
-    if (user) fetchKeywords();
+    if (user) {
+      fetchKeywords();
+      loadBrandContext();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -40,6 +54,26 @@ export default function CustomerSeoPage() {
       return () => clearTimeout(t);
     }
   }, [error]);
+
+  const loadBrandContext = async () => {
+    if (!user) return;
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      );
+      const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
+      if (data?.settings) setBrandContext(data.settings);
+    } catch {}
+    // Check GSC connection
+    try {
+      const client = tenantApi(user.id);
+      const status = await client.get<{ search_console?: { connected?: boolean } }>("/api/auth/google/status");
+      setGscConnected(!!status?.search_console?.connected);
+    } catch {
+      setGscConnected(false);
+    }
+  };
 
   const fetchKeywords = async () => {
     if (!user) return;
@@ -55,7 +89,7 @@ export default function CustomerSeoPage() {
       if (IS_DEMO) {
         setKeywords(demoSeoKeywords);
       } else {
-        setError("Could not load keyword data. The SEO agent may not have run yet.");
+        setError("Kunde inte ladda sökord. SEO-agenten kanske inte har körts ännu.");
       }
     }
     setLoading(false);
@@ -67,13 +101,65 @@ export default function CustomerSeoPage() {
     try {
       const client = tenantApi(user.id);
       await client.post("/api/seo/keywords/track");
-      // Refresh after a short delay to let the check start
       setTimeout(() => fetchKeywords(), 2000);
     } catch (err: any) {
       console.error("Failed to trigger SEO check:", err);
-      setError(`Kunde inte köra SEO-check: ${err?.message || err}`);
+      if (String(err?.message || err).includes("404")) {
+        setError("SEO-check kunde inte köras. Kontrollera att Google Search Console är kopplat i Inställningar.");
+      } else {
+        setError(`Kunde inte köra SEO-check: ${err?.message || err}`);
+      }
     }
     setChecking(false);
+  };
+
+  const addKeyword = async () => {
+    if (!user || !newKeyword.trim()) return;
+    setAddingKeyword(true);
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/seo/keywords/add", { keyword: newKeyword.trim() });
+      setNewKeyword("");
+      await fetchKeywords();
+    } catch (err: any) {
+      setError(`Kunde inte lägga till sökord: ${err?.message || err}`);
+    }
+    setAddingKeyword(false);
+  };
+
+  const addSuggestion = async (keyword: string) => {
+    if (!user) return;
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/seo/keywords/add", { keyword });
+      setSuggestions((prev) => prev.filter((s) => s !== keyword));
+      await fetchKeywords();
+    } catch (err: any) {
+      setError(`Kunde inte lägga till sökord: ${err?.message || err}`);
+    }
+  };
+
+  const suggestKeywords = async () => {
+    if (!user) return;
+    setSuggestingKeywords(true);
+    try {
+      const client = tenantApi(user.id);
+      const result = await client.post<{ keywords?: string[] }>("/api/seo/discover-opportunities", {
+        brand_name: brandContext.brand_name || "",
+        domain: brandContext.domain || "",
+        target_audience: brandContext.target_audience || "",
+        competitors: brandContext.competitors || [],
+      });
+      const newSuggestions = result.keywords || [];
+      if (newSuggestions.length > 0) {
+        setSuggestions(newSuggestions);
+      } else {
+        setError("Inga nya sökordsförslag hittades. Prova att uppdatera din brandbeskrivning i Inställningar.");
+      }
+    } catch (err: any) {
+      setError(`Kunde inte generera sökordsförslag: ${err?.message || err}`);
+    }
+    setSuggestingKeywords(false);
   };
 
   const topKeywords = [...keywords]
@@ -113,7 +199,7 @@ export default function CustomerSeoPage() {
               SEO Overview
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Track your keyword rankings and search performance
+              Spåra dina sökordsrankningar och sökprestanda
             </p>
           </div>
           <button
@@ -126,29 +212,51 @@ export default function CustomerSeoPage() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {checking ? "Checking..." : "Run Check"}
+            {checking ? "Kör..." : "Kör check"}
           </button>
         </div>
+
+        {/* GSC Connection Banner */}
+        {gscConnected === false && keywords.length === 0 && (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">Google Search Console är inte kopplat</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Koppla Google Search Console i Inställningar för att automatiskt hämta sökdata.
+                  Du kan också lägga till sökord manuellt nedan.
+                </p>
+                <Link
+                  href="/c/settings"
+                  className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+                >
+                  Gå till Inställningar →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <StatCard
-            label="Total Keywords"
+            label="Sökord"
             value={keywords.length}
             icon={<Target className="h-5 w-5 text-blue-500" />}
           />
           <StatCard
-            label="Avg Position"
+            label="Snittposition"
             value={avgPosition > 0 ? avgPosition.toFixed(1) : "--"}
             icon={<BarChart2 className="h-5 w-5 text-violet-500" />}
           />
           <StatCard
-            label="Total Clicks"
+            label="Klick"
             value={(totalClicks ?? 0).toLocaleString()}
             icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
           />
           <StatCard
-            label="Impressions"
+            label="Visningar"
             value={(totalImpressions ?? 0).toLocaleString()}
             icon={<Search className="h-5 w-5 text-amber-500" />}
           />
@@ -164,18 +272,68 @@ export default function CustomerSeoPage() {
           </div>
         )}
 
+        {/* Add Keyword + AI Suggestions */}
+        <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
+          <h2 className="font-semibold text-slate-900 mb-4">Lägg till sökord</h2>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newKeyword}
+              onChange={(e) => setNewKeyword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+              placeholder="Ange ett sökord, t.ex. 'customer success platform'"
+              className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={addKeyword}
+              disabled={addingKeyword || !newKeyword.trim()}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
+            >
+              {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Lägg till
+            </button>
+            <button
+              onClick={suggestKeywords}
+              disabled={suggestingKeywords}
+              className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
+            >
+              {suggestingKeywords ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              AI-förslag
+            </button>
+          </div>
+
+          {/* AI Suggestions */}
+          {suggestions.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Föreslagna sökord</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => addSuggestion(s)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Position History Chart */}
         {selectedKeyword?.position_history && selectedKeyword.position_history.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900">
-                Position History: <span className="text-blue-600">{selectedKeyword.keyword}</span>
+                Positionshistorik: <span className="text-blue-600">{selectedKeyword.keyword}</span>
               </h2>
               <button
                 onClick={() => setSelectedKeyword(null)}
                 className="text-xs text-slate-400 hover:text-slate-600"
               >
-                Close
+                Stäng
               </button>
             </div>
             <div className="h-64">
@@ -188,7 +346,7 @@ export default function CustomerSeoPage() {
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12, fill: "#94a3b8" }}
-                    tickFormatter={(v) => {
+                    tickFormatter={(v: string) => {
                       const d = new Date(v);
                       return `${d.getMonth() + 1}/${d.getDate()}`;
                     }}
@@ -206,7 +364,7 @@ export default function CustomerSeoPage() {
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    formatter={(value) => [`Position ${value}`, ""]}
+                    formatter={(value: number) => [`Position ${value}`, ""]}
                   />
                   <Line
                     type="monotone"
@@ -224,7 +382,7 @@ export default function CustomerSeoPage() {
         {/* Top Performing Keywords */}
         {topKeywords.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-4">Top Performing Keywords</h2>
+            <h2 className="font-semibold text-slate-900 mb-4">Toppresterande sökord</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {topKeywords.slice(0, 6).map((kw) => (
                 <div
@@ -254,7 +412,7 @@ export default function CustomerSeoPage() {
         {/* Keywords Table */}
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">All Keywords</h2>
+            <h2 className="font-semibold text-slate-900">Alla sökord</h2>
           </div>
 
           {loading ? (
@@ -264,9 +422,9 @@ export default function CustomerSeoPage() {
           ) : keywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">No keyword data yet.</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Run a check to start tracking your keywords.
+              <p className="text-sm font-medium text-slate-600">Inga sökord ännu</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Lägg till sökord manuellt ovan, använd AI-förslag, eller koppla Google Search Console i Inställningar för automatisk import.
               </p>
             </div>
           ) : (
@@ -274,12 +432,12 @@ export default function CustomerSeoPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <th className="px-6 py-3 font-medium text-slate-500">Keyword</th>
+                    <th className="px-6 py-3 font-medium text-slate-500">Sökord</th>
                     <th className="px-4 py-3 font-medium text-slate-500 text-right">Position</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Clicks</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Impressions</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Klick</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Visningar</th>
                     <th className="px-4 py-3 font-medium text-slate-500 text-right">CTR</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-center">History</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-center">Historik</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,7 +465,7 @@ export default function CustomerSeoPage() {
                             onClick={() => setSelectedKeyword(kw)}
                             className="text-blue-500 hover:text-blue-700 text-xs font-medium"
                           >
-                            View
+                            Visa
                           </button>
                         ) : (
                           <span className="text-slate-300">--</span>
