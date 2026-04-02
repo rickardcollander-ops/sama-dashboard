@@ -165,10 +165,14 @@ function CustomerSettingsPageInner() {
   const loadGoogleStatus = async () => {
     if (!user) return;
     try {
-      const data = await api.get<GoogleServiceStatus>(
+      const data = await api.get<Record<string, { connected?: boolean }>>(
         `/api/auth/google/status?tenant_id=${user.id}`
       );
-      setGoogleStatus(data);
+      setGoogleStatus({
+        search_console: !!data?.search_console?.connected,
+        analytics: !!data?.analytics?.connected,
+        ads: !!data?.ads?.connected,
+      });
     } catch {
       setGoogleStatus({ search_console: false, analytics: false, ads: false });
     }
