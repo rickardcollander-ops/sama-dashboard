@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, ExternalLink, Code2, Send,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -35,10 +35,51 @@ export default function CustomerContentPage() {
   const [modalContent, setModalContent] = useState("");
   const [modalSaving, setModalSaving] = useState(false);
   const [modalFullscreen, setModalFullscreen] = useState(false);
+  const [ghConnected, setGhConnected] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [publishResult, setPublishResult] = useState<{ id: string; pr_url: string } | null>(null);
+  const [publishError, setPublishError] = useState<{ id: string; message: string } | null>(null);
 
   useEffect(() => {
     if (user) fetchContent();
   }, [user]);
+
+  useEffect(() => {
+    if (user) checkGitHubStatus();
+  }, [user]);
+
+  const checkGitHubStatus = async () => {
+    if (!user) return;
+    try {
+      const client = tenantApi(user.id);
+      const data = await client.get<{ connected: boolean }>("/api/integrations/github/status");
+      setGhConnected(data.connected);
+    } catch {
+      setGhConnected(false);
+    }
+  };
+
+  const handlePublish = async (pieceId: string) => {
+    if (!user) return;
+    setPublishingId(pieceId);
+    setPublishResult(null);
+    setPublishError(null);
+    try {
+      const client = tenantApi(user.id);
+      const result = await client.post<{ pr_url: string; branch: string; file_path: string }>(
+        "/api/integrations/github/publish",
+        { content_id: pieceId }
+      );
+      setPublishResult({ id: pieceId, pr_url: result.pr_url });
+      // Update piece status locally
+      setPieces((prev) =>
+        prev.map((p) => (p.id === pieceId ? { ...p, status: "published" } : p))
+      );
+    } catch (err: any) {
+      setPublishError({ id: pieceId, message: err?.message || "Kunde inte publicera" });
+    }
+    setPublishingId(null);
+  };
 
   useEffect(() => {
     if (error) {
@@ -300,6 +341,44 @@ export default function CustomerContentPage() {
                         </span>
                       )}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                    {piece.status !== "published" && (
+                      ghConnected ? (
+                        publishingId === piece.id ? (
+                          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publicerar...
+                          </span>
+                        ) : publishResult?.id === piece.id ? (
+                          <a
+                            href={publishResult.pr_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            PR skapad!
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => handlePublish(piece.id)}
+                            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Publicera
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-xs text-slate-400" title="Koppla GitHub i Installningar for att publicera">
+                          <Code2 className="h-3.5 w-3.5 inline mr-1" />
+                          Koppla GitHub
+                        </span>
+                      )
+                    )}
+                    {publishError?.id === piece.id && (
+                      <span className="text-xs text-red-600">{publishError.message}</span>
+                    )}
                   </div>
                 </div>
               </div>

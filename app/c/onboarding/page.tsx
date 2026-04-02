@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
+import { tenantApi } from "@/lib/api";
 
 function getSupabase() {
   return createBrowserClient(
@@ -64,6 +65,7 @@ export default function OnboardingPage() {
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newGeoQuery, setNewGeoQuery] = useState("");
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [activatingAgents, setActivatingAgents] = useState(false);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -132,8 +134,18 @@ export default function OnboardingPage() {
         { onConflict: "user_id" }
       );
 
+      // Trigger initial agent activation
+      setActivatingAgents(true);
+      try {
+        const client = tenantApi(user.id);
+        await client.post("/api/tenant/activate");
+      } catch (activateErr) {
+        console.error("Agent activation failed (non-blocking):", activateErr);
+      }
+      setActivatingAgents(false);
+
       router.push("/c/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save onboarding data:", err);
     }
     setSaving(false);
@@ -341,11 +353,11 @@ export default function OnboardingPage() {
           ) : (
             <button
               onClick={handleFinish}
-              disabled={saving}
+              disabled={saving || activatingAgents}
               className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              {saving ? "Saving..." : "Launch SAMA"}
+              {(saving || activatingAgents) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              {activatingAgents ? "Konfigurerar dina agenter..." : saving ? "Saving..." : "Launch SAMA"}
             </button>
           )}
         </div>
