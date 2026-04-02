@@ -31,7 +31,7 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, {
         ...fetchOpts,
-        signal: fetchOpts.signal || AbortSignal.timeout(10000),
+        signal: fetchOpts.signal || AbortSignal.timeout(60000),
       });
 
       if (response.ok || response.status < 500) {
