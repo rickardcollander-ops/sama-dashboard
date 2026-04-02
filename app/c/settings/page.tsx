@@ -140,6 +140,13 @@ function CustomerSettingsPageInner() {
   }, [user]);
 
   useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
+  useEffect(() => {
     if (user) loadGoogleStatus();
   }, [user]);
 
@@ -220,7 +227,7 @@ function CustomerSettingsPageInner() {
 
       if (upsertError) throw upsertError;
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 5000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Kunde inte spara");
     }

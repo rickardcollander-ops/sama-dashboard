@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   TrendingUp, Loader2, BarChart2, Users, MousePointerClick,
   Eye, DollarSign, ArrowUpRight, ArrowDownRight, AlertCircle, X,
+  RefreshCw,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -45,9 +46,24 @@ export default function CustomerAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     if (user) fetchAnalytics();
   }, [user]);
+
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAnalytics();
+    setRefreshing(false);
+  };
 
   const fetchAnalytics = async () => {
     if (!user) return;
@@ -88,14 +104,28 @@ export default function CustomerAnalyticsPage() {
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <TrendingUp className="h-7 w-7 text-emerald-500" />
-            Analytics
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Cross-channel performance metrics and ROI tracking
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
+              <TrendingUp className="h-7 w-7 text-emerald-500" />
+              Analytics
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Cross-channel performance metrics and ROI tracking
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 shadow-sm transition-colors"
+          >
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {refreshing ? "Laddar..." : "Uppdatera"}
+          </button>
         </div>
 
         {/* Stats */}

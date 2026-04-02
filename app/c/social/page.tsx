@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import {
   Share2, Loader2, Calendar, ThumbsUp, MessageCircle,
-  Eye, Send, Twitter, Linkedin, AlertCircle, X,
+  Eye, Send, Twitter, Linkedin, AlertCircle, X, PenTool,
 } from "lucide-react";
+import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
@@ -35,10 +36,18 @@ export default function CustomerSocialPage() {
   const [stats, setStats] = useState<SocialStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateMsg, setShowCreateMsg] = useState(false);
 
   useEffect(() => {
     if (user) fetchData();
   }, [user]);
+
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -99,15 +108,34 @@ export default function CustomerSocialPage() {
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Share2 className="h-7 w-7 text-indigo-500" />
-            Social Media
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Automated posting and engagement across your social channels
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
+              <Share2 className="h-7 w-7 text-indigo-500" />
+              Social Media
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Automated posting and engagement across your social channels
+            </p>
+          </div>
+          <Link
+            href="/c/content"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm transition-colors"
+          >
+            <PenTool className="h-4 w-4" />
+            Skapa inlägg
+          </Link>
         </div>
+
+        {showCreateMsg && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
+            <PenTool className="h-4 w-4 flex-shrink-0" />
+            Automatisk publicering kommer snart. Skapa content i Content-fliken och publicera manuellt.
+            <button onClick={() => setShowCreateMsg(false)} className="ml-auto text-blue-500 hover:text-blue-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">

@@ -94,7 +94,7 @@ export default function CustomerLoginPage() {
             />
           </div>
 
-          <div className="relative mb-4">
+          <div className="relative mb-1">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
               type={showPassword ? "text" : "password"}
@@ -111,6 +111,10 @@ export default function CustomerLoginPage() {
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          {mode === "signup" && (
+            <p className="text-xs text-slate-500 mb-4 ml-1">Minst 6 tecken</p>
+          )}
+          {mode === "login" && <div className="mb-4" />}
 
           {error && (
             <p className="text-red-400 text-sm text-center mb-4">{error}</p>

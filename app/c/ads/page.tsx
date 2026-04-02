@@ -106,6 +106,13 @@ export default function CustomerAdsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
+  useEffect(() => {
     if (user) {
       checkConnection();
       loadDrafts();
@@ -268,6 +275,7 @@ export default function CustomerAdsPage() {
 
   const deleteDraft = async (id: string) => {
     if (!user) return;
+    if (!window.confirm("Är du säker på att du vill ta bort detta?")) return;
     setDrafts((prev) => prev.filter((d) => d.id !== id));
     try {
       const client = tenantApi(user.id);
@@ -442,6 +450,9 @@ export default function CustomerAdsPage() {
                   <option key={key} value={key}>{label}</option>
                 ))}
               </select>
+              <p className="text-xs text-slate-400 mt-1">
+                Rubrik max {HEADLINE_LIMITS[platform]} tecken, brödtext max {BODY_LIMITS[platform]} tecken
+              </p>
             </div>
 
             {/* Campaign goal */}
@@ -623,10 +634,19 @@ export default function CustomerAdsPage() {
         {/* Section 3: Analysis Results */}
         {analysisResult && (
           <section className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
-              <Lightbulb className="h-5 w-5 text-amber-500" />
-              AI-rekommendationer
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-amber-500" />
+                AI-rekommendationer
+              </h2>
+              <button
+                onClick={() => setAnalysisResult(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Stäng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
             {/* Metrics */}
             <div className="mb-6">
