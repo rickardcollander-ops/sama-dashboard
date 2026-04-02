@@ -66,7 +66,7 @@ export default function CustomerSeoPage() {
     setChecking(true);
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/seo/check");
+      await client.post("/api/seo/keywords/track");
       // Refresh after a short delay to let the check start
       setTimeout(() => fetchKeywords(), 2000);
     } catch (err: any) {
