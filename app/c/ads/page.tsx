@@ -16,7 +16,7 @@ import { IS_DEMO, demoAdCreatives } from "@/lib/demo-data";
 type Platform = "meta" | "linkedin" | "google";
 type AdFormat = "single_image" | "carousel" | "video" | "stories";
 type CampaignGoal = "awareness" | "leads" | "traffic" | "conversions";
-type CTA = "Läs mer" | "Kontakta oss" | "Boka demo" | "Ladda ner";
+type CTA = "Learn More" | "Contact Us" | "Book Demo" | "Download";
 
 interface AdCreative {
   id: string;
@@ -59,7 +59,7 @@ const GOAL_LABELS: Record<CampaignGoal, string> = {
 const HEADLINE_LIMITS: Record<Platform, number> = { meta: 40, linkedin: 70, google: 30 };
 const BODY_LIMITS: Record<Platform, number> = { meta: 125, linkedin: 600, google: 90 };
 
-const CTA_OPTIONS: CTA[] = ["Läs mer", "Kontakta oss", "Boka demo", "Ladda ner"];
+const CTA_OPTIONS: CTA[] = ["Learn More", "Contact Us", "Book Demo", "Download"];
 
 export default function CustomerAdsPage() {
   const { user, loading: userLoading } = useUser();
@@ -72,7 +72,7 @@ export default function CustomerAdsPage() {
   const [goal, setGoal] = useState<CampaignGoal>("leads");
   const [headline, setHeadline] = useState("");
   const [body, setBody] = useState("");
-  const [cta, setCta] = useState<CTA>("Läs mer");
+  const [cta, setCta] = useState<CTA>("Learn More");
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
 
@@ -148,7 +148,7 @@ export default function CustomerAdsPage() {
       setCompetitorData(data);
     } catch (err: any) {
       setCompetitorData(null);
-      setError(`Kunde inte ladda konkurrentanalys: ${err?.message || err}`);
+      setError(`Could not load competitor analysis: ${err?.message || err}`);
     }
     setAnalyzingCompetitors(false);
   };
@@ -176,7 +176,7 @@ export default function CustomerAdsPage() {
       if (IS_DEMO) {
         setDrafts(demoAdCreatives as AdCreative[]);
       } else {
-        setError(`Kunde inte ladda sparade utkast: ${err?.message || err}`);
+        setError(`Could not load saved drafts: ${err?.message || err}`);
       }
     }
   };
@@ -202,18 +202,18 @@ export default function CustomerAdsPage() {
       if (result.body) setBody(result.body);
       setGenerated(true);
     } catch (err: any) {
-      setError(`Kunde inte generera annonstext: ${err?.message || err}`);
+      setError(`Could not generate ad copy: ${err?.message || err}`);
       // Fallback: generate a simple placeholder if API fails
       if (!headline) {
         const placeholders: Record<Platform, string> = {
-          meta: "Automatisera din marknadsföring",
-          linkedin: "AI-driven tillväxt för ditt företag",
+          meta: "Automate your marketing",
+          linkedin: "AI-driven growth for your business",
           google: "AI Marketing Platform",
         };
         setHeadline(placeholders[platform]);
       }
       if (!body) {
-        setBody("Låt SAMA:s AI-agenter optimera dina kampanjer dygnet runt. Fler leads, högre ROI.");
+        setBody("Let SAMA's AI agents optimize your campaigns around the clock. More leads, higher ROI.");
       }
       setGenerated(true);
     }
@@ -275,7 +275,7 @@ export default function CustomerAdsPage() {
 
   const deleteDraft = async (id: string) => {
     if (!user) return;
-    if (!window.confirm("Är du säker på att du vill ta bort detta?")) return;
+    if (!window.confirm("Are you sure you want to delete this?")) return;
     setDrafts((prev) => prev.filter((d) => d.id !== id));
     try {
       const client = tenantApi(user.id);
@@ -327,19 +327,19 @@ export default function CustomerAdsPage() {
           { label: "CTR", value: "1.2%", benchmark: "0.9%", ok: true },
           { label: "CPC", value: "€2.40", benchmark: "€1.80", ok: false },
           { label: "CPM", value: "€12.50", benchmark: "€14.00", ok: true },
-          { label: "Frekvens", value: "2.8", benchmark: "< 3.0", ok: true },
+          { label: "Frequency", value: "2.8", benchmark: "< 3.0", ok: true },
         ],
         recommendations: [
-          { action: "Sänk CPC genom att testa fler annonsformat", reasoning: "Din CPC ligger 33% över branschsnittet. A/B-testa carousel vs single image." },
-          { action: "Expandera målgruppen med lookalike audiences", reasoning: "Din CTR är bra, vilket tyder på relevant budskap. Bredda räckvidden." },
-          { action: "Testa kortare annonstexter", reasoning: "Nuvarande text kan vara för lång för mobila placeringar." },
+          { action: "Lower CPC by testing more ad formats", reasoning: "Your CPC is 33% above industry average. A/B test carousel vs single image." },
+          { action: "Expand audience with lookalike audiences", reasoning: "Your CTR is good, indicating relevant messaging. Broaden the reach." },
+          { action: "Test shorter ad copy", reasoning: "Current copy may be too long for mobile placements." },
         ],
         instructions: [
-          "Gå till Ads Manager > Annonsuppsättning > Redigera",
-          "Duplicera din bäst presterande annons",
-          "Ändra formatet till Carousel med 3-5 kort",
-          "Skapa en Lookalike Audience baserad på dina konverteringar",
-          "Sätt budget till 80% av nuvarande per annonsuppsättning",
+          "Go to Ads Manager > Ad Set > Edit",
+          "Duplicate your best performing ad",
+          "Change the format to Carousel with 3-5 cards",
+          "Create a Lookalike Audience based on your conversions",
+          "Set budget to 80% of current per ad set",
         ],
       });
     }
@@ -369,7 +369,7 @@ export default function CustomerAdsPage() {
             Ads
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Skapa annonstexer med AI och analysera kampanjresultat
+            Create ad copy with AI and analyze campaign results
           </p>
         </div>
 
@@ -390,14 +390,14 @@ export default function CustomerAdsPage() {
               <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
               <div className="flex-1">
                 <p className="text-sm text-amber-800">
-                  Ingen annonsplattform ansluten. Skapa annonstexer och ladda upp skärmdumpar för AI-analys. Anslut en plattform i Inställningar för automatisk synk.
+                  No ad platform connected. Create ad copy and upload screenshots for AI analysis. Connect a platform in Settings for automatic sync.
                 </p>
                 <Link
                   href="/c/settings"
                   className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-100 border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-200 transition-colors"
                 >
                   <Settings className="h-3.5 w-3.5" />
-                  Gå till Inställningar
+                  Go to Settings
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
@@ -409,13 +409,13 @@ export default function CustomerAdsPage() {
         <section className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
             <Sparkles className="h-5 w-5 text-blue-500" />
-            Skapa annonstext
+            Create Ad Copy
           </h2>
 
           <div className="grid gap-6 sm:grid-cols-2">
             {/* Platform selector */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Plattform</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Platform</label>
               <div className="flex gap-2">
                 {(Object.entries(PLATFORM_LABELS) as [Platform, string][]).map(([key, label]) => (
                   <button
@@ -451,13 +451,13 @@ export default function CustomerAdsPage() {
                 ))}
               </select>
               <p className="text-xs text-slate-400 mt-1">
-                Rubrik max {HEADLINE_LIMITS[platform]} tecken, brödtext max {BODY_LIMITS[platform]} tecken
+                Headline max {HEADLINE_LIMITS[platform]} chars, body max {BODY_LIMITS[platform]} chars
               </p>
             </div>
 
             {/* Campaign goal */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Kampanjmål</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Campaign Goal</label>
               <select
                 value={goal}
                 onChange={(e) => setGoal(e.target.value as CampaignGoal)}
@@ -487,7 +487,7 @@ export default function CustomerAdsPage() {
           {/* Headline */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-700">Rubrik</label>
+              <label className="block text-sm font-medium text-slate-700">Headline</label>
               <span className={`text-xs ${headline.length > HEADLINE_LIMITS[platform] ? "text-red-500 font-medium" : "text-slate-400"}`}>
                 {headline.length}/{HEADLINE_LIMITS[platform]}
               </span>
@@ -496,7 +496,7 @@ export default function CustomerAdsPage() {
               type="text"
               value={headline}
               onChange={(e) => setHeadline(e.target.value.slice(0, HEADLINE_LIMITS[platform]))}
-              placeholder={`Max ${HEADLINE_LIMITS[platform]} tecken...`}
+              placeholder={`Max ${HEADLINE_LIMITS[platform]} chars...`}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -504,7 +504,7 @@ export default function CustomerAdsPage() {
           {/* Body */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-700">Brödtext</label>
+              <label className="block text-sm font-medium text-slate-700">Body Text</label>
               <span className={`text-xs ${body.length > BODY_LIMITS[platform] ? "text-red-500 font-medium" : "text-slate-400"}`}>
                 {body.length}/{BODY_LIMITS[platform]}
               </span>
@@ -512,7 +512,7 @@ export default function CustomerAdsPage() {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value.slice(0, BODY_LIMITS[platform]))}
-              placeholder={`Max ${BODY_LIMITS[platform]} tecken...`}
+              placeholder={`Max ${BODY_LIMITS[platform]} chars...`}
               rows={4}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
             />
@@ -530,7 +530,7 @@ export default function CustomerAdsPage() {
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {generating ? "Genererar..." : "Generera med AI"}
+              {generating ? "Generating..." : "Generate with AI"}
             </button>
 
             {generated && (headline || body) && (
@@ -544,7 +544,7 @@ export default function CustomerAdsPage() {
                 ) : (
                   <Save className="h-4 w-4" />
                 )}
-                Spara som draft
+                Save as Draft
               </button>
             )}
           </div>
@@ -554,7 +554,7 @@ export default function CustomerAdsPage() {
         <section className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
             <Image className="h-5 w-5 text-violet-500" />
-            Analysera kampanjskärmdump
+            Analyze Campaign Screenshot
           </h2>
 
           <div className="grid gap-6 sm:grid-cols-2">
@@ -595,8 +595,8 @@ export default function CustomerAdsPage() {
               ) : (
                 <>
                   <Upload className="h-10 w-10 text-slate-400 mb-3" />
-                  <p className="text-sm text-slate-600 font-medium">Dra och släpp en skärmdump</p>
-                  <p className="text-xs text-slate-400 mt-1">PNG eller JPG</p>
+                  <p className="text-sm text-slate-600 font-medium">Drag and drop a screenshot</p>
+                  <p className="text-xs text-slate-400 mt-1">PNG or JPG</p>
                 </>
               )}
             </div>
@@ -604,7 +604,7 @@ export default function CustomerAdsPage() {
             {/* Platform + analyze button */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Plattform</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Platform</label>
                 <select
                   value={analysisPlatform}
                   onChange={(e) => setAnalysisPlatform(e.target.value as Platform)}
@@ -625,7 +625,7 @@ export default function CustomerAdsPage() {
                 ) : (
                   <BarChart2 className="h-4 w-4" />
                 )}
-                {analyzing ? "Analyserar..." : "Analysera"}
+                {analyzing ? "Analyzing..." : "Analyze"}
               </button>
             </div>
           </div>
@@ -637,12 +637,12 @@ export default function CustomerAdsPage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-amber-500" />
-                AI-rekommendationer
+                AI Recommendations
               </h2>
               <button
                 onClick={() => setAnalysisResult(null)}
                 className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                title="Stäng"
+                title="Close"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -652,7 +652,7 @@ export default function CustomerAdsPage() {
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
                 <BarChart2 className="h-4 w-4 text-blue-500" />
-                Identifierade metrics
+                Identified Metrics
               </h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {analysisResult.metrics.map((m) => (
@@ -661,7 +661,7 @@ export default function CustomerAdsPage() {
                     <p className="text-lg font-bold text-slate-900">{m.value}</p>
                     <p className={`text-xs mt-1 flex items-center gap-1 ${m.ok ? "text-emerald-600" : "text-amber-600"}`}>
                       {m.ok ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                      Branschsnitt: {m.benchmark}
+                      Industry avg: {m.benchmark}
                     </p>
                   </div>
                 ))}
@@ -672,7 +672,7 @@ export default function CustomerAdsPage() {
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
                 <Lightbulb className="h-4 w-4 text-amber-500" />
-                Rekommendationer
+                Recommendations
               </h3>
               <div className="space-y-3">
                 {analysisResult.recommendations.map((rec, i) => (
@@ -688,7 +688,7 @@ export default function CustomerAdsPage() {
             <div>
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
                 <ClipboardList className="h-4 w-4 text-violet-500" />
-                Steg-för-steg instruktioner
+                Step-by-step Instructions
               </h3>
               <ol className="space-y-2 list-decimal list-inside">
                 {analysisResult.instructions.map((step, i) => (
@@ -707,10 +707,10 @@ export default function CustomerAdsPage() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                 <BarChart2 className="h-5 w-5 text-purple-500" />
-                Konkurrentanalys
+                Competitor Analysis
               </h2>
               <p className="text-sm text-slate-500 mt-1">
-                AI-analys av konkurrenternas annonsstrategi
+                AI analysis of competitors&apos; ad strategy
                 {brandContext.competitors?.length ? ` (${brandContext.competitors.join(", ")})` : ""}
               </p>
             </div>
@@ -720,14 +720,14 @@ export default function CustomerAdsPage() {
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:bg-purple-300 transition-colors"
             >
               {analyzingCompetitors ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {analyzingCompetitors ? "Analyserar..." : "Analysera konkurrenter"}
+              {analyzingCompetitors ? "Analyzing..." : "Analyze Competitors"}
             </button>
           </div>
 
           {!brandContext.competitors?.length && (
             <div className="text-center py-8">
               <AlertCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-              <p className="text-sm text-slate-500">Lägg till konkurrenter i <Link href="/c/settings" className="text-blue-600 hover:underline">Inställningar</Link> för att analysera deras annonser.</p>
+              <p className="text-sm text-slate-500">Add competitors in <Link href="/c/settings" className="text-blue-600 hover:underline">Settings</Link> to analyze their ads.</p>
             </div>
           )}
 
@@ -750,7 +750,7 @@ export default function CustomerAdsPage() {
                     <p className="text-sm text-slate-600 mb-3">{comp.positioning}</p>
                     <div className="space-y-2">
                       <div>
-                        <p className="text-xs font-medium text-slate-500 uppercase">Budskap</p>
+                        <p className="text-xs font-medium text-slate-500 uppercase">Messages</p>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {comp.key_messages?.map((msg, j) => (
                             <span key={j} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{msg}</span>
@@ -759,13 +759,13 @@ export default function CustomerAdsPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div>
-                          <p className="text-xs font-medium text-emerald-600">Styrkor</p>
+                          <p className="text-xs font-medium text-emerald-600">Strengths</p>
                           {comp.strengths?.map((s, j) => (
                             <p key={j} className="text-xs text-slate-600">+ {s}</p>
                           ))}
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-red-500">Svagheter</p>
+                          <p className="text-xs font-medium text-red-500">Weaknesses</p>
                           {comp.weaknesses?.map((w, j) => (
                             <p key={j} className="text-xs text-slate-600">- {w}</p>
                           ))}
@@ -782,7 +782,7 @@ export default function CustomerAdsPage() {
                 <div>
                   <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-3">
                     <Lightbulb className="h-4 w-4 text-amber-500" />
-                    Möjligheter för {brandContext.brand_name || "ditt varumärke"}
+                    Opportunities for {brandContext.brand_name || "your brand"}
                   </h3>
                   <div className="space-y-3">
                     {competitorData.opportunities.map((opp, i) => (
@@ -796,7 +796,7 @@ export default function CustomerAdsPage() {
                           <p className="text-sm font-medium text-slate-900">{opp.opportunity}</p>
                         </div>
                         <p className="text-xs text-slate-600 mt-1">{opp.reasoning}</p>
-                        <p className="text-xs text-blue-700 font-medium mt-2">Annonsvinkel: {opp.suggested_angle}</p>
+                        <p className="text-xs text-blue-700 font-medium mt-2">Ad angle: {opp.suggested_angle}</p>
                       </div>
                     ))}
                   </div>
@@ -806,7 +806,7 @@ export default function CustomerAdsPage() {
               {/* Differentiation tips */}
               {competitorData.differentiation_tips && competitorData.differentiation_tips.length > 0 && (
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-2">Så sticker du ut</h3>
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">How to Stand Out</h3>
                   <ul className="space-y-1">
                     {competitorData.differentiation_tips.map((tip, i) => (
                       <li key={i} className="text-sm text-blue-800 flex items-start gap-2">
@@ -825,15 +825,15 @@ export default function CustomerAdsPage() {
         <section className="rounded-xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
             <Save className="h-5 w-5 text-emerald-500" />
-            Sparade drafts
+            Saved Drafts
           </h2>
 
           {drafts.length === 0 ? (
             <div className="text-center py-12">
               <Megaphone className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">Inga sparade annonsutkast ännu.</p>
+              <p className="text-sm text-slate-500">No saved ad drafts yet.</p>
               <p className="text-xs text-slate-400 mt-1">
-                Skapa en annonstext ovan och spara som draft.
+                Create ad copy above and save as a draft.
               </p>
             </div>
           ) : (
@@ -862,19 +862,19 @@ export default function CustomerAdsPage() {
                           setPlatform(draft.platform as Platform);
                           setHeadline(draft.headline);
                           setBody(draft.body);
-                          setCta((draft.cta as CTA) || "Läs mer");
+                          setCta((draft.cta as CTA) || "Learn More");
                           setGenerated(true);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
                         className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-blue-600 transition-colors"
-                        title="Redigera"
+                        title="Edit"
                       >
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => deleteDraft(draft.id)}
                         className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-red-600 transition-colors"
-                        title="Ta bort"
+                        title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

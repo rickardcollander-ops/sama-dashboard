@@ -31,6 +31,7 @@ interface OnboardingData {
   domain: string;
   brand_description: string;
   target_audience: string;
+  content_language: string;
   competitors: string[];
   geo_queries: string[];
   anthropic_api_key: string;
@@ -41,11 +42,24 @@ interface OnboardingData {
   review_trustpilot_url: string;
 }
 
+const CONTENT_LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "sv", label: "Swedish" },
+  { code: "de", label: "German" },
+  { code: "fr", label: "French" },
+  { code: "es", label: "Spanish" },
+  { code: "no", label: "Norwegian" },
+  { code: "da", label: "Danish" },
+  { code: "fi", label: "Finnish" },
+  { code: "nl", label: "Dutch" },
+];
+
 const INITIAL: OnboardingData = {
   brand_name: "",
   domain: "",
   brand_description: "",
   target_audience: "",
+  content_language: "en",
   competitors: [],
   geo_queries: [],
   anthropic_api_key: "",
@@ -118,6 +132,7 @@ export default function OnboardingPage() {
         domain: data.domain,
         brand_description: data.brand_description,
         target_audience: data.target_audience,
+        content_language: data.content_language,
         competitors: data.competitors,
         anthropic_api_key: data.anthropic_api_key,
         google_api_key: data.google_api_key,
@@ -217,6 +232,19 @@ export default function OnboardingPage() {
               <Field label="Domain *" value={data.domain} onChange={(v) => update("domain", v)} placeholder="acme.com" />
               <FieldTextarea label="Brand Description" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="What does your company do?" />
               <FieldTextarea label="Target Audience" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="B2B SaaS companies with 50-500 employees..." />
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Content Language</label>
+                <select
+                  value={data.content_language}
+                  onChange={(e) => update("content_language", e.target.value)}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {CONTENT_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>{lang.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500 mt-1">Language used when SAMA generates content for your brand.</p>
+              </div>
             </div>
           )}
 
