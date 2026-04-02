@@ -72,7 +72,7 @@ export default function CustomerContentPage() {
     setGenerating(true);
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/content/generate");
+      await client.post("/api/content/generate", { type: "linkedin_post" });
       // Refresh after a delay to let generation start
       setTimeout(() => fetchContent(), 3000);
     } catch (err: any) {
