@@ -144,7 +144,7 @@ export default function CustomerSeoPage() {
     setSuggestingKeywords(true);
     try {
       const client = tenantApi(user.id);
-      const result = await client.post<{ keywords?: string[] }>("/api/seo/discover-opportunities", {
+      const result = await client.post<{ keywords?: string[] }>("/api/seo/suggest-keywords", {
         brand_name: brandContext.brand_name || "",
         domain: brandContext.domain || "",
         target_audience: brandContext.target_audience || "",
