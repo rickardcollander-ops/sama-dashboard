@@ -69,11 +69,12 @@ export const api = {
   },
 
   async post<T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> {
+    const { headers: extraHeaders, ...restOptions } = options || {};
     const res = await fetchWithRetry(`${BASE_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      ...restOptions,
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
       body: body ? JSON.stringify(body) : undefined,
-      ...options,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
