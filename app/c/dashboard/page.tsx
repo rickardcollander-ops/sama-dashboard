@@ -82,7 +82,7 @@ export default function CustomerDashboard() {
     const results = await Promise.allSettled([loadSettings(), loadGeoSummary(), loadSeoStats(), loadContentCount(), loadLeadStats()]);
     const failures = results.filter((r) => r.status === "rejected");
     if (failures.length === results.length) {
-      setError("Kunde inte ladda data. Försök igen.");
+      setError("Could not load data. Please try again.");
     }
     setLoading(false);
   };
@@ -209,10 +209,10 @@ export default function CustomerDashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-            {settings.brand_name ? `Välkommen, ${settings.brand_name}` : "Dashboard"}
+            {settings.brand_name ? `Welcome, ${settings.brand_name}` : "Dashboard"}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Överblick av dina marknadsföringsagenter
+            Overview of your marketing agents
           </p>
         </div>
 
@@ -236,9 +236,9 @@ export default function CustomerDashboard() {
               <Search className="h-6 w-6 text-blue-600" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-blue-900">Kom igång</h3>
+              <h3 className="text-lg font-semibold text-blue-900">Get Started</h3>
               <p className="text-sm text-blue-700">
-                Konfigurera ditt varumärke, konkurrenter och GEO-sökfrågor för att starta övervakning.
+                Configure your brand, competitors, and GEO queries to start monitoring.
               </p>
             </div>
             <ArrowRight className="h-5 w-5 text-blue-400" />
@@ -255,7 +255,7 @@ export default function CustomerDashboard() {
               </div>
               <div>
                 <h3 className="font-semibold text-slate-900">GEO Monitor</h3>
-                <p className="text-xs text-slate-500">AI Visibility i ChatGPT, Claude, Perplexity m.fl.</p>
+                <p className="text-xs text-slate-500">AI Visibility in ChatGPT, Claude, Perplexity & more</p>
               </div>
             </div>
             {geoSummary ? (
@@ -267,20 +267,20 @@ export default function CustomerDashboard() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Öppna gaps</span>
+                  <span className="text-sm text-slate-600">Open Gaps</span>
                   <span className="text-lg font-bold text-slate-900">{geoSummary.open_gaps ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Totala kontroller</span>
+                  <span className="text-sm text-slate-600">Total Checks</span>
                   <span className="text-lg font-bold text-slate-900">{geoSummary.total_checks ?? 0}</span>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">Ingen data ännu. Starta en GEO-kontroll.</p>
+              <p className="text-sm text-slate-400">No data yet. Run a GEO check to get started.</p>
             )}
             <Link href="/c/geo"
               className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors">
-              <Bot className="h-4 w-4" /> Öppna GEO Monitor
+              <Bot className="h-4 w-4" /> Open GEO Monitor
             </Link>
           </div>
 
@@ -292,28 +292,28 @@ export default function CustomerDashboard() {
               </div>
               <div>
                 <h3 className="font-semibold text-slate-900">SEO</h3>
-                <p className="text-xs text-slate-500">Rankings, tekniska audits & nyckelord</p>
+                <p className="text-xs text-slate-500">Rankings, technical audits & keywords</p>
               </div>
             </div>
             {seoStats ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Nyckelord</span>
+                  <span className="text-sm text-slate-600">Keywords</span>
                   <span className="text-lg font-bold text-slate-900">{seoStats.totalKeywords}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Snittposition</span>
+                  <span className="text-sm text-slate-600">Avg. Position</span>
                   <span className={`text-lg font-bold ${seoStats.avgPosition <= 10 ? 'text-green-600' : seoStats.avgPosition <= 30 ? 'text-yellow-600' : 'text-slate-900'}`}>
                     {seoStats.avgPosition > 0 ? seoStats.avgPosition.toFixed(1) : '—'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Klick (senaste 28d)</span>
+                  <span className="text-sm text-slate-600">Clicks (last 28d)</span>
                   <span className="text-lg font-bold text-slate-900">{seoStats.totalClicks}</span>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">Laddar SEO-data...</p>
+              <p className="text-sm text-slate-400">Loading SEO data...</p>
             )}
           </div>
 
@@ -325,22 +325,22 @@ export default function CustomerDashboard() {
               </div>
               <div>
                 <h3 className="font-semibold text-slate-900">Content</h3>
-                <p className="text-xs text-slate-500">AI-genererade artiklar & sidor</p>
+                <p className="text-xs text-slate-500">AI-generated articles & pages</p>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Content-delar</span>
+                <span className="text-sm text-slate-600">Content Pieces</span>
                 <span className="text-lg font-bold text-slate-900">{contentCount ?? '—'}</span>
               </div>
               {leadStats && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Leads genererade</span>
+                    <span className="text-sm text-slate-600">Leads Generated</span>
                     <span className="text-lg font-bold text-blue-600">{leadStats.total}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Möten bokade</span>
+                    <span className="text-sm text-slate-600">Meetings Booked</span>
                     <span className="text-lg font-bold text-green-600">{leadStats.meetings}</span>
                   </div>
                 </>
@@ -361,14 +361,14 @@ export default function CustomerDashboard() {
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Agenter aktiva</span>
+                <span className="text-sm text-slate-600">Active Agents</span>
                 <span className="text-lg font-bold text-green-600">6</span>
               </div>
               <p className="text-sm text-slate-400">
-                SEO, Content, Ads, Social, Reviews & Analytics arbetar kontinuerligt.
+                SEO, Content, Ads, Social, Reviews & Analytics are running continuously.
               </p>
               <Link href="/c/geo" className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                <TrendingUp className="h-3.5 w-3.5" /> Se detaljerade rapporter
+                <TrendingUp className="h-3.5 w-3.5" /> View detailed reports
               </Link>
             </div>
           </div>
@@ -378,30 +378,30 @@ export default function CustomerDashboard() {
         {hasSetup && (
           <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-900">Din konfiguration</h3>
+              <h3 className="font-semibold text-slate-900">Your Configuration</h3>
               <Link href="/c/settings" className="text-sm text-blue-600 hover:text-blue-800">
-                Redigera
+                Edit
               </Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-3 text-sm">
               <div>
-                <p className="text-slate-500 mb-1">Varumärke</p>
+                <p className="text-slate-500 mb-1">Brand</p>
                 <p className="font-medium text-slate-900">{settings.brand_name}</p>
                 <p className="text-slate-400">{settings.domain}</p>
               </div>
               <div>
-                <p className="text-slate-500 mb-1">Konkurrenter</p>
+                <p className="text-slate-500 mb-1">Competitors</p>
                 <div className="flex flex-wrap gap-1">
                   {(settings.competitors || []).map((c) => (
                     <span key={c} className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-800">{c}</span>
                   ))}
-                  {(settings.competitors || []).length === 0 && <span className="text-slate-400">Inga</span>}
+                  {(settings.competitors || []).length === 0 && <span className="text-slate-400">None</span>}
                 </div>
               </div>
               <div>
-                <p className="text-slate-500 mb-1">GEO-frågor</p>
-                <p className="font-medium text-slate-900">{(settings.geo_queries || []).length} frågor</p>
-                <p className="text-slate-400">{(settings.geo_platforms || []).length} plattformar</p>
+                <p className="text-slate-500 mb-1">GEO Queries</p>
+                <p className="font-medium text-slate-900">{(settings.geo_queries || []).length} queries</p>
+                <p className="text-slate-400">{(settings.geo_platforms || []).length} platforms</p>
               </div>
             </div>
           </div>

@@ -12,7 +12,7 @@ import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import Link from "next/link";
 
 interface Keyword {
@@ -58,10 +58,7 @@ export default function CustomerSeoPage() {
   const loadBrandContext = async () => {
     if (!user) return;
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-      );
+      const supabase = getSupabaseBrowser();
       const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
       if (data?.settings) setBrandContext(data.settings);
     } catch {}
@@ -89,7 +86,7 @@ export default function CustomerSeoPage() {
       if (IS_DEMO) {
         setKeywords(demoSeoKeywords);
       } else {
-        setError("Kunde inte ladda sökord. SEO-agenten kanske inte har körts ännu.");
+        setError("Could not load keywords. The SEO agent may not have run yet.");
       }
     }
     setLoading(false);
@@ -105,9 +102,9 @@ export default function CustomerSeoPage() {
     } catch (err: any) {
       console.error("Failed to trigger SEO check:", err);
       if (String(err?.message || err).includes("404")) {
-        setError("SEO-check kunde inte köras. Kontrollera att Google Search Console är kopplat i Inställningar.");
+        setError("SEO check could not run. Verify that Google Search Console is connected in Settings.");
       } else {
-        setError(`Kunde inte köra SEO-check: ${err?.message || err}`);
+        setError(`Could not run SEO check: ${err?.message || err}`);
       }
     }
     setChecking(false);
@@ -119,10 +116,19 @@ export default function CustomerSeoPage() {
     try {
       const client = tenantApi(user.id);
       await client.post("/api/seo/keywords/add", { keyword: newKeyword.trim() });
+      // Optimistically add to UI immediately
+      setKeywords(prev => [...prev, {
+        keyword: newKeyword.trim(),
+        position: 0,
+        clicks: 0,
+        impressions: 0,
+        ctr: 0,
+      }]);
       setNewKeyword("");
-      await fetchKeywords();
+      // Also refresh from server
+      setTimeout(() => fetchKeywords(), 1000);
     } catch (err: any) {
-      setError(`Kunde inte lägga till sökord: ${err?.message || err}`);
+      setError(`Could not add keyword: ${err?.message || err}`);
     }
     setAddingKeyword(false);
   };
@@ -135,7 +141,7 @@ export default function CustomerSeoPage() {
       setSuggestions((prev) => prev.filter((s) => s !== keyword));
       await fetchKeywords();
     } catch (err: any) {
-      setError(`Kunde inte lägga till sökord: ${err?.message || err}`);
+      setError(`Could not add keyword: ${err?.message || err}`);
     }
   };
 
@@ -154,10 +160,10 @@ export default function CustomerSeoPage() {
       if (newSuggestions.length > 0) {
         setSuggestions(newSuggestions);
       } else {
-        setError("Inga nya sökordsförslag hittades. Prova att uppdatera din brandbeskrivning i Inställningar.");
+        setError("No new keyword suggestions found. Try updating your brand description in Settings.");
       }
     } catch (err: any) {
-      setError(`Kunde inte generera sökordsförslag: ${err?.message || err}`);
+      setError(`Could not generate keyword suggestions: ${err?.message || err}`);
     }
     setSuggestingKeywords(false);
   };
@@ -199,21 +205,28 @@ export default function CustomerSeoPage() {
               SEO Overview
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Spåra dina sökordsrankningar och sökprestanda
+              Track your keyword rankings and search performance
             </p>
           </div>
-          <button
-            onClick={triggerCheck}
-            disabled={checking}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors"
-          >
-            {checking ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
+          <div className="relative group">
+            <button
+              onClick={triggerCheck}
+              disabled={checking || keywords.length === 0}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors"
+            >
+              {checking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {checking ? "Running..." : "Run Check"}
+            </button>
+            {keywords.length === 0 && (
+              <span className="absolute right-0 top-full mt-1 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white shadow-lg z-10">
+                Add keywords first to run a check
+              </span>
             )}
-            {checking ? "Kör..." : "Kör check"}
-          </button>
+          </div>
         </div>
 
         {/* GSC Connection Banner */}
@@ -222,16 +235,16 @@ export default function CustomerSeoPage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-blue-900">Google Search Console är inte kopplat</p>
+                <p className="text-sm font-medium text-blue-900">Google Search Console is not connected</p>
                 <p className="text-sm text-blue-700 mt-1">
-                  Koppla Google Search Console i Inställningar för att automatiskt hämta sökdata.
-                  Du kan också lägga till sökord manuellt nedan.
+                  Connect Google Search Console in Settings to automatically fetch search data.
+                  You can also add keywords manually below.
                 </p>
                 <Link
                   href="/c/settings"
                   className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
                 >
-                  Gå till Inställningar →
+                  Go to Settings →
                 </Link>
               </div>
             </div>
@@ -241,22 +254,22 @@ export default function CustomerSeoPage() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <StatCard
-            label="Sökord"
+            label="Keywords"
             value={keywords.length}
             icon={<Target className="h-5 w-5 text-blue-500" />}
           />
           <StatCard
-            label="Snittposition"
+            label="Avg. Position"
             value={avgPosition > 0 ? avgPosition.toFixed(1) : "--"}
             icon={<BarChart2 className="h-5 w-5 text-violet-500" />}
           />
           <StatCard
-            label="Klick"
+            label="Clicks"
             value={(totalClicks ?? 0).toLocaleString()}
             icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
           />
           <StatCard
-            label="Visningar"
+            label="Impressions"
             value={(totalImpressions ?? 0).toLocaleString()}
             icon={<Search className="h-5 w-5 text-amber-500" />}
           />
@@ -274,14 +287,14 @@ export default function CustomerSeoPage() {
 
         {/* Add Keyword + AI Suggestions */}
         <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-          <h2 className="font-semibold text-slate-900 mb-4">Lägg till sökord</h2>
+          <h2 className="font-semibold text-slate-900 mb-4">Add Keywords</h2>
           <div className="flex gap-2 mb-4">
             <input
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-              placeholder="Ange ett sökord, t.ex. 'customer success platform'"
+              placeholder="Enter a keyword, e.g. 'customer success platform'"
               className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
@@ -290,7 +303,7 @@ export default function CustomerSeoPage() {
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
             >
               {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Lägg till
+              Add
             </button>
             <button
               onClick={suggestKeywords}
@@ -298,14 +311,14 @@ export default function CustomerSeoPage() {
               className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
             >
               {suggestingKeywords ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              AI-förslag
+              AI Suggestions
             </button>
           </div>
 
           {/* AI Suggestions */}
           {suggestions.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Föreslagna sökord</p>
+              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Suggested Keywords</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
                   <button
@@ -327,13 +340,13 @@ export default function CustomerSeoPage() {
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900">
-                Positionshistorik: <span className="text-blue-600">{selectedKeyword.keyword}</span>
+                Position History: <span className="text-blue-600">{selectedKeyword.keyword}</span>
               </h2>
               <button
                 onClick={() => setSelectedKeyword(null)}
                 className="text-xs text-slate-400 hover:text-slate-600"
               >
-                Stäng
+                Close
               </button>
             </div>
             <div className="h-64">
@@ -382,7 +395,7 @@ export default function CustomerSeoPage() {
         {/* Top Performing Keywords */}
         {topKeywords.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-4">Toppresterande sökord</h2>
+            <h2 className="font-semibold text-slate-900 mb-4">Top Performing Keywords</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {topKeywords.slice(0, 6).map((kw) => (
                 <div
@@ -412,7 +425,7 @@ export default function CustomerSeoPage() {
         {/* Keywords Table */}
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Alla sökord</h2>
+            <h2 className="font-semibold text-slate-900">All Keywords</h2>
           </div>
 
           {loading ? (
@@ -422,9 +435,9 @@ export default function CustomerSeoPage() {
           ) : keywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">Inga sökord ännu</p>
+              <p className="text-sm font-medium text-slate-600">No keywords yet</p>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Lägg till sökord manuellt ovan, använd AI-förslag, eller koppla Google Search Console i Inställningar för automatisk import.
+                Add keywords manually above, use AI suggestions, or connect Google Search Console in Settings for automatic import.
               </p>
             </div>
           ) : (
@@ -432,12 +445,12 @@ export default function CustomerSeoPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <th className="px-6 py-3 font-medium text-slate-500">Sökord</th>
+                    <th className="px-6 py-3 font-medium text-slate-500">Keyword</th>
                     <th className="px-4 py-3 font-medium text-slate-500 text-right">Position</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Klick</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Visningar</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Clicks</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Impressions</th>
                     <th className="px-4 py-3 font-medium text-slate-500 text-right">CTR</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-center">Historik</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-center">History</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -465,7 +478,7 @@ export default function CustomerSeoPage() {
                             onClick={() => setSelectedKeyword(kw)}
                             className="text-blue-500 hover:text-blue-700 text-xs font-medium"
                           >
-                            Visa
+                            View
                           </button>
                         ) : (
                           <span className="text-slate-300">--</span>

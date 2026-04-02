@@ -76,7 +76,7 @@ export default function CustomerContentPage() {
         prev.map((p) => (p.id === pieceId ? { ...p, status: "published" } : p))
       );
     } catch (err: any) {
-      setPublishError({ id: pieceId, message: err?.message || "Kunde inte publicera" });
+      setPublishError({ id: pieceId, message: err?.message || "Could not publish" });
     }
     setPublishingId(null);
   };
@@ -118,7 +118,7 @@ export default function CustomerContentPage() {
       setTimeout(() => fetchContent(), 3000);
     } catch (err: any) {
       console.error("Failed to trigger content generation:", err);
-      setError(`Kunde inte generera innehåll: ${err?.message || err}`);
+      setError(`Could not generate content: ${err?.message || err}`);
     }
     setGenerating(false);
   };
@@ -135,14 +135,14 @@ export default function CustomerContentPage() {
       });
       setModalContent(result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`);
     } catch (err: any) {
-      setError(`Kunde inte generera: ${err?.message || err}`);
+      setError(`Could not generate: ${err?.message || err}`);
       // Fallback placeholder
       const templates: Record<string, string> = {
-        linkedin: `Visste du att ${modalTopic}? Här är tre insikter som kan förändra ditt perspektiv.\n\n1. Första insikten\n2. Andra insikten\n3. Tredje insikten\n\nVad tycker du? Dela dina tankar i kommentarerna!`,
-        blogg: `# ${modalTopic}\n\nI den här artikeln utforskar vi ${modalTopic} och vad det betyder för din verksamhet.\n\n## Bakgrund\n\nLorem ipsum...\n\n## Slutsats\n\nSammanfattningsvis...`,
-        epost: `Ämne: ${modalTopic}\n\nHej,\n\nJag ville dela något intressant om ${modalTopic}.\n\n[Huvudinnehåll]\n\nMed vänliga hälsningar`,
+        linkedin: `Did you know that ${modalTopic}? Here are three insights that might change your perspective.\n\n1. First insight\n2. Second insight\n3. Third insight\n\nWhat do you think? Share your thoughts in the comments!`,
+        blogg: `# ${modalTopic}\n\nIn this article we explore ${modalTopic} and what it means for your business.\n\n## Background\n\nLorem ipsum...\n\n## Conclusion\n\nIn summary...`,
+        epost: `Subject: ${modalTopic}\n\nHi,\n\nI wanted to share something interesting about ${modalTopic}.\n\n[Main content]\n\nBest regards`,
       };
-      setModalContent(templates[modalType] || `Genererat innehåll om ${modalTopic}`);
+      setModalContent(templates[modalType] || `Generated content about ${modalTopic}`);
     }
     setModalGenerating(false);
   };
@@ -222,7 +222,7 @@ export default function CustomerContentPage() {
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
             >
               <Sparkles className="h-4 w-4" />
-              Generera nytt
+              Generate New
             </button>
             <button
               onClick={generateContent}
@@ -347,7 +347,7 @@ export default function CustomerContentPage() {
                       ghConnected ? (
                         publishingId === piece.id ? (
                           <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publicerar...
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publishing...
                           </span>
                         ) : publishResult?.id === piece.id ? (
                           <a
@@ -357,7 +357,7 @@ export default function CustomerContentPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
                           >
                             <CheckCircle className="h-3.5 w-3.5" />
-                            PR skapad!
+                            PR Created!
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
@@ -366,13 +366,13 @@ export default function CustomerContentPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Publicera
+                            Publish
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-slate-400" title="Koppla GitHub i Installningar for att publicera">
+                        <span className="text-xs text-slate-400" title="Connect GitHub in Settings to publish">
                           <Code2 className="h-3.5 w-3.5 inline mr-1" />
-                          Koppla GitHub
+                          Connect GitHub
                         </span>
                       )
                     )}
@@ -395,13 +395,13 @@ export default function CustomerContentPage() {
                 <div className="flex items-center justify-between border-b px-6 py-4">
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-purple-500" />
-                    Generera nytt innehåll
+                    Generate New Content
                   </h3>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setModalFullscreen(!modalFullscreen)}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                      title={modalFullscreen ? "Minimera" : "Fullskärm"}
+                      title={modalFullscreen ? "Minimize" : "Fullscreen"}
                     >
                       {modalFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                     </button>
@@ -416,7 +416,7 @@ export default function CustomerContentPage() {
                 <div className="p-6 space-y-5">
                   {/* Type selector */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Typ</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
                     <div className="flex gap-2">
                       {(["linkedin", "blogg", "epost"] as const).map((t) => (
                         <button
@@ -428,7 +428,7 @@ export default function CustomerContentPage() {
                               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                           }`}
                         >
-                          {t === "linkedin" ? "LinkedIn" : t === "blogg" ? "Blogg" : "E-post"}
+                          {t === "linkedin" ? "LinkedIn" : t === "blogg" ? "Blog" : "Email"}
                         </button>
                       ))}
                     </div>
@@ -436,12 +436,12 @@ export default function CustomerContentPage() {
 
                   {/* Topic */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Ämne</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Topic</label>
                     <input
                       type="text"
                       value={modalTopic}
                       onChange={(e) => setModalTopic(e.target.value)}
-                      placeholder="T.ex. AI-driven marknadsföring för B2B..."
+                      placeholder="E.g. AI-driven marketing for B2B..."
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
@@ -457,14 +457,14 @@ export default function CustomerContentPage() {
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {modalGenerating ? "Genererar..." : "Generera"}
+                    {modalGenerating ? "Generating..." : "Generate"}
                   </button>
 
                   {/* Generated content */}
                   {modalContent && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Genererat innehåll</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Generated Content</label>
                         <textarea
                           value={modalContent}
                           onChange={(e) => setModalContent(e.target.value)}
@@ -482,7 +482,7 @@ export default function CustomerContentPage() {
                         ) : (
                           <Save className="h-4 w-4" />
                         )}
-                        Spara som draft
+                        Save as Draft
                       </button>
                     </>
                   )}
