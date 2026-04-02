@@ -167,7 +167,7 @@ export default function OnboardingPage() {
           <button
             onClick={() => router.push("/c/dashboard")}
             className="absolute right-0 top-0 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
-            title="Hoppa över"
+            title="Skip"
           >
             <X className="h-5 w-5" />
           </button>
@@ -357,7 +357,7 @@ export default function OnboardingPage() {
               className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
             >
               {(saving || activatingAgents) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              {activatingAgents ? "Konfigurerar dina agenter..." : saving ? "Saving..." : "Launch SAMA"}
+              {activatingAgents ? "Configuring your agents..." : saving ? "Saving..." : "Launch SAMA"}
             </button>
           )}
         </div>

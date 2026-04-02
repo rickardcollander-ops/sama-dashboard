@@ -39,7 +39,7 @@ export default function CustomerLoginPage() {
         if (signUpError) {
           setError(signUpError.message);
         } else {
-          setMessage("Konto skapat! Du kan nu logga in.");
+          setMessage("Account created! You can now log in.");
           setMode("login");
         }
       } else {
@@ -50,7 +50,7 @@ export default function CustomerLoginPage() {
         if (signInError) {
           setError(
             signInError.message === "Invalid login credentials"
-              ? "Fel e-post eller lösenord"
+              ? "Incorrect email or password"
               : signInError.message
           );
         } else {
@@ -59,7 +59,7 @@ export default function CustomerLoginPage() {
         }
       }
     } catch {
-      setError("Kunde inte ansluta");
+      setError("Could not connect");
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ export default function CustomerLoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-white">SAMA</h1>
             <p className="text-slate-400 text-sm mt-1">
-              {mode === "login" ? "Logga in på din dashboard" : "Skapa ett konto"}
+              {mode === "login" ? "Log in to your dashboard" : "Create an account"}
             </p>
           </div>
 
@@ -88,7 +88,7 @@ export default function CustomerLoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="E-post"
+              placeholder="Email"
               autoFocus
               className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -100,7 +100,7 @@ export default function CustomerLoginPage() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Lösenord"
+              placeholder="Password"
               className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-10 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
@@ -112,7 +112,7 @@ export default function CustomerLoginPage() {
             </button>
           </div>
           {mode === "signup" && (
-            <p className="text-xs text-slate-500 mb-4 ml-1">Minst 6 tecken</p>
+            <p className="text-xs text-slate-500 mb-4 ml-1">At least 6 characters</p>
           )}
           {mode === "login" && <div className="mb-4" />}
 
@@ -131,11 +131,11 @@ export default function CustomerLoginPage() {
           >
             {loading
               ? mode === "login"
-                ? "Loggar in…"
-                : "Skapar konto…"
+                ? "Logging in…"
+                : "Creating account…"
               : mode === "login"
-                ? "Logga in"
-                : "Skapa konto"}
+                ? "Log in"
+                : "Create account"}
           </button>
 
           <button
@@ -148,8 +148,8 @@ export default function CustomerLoginPage() {
             className="w-full mt-3 text-sm text-slate-400 hover:text-white transition-colors"
           >
             {mode === "login"
-              ? "Har du inget konto? Skapa ett"
-              : "Har du redan ett konto? Logga in"}
+              ? "Don't have an account? Create one"
+              : "Already have an account? Log in"}
           </button>
         </form>
       </div>
