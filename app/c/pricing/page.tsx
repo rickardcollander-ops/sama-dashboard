@@ -99,7 +99,7 @@ export default function PricingPage() {
               {tier.currentPlan && (
                 <div className="absolute -top-3 right-4">
                   <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white">
-                    Nuvarande plan
+                    Current Plan
                   </span>
                 </div>
               )}

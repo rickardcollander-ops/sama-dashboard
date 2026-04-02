@@ -65,7 +65,7 @@ export default function CustomerGeoPage() {
       else if (checksData?.checks) setChecks(checksData.checks);
     } catch (err: any) {
       console.error("Failed to load GEO data:", err);
-      setError(`Kunde inte ladda data: ${err?.message || err}`);
+      setError(`Could not load data: ${err?.message || err}`);
     }
     setLoading(false);
   };
@@ -79,7 +79,7 @@ export default function CustomerGeoPage() {
       await loadData();
     } catch (err: any) {
       console.error("Failed to run check:", err);
-      setError(`Kunde inte köra check: ${err?.message || err}`);
+      setError(`Could not run check: ${err?.message || err}`);
     }
     setRunning(false);
   };
@@ -112,7 +112,7 @@ export default function CustomerGeoPage() {
               AI Visibility / GEO
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Hur synlig är ditt varumärke i AI-assistenter?
+              How visible is your brand in AI assistants?
             </p>
           </div>
           <button
@@ -121,7 +121,7 @@ export default function CustomerGeoPage() {
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
           >
             {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {running ? "Kör..." : "Kör check"}
+            {running ? "Running..." : "Run Check"}
           </button>
         </div>
 
@@ -139,7 +139,7 @@ export default function CustomerGeoPage() {
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Omnämningsgrad</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Mention Rate</p>
               <div className="mt-2 flex items-end gap-2">
                 <span className="text-2xl font-bold text-slate-900">
                   {(summary.mention_rate * 100).toFixed(0)}%
@@ -148,19 +148,19 @@ export default function CustomerGeoPage() {
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Snittranking</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Avg Rank</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {summary.avg_rank ? `#${summary.avg_rank.toFixed(1)}` : "—"}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Totala checks</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Total Checks</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {(summary.total_checks ?? 0).toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Öppna gaps</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Open Gaps</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{summary.open_gaps ?? 0}</p>
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function CustomerGeoPage() {
         {/* Engine breakdown */}
         {summary?.engine_stats && Object.keys(summary.engine_stats).length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Per AI-motor</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Per AI Engine</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {Object.entries(summary.engine_stats).map(([engine, stats]) => (
                 <div key={engine} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -178,7 +178,7 @@ export default function CustomerGeoPage() {
                     {(stats.rate * 100).toFixed(0)}%
                   </p>
                   <p className="text-xs text-slate-500">
-                    {stats.mentioned}/{stats.total} omnämningar
+                    {stats.mentioned}/{stats.total} mentions
                   </p>
                 </div>
               ))}
@@ -188,16 +188,16 @@ export default function CustomerGeoPage() {
 
         {/* Recent checks */}
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Senaste checks</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Checks</h2>
           {checks.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
               <div className="flex flex-col items-center text-center">
                 <div className="rounded-full bg-violet-100 p-4 mb-4">
                   <Eye className="h-8 w-8 text-violet-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Ingen AI-synlighetsdata ännu</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">No AI visibility data yet</h3>
                 <p className="text-sm text-slate-500 max-w-md mb-6">
-                  Kör din första check för att se hur synligt ditt varumärke är i AI-assistenter som ChatGPT, Claude och Perplexity.
+                  Run your first check to see how visible your brand is in AI assistants like ChatGPT, Claude, and Perplexity.
                 </p>
                 <button
                   onClick={runCheck}
@@ -205,7 +205,7 @@ export default function CustomerGeoPage() {
                   className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
                 >
                   {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  {running ? "Kör..." : "Kör check"}
+                  {running ? "Running..." : "Run Check"}
                 </button>
               </div>
             </div>
@@ -214,11 +214,11 @@ export default function CustomerGeoPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Fråga</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Motor</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Omnämnd</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Query</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Engine</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Mentioned</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-600">Rank</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Konkurrenter</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Competitors</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -248,12 +248,12 @@ export default function CustomerGeoPage() {
         {/* Top competitors */}
         {summary?.top_competitors && summary.top_competitors.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Vanligaste konkurrenter i AI-svar</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Most Common Competitors in AI Responses</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {summary.top_competitors.map((c) => (
                 <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-sm font-medium text-slate-700">{c.name}</p>
-                  <p className="text-xs text-slate-500">{c.count} omnämningar</p>
+                  <p className="text-xs text-slate-500">{c.count} mentions</p>
                 </div>
               ))}
             </div>

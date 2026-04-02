@@ -93,11 +93,11 @@ export default function CustomerNav() {
           )}
           <button
             onClick={signOut}
-            title="Logga ut"
+            title="Sign out"
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Logga ut</span>
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </header>

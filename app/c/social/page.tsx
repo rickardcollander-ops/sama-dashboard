@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import {
   Share2, Loader2, Calendar, ThumbsUp, MessageCircle,
   Eye, Send, Twitter, Linkedin, AlertCircle, X, PenTool,
+  Sparkles, Save,
 } from "lucide-react";
-import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
@@ -30,13 +30,27 @@ interface SocialStats {
   platforms: string[];
 }
 
+type SocialPlatform = "twitter" | "linkedin" | "reddit";
+
+const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = {
+  twitter: "X / Twitter",
+  linkedin: "LinkedIn",
+  reddit: "Reddit",
+};
+
 export default function CustomerSocialPage() {
   const { user, loading: userLoading } = useUser();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [stats, setStats] = useState<SocialStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateMsg, setShowCreateMsg] = useState(false);
+
+  // Create post modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createPlatform, setCreatePlatform] = useState<SocialPlatform>("twitter");
+  const [createText, setCreateText] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   useEffect(() => {
     if (user) fetchData();
@@ -65,7 +79,7 @@ export default function CustomerSocialPage() {
       } else if (IS_DEMO) {
         setPosts(demoSocialPosts);
       } else {
-        setError("Kunde inte ladda data. Försök igen.");
+        setError("Could not load data. Please try again.");
       }
       if (statsData.status === "fulfilled") setStats(statsData.value);
     } catch (err: any) {
@@ -77,6 +91,53 @@ export default function CustomerSocialPage() {
       }
     }
     setLoading(false);
+  };
+
+  const handleGenerateAI = async () => {
+    if (!user) return;
+    setGenerating(true);
+    try {
+      const client = tenantApi(user.id);
+      const result = await client.post<{ body?: string; title?: string }>("/api/content/generate", {
+        type: "linkedin_post",
+        topic: "",
+        brand_description: "",
+        target_audience: "",
+        tone: "professional",
+      });
+      if (result.body) setCreateText(result.body);
+    } catch (err: any) {
+      setError("Could not generate content. Please try again.");
+    }
+    setGenerating(false);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!user || !createText.trim()) return;
+    setSavingDraft(true);
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/social/posts", {
+        platform: createPlatform,
+        content: createText,
+        status: "draft",
+      });
+      await fetchData();
+      setShowCreateModal(false);
+      setCreateText("");
+    } catch {
+      // Optimistic local add
+      const newPost: SocialPost = {
+        id: `local-${Date.now()}`,
+        platform: createPlatform,
+        content: createText,
+        status: "draft",
+      };
+      setPosts((prev) => [newPost, ...prev]);
+      setShowCreateModal(false);
+      setCreateText("");
+    }
+    setSavingDraft(false);
   };
 
   const platformIcon = (platform: string) => {
@@ -118,24 +179,14 @@ export default function CustomerSocialPage() {
               Automated posting and engagement across your social channels
             </p>
           </div>
-          <Link
-            href="/c/content"
+          <button
+            onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm transition-colors"
           >
             <PenTool className="h-4 w-4" />
-            Skapa inlägg
-          </Link>
+            Create Post
+          </button>
         </div>
-
-        {showCreateMsg && (
-          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
-            <PenTool className="h-4 w-4 flex-shrink-0" />
-            Automatisk publicering kommer snart. Skapa content i Content-fliken och publicera manuellt.
-            <button onClick={() => setShowCreateMsg(false)} className="ml-auto text-blue-500 hover:text-blue-700">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
@@ -255,6 +306,86 @@ export default function CustomerSocialPage() {
           </div>
         )}
       </main>
+
+      {/* Create Post Modal */}
+      {showCreateModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowCreateModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="relative w-full max-w-lg rounded-2xl border bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <PenTool className="h-5 w-5 text-indigo-500" />
+                  Create Social Post
+                </h2>
+                <button onClick={() => setShowCreateModal(false)} className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Platform selector */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Platform</label>
+                <div className="flex gap-2">
+                  {(Object.entries(SOCIAL_PLATFORM_LABELS) as [SocialPlatform, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCreatePlatform(key)}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        createPlatform === key
+                          ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Text area */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Post Content</label>
+                <textarea
+                  value={createText}
+                  onChange={(e) => setCreateText(e.target.value)}
+                  placeholder="Write your post content here..."
+                  rows={6}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={generating}
+                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-indigo-300 shadow-sm transition-colors"
+                >
+                  {generating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {generating ? "Generating..." : "Generate with AI"}
+                </button>
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={savingDraft || !createText.trim()}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 shadow-sm transition-colors"
+                >
+                  {savingDraft ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Save as Draft
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

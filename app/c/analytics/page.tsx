@@ -124,7 +124,7 @@ export default function CustomerAnalyticsPage() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {refreshing ? "Laddar..." : "Uppdatera"}
+            {refreshing ? "Loading..." : "Refresh"}
           </button>
         </div>
 
