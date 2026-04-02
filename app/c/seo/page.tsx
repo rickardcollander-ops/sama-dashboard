@@ -364,7 +364,7 @@ export default function CustomerSeoPage() {
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number) => [`Position ${value}`, ""]}
+                    formatter={(value: number | undefined) => [`Position ${value ?? 0}`, ""]}
                   />
                   <Line
                     type="monotone"
