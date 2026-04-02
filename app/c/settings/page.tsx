@@ -6,6 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
+  Play, Power, Clock, Activity, Zap, Code2, Link, Info, Star,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
@@ -16,7 +17,7 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   );
 }
-import { api } from "@/lib/api";
+import { api, tenantApi } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
 interface UserSettings {
@@ -96,6 +97,27 @@ const GOOGLE_SERVICES = [
   },
 ];
 
+const AGENT_INFO: Record<string, { label: string; icon: React.ElementType }> = {
+  seo: { label: "SEO Agent", icon: Search },
+  content: { label: "Content Agent", icon: Bot },
+  social: { label: "Social Agent", icon: Users },
+  ads: { label: "Ads Agent", icon: Megaphone },
+  reviews: { label: "Reviews Agent", icon: Star },
+  analytics: { label: "Analytics Agent", icon: BarChart2 },
+  geo: { label: "GEO Monitor", icon: Globe },
+};
+
+// Used as fallback when no configs exist yet
+const ALL_AGENT_DEFAULTS = [
+  { name: "seo", enabled: true, schedule: "daily", last_run: null },
+  { name: "content", enabled: true, schedule: "weekly", last_run: null },
+  { name: "social", enabled: true, schedule: "daily", last_run: null },
+  { name: "ads", enabled: false, schedule: "manual", last_run: null },
+  { name: "reviews", enabled: true, schedule: "daily", last_run: null },
+  { name: "analytics", enabled: true, schedule: "daily", last_run: null },
+  { name: "geo", enabled: true, schedule: "weekly", last_run: null },
+];
+
 export default function CustomerSettingsPage() {
   return (
     <Suspense fallback={
@@ -131,6 +153,60 @@ function CustomerSettingsPageInner() {
   const [successMessage, setSuccessMessage] = useState("");
   const [googleError, setGoogleError] = useState("");
 
+  // Agent control state
+  interface AgentConfig {
+    name: string;
+    enabled: boolean;
+    schedule: string;
+    last_run: string | null;
+  }
+  interface AgentRun {
+    id: string;
+    agent_name: string;
+    status: string;
+    started_at: string;
+    completed_at: string | null;
+    summary: string | null;
+  }
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [triggeringAgent, setTriggeringAgent] = useState<string | null>(null);
+  const [togglingAgent, setTogglingAgent] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [activationResult, setActivationResult] = useState<{ keywords_added: number; content_created: number } | null>(null);
+
+  // GitHub integration state
+  interface GitHubStatus {
+    connected: boolean;
+    repo_owner?: string;
+    repo_name?: string;
+    repo?: string;
+    blog_path?: string;
+    branch?: string;
+    token_masked?: string;
+  }
+  interface GitHubRepo {
+    full_name: string;
+    owner: string;
+    name: string;
+    private: boolean;
+    default_branch: string;
+  }
+  const [ghStatus, setGhStatus] = useState<GitHubStatus>({ connected: false });
+  const [ghLoading, setGhLoading] = useState(true);
+  const [ghToken, setGhToken] = useState("");
+  const [ghShowToken, setGhShowToken] = useState(false);
+  const [ghRepos, setGhRepos] = useState<GitHubRepo[]>([]);
+  const [ghReposLoading, setGhReposLoading] = useState(false);
+  const [ghSelectedRepo, setGhSelectedRepo] = useState("");
+  const [ghBlogPath, setGhBlogPath] = useState("content/blog");
+  const [ghBranch, setGhBranch] = useState("main");
+  const [ghConnecting, setGhConnecting] = useState(false);
+  const [ghError, setGhError] = useState("");
+  const [ghTokenValidated, setGhTokenValidated] = useState(false);
+  const [blogUrl, setBlogUrl] = useState("");
+
   const searchParams = useSearchParams();
   const googleConnected = searchParams.get("google_connected");
   const googleErrorParam = searchParams.get("google_error");
@@ -149,6 +225,180 @@ function CustomerSettingsPageInner() {
   useEffect(() => {
     if (user) loadGoogleStatus();
   }, [user]);
+
+  useEffect(() => {
+    if (user) loadAgentStatus();
+  }, [user]);
+
+  useEffect(() => {
+    if (user) loadGitHubStatus();
+  }, [user]);
+
+  const loadGitHubStatus = async () => {
+    if (!user) return;
+    setGhLoading(true);
+    try {
+      const client = tenantApi(user.id);
+      const data = await client.get<GitHubStatus>("/api/integrations/github/status");
+      setGhStatus(data);
+      if (data.connected) {
+        setGhBlogPath(data.blog_path || "content/blog");
+        setGhBranch(data.branch || "main");
+      }
+    } catch {
+      setGhStatus({ connected: false });
+    }
+    setGhLoading(false);
+  };
+
+  const handleGhValidateToken = async () => {
+    if (!user || !ghToken.trim()) return;
+    setGhConnecting(true);
+    setGhError("");
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/integrations/github/connect", {
+        github_token: ghToken,
+      });
+      setGhTokenValidated(true);
+      // Fetch repos
+      setGhReposLoading(true);
+      try {
+        const repoData = await client.get<{ repos: GitHubRepo[] }>("/api/integrations/github/repos");
+        setGhRepos(repoData.repos || []);
+      } catch {
+        setGhError("Kunde inte hamta repos. Kontrollera att din token har repo-scope.");
+      }
+      setGhReposLoading(false);
+    } catch (err: any) {
+      setGhError(err?.message || "Ogiltig token");
+    }
+    setGhConnecting(false);
+  };
+
+  const handleGhConnect = async () => {
+    if (!user || !ghSelectedRepo) return;
+    setGhConnecting(true);
+    setGhError("");
+    const parts = ghSelectedRepo.split("/");
+    const owner = parts[0];
+    const name = parts[1];
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/integrations/github/connect", {
+        github_token: ghToken,
+        repo_owner: owner,
+        repo_name: name,
+        blog_path: ghBlogPath,
+        branch: ghBranch,
+      });
+      await loadGitHubStatus();
+      setGhToken("");
+      setGhTokenValidated(false);
+      setGhRepos([]);
+      setSuccessMessage("GitHub anslutet!");
+    } catch (err: any) {
+      setGhError(err?.message || "Kunde inte ansluta");
+    }
+    setGhConnecting(false);
+  };
+
+  const handleGhDisconnect = async () => {
+    if (!user) return;
+    setGhConnecting(true);
+    try {
+      const client = tenantApi(user.id);
+      await client.post("/api/integrations/github/disconnect", {});
+      setGhStatus({ connected: false });
+      setGhTokenValidated(false);
+      setGhToken("");
+      setGhRepos([]);
+    } catch {
+      setGhError("Kunde inte koppla fran");
+    }
+    setGhConnecting(false);
+  };
+
+  const handleSaveBlogUrl = async () => {
+    if (!user) return;
+    try {
+      const currentSettings = { ...settings } as any;
+      currentSettings.blog_url = blogUrl;
+      const { error: upsertError } = await getSupabase()
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          settings: currentSettings,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+      if (upsertError) throw upsertError;
+      setSuccessMessage("Blogglank sparad!");
+    } catch {
+      setError("Kunde inte spara blogglank");
+    }
+  };
+
+  const loadAgentStatus = async () => {
+    if (!user) return;
+    setAgentsLoading(true);
+    try {
+      const client = tenantApi(user.id);
+      const [statusData, runsData] = await Promise.all([
+        client.get<{ agents: AgentConfig[] }>("/api/tenant/agent-status"),
+        client.get<{ runs: AgentRun[] }>("/api/tenant/agent-runs?limit=10"),
+      ]);
+      setAgents(statusData.agents || []);
+      setAgentRuns(runsData.runs || []);
+    } catch {
+      // Agent tables may not exist yet
+      setAgents([]);
+      setAgentRuns([]);
+    }
+    setAgentsLoading(false);
+  };
+
+  const handleToggleAgent = async (agentName: string, enabled: boolean) => {
+    if (!user) return;
+    setTogglingAgent(agentName);
+    try {
+      const client = tenantApi(user.id);
+      await client.post(`/api/tenant/agents/${agentName}/toggle`, { enabled });
+      setAgents((prev) =>
+        prev.map((a) => (a.name === agentName ? { ...a, enabled } : a))
+      );
+    } catch {
+      setError("Kunde inte uppdatera agenten");
+    }
+    setTogglingAgent(null);
+  };
+
+  const handleTriggerAgent = async (agentName: string) => {
+    if (!user) return;
+    setTriggeringAgent(agentName);
+    try {
+      const client = tenantApi(user.id);
+      await client.post(`/api/tenant/agents/${agentName}/trigger`);
+      await loadAgentStatus();
+    } catch {
+      setError(`Kunde inte köra ${agentName}-agenten`);
+    }
+    setTriggeringAgent(null);
+  };
+
+  const handleActivate = async () => {
+    if (!user) return;
+    setActivating(true);
+    setActivationResult(null);
+    try {
+      const client = tenantApi(user.id);
+      const result = await client.post<{ keywords_added: number; content_created: number }>("/api/tenant/activate");
+      setActivationResult(result);
+      await loadAgentStatus();
+    } catch {
+      setError("Aktivering misslyckades. Försök igen.");
+    }
+    setActivating(false);
+  };
 
   useEffect(() => {
     if (googleConnected) {
@@ -207,6 +457,7 @@ function CustomerSettingsPageInner() {
         .single();
       if (data?.settings) {
         setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+        if (data.settings.blog_url) setBlogUrl(data.settings.blog_url);
       }
     } catch {
       // First time
@@ -360,6 +611,149 @@ function CustomerSettingsPageInner() {
         )}
 
         <div className="space-y-8">
+          {/* ── SAMA Agenter ── */}
+          <Section icon={Activity} title="SAMA Agenter" desc="Styr vilka agenter som körs och när">
+            {agentsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-0 rounded-lg border border-slate-200 overflow-hidden">
+                  {(agents.length > 0 ? agents : ALL_AGENT_DEFAULTS).map((agent, idx) => {
+                    const info = AGENT_INFO[agent.name] || { label: agent.name, icon: Bot };
+                    const Icon = info.icon;
+                    const scheduleLabel = agent.schedule === "daily" ? "Daglig" : agent.schedule === "weekly" ? "Veckovis" : "Manuell";
+                    const isToggling = togglingAgent === agent.name;
+                    const isTriggering = triggeringAgent === agent.name;
+                    return (
+                      <div
+                        key={agent.name}
+                        className={`flex items-center justify-between px-4 py-3 bg-white ${idx > 0 ? "border-t border-slate-100" : ""}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`rounded-lg p-1.5 ${agent.enabled ? "bg-blue-50" : "bg-slate-100"}`}>
+                            <Icon className={`h-4 w-4 ${agent.enabled ? "text-blue-500" : "text-slate-400"}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-slate-900">{info.label}</span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                {scheduleLabel}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Senast körd: {agent.last_run ? new Date(agent.last_run).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Aldrig"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                          <button
+                            onClick={() => handleToggleAgent(agent.name, !agent.enabled)}
+                            disabled={isToggling}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                              agent.enabled ? "bg-blue-500" : "bg-slate-300"
+                            } ${isToggling ? "opacity-50" : ""}`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                agent.enabled ? "translate-x-[18px]" : "translate-x-[3px]"
+                              }`}
+                            />
+                          </button>
+                          <button
+                            onClick={() => handleTriggerAgent(agent.name)}
+                            disabled={isTriggering}
+                            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                          >
+                            {isTriggering ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                            Kör
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Recent runs */}
+                {agentRuns.length > 0 && (
+                  <div className="mt-5">
+                    <h3 className="text-sm font-medium text-slate-700 mb-2">Senaste körningar</h3>
+                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500">
+                            <th className="text-left px-3 py-2 font-medium">Agent</th>
+                            <th className="text-left px-3 py-2 font-medium">Tidpunkt</th>
+                            <th className="text-left px-3 py-2 font-medium">Status</th>
+                            <th className="text-left px-3 py-2 font-medium">Resultat</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {agentRuns.slice(0, 10).map((run) => (
+                            <tr key={run.id} className="border-t border-slate-100">
+                              <td className="px-3 py-2 font-medium text-slate-700 capitalize">{run.agent_name}</td>
+                              <td className="px-3 py-2 text-slate-500">
+                                {new Date(run.started_at).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  run.status === "completed" ? "bg-green-100 text-green-700" :
+                                  run.status === "failed" ? "bg-red-100 text-red-700" :
+                                  "bg-yellow-100 text-yellow-700"
+                                }`}>
+                                  {run.status === "completed" ? <CheckCircle className="h-2.5 w-2.5" /> : null}
+                                  {run.status === "completed" ? "Klar" : run.status === "failed" ? "Fel" : "Kör..."}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-slate-500 truncate max-w-[200px]">{run.summary || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Activate button - shown if no runs have happened */}
+                {agentRuns.length === 0 && (
+                  <div className="mt-5">
+                    {activationResult ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                        <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                        <span>
+                          SAMA aktiverad! {activationResult.keywords_added} nyckelord tillagda, {activationResult.content_created} innehåll skapat.
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleActivate}
+                        disabled={activating}
+                        className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white hover:from-blue-700 hover:to-violet-700 disabled:opacity-60 shadow-sm transition-all w-full justify-center"
+                      >
+                        {activating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Konfigurerar dina agenter...
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="h-4 w-4" />
+                            Aktivera SAMA — Kör initial setup
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </Section>
+
           {/* ── API Keys ── */}
           <Section icon={Key} title="API-nycklar" desc="Nycklar för AI-plattformar som GEO-agenten använder">
             <div className="space-y-4">
@@ -549,6 +943,218 @@ function CustomerSettingsPageInner() {
                   </div>
                 );
               })}
+            </div>
+          </Section>
+
+          {/* ── Publishing / GitHub ── */}
+          <Section icon={Code2} title="Publicering" desc="Anslut GitHub for att publicera blogginlagg som Pull Requests">
+            {/* Info box */}
+            <div className="rounded-lg bg-blue-50 border border-blue-100 p-4 mb-6">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-blue-800 space-y-1">
+                  <p className="font-medium text-sm text-blue-900 mb-1">Sa fungerar publicering:</p>
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>SAMA genererar blogginlagg som drafts</li>
+                    <li>Du granskar och godkanner i Content-fliken</li>
+                    <li>Klicka &quot;Publicera&quot; &rarr; SAMA skapar en Pull Request i ditt GitHub-repo</li>
+                    <li>Granska PR:en och merga &rarr; blogginlagget ar live!</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* GitHub connection card */}
+            <div className="rounded-lg border border-slate-200 bg-white overflow-hidden mb-4">
+              <div className="flex items-center justify-between px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-lg p-2 ${ghStatus.connected ? "bg-emerald-50" : "bg-slate-100"}`}>
+                    <Code2 className={`h-5 w-5 ${ghStatus.connected ? "text-emerald-500" : "text-slate-400"}`} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-900">GitHub-koppling</h4>
+                    <p className={`text-xs mt-0.5 ${ghStatus.connected ? "text-emerald-600" : "text-slate-400"}`}>
+                      {ghLoading ? "Laddar..." : ghStatus.connected ? `Ansluten till ${ghStatus.repo}` : "Ej ansluten"}
+                    </p>
+                  </div>
+                </div>
+                {ghStatus.connected && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                    <CheckCircle className="h-3.5 w-3.5" /> Ansluten
+                  </span>
+                )}
+              </div>
+
+              {ghError && (
+                <div className="mx-4 mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                  {ghError}
+                  <button onClick={() => setGhError("")} className="ml-auto"><X className="h-3 w-3" /></button>
+                </div>
+              )}
+
+              <div className="border-t border-slate-100 px-4 py-4">
+                {ghStatus.connected ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-slate-500 text-xs">Repository</span>
+                        <p className="font-medium text-slate-900">{ghStatus.repo}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs">Branch</span>
+                        <p className="font-medium text-slate-900">{ghStatus.branch}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs">Bloggsokv&auml;g</span>
+                        <p className="font-medium text-slate-900 font-mono text-xs">{ghStatus.blog_path}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleGhDisconnect}
+                        disabled={ghConnecting}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        {ghConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
+                        Koppla fran
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {!ghTokenValidated ? (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Personal Access Token</label>
+                          <div className="relative">
+                            <input
+                              type={ghShowToken ? "text" : "password"}
+                              value={ghToken}
+                              onChange={(e) => setGhToken(e.target.value)}
+                              placeholder="ghp_..."
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setGhShowToken(!ghShowToken)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              {ghShowToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                          <a
+                            href="https://github.com/settings/tokens"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Skapa en token pa github.com/settings/tokens (behover repo-scope)
+                          </a>
+                        </div>
+                        <button
+                          onClick={handleGhValidateToken}
+                          disabled={ghConnecting || !ghToken.trim()}
+                          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+                        >
+                          {ghConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Code2 className="h-4 w-4" />}
+                          Anslut
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Valj repository</label>
+                          {ghReposLoading ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Hamtar repos...
+                            </div>
+                          ) : (
+                            <select
+                              value={ghSelectedRepo}
+                              onChange={(e) => {
+                                setGhSelectedRepo(e.target.value);
+                                const repo = ghRepos.find((r) => r.full_name === e.target.value);
+                                if (repo) setGhBranch(repo.default_branch);
+                              }}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="">-- Valj repo --</option>
+                              {ghRepos.map((r) => (
+                                <option key={r.full_name} value={r.full_name}>
+                                  {r.full_name} {r.private ? "(privat)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Bloggsokv&auml;g</label>
+                            <input
+                              type="text"
+                              value={ghBlogPath}
+                              onChange={(e) => setGhBlogPath(e.target.value)}
+                              placeholder="content/blog"
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+                            <input
+                              type="text"
+                              value={ghBranch}
+                              onChange={(e) => setGhBranch(e.target.value)}
+                              placeholder="main"
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleGhConnect}
+                          disabled={ghConnecting || !ghSelectedRepo}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
+                        >
+                          {ghConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Spara
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Blog URL card */}
+            <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-4">
+                <div className="rounded-lg p-2 bg-slate-100">
+                  <Link className="h-5 w-5 text-slate-400" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-slate-900">Blogglank</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">URL till din publicerade blogg</p>
+                </div>
+              </div>
+              <div className="border-t border-slate-100 px-4 py-4">
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={blogUrl}
+                    onChange={(e) => setBlogUrl(e.target.value)}
+                    placeholder="https://mybrand.com/blog"
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleSaveBlogUrl}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Spara
+                  </button>
+                </div>
+              </div>
             </div>
           </Section>
 
