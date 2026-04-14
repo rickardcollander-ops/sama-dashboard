@@ -248,7 +248,7 @@ export default function CustomerDashboard() {
         {/* Agent cards */}
         <div className="grid gap-4 sm:grid-cols-2">
           {/* GEO Monitor */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-lg bg-violet-50 p-2.5">
                 <Bot className="h-6 w-6 text-violet-600" />
@@ -279,13 +279,13 @@ export default function CustomerDashboard() {
               <p className="text-sm text-slate-400">No data yet. Run a GEO check to get started.</p>
             )}
             <Link href="/c/geo"
-              className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors">
+              className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors">
               <Bot className="h-4 w-4" /> Open GEO Monitor
             </Link>
           </div>
 
           {/* SEO */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-lg bg-blue-50 p-2.5">
                 <Search className="h-6 w-6 text-blue-600" />
@@ -315,10 +315,14 @@ export default function CustomerDashboard() {
             ) : (
               <p className="text-sm text-slate-400">Loading SEO data...</p>
             )}
+            <Link href="/c/seo"
+              className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+              <Search className="h-4 w-4" /> Open SEO
+            </Link>
           </div>
 
           {/* Content */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-lg bg-purple-50 p-2.5">
                 <FileText className="h-6 w-6 text-purple-600" />
@@ -346,10 +350,14 @@ export default function CustomerDashboard() {
                 </>
               )}
             </div>
+            <Link href="/c/content"
+              className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors">
+              <FileText className="h-4 w-4" /> Open Content
+            </Link>
           </div>
 
           {/* Analytics */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-lg bg-indigo-50 p-2.5">
                 <BarChart2 className="h-6 w-6 text-indigo-600" />
@@ -367,10 +375,14 @@ export default function CustomerDashboard() {
               <p className="text-sm text-slate-400">
                 SEO, Content, Ads, Social, Reviews & Analytics are running continuously.
               </p>
-              <Link href="/c/geo" className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <Link href="/c/analytics" className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
                 <TrendingUp className="h-3.5 w-3.5" /> View detailed reports
               </Link>
             </div>
+            <Link href="/c/analytics"
+              className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors">
+              <BarChart2 className="h-4 w-4" /> Open Analytics
+            </Link>
           </div>
         </div>
 
