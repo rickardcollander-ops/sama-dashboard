@@ -8,6 +8,7 @@ import {
   Search, FileText, Share2, TrendingUp, CreditCard, Megaphone,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
+import NotificationBell from "@/components/NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
@@ -86,6 +87,7 @@ export default function CustomerNav() {
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationBell />
           {user && (
             <span className="hidden sm:block text-xs text-slate-400 truncate max-w-[180px]">
               {user.email}

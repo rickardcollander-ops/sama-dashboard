@@ -3,11 +3,16 @@
 import { useState, useEffect } from "react";
 import {
   Bot, TrendingUp, TrendingDown, AlertCircle, CheckCircle,
-  Play, RefreshCw, Minus, Eye, X,
+  Play, RefreshCw, Minus, Eye, X, Download,
 } from "lucide-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import PeriodSelector, { type Period, PERIOD_DAYS } from "@/components/dashboard/PeriodSelector";
+import { exportCsv } from "@/lib/csv";
 
 interface Summary {
   mention_rate: number;
@@ -18,6 +23,7 @@ interface Summary {
   trend: "up" | "down" | "flat";
   last_check_at: string | null;
   engine_stats: Record<string, { total: number; mentioned: number; rate: number }>;
+  history?: { date: string; mention_rate: number }[];
 }
 
 interface AICheck {
@@ -38,10 +44,25 @@ export default function CustomerGeoPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
+  const [period, setPeriod] = useState<Period>("30d");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sama-geo-period") as Period | null;
+      if (saved && ["7d", "30d", "90d"].includes(saved)) setPeriod(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("sama-geo-period", period);
+    } catch {}
+  }, [period]);
 
   useEffect(() => {
     if (user) loadData();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, period]);
 
   useEffect(() => {
     if (error) {
@@ -55,10 +76,11 @@ export default function CustomerGeoPage() {
     setLoading(true);
     setError("");
     const client = tenantApi(user.id);
+    const days = PERIOD_DAYS[period];
     try {
       const [summaryData, checksData] = await Promise.all([
-        client.get("/api/ai-visibility/summary").catch(() => null),
-        client.get("/api/ai-visibility/checks?limit=20").catch(() => []),
+        client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),
+        client.get(`/api/ai-visibility/checks?limit=50&days=${days}`).catch(() => []),
       ]);
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
@@ -68,6 +90,23 @@ export default function CustomerGeoPage() {
       setError(`Could not load data: ${err?.message || err}`);
     }
     setLoading(false);
+  };
+
+  const handleExportCsv = () => {
+    if (checks.length === 0) return;
+    exportCsv(
+      `geo-checks-${new Date().toISOString().slice(0, 10)}.csv`,
+      checks,
+      [
+        { header: "Query", accessor: (c) => c.prompt },
+        { header: "Category", accessor: (c) => c.category || "" },
+        { header: "Engine", accessor: (c) => c.ai_engine },
+        { header: "Mentioned", accessor: (c) => (c.mentioned ? "yes" : "no") },
+        { header: "Rank", accessor: (c) => c.rank ?? "" },
+        { header: "Competitors", accessor: (c) => (c.competitors_mentioned || []).join("; ") },
+        { header: "Checked At", accessor: (c) => c.checked_at },
+      ]
+    );
   };
 
   const runCheck = async () => {
@@ -105,7 +144,7 @@ export default function CustomerGeoPage() {
       <CustomerNav />
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Eye className="h-7 w-7 text-slate-400" />
@@ -115,14 +154,25 @@ export default function CustomerGeoPage() {
               How visible is your brand in AI assistants?
             </p>
           </div>
-          <button
-            onClick={runCheck}
-            disabled={running}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
-          >
-            {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {running ? "Running..." : "Run Check"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector value={period} onChange={setPeriod} />
+            <button
+              onClick={handleExportCsv}
+              disabled={checks.length === 0}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </button>
+            <button
+              onClick={runCheck}
+              disabled={running}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+            >
+              {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {running ? "Running..." : "Run Check"}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -162,6 +212,53 @@ export default function CustomerGeoPage() {
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-medium text-slate-500 uppercase">Open Gaps</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{summary.open_gaps ?? 0}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Mention Rate History */}
+        {summary?.history && summary.history.length > 1 && (
+          <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Mention Rate Over Time</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={summary.history}
+                  margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    tickFormatter={(v: string) => {
+                      const d = new Date(v);
+                      return `${d.getMonth() + 1}/${d.getDate()}`;
+                    }}
+                  />
+                  <YAxis
+                    domain={[0, 1]}
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1e293b",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#f8fafc",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number) => [`${Math.round(value * 100)}%`, "Mention Rate"]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="mention_rate"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#8b5cf6" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
