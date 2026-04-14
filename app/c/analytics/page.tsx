@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp, Loader2, BarChart2, Users, MousePointerClick,
   Eye, DollarSign, ArrowUpRight, ArrowDownRight, AlertCircle, X,
-  RefreshCw,
+  RefreshCw, Download,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -14,6 +14,9 @@ import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
+import PeriodSelector, { type Period, PERIOD_DAYS } from "@/components/dashboard/PeriodSelector";
+import TrendBadge from "@/components/dashboard/TrendBadge";
+import { exportCsv } from "@/lib/csv";
 
 interface ChannelMetric {
   channel: string;
@@ -38,6 +41,12 @@ interface AnalyticsData {
     conversions: number;
     spend: number;
   };
+  previous_totals?: {
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    spend: number;
+  };
 }
 
 export default function CustomerAnalyticsPage() {
@@ -45,12 +54,31 @@ export default function CustomerAnalyticsPage() {
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>("30d");
+  const [compare, setCompare] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sama-analytics-period") as Period | null;
+      if (saved && ["7d", "30d", "90d"].includes(saved)) setPeriod(saved);
+      const savedCompare = localStorage.getItem("sama-analytics-compare");
+      if (savedCompare === "true") setCompare(true);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("sama-analytics-period", period);
+      localStorage.setItem("sama-analytics-compare", String(compare));
+    } catch {}
+  }, [period, compare]);
+
+  useEffect(() => {
     if (user) fetchAnalytics();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, period, compare]);
 
   useEffect(() => {
     if (error) {
@@ -71,7 +99,10 @@ export default function CustomerAnalyticsPage() {
     setError(null);
     try {
       const client = tenantApi(user.id);
-      const result = await client.get<AnalyticsData>("/api/analytics/overview");
+      const days = PERIOD_DAYS[period];
+      const params = new URLSearchParams({ days: String(days) });
+      if (compare) params.set("compare", "1");
+      const result = await client.get<AnalyticsData>(`/api/analytics/overview?${params.toString()}`);
       const hasData = result.channels?.length || result.daily?.length || result.totals;
       setData(hasData ? result : IS_DEMO ? demoAnalytics : result);
     } catch (err: any) {
@@ -86,6 +117,27 @@ export default function CustomerAnalyticsPage() {
   };
 
   const totals = data.totals || { clicks: 0, impressions: 0, conversions: 0, spend: 0 };
+  const prev = data.previous_totals;
+
+  const delta = (curr: number, prevVal: number | undefined): number | null => {
+    if (!compare || prevVal === undefined || prevVal === 0) return null;
+    return (curr - prevVal) / prevVal;
+  };
+
+  const handleExportCsv = () => {
+    if (!data.channels || data.channels.length === 0) return;
+    exportCsv(
+      `analytics-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+      data.channels,
+      [
+        { header: "Channel", accessor: (c) => c.channel },
+        { header: "Clicks", accessor: (c) => c.clicks },
+        { header: "Impressions", accessor: (c) => c.impressions },
+        { header: "Conversions", accessor: (c) => c.conversions },
+        { header: "Spend", accessor: (c) => c.spend },
+      ]
+    );
+  };
 
   if (userLoading) {
     return (
@@ -104,7 +156,7 @@ export default function CustomerAnalyticsPage() {
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <TrendingUp className="h-7 w-7 text-emerald-500" />
@@ -114,18 +166,38 @@ export default function CustomerAnalyticsPage() {
               Cross-channel performance metrics and ROI tracking
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 shadow-sm transition-colors"
-          >
-            {refreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            {refreshing ? "Loading..." : "Refresh"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector value={period} onChange={setPeriod} />
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={compare}
+                onChange={(e) => setCompare(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Compare previous
+            </label>
+            <button
+              onClick={handleExportCsv}
+              disabled={!data.channels || data.channels.length === 0}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 shadow-sm transition-colors"
+            >
+              {refreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {refreshing ? "Loading..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -134,21 +206,26 @@ export default function CustomerAnalyticsPage() {
             label="Total Clicks"
             value={(totals.clicks ?? 0).toLocaleString()}
             icon={<MousePointerClick className="h-5 w-5 text-blue-500" />}
+            delta={delta(totals.clicks, prev?.clicks)}
           />
           <MetricCard
             label="Impressions"
             value={(totals.impressions ?? 0).toLocaleString()}
             icon={<Eye className="h-5 w-5 text-violet-500" />}
+            delta={delta(totals.impressions, prev?.impressions)}
           />
           <MetricCard
             label="Conversions"
             value={(totals.conversions ?? 0).toLocaleString()}
             icon={<Users className="h-5 w-5 text-emerald-500" />}
+            delta={delta(totals.conversions, prev?.conversions)}
           />
           <MetricCard
             label="Total Spend"
             value={`$${(totals.spend ?? 0).toLocaleString()}`}
             icon={<DollarSign className="h-5 w-5 text-amber-500" />}
+            delta={delta(totals.spend, prev?.spend)}
+            invertedTrend
           />
         </div>
 
@@ -273,10 +350,14 @@ function MetricCard({
   label,
   value,
   icon,
+  delta,
+  invertedTrend,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
+  delta?: number | null;
+  invertedTrend?: boolean;
 }) {
   return (
     <div className="rounded-xl border bg-white p-5 shadow-sm">
@@ -284,7 +365,12 @@ function MetricCard({
         {icon}
         <span className="text-sm text-slate-500">{label}</span>
       </div>
-      <span className="text-2xl font-bold text-slate-900">{value}</span>
+      <div className="flex items-end justify-between gap-2">
+        <span className="text-2xl font-bold text-slate-900">{value}</span>
+        {delta !== undefined && delta !== null && (
+          <TrendBadge delta={delta} format="percent" inverted={invertedTrend} />
+        )}
+      </div>
     </div>
   );
 }

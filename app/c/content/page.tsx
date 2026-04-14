@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
-  Maximize2, Minimize2, ExternalLink, Code2, Send,
+  Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
+  ArrowRight, Trash2, Archive,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -27,7 +28,8 @@ export default function CustomerContentPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "draft" | "published">("all");
+  const [filter, setFilter] = useState<"all" | "draft" | "review" | "approved" | "published" | "archived">("all");
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<"linkedin" | "blogg" | "epost">("linkedin");
   const [modalTopic, setModalTopic] = useState("");
@@ -185,9 +187,49 @@ export default function CustomerContentPage() {
     return p.status === filter;
   });
 
-  const draftCount = pieces.filter((p) => p.status === "draft").length;
-  const publishedCount = pieces.filter((p) => p.status === "published").length;
+  const countByStatus = (status: string) => pieces.filter((p) => p.status === status).length;
+  const draftCount = countByStatus("draft");
+  const reviewCount = countByStatus("review");
+  const approvedCount = countByStatus("approved");
+  const publishedCount = countByStatus("published");
+  const archivedCount = countByStatus("archived");
   const totalWords = pieces.reduce((sum, p) => sum + (p.word_count || 0), 0);
+
+  const STATUS_FLOW: Record<string, string> = {
+    draft: "review",
+    review: "approved",
+    approved: "published",
+  };
+
+  const nextStatusLabel = (s: string) => {
+    if (s === "draft") return "Send to review";
+    if (s === "review") return "Approve";
+    if (s === "approved") return "Mark published";
+    return null;
+  };
+
+  const updateStatus = async (pieceId: string, newStatus: string) => {
+    if (!user) return;
+    setUpdatingStatus(pieceId);
+    // Optimistic update
+    setPieces((prev) =>
+      prev.map((p) => (p.id === pieceId ? { ...p, status: newStatus } : p))
+    );
+    try {
+      const client = tenantApi(user.id);
+      await client.post(`/api/content/pieces/${pieceId}/status`, { status: newStatus });
+    } catch (err: any) {
+      console.error("Failed to update status:", err);
+      setError(`Could not update status: ${err?.message || err}`);
+      // Re-fetch to revert on error
+      fetchContent();
+    }
+    setUpdatingStatus(null);
+  };
+
+  const archivePiece = async (pieceId: string) => {
+    await updateStatus(pieceId, "archived");
+  };
 
   if (userLoading) {
     return (
@@ -275,18 +317,27 @@ export default function CustomerContentPage() {
         )}
 
         {/* Filters */}
-        <div className="flex gap-2 mb-6">
-          {(["all", "draft", "published"] as const).map((f) => (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {(
+            [
+              { key: "all", label: "All", count: pieces.length },
+              { key: "draft", label: "Drafts", count: draftCount },
+              { key: "review", label: "In review", count: reviewCount },
+              { key: "approved", label: "Approved", count: approvedCount },
+              { key: "published", label: "Published", count: publishedCount },
+              { key: "archived", label: "Archived", count: archivedCount },
+            ] as const
+          ).map((f) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={f.key}
+              onClick={() => setFilter(f.key as any)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                filter === f
+                filter === f.key
                   ? "bg-purple-100 text-purple-700 border border-purple-200"
                   : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
-              {f === "all" ? `All (${pieces.length})` : f === "draft" ? `Drafts (${draftCount})` : `Published (${publishedCount})`}
+              {f.label} ({f.count})
             </button>
           ))}
         </div>
@@ -343,7 +394,37 @@ export default function CustomerContentPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                    {piece.status !== "published" && (
+                    {/* Workflow transition */}
+                    {STATUS_FLOW[piece.status] && (
+                      <button
+                        onClick={() => updateStatus(piece.id, STATUS_FLOW[piece.status])}
+                        disabled={updatingStatus === piece.id}
+                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        title={nextStatusLabel(piece.status) || ""}
+                      >
+                        {updatingStatus === piece.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        )}
+                        {nextStatusLabel(piece.status)}
+                      </button>
+                    )}
+
+                    {/* Archive */}
+                    {piece.status !== "archived" && piece.status !== "published" && (
+                      <button
+                        onClick={() => archivePiece(piece.id)}
+                        disabled={updatingStatus === piece.id}
+                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 transition-colors"
+                        title="Archive"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    {/* Publish to GitHub (only for approved/published) */}
+                    {(piece.status === "approved" || piece.status === "published") && (
                       ghConnected ? (
                         publishingId === piece.id ? (
                           <span className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -366,7 +447,7 @@ export default function CustomerContentPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Publish
+                            Publish to GitHub
                           </button>
                         )
                       ) : (
@@ -497,15 +578,38 @@ export default function CustomerContentPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles =
-    status === "published"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : "bg-amber-50 text-amber-700 border-amber-200";
-  const Icon = status === "published" ? CheckCircle : Clock;
+  const config: Record<string, { styles: string; Icon: any; label: string }> = {
+    draft: {
+      styles: "bg-slate-50 text-slate-700 border-slate-200",
+      Icon: PenTool,
+      label: "draft",
+    },
+    review: {
+      styles: "bg-amber-50 text-amber-700 border-amber-200",
+      Icon: Eye,
+      label: "in review",
+    },
+    approved: {
+      styles: "bg-blue-50 text-blue-700 border-blue-200",
+      Icon: CheckCircle,
+      label: "approved",
+    },
+    published: {
+      styles: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      Icon: CheckCircle,
+      label: "published",
+    },
+    archived: {
+      styles: "bg-slate-50 text-slate-500 border-slate-200",
+      Icon: Archive,
+      label: "archived",
+    },
+  };
+  const c = config[status] || config.draft;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${styles}`}>
-      <Icon className="h-3 w-3" />
-      {status}
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${c.styles}`}>
+      <c.Icon className="h-3 w-3" />
+      {c.label}
     </span>
   );
 }

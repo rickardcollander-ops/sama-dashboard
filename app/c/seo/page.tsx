@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search, TrendingUp, ArrowUp, ArrowDown, Minus, RefreshCw,
   Loader2, BarChart2, Target, AlertCircle, X, Plus, Sparkles, Trash2,
+  Download, ArrowUpDown,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -13,7 +14,12 @@ import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { exportCsv } from "@/lib/csv";
 import Link from "next/link";
+
+type SortKey = "keyword" | "position" | "clicks" | "impressions" | "ctr";
+type SortDirection = "asc" | "desc";
+type PositionFilter = "all" | "top3" | "top10" | "top30" | "outside";
 
 interface Keyword {
   keyword: string;
@@ -40,6 +46,10 @@ export default function CustomerSeoPage() {
     brand_name?: string; domain?: string; brand_description?: string;
     target_audience?: string; competitors?: string[];
   }>({});
+  const [sortKey, setSortKey] = useState<SortKey>("position");
+  const [sortDir, setSortDir] = useState<SortDirection>("asc");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
 
   useEffect(() => {
     if (user) {
@@ -180,6 +190,67 @@ export default function CustomerSeoPage() {
 
   const totalClicks = keywords.reduce((sum, k) => sum + (k.clicks || 0), 0);
   const totalImpressions = keywords.reduce((sum, k) => sum + (k.impressions || 0), 0);
+
+  const filteredKeywords = useMemo(() => {
+    let result = keywords;
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase();
+      result = result.filter((k) => k.keyword.toLowerCase().includes(q));
+    }
+    if (positionFilter !== "all") {
+      result = result.filter((k) => {
+        if (k.position <= 0) return positionFilter === "outside";
+        if (positionFilter === "top3") return k.position <= 3;
+        if (positionFilter === "top10") return k.position <= 10;
+        if (positionFilter === "top30") return k.position <= 30;
+        if (positionFilter === "outside") return k.position > 30;
+        return true;
+      });
+    }
+    return result;
+  }, [keywords, searchFilter, positionFilter]);
+
+  const sortedKeywords = useMemo(() => {
+    const result = [...filteredKeywords];
+    result.sort((a, b) => {
+      const getValue = (k: Keyword) => {
+        if (sortKey === "keyword") return k.keyword;
+        // Treat "0" (not ranked) as worst when sorting position ascending
+        if (sortKey === "position" && k.position <= 0) return Number.MAX_SAFE_INTEGER;
+        return (k as any)[sortKey] ?? 0;
+      };
+      const av = getValue(a);
+      const bv = getValue(b);
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+    });
+    return result;
+  }, [filteredKeywords, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "keyword" ? "asc" : key === "position" ? "asc" : "desc");
+    }
+  };
+
+  const handleExportCsv = () => {
+    exportCsv(
+      `seo-keywords-${new Date().toISOString().slice(0, 10)}.csv`,
+      sortedKeywords,
+      [
+        { header: "Keyword", accessor: (k) => k.keyword },
+        { header: "Position", accessor: (k) => (k.position > 0 ? k.position : "") },
+        { header: "Clicks", accessor: (k) => k.clicks ?? 0 },
+        { header: "Impressions", accessor: (k) => k.impressions ?? 0 },
+        { header: "CTR", accessor: (k) => ((k.ctr ?? 0) * 100).toFixed(2) + "%" },
+      ]
+    );
+  };
 
   if (userLoading) {
     return (
@@ -424,8 +495,42 @@ export default function CustomerSeoPage() {
 
         {/* Keywords Table */}
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">All Keywords</h2>
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
+            <h2 className="font-semibold text-slate-900 mr-auto">
+              All Keywords{" "}
+              <span className="ml-1 text-xs font-normal text-slate-400">
+                ({sortedKeywords.length} of {keywords.length})
+              </span>
+            </h2>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Filter keywords..."
+                className="rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+              />
+            </div>
+            <select
+              value={positionFilter}
+              onChange={(e) => setPositionFilter(e.target.value as PositionFilter)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All positions</option>
+              <option value="top3">Top 3</option>
+              <option value="top10">Top 10</option>
+              <option value="top30">Top 30</option>
+              <option value="outside">Outside top 30</option>
+            </select>
+            <button
+              onClick={handleExportCsv}
+              disabled={sortedKeywords.length === 0}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
           </div>
 
           {loading ? (
@@ -440,21 +545,27 @@ export default function CustomerSeoPage() {
                 Add keywords manually above, use AI suggestions, or connect Google Search Console in Settings for automatic import.
               </p>
             </div>
+          ) : sortedKeywords.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-600">No matches</p>
+              <p className="text-xs text-slate-400 mt-1">Try adjusting your filters.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <th className="px-6 py-3 font-medium text-slate-500">Keyword</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Position</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Clicks</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">Impressions</th>
-                    <th className="px-4 py-3 font-medium text-slate-500 text-right">CTR</th>
+                    <SortHeader label="Keyword" sortKey="keyword" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="left" />
+                    <SortHeader label="Position" sortKey="position" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label="Clicks" sortKey="clicks" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label="Impressions" sortKey="impressions" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label="CTR" sortKey="ctr" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
                     <th className="px-4 py-3 font-medium text-slate-500 text-center">History</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {keywords.map((kw) => (
+                  {sortedKeywords.map((kw) => (
                     <tr
                       key={kw.keyword}
                       className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
@@ -513,6 +624,39 @@ function StatCard({
       </div>
       <span className="text-2xl font-bold text-slate-900">{value}</span>
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  currentKey,
+  direction,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey;
+  direction: SortDirection;
+  onClick: (key: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = currentKey === sortKey;
+  return (
+    <th className={`${align === "right" ? "text-right" : "text-left"} ${sortKey === "keyword" ? "px-6" : "px-4"} py-3 font-medium text-slate-500`}>
+      <button
+        onClick={() => onClick(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-slate-900 transition-colors ${active ? "text-slate-900" : ""}`}
+      >
+        {label}
+        {active ? (
+          direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </th>
   );
 }
 
