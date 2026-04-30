@@ -1,58 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const CUSTOMER_HOST =
+  process.env.NEXT_PUBLIC_CUSTOMER_HOST || 'sama.successifier.com';
+
 export async function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
-  // ── Customer portal (/c/*) — Supabase Auth ──────────────────────────────────
-  if (pathname.startsWith('/c/') || pathname === '/c') {
-    // Always allow customer login page, auth callback, and password reset
-    if (
-      pathname === '/c/login' ||
-      pathname === '/c/auth/callback' ||
-      pathname === '/c/auth/reset-password'
-    ) {
-      return NextResponse.next();
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.redirect(new URL('/c/login', req.url));
-    }
-
-    try {
-      const { createServerClient } = await import('@supabase/ssr');
-
-      const supabaseResponse = NextResponse.next({ request: req });
-
-      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              req.cookies.set(name, value);
-              supabaseResponse.cookies.set(name, value, options);
-            });
-          },
-        },
-      });
-
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.redirect(new URL('/c/login', req.url));
-      }
-
-      return supabaseResponse;
-    } catch {
-      return NextResponse.redirect(new URL('/c/login', req.url));
-    }
+  // ── Legacy /c/* URLs — bounce to the customer subdomain ────────────────────
+  if (pathname === '/c' || pathname.startsWith('/c/')) {
+    const newPath = pathname === '/c' ? '/' : pathname.replace(/^\/c/, '');
+    return NextResponse.redirect(`https://${CUSTOMER_HOST}${newPath}${search}`, 308);
   }
 
-  // ── Admin dashboard (everything else) — MISSION_SECRET ───────────────────────
+  // ── Admin dashboard — MISSION_SECRET ───────────────────────────────────────
   if (pathname === '/login' || pathname.startsWith('/api/auth') || pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
