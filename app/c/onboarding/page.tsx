@@ -80,6 +80,7 @@ export default function OnboardingPage() {
   const [newGeoQuery, setNewGeoQuery] = useState("");
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [activatingAgents, setActivatingAgents] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -118,13 +119,32 @@ export default function OnboardingPage() {
   const toggleKey = (k: string) => setShowKeys((p) => ({ ...p, [k]: !p[k] }));
 
   const canAdvance = () => {
-    if (step === 0) return data.brand_name.trim() && data.domain.trim();
-    if (step === 3) return data.anthropic_api_key.trim();
+    if (step === 0) {
+      const domainOk = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim());
+      return data.brand_name.trim().length > 0 && domainOk;
+    }
+    if (step === 1) return data.competitors.length >= 1;
+    if (step === 3) return data.anthropic_api_key.trim().length > 0;
     return true;
+  };
+
+  const validationHint = () => {
+    if (step === 0) {
+      if (!data.brand_name.trim()) return "Brand name is required";
+      if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim()))
+        return "Enter a valid domain (e.g. acme.com)";
+      return null;
+    }
+    if (step === 1 && data.competitors.length < 1)
+      return "Add at least one competitor so SAMA can benchmark you";
+    if (step === 3 && !data.anthropic_api_key.trim())
+      return "Anthropic API key is required";
+    return null;
   };
 
   const handleFinish = async () => {
     if (!user) return;
+    setSaveError(null);
     setSaving(true);
     try {
       const settings = {
@@ -144,10 +164,16 @@ export default function OnboardingPage() {
         geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
       };
 
-      await getSupabase().from("user_settings").upsert(
-        { user_id: user.id, settings, updated_at: new Date().toISOString() },
-        { onConflict: "user_id" }
-      );
+      const { error: upsertError } = await getSupabase()
+        .from("user_settings")
+        .upsert(
+          { user_id: user.id, settings, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+
+      if (upsertError) {
+        throw new Error(upsertError.message);
+      }
 
       // Trigger initial agent activation
       setActivatingAgents(true);
@@ -161,9 +187,14 @@ export default function OnboardingPage() {
 
       router.push("/c/dashboard");
     } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to save onboarding data";
       console.error("Failed to save onboarding data:", err);
+      setSaveError(message);
+    } finally {
+      setSaving(false);
+      setActivatingAgents(false);
     }
-    setSaving(false);
   };
 
   if (userLoading) {
@@ -359,6 +390,13 @@ export default function OnboardingPage() {
             </div>
           )}
         </div>
+
+        {/* Validation / save error */}
+        {(validationHint() || saveError) && (
+          <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+            {saveError ?? validationHint()}
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-6">
