@@ -248,7 +248,7 @@ export default function CustomerGeoPage() {
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number) => [`${Math.round(value * 100)}%`, "Mention Rate"]}
+                    formatter={(value) => [`${Math.round(Number(value ?? 0) * 100)}%`, "Mention Rate"]}
                   />
                   <Line
                     type="monotone"

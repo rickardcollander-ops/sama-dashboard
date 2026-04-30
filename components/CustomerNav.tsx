@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
-  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone,
+  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import NotificationBell from "@/components/NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
+  { href: "/c/analysis", label: "Analysis", icon: Sparkles },
   { href: "/c/seo", label: "SEO", icon: Search },
   { href: "/c/content", label: "Content", icon: FileText },
   { href: "/c/social", label: "Social", icon: Share2 },
