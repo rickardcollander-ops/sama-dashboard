@@ -6,15 +6,14 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 /**
  * POST /api/analysis/generate-queries
  *
- * Body: { brand_name, domain, brand_description?, unique_selling_points?, target_audience? }
- *
- * Returns 10–25 candidate buyer-intent queries the user can edit/approve before
- * running the full analysis. Real implementation uses an LLM in sama-agent.
+ * Real backend asks the LLM with the tenant's brand context and returns
+ * 10 buyer-intent queries. Falls back to deterministic templates so the UI
+ * never blocks on backend availability.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
-  if (SAMA_API_URL && process.env.ANALYSIS_REAL === "1") {
+  if (SAMA_API_URL) {
     try {
       const tenantId = req.headers.get("X-Tenant-ID") || "";
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/generate-queries`, {
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
           "X-Tenant-ID": tenantId,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ count: body.count ?? 10 }),
         signal: AbortSignal.timeout(30_000),
       });
       if (upstream.ok) return NextResponse.json(await upstream.json());
