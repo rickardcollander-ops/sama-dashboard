@@ -4,10 +4,46 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
+  History as HistoryIcon,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+
+interface AnalysisRunSummary {
+  id: string;
+  brand_name: string | null;
+  domain: string | null;
+  query_count: number;
+  platform_count: number;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+/**
+ * Poll /api/analysis/runs/{id} until status leaves "running". Returns the
+ * final run record (with full payload if completed). Times out at 15min.
+ */
+async function pollAnalysisRun(tenantId: string, runId: string): Promise<AnalysisRun & { error?: string } | null> {
+  const start = Date.now();
+  while (Date.now() - start < 15 * 60 * 1000) {
+    try {
+      const res = await fetch(`/api/analysis/runs/${runId}`, {
+        headers: { "X-Tenant-ID": tenantId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.status && data.status !== "running") return data;
+      }
+    } catch {
+      // transient errors don't abort polling
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return null;
+}
 import {
   AI_PLATFORM_LABELS,
   GAP_LABELS,
@@ -16,7 +52,7 @@ import {
   type GapCategory,
 } from "./types";
 
-type Stage = "setup" | "running" | "results";
+type Stage = "setup" | "running" | "results" | "history";
 
 interface BrandSettings {
   brand_name: string;
@@ -114,11 +150,28 @@ export default function AnalysisPage() {
         }),
       });
       if (!res.ok) throw new Error("run failed");
-      const data = (await res.json()) as AnalysisRun;
-      setRun(data);
-      setStage("results");
-    } catch {
-      setError("Analysis failed. Please try again.");
+      const data = await res.json();
+
+      // Real backend returns {id, status: "running"} and we poll until done.
+      // Mock backend returns a complete AnalysisRun synchronously (detected
+      // by presence of query_results).
+      if (data && Array.isArray(data.query_results)) {
+        setRun(data as AnalysisRun);
+        setStage("results");
+      } else if (data?.id) {
+        const finalRun = await pollAnalysisRun(user?.id || "", data.id);
+        if (finalRun?.status === "completed" && Array.isArray(finalRun.query_results)) {
+          setRun(finalRun);
+          setStage("results");
+        } else {
+          throw new Error(finalRun?.error || "Analysis did not complete");
+        }
+      } else {
+        throw new Error("Unexpected response from backend");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Analysis failed";
+      setError(msg);
       setStage("setup");
     }
     setRunning(false);
@@ -139,11 +192,35 @@ export default function AnalysisPage() {
     );
   }
 
+  const handleOpenRun = async (id: string) => {
+    if (!user) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/analysis/runs/${id}`, {
+        headers: { "X-Tenant-ID": user.id },
+      });
+      if (!res.ok) throw new Error("could not load run");
+      const data = await res.json();
+      if (data?.status === "completed" && Array.isArray(data.query_results)) {
+        setRun(data);
+        setStage("results");
+      } else {
+        setError(data?.error || "This run is not viewable yet.");
+      }
+    } catch {
+      setError("Could not load this run.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <CustomerNav />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <Header stage={stage} onReset={() => { setStage("setup"); setRun(null); }} />
+        <Header
+          stage={stage}
+          onReset={() => { setStage("setup"); setRun(null); }}
+          onShowHistory={() => setStage("history")}
+        />
 
         {error && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
@@ -170,6 +247,10 @@ export default function AnalysisPage() {
 
         {stage === "results" && run && <ResultsStage run={run} />}
 
+        {stage === "history" && (
+          <HistoryStage tenantId={user?.id || ""} onOpen={handleOpenRun} />
+        )}
+
         {running && stage !== "running" && (
           <div className="mt-4 text-xs text-slate-400">Working…</div>
         )}
@@ -178,7 +259,114 @@ export default function AnalysisPage() {
   );
 }
 
-function Header({ stage, onReset }: { stage: Stage; onReset: () => void }) {
+function HistoryStage({ tenantId, onOpen }: { tenantId: string; onOpen: (id: string) => void }) {
+  const [runs, setRuns] = useState<AnalysisRunSummary[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!tenantId) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/analysis/runs?limit=20", {
+          headers: { "X-Tenant-ID": tenantId },
+        });
+        if (!res.ok) throw new Error("load failed");
+        const data = (await res.json()) as { runs: AnalysisRunSummary[] };
+        setRuns(data.runs || []);
+      } catch {
+        setError("Could not load history.");
+        setRuns([]);
+      }
+    })();
+  }, [tenantId]);
+
+  if (runs === null) {
+    return (
+      <div className="flex items-center justify-center py-16 text-slate-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+  }
+
+  if (runs.length === 0) {
+    return (
+      <div className="rounded-xl border bg-white p-12 text-center text-slate-500">
+        <HistoryIcon className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+        <p className="text-sm">No analyses yet. Run your first one to see it here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-500">
+          <tr>
+            <th className="text-left px-4 py-2 font-medium">Date</th>
+            <th className="text-left px-4 py-2 font-medium">Brand</th>
+            <th className="text-left px-4 py-2 font-medium">Queries</th>
+            <th className="text-left px-4 py-2 font-medium">Platforms</th>
+            <th className="text-left px-4 py-2 font-medium">Status</th>
+            <th className="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r) => {
+            const completed = r.status === "completed";
+            const failed = r.status === "failed";
+            const statusTone = completed
+              ? "bg-emerald-100 text-emerald-700"
+              : failed
+              ? "bg-red-100 text-red-700"
+              : "bg-yellow-100 text-yellow-700";
+            return (
+              <tr key={r.id} className="border-t border-slate-100">
+                <td className="px-4 py-2 text-slate-600">
+                  {new Date(r.started_at).toLocaleString()}
+                </td>
+                <td className="px-4 py-2 text-slate-700">{r.brand_name || "—"}</td>
+                <td className="px-4 py-2 text-slate-600">{r.query_count}</td>
+                <td className="px-4 py-2 text-slate-600">{r.platform_count}</td>
+                <td className="px-4 py-2">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${statusTone}`}>
+                    {r.status}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {completed && (
+                    <button
+                      onClick={() => onOpen(r.id)}
+                      className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                    >
+                      Open
+                    </button>
+                  )}
+                  {failed && r.error && (
+                    <span className="text-xs text-red-500" title={r.error}>error</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Header({
+  stage,
+  onReset,
+  onShowHistory,
+}: {
+  stage: Stage;
+  onReset: () => void;
+  onShowHistory: () => void;
+}) {
   return (
     <div className="mb-6 flex items-center justify-between">
       <div>
@@ -190,14 +378,24 @@ function Header({ stage, onReset }: { stage: Stage; onReset: () => void }) {
           Unified visibility report across Google search and AI assistants. Find gaps, drive content.
         </p>
       </div>
-      {stage === "results" && (
-        <button
-          onClick={onReset}
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <RefreshCw className="h-4 w-4" /> New analysis
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        {stage !== "history" && (
+          <button
+            onClick={onShowHistory}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <HistoryIcon className="h-4 w-4" /> History
+          </button>
+        )}
+        {(stage === "results" || stage === "history") && (
+          <button
+            onClick={onReset}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <RefreshCw className="h-4 w-4" /> New analysis
+          </button>
+        )}
+      </div>
     </div>
   );
 }

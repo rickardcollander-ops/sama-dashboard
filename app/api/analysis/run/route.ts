@@ -7,11 +7,12 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 /**
  * POST /api/analysis/run
  *
- * Body: { brand_name, domain, competitors, queries, platforms }
+ * Body: { queries, platforms?, brand_name?, domain?, competitors? }
  *
- * Once sama-agent has a real /api/analysis/run endpoint that orchestrates
- * SerpAPI + multi-LLM, this route should proxy to it. For now we return
- * deterministic mock data so the UI can be built and demoed end-to-end.
+ * Real backend (sama-agent /api/analysis/run) returns {id, status: "running"}
+ * immediately while orchestration runs in the background. The frontend then
+ * polls /api/analysis/runs/{id}. If the backend is unavailable we fall back
+ * to a deterministic mock so the UI keeps working.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -25,8 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "queries required" }, { status: 400 });
   }
 
-  // Future: proxy to sama-agent
-  if (SAMA_API_URL && process.env.ANALYSIS_REAL === "1") {
+  if (SAMA_API_URL) {
     try {
       const tenantId = req.headers.get("X-Tenant-ID") || "";
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/run`, {
@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
           "X-Tenant-ID": tenantId,
         },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(60_000),
+        body: JSON.stringify({ queries, platforms }),
+        signal: AbortSignal.timeout(15_000),
       });
       if (upstream.ok) return NextResponse.json(await upstream.json());
     } catch {
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Mock fallback — returns a complete AnalysisRun so the UI can render
+  // immediately without polling. Caller detects this via presence of
+  // `query_results` on the response.
   const run = buildMockRun({
     brand_name: body.brand_name || "Your Brand",
     domain: body.domain || "example.com",

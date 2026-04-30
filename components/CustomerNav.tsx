@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
-  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles,
+  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles, ShieldCheck,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import NotificationBell from "@/components/NotificationBell";
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/c/ads", label: "Ads", icon: Megaphone },
   { href: "/c/analytics", label: "Analytics", icon: TrendingUp },
   { href: "/c/geo", label: "GEO Monitor", icon: Bot },
+  { href: "/c/approvals", label: "Approvals", icon: ShieldCheck },
   { href: "/c/settings", label: "Settings", icon: Settings },
 ];
 
