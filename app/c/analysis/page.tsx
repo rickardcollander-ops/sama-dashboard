@@ -9,6 +9,14 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import { createBrowserClient } from "@supabase/ssr";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 
 interface AnalysisRunSummary {
   id: string;
@@ -89,18 +97,22 @@ export default function AnalysisPage() {
     if (!user) return;
     (async () => {
       try {
-        const client = tenantApi(user.id);
-        const data = await client.get<Partial<BrandSettings>>("/api/tenant/settings");
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", user.id)
+          .single();
+        const s = data?.settings || {};
         setBrand({
-          brand_name: data.brand_name || "",
-          domain: data.domain || "",
-          brand_description: data.brand_description || "",
-          unique_selling_points: data.unique_selling_points || "",
-          target_audience: data.target_audience || "",
-          competitors: Array.isArray(data.competitors) ? data.competitors : [],
+          brand_name: s.brand_name || "",
+          domain: s.domain || "",
+          brand_description: s.brand_description || "",
+          unique_selling_points: s.unique_selling_points || "",
+          target_audience: s.target_audience || "",
+          competitors: Array.isArray(s.competitors) ? s.competitors : [],
         });
       } catch {
-        // Settings not loaded yet — user can still type queries manually.
         setBrand({
           brand_name: "",
           domain: "",
