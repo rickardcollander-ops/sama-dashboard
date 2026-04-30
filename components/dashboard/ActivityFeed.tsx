@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import {
-  Activity, Bot, Search, FileText, Share2, Megaphone, TrendingUp,
-  CheckCircle, AlertCircle, Clock, RefreshCw,
+  Activity, CheckCircle, AlertCircle, Clock, RefreshCw,
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { AGENTS } from "@/lib/agents";
 
 export interface ActivityEvent {
   id: string;
-  agent: "geo" | "seo" | "content" | "social" | "ads" | "analytics" | "system";
+  agent: string;
   title: string;
   description?: string;
   severity?: "info" | "success" | "warning" | "critical";
@@ -17,15 +17,13 @@ export interface ActivityEvent {
   link?: string;
 }
 
-const AGENT_META: Record<string, { icon: React.ComponentType<any>; color: string; bg: string }> = {
-  geo: { icon: Bot, color: "text-violet-600", bg: "bg-violet-50" },
-  seo: { icon: Search, color: "text-blue-600", bg: "bg-blue-50" },
-  content: { icon: FileText, color: "text-purple-600", bg: "bg-purple-50" },
-  social: { icon: Share2, color: "text-indigo-600", bg: "bg-indigo-50" },
-  ads: { icon: Megaphone, color: "text-orange-600", bg: "bg-orange-50" },
-  analytics: { icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-  system: { icon: Activity, color: "text-slate-600", bg: "bg-slate-100" },
-};
+const SYSTEM_META = { icon: Activity, color: "text-slate-600", bg: "bg-slate-100" };
+
+function getAgentMeta(agent: string) {
+  const a = AGENTS[agent];
+  if (a) return { icon: a.icon, color: a.iconColor, bg: a.bg };
+  return SYSTEM_META;
+}
 
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -119,7 +117,7 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
         ) : (
           <ul className="divide-y divide-slate-100">
             {events.map((e) => {
-              const meta = AGENT_META[e.agent] || AGENT_META.system;
+              const meta = getAgentMeta(e.agent);
               const Icon = meta.icon;
               const body = (
                 <div className="flex items-start gap-3 px-6 py-3 hover:bg-slate-50 transition-colors">
