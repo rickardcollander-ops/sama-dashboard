@@ -12,12 +12,14 @@ function getSupabase() {
   );
 }
 
+type Mode = "login" | "signup" | "forgot";
+
 export default function CustomerLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<Mode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const router = useRouter();
@@ -32,6 +34,10 @@ export default function CustomerLoginPage() {
 
     try {
       if (mode === "signup") {
+        if (password.length < 6) {
+          setError("Password must be at least 6 characters");
+          return;
+        }
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -41,6 +47,22 @@ export default function CustomerLoginPage() {
         } else {
           setMessage("Account created! You can now log in.");
           setMode("login");
+        }
+      } else if (mode === "forgot") {
+        const redirectTo =
+          typeof window !== "undefined"
+            ? `${window.location.origin}/c/auth/reset-password`
+            : undefined;
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          email,
+          { redirectTo }
+        );
+        if (resetError) {
+          setError(resetError.message);
+        } else {
+          setMessage(
+            "If an account exists for that email, a reset link has been sent."
+          );
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -65,6 +87,28 @@ export default function CustomerLoginPage() {
     }
   };
 
+  const headline =
+    mode === "login"
+      ? "Log in to your dashboard"
+      : mode === "signup"
+        ? "Create an account"
+        : "Reset your password";
+
+  const submitLabel = loading
+    ? mode === "login"
+      ? "Logging in…"
+      : mode === "signup"
+        ? "Creating account…"
+        : "Sending email…"
+    : mode === "login"
+      ? "Log in"
+      : mode === "signup"
+        ? "Create account"
+        : "Send reset link";
+
+  const submitDisabled =
+    loading || !email || (mode !== "forgot" && !password);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="w-full max-w-sm">
@@ -77,9 +121,7 @@ export default function CustomerLoginPage() {
               <Lock className="h-8 w-8 text-blue-400" />
             </div>
             <h1 className="text-2xl font-bold text-white">SAMA</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              {mode === "login" ? "Log in to your dashboard" : "Create an account"}
-            </p>
+            <p className="text-slate-400 text-sm mt-1">{headline}</p>
           </div>
 
           <div className="relative mb-4">
@@ -94,27 +136,50 @@ export default function CustomerLoginPage() {
             />
           </div>
 
-          <div className="relative mb-1">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-10 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          {mode === "signup" && (
-            <p className="text-xs text-slate-500 mb-4 ml-1">At least 6 characters</p>
+          {mode !== "forgot" && (
+            <>
+              <div className="relative mb-1">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-10 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {mode === "signup" ? (
+                <p className="text-xs text-slate-500 mb-4 ml-1">
+                  At least 6 characters
+                </p>
+              ) : (
+                <div className="mb-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      setError("");
+                      setMessage("");
+                    }}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+            </>
           )}
-          {mode === "login" && <div className="mb-4" />}
 
           {error && (
             <p className="text-red-400 text-sm text-center mb-4">{error}</p>
@@ -126,16 +191,10 @@ export default function CustomerLoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !password || !email}
+            disabled={submitDisabled}
             className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading
-              ? mode === "login"
-                ? "Logging in…"
-                : "Creating account…"
-              : mode === "login"
-                ? "Log in"
-                : "Create account"}
+            {submitLabel}
           </button>
 
           <button
@@ -149,8 +208,23 @@ export default function CustomerLoginPage() {
           >
             {mode === "login"
               ? "Don't have an account? Create one"
-              : "Already have an account? Log in"}
+              : mode === "signup"
+                ? "Already have an account? Log in"
+                : "Back to log in"}
           </button>
+          {mode === "forgot" && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setError("");
+                setMessage("");
+              }}
+              className="w-full mt-2 text-sm text-slate-500 hover:text-white"
+            >
+              Back to log in
+            </button>
+          )}
         </form>
       </div>
     </div>

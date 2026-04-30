@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoAdCreatives } from "@/lib/demo-data";
@@ -273,15 +274,24 @@ export default function CustomerAdsPage() {
     setSavingDraft(false);
   };
 
-  const deleteDraft = async (id: string) => {
-    if (!user) return;
-    if (!window.confirm("Are you sure you want to delete this?")) return;
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const requestDeleteDraft = (id: string) => setPendingDeleteId(id);
+
+  const confirmDeleteDraft = async () => {
+    if (!user || !pendingDeleteId) return;
+    setDeleting(true);
+    const id = pendingDeleteId;
     setDrafts((prev) => prev.filter((d) => d.id !== id));
     try {
       const client = tenantApi(user.id);
       await client.delete(`/api/ads/creatives/${id}`);
     } catch {
       // Already removed from UI
+    } finally {
+      setDeleting(false);
+      setPendingDeleteId(null);
     }
   };
 
@@ -872,7 +882,7 @@ export default function CustomerAdsPage() {
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => deleteDraft(draft.id)}
+                        onClick={() => requestDeleteDraft(draft.id)}
                         className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-red-600 transition-colors"
                         title="Delete"
                       >
@@ -886,6 +896,16 @@ export default function CustomerAdsPage() {
           )}
         </section>
       </main>
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete this draft?"
+        description="This permanently removes the ad creative draft. You can&rsquo;t undo this."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={confirmDeleteDraft}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }
