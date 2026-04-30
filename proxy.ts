@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // ── Customer portal (/c/*) — Supabase Auth ──────────────────────────────────
   if (pathname.startsWith('/c/') || pathname === '/c') {
-    // Always allow customer login page and auth callback
-    if (pathname === '/c/login' || pathname === '/c/auth/callback') {
+    // Always allow customer login page, auth callback, and password reset
+    if (
+      pathname === '/c/login' ||
+      pathname === '/c/auth/callback' ||
+      pathname === '/c/auth/reset-password'
+    ) {
       return NextResponse.next();
     }
 
@@ -20,7 +24,7 @@ export async function middleware(req: NextRequest) {
     try {
       const { createServerClient } = await import('@supabase/ssr');
 
-      let supabaseResponse = NextResponse.next({ request: req });
+      const supabaseResponse = NextResponse.next({ request: req });
 
       const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
         cookies: {

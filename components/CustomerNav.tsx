@@ -54,10 +54,11 @@ export default function CustomerNav() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  aria-current={isActive ? "page" : undefined}
+                  className={`relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                     isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-blue-50 text-blue-700 font-semibold shadow-[inset_0_-2px_0_0_#2563eb]"
+                      : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
                   <item.icon className={`h-4 w-4 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
