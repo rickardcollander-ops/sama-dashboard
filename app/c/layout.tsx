@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
+import Providers from "./Providers";
 
 export const metadata: Metadata = {
   title: "SAMA — Customer Portal",
@@ -13,10 +14,12 @@ export default function CustomerLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="flex-1">{children}</div>
-      <Footer />
-      <CookieConsent />
-    </div>
+    <Providers>
+      <div className="flex min-h-screen flex-col">
+        <div className="flex-1">{children}</div>
+        <Footer />
+        <CookieConsent />
+      </div>
+    </Providers>
   );
 }
