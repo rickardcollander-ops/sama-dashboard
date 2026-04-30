@@ -155,6 +155,7 @@ function CustomerSettingsPageInner() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
@@ -505,6 +506,18 @@ function CustomerSettingsPageInner() {
 
   const updateField = (field: keyof UserSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const addCompetitor = () => {
+    const c = newCompetitor.trim();
+    if (c && !settings.competitors.includes(c)) {
+      setSettings((prev) => ({ ...prev, competitors: [...prev.competitors, c] }));
+      setNewCompetitor("");
+    }
+  };
+
+  const removeCompetitor = (c: string) => {
+    setSettings((prev) => ({ ...prev, competitors: prev.competitors.filter((x) => x !== c) }));
   };
 
   const addQuery = () => {
@@ -888,6 +901,32 @@ function CustomerSettingsPageInner() {
                   <option value="bold">Bold</option>
                 </select>
               </div>
+            </div>
+          </Section>
+
+          {/* ── Competitors ── */}
+          <Section icon={Users} title="Competitors" desc="Brands to compare with in GEO monitoring">
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={newCompetitor}
+                onChange={(e) => setNewCompetitor(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
+                placeholder="Add competitor..."
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button onClick={addCompetitor} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {settings.competitors.length === 0 && <p className="text-sm text-slate-400">No competitors added</p>}
+              {settings.competitors.map((c) => (
+                <span key={c} className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800 border border-orange-200">
+                  {c}
+                  <button onClick={() => removeCompetitor(c)} className="hover:text-red-600"><X className="h-3 w-3" /></button>
+                </span>
+              ))}
             </div>
           </Section>
 

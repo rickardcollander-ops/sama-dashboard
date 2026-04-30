@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
-  CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText, Users,
+  CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
 } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
@@ -49,8 +48,6 @@ export default function AnalysisPage() {
   const [running, setRunning] = useState(false);
   const [run, setRun] = useState<AnalysisRun | null>(null);
   const [error, setError] = useState("");
-  const [newCompetitor, setNewCompetitor] = useState("");
-  const [savingCompetitors, setSavingCompetitors] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -131,52 +128,6 @@ export default function AnalysisPage() {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
 
-  const persistCompetitors = async (competitors: string[]) => {
-    if (!user) return;
-    setSavingCompetitors(true);
-    try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-      );
-      const { data: row } = await supabase
-        .from("user_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const current = (row?.settings as Record<string, unknown>) || {};
-      await supabase
-        .from("user_settings")
-        .upsert(
-          {
-            user_id: user.id,
-            settings: { ...current, competitors },
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
-    } finally {
-      setSavingCompetitors(false);
-    }
-  };
-
-  const addCompetitor = () => {
-    if (!brand) return;
-    const c = newCompetitor.trim();
-    if (!c || brand.competitors.includes(c)) return;
-    const next = [...brand.competitors, c];
-    setBrand({ ...brand, competitors: next });
-    setNewCompetitor("");
-    void persistCompetitors(next);
-  };
-
-  const removeCompetitor = (c: string) => {
-    if (!brand) return;
-    const next = brand.competitors.filter((x) => x !== c);
-    setBrand({ ...brand, competitors: next });
-    void persistCompetitors(next);
-  };
-
   if (userLoading || !brand) {
     return (
       <div className="min-h-screen bg-slate-50">
@@ -212,11 +163,6 @@ export default function AnalysisPage() {
             generating={generating}
             onGenerate={handleGenerateQueries}
             onRun={handleRun}
-            newCompetitor={newCompetitor}
-            setNewCompetitor={setNewCompetitor}
-            addCompetitor={addCompetitor}
-            removeCompetitor={removeCompetitor}
-            savingCompetitors={savingCompetitors}
           />
         )}
 
@@ -267,17 +213,8 @@ function SetupStage(props: {
   generating: boolean;
   onGenerate: () => void;
   onRun: () => void;
-  newCompetitor: string;
-  setNewCompetitor: (v: string) => void;
-  addCompetitor: () => void;
-  removeCompetitor: (c: string) => void;
-  savingCompetitors: boolean;
 }) {
-  const {
-    brand, queries, setQueries, newQuery, setNewQuery, platforms, togglePlatform,
-    generating, onGenerate, onRun,
-    newCompetitor, setNewCompetitor, addCompetitor, removeCompetitor, savingCompetitors,
-  } = props;
+  const { brand, queries, setQueries, newQuery, setNewQuery, platforms, togglePlatform, generating, onGenerate, onRun } = props;
   const canRun = queries.length > 0 && platforms.length > 0 && brand.brand_name && brand.domain;
 
   return (
@@ -294,52 +231,9 @@ function SetupStage(props: {
             <Field label="Brand" value={brand.brand_name} />
             <Field label="Domain" value={brand.domain} />
             <Field label="Audience" value={brand.target_audience || "—"} />
+            <Field label="Competitors" value={brand.competitors.length ? brand.competitors.join(", ") : "—"} />
           </div>
         )}
-      </section>
-
-      {/* Competitors */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Users className="h-4 w-4 text-slate-500" />
-            Competitors
-          </h2>
-          {savingCompetitors && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
-        </div>
-        <p className="mb-3 text-xs text-slate-500">Brands to compare with in GEO monitoring</p>
-        <div className="mb-3 flex gap-2">
-          <input
-            type="text"
-            value={newCompetitor}
-            onChange={(e) => setNewCompetitor(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-            placeholder="Add competitor..."
-            className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-          />
-          <button
-            onClick={addCompetitor}
-            className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {brand.competitors.length === 0 && (
-            <p className="text-sm text-slate-400">No competitors added</p>
-          )}
-          {brand.competitors.map((c) => (
-            <span
-              key={c}
-              className="flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800"
-            >
-              {c}
-              <button onClick={() => removeCompetitor(c)} className="hover:text-red-600">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-        </div>
       </section>
 
       {/* Queries */}
