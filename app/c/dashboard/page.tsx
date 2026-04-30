@@ -185,6 +185,7 @@ export default function CustomerDashboard() {
 
   const loadContentStats = async () => {
     if (!user) return;
+    const client = tenantApi(user.id);
     try {
       const data = await tenantApi(user.id).get<any>(`/api/content/stats?days=${days}`);
       if (data) {

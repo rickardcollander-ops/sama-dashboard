@@ -17,7 +17,7 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   );
 }
-import { api, tenantApi } from "@/lib/api";
+import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
 interface UserSettings {
@@ -155,9 +155,9 @@ function CustomerSettingsPageInner() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-  const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
+  const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   const [googleStatus, setGoogleStatus] = useState<GoogleServiceStatus>({
     search_console: false,
     analytics: false,
@@ -391,8 +391,19 @@ function CustomerSettingsPageInner() {
     setTriggeringAgent(agentName);
     try {
       const client = tenantApi(user.id);
-      await client.post(`/api/tenant/agents/${agentName}/trigger`);
+      // Trigger is fire-and-forget on the backend: returns run_id while the
+      // cycle continues in a background task. We refresh the runs list
+      // immediately so the user sees the "Running" row, then poll until it
+      // settles to refresh again with the final status.
+      const resp = await client.post<{ run_id?: string; status?: string }>(
+        `/api/tenant/agents/${agentName}/trigger`,
+      );
       await loadAgentStatus();
+
+      if (resp?.run_id && resp?.status === "running") {
+        // Poll in background — don't block the spinner on it.
+        pollAgentRun(user.id, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
+      }
     } catch {
       setError(`Could not run the ${agentName} agent`);
     }
@@ -505,18 +516,6 @@ function CustomerSettingsPageInner() {
 
   const updateField = (field: keyof UserSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const addCompetitor = () => {
-    const c = newCompetitor.trim();
-    if (c && !settings.competitors.includes(c)) {
-      setSettings((prev) => ({ ...prev, competitors: [...prev.competitors, c] }));
-      setNewCompetitor("");
-    }
-  };
-
-  const removeCompetitor = (c: string) => {
-    setSettings((prev) => ({ ...prev, competitors: prev.competitors.filter((x) => x !== c) }));
   };
 
   const addQuery = () => {
@@ -705,28 +704,52 @@ function CustomerSettingsPageInner() {
                             <th className="text-left px-3 py-2 font-medium">Time</th>
                             <th className="text-left px-3 py-2 font-medium">Status</th>
                             <th className="text-left px-3 py-2 font-medium">Result</th>
+                            <th className="text-left px-3 py-2 font-medium w-24">Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {agentRuns.slice(0, 10).map((run) => (
-                            <tr key={run.id} className="border-t border-slate-100">
-                              <td className="px-3 py-2 font-medium text-slate-700 capitalize">{run.agent_name}</td>
-                              <td className="px-3 py-2 text-slate-500">
-                                {new Date(run.started_at).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                  run.status === "completed" ? "bg-green-100 text-green-700" :
-                                  run.status === "failed" ? "bg-red-100 text-red-700" :
-                                  "bg-yellow-100 text-yellow-700"
-                                }`}>
-                                  {run.status === "completed" ? <CheckCircle className="h-2.5 w-2.5" /> : null}
-                                  {run.status === "completed" ? "Done" : run.status === "failed" ? "Failed" : "Running..."}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-slate-500 truncate max-w-[200px]">{run.summary || "-"}</td>
-                            </tr>
-                          ))}
+                          {agentRuns.slice(0, 10).map((run) => {
+                            const isFailed = run.status === "failed";
+                            const isRetrying = triggeringAgent === run.agent_name;
+                            return (
+                              <tr key={run.id} className={`border-t border-slate-100 ${isFailed ? "bg-red-50/40" : ""}`}>
+                                <td className="px-3 py-2 font-medium text-slate-700 capitalize">{run.agent_name}</td>
+                                <td className="px-3 py-2 text-slate-500">
+                                  {new Date(run.started_at).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                    run.status === "completed" ? "bg-green-100 text-green-700" :
+                                    isFailed ? "bg-red-100 text-red-700" :
+                                    "bg-yellow-100 text-yellow-700"
+                                  }`}>
+                                    {run.status === "completed" ? <CheckCircle className="h-2.5 w-2.5" /> : null}
+                                    {isFailed ? <AlertCircle className="h-2.5 w-2.5" /> : null}
+                                    {run.status === "completed" ? "Done" : isFailed ? "Failed" : "Running..."}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-slate-500 truncate max-w-[240px]" title={run.summary || ""}>
+                                  {isFailed ? (
+                                    <span className="text-red-700">{run.summary || "Run did not complete. Try again or check integrations."}</span>
+                                  ) : (
+                                    run.summary || "-"
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {isFailed ? (
+                                    <button
+                                      onClick={() => handleTriggerAgent(run.agent_name)}
+                                      disabled={isRetrying}
+                                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                    >
+                                      {isRetrying ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Play className="h-2.5 w-2.5" />}
+                                      Re-run
+                                    </button>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -768,43 +791,73 @@ function CustomerSettingsPageInner() {
             )}
           </Section>
 
-          {/* ── API Keys ── */}
-          <Section icon={Key} title="API Keys" desc="Keys for AI platforms used by the GEO agent">
-            <div className="space-y-4">
-              {([
-                { key: "openai", field: "openai_api_key" as const, label: "OpenAI API Key", placeholder: "sk-..." },
-                { key: "anthropic", field: "anthropic_api_key" as const, label: "Anthropic API Key", placeholder: "sk-ant-..." },
-                { key: "perplexity", field: "perplexity_api_key" as const, label: "Perplexity API Key", placeholder: "pplx-..." },
-                { key: "google", field: "google_api_key" as const, label: "Google API Key (SerpAPI)", placeholder: "..." },
-              ]).map(({ key, field, label, placeholder }) => (
-                <div key={key}>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={showKeys[key] ? "text" : "password"}
-                        value={settings[field]}
-                        onChange={(e) => updateField(field, e.target.value)}
-                        placeholder={placeholder}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => toggleShowKey(key)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showKeys[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {settings[field] && (
-                      <span className="flex items-center rounded-lg bg-green-100 px-2 text-xs font-medium text-green-700 border border-green-200">
-                        <CheckCircle className="h-3 w-3 mr-1" /> Set
-                      </span>
-                    )}
-                  </div>
+          {/* ── AI Platform Access (managed) ── */}
+          <Section icon={Key} title="AI Platform Access" desc="LLM and search providers SAMA uses to power your agents">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 flex-shrink-0 text-emerald-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-emerald-900">
+                    Managed by SAMA — no setup required
+                  </p>
+                  <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                    SAMA covers OpenAI, Anthropic, Perplexity and SerpAPI usage as part of your plan.
+                    Your monthly token budget scales with your subscription tier — see your{" "}
+                    <a href="/c/pricing" className="font-medium underline hover:text-emerald-900">plan</a>{" "}
+                    for details.
+                  </p>
                 </div>
-              ))}
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedKeys((v) => !v)}
+              className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              {showAdvancedKeys ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {showAdvancedKeys ? "Hide" : "Show"} advanced: bring-your-own keys
+            </button>
+            {showAdvancedKeys && (
+              <div className="mt-4 space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Optional. Provide your own provider keys to bypass SAMA&apos;s managed quota
+                  (Enterprise / dev use only). Leave blank to use SAMA-managed access.
+                </p>
+                {([
+                  { key: "openai", field: "openai_api_key" as const, label: "OpenAI API Key", placeholder: "sk-..." },
+                  { key: "anthropic", field: "anthropic_api_key" as const, label: "Anthropic API Key", placeholder: "sk-ant-..." },
+                  { key: "perplexity", field: "perplexity_api_key" as const, label: "Perplexity API Key", placeholder: "pplx-..." },
+                  { key: "google", field: "google_api_key" as const, label: "SerpAPI Key", placeholder: "..." },
+                ]).map(({ key, field, label, placeholder }) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type={showKeys[key] ? "text" : "password"}
+                          value={settings[field]}
+                          onChange={(e) => updateField(field, e.target.value)}
+                          placeholder={placeholder}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleShowKey(key)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showKeys[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      {settings[field] && (
+                        <span className="flex items-center rounded-lg bg-green-100 px-2 text-xs font-medium text-green-700 border border-green-200">
+                          <CheckCircle className="h-3 w-3 mr-1" /> Override active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
 
           {/* ── Brand ── */}
@@ -846,32 +899,6 @@ function CustomerSettingsPageInner() {
                   <option value="bold">Bold</option>
                 </select>
               </div>
-            </div>
-          </Section>
-
-          {/* ── Competitors ── */}
-          <Section icon={Users} title="Competitors" desc="Brands to compare with in GEO monitoring">
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newCompetitor}
-                onChange={(e) => setNewCompetitor(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-                placeholder="Add competitor..."
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <button onClick={addCompetitor} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {settings.competitors.length === 0 && <p className="text-sm text-slate-400">No competitors added</p>}
-              {settings.competitors.map((c) => (
-                <span key={c} className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800 border border-orange-200">
-                  {c}
-                  <button onClick={() => removeCompetitor(c)} className="hover:text-red-600"><X className="h-3 w-3" /></button>
-                </span>
-              ))}
             </div>
           </Section>
 

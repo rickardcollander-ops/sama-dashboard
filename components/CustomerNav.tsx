@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
-  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone,
+  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import NotificationBell from "@/components/NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
+  { href: "/c/analysis", label: "Analysis", icon: Sparkles },
   { href: "/c/seo", label: "SEO", icon: Search },
   { href: "/c/content", label: "Content", icon: FileText },
   { href: "/c/social", label: "Social", icon: Share2 },
@@ -54,10 +55,11 @@ export default function CustomerNav() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  aria-current={isActive ? "page" : undefined}
+                  className={`relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                     isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-blue-50 text-blue-700 font-semibold shadow-[inset_0_-2px_0_0_#2563eb]"
+                      : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
                   <item.icon className={`h-4 w-4 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
