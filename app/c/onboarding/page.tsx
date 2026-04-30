@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Building2, Globe, Key, Star, Rocket, ChevronRight, ChevronLeft,
-  Plus, X, Loader2, CheckCircle, Eye, EyeOff, Search,
+  Building2, Globe, Star, Rocket, ChevronRight, ChevronLeft,
+  Plus, X, Loader2, CheckCircle, Search,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useUser } from "@/lib/hooks/useUser";
@@ -21,7 +21,6 @@ const STEPS = [
   { label: "Brand Info", icon: Building2 },
   { label: "Competitors", icon: Globe },
   { label: "GEO Queries", icon: Search },
-  { label: "API Keys", icon: Key },
   { label: "Reviews", icon: Star },
   { label: "Launch", icon: Rocket },
 ];
@@ -34,9 +33,6 @@ interface OnboardingData {
   content_language: string;
   competitors: string[];
   geo_queries: string[];
-  anthropic_api_key: string;
-  google_api_key: string;
-  openai_api_key: string;
   review_g2_url: string;
   review_capterra_url: string;
   review_trustpilot_url: string;
@@ -62,9 +58,6 @@ const INITIAL: OnboardingData = {
   content_language: "en",
   competitors: [],
   geo_queries: [],
-  anthropic_api_key: "",
-  google_api_key: "",
-  openai_api_key: "",
   review_g2_url: "",
   review_capterra_url: "",
   review_trustpilot_url: "",
@@ -78,7 +71,6 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newGeoQuery, setNewGeoQuery] = useState("");
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [activatingAgents, setActivatingAgents] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -116,15 +108,12 @@ export default function OnboardingPage() {
     setData((prev) => ({ ...prev, geo_queries: prev.geo_queries.filter((x) => x !== q) }));
   };
 
-  const toggleKey = (k: string) => setShowKeys((p) => ({ ...p, [k]: !p[k] }));
-
   const canAdvance = () => {
     if (step === 0) {
       const domainOk = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim());
       return data.brand_name.trim().length > 0 && domainOk;
     }
     if (step === 1) return data.competitors.length >= 1;
-    if (step === 3) return data.anthropic_api_key.trim().length > 0;
     return true;
   };
 
@@ -137,8 +126,6 @@ export default function OnboardingPage() {
     }
     if (step === 1 && data.competitors.length < 1)
       return "Add at least one competitor so SAMA can benchmark you";
-    if (step === 3 && !data.anthropic_api_key.trim())
-      return "Anthropic API key is required";
     return null;
   };
 
@@ -154,9 +141,6 @@ export default function OnboardingPage() {
         target_audience: data.target_audience,
         content_language: data.content_language,
         competitors: data.competitors,
-        anthropic_api_key: data.anthropic_api_key,
-        google_api_key: data.google_api_key,
-        openai_api_key: data.openai_api_key,
         review_g2_url: data.review_g2_url,
         review_capterra_url: data.review_capterra_url,
         review_trustpilot_url: data.review_trustpilot_url,
@@ -348,18 +332,6 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold mb-1">API Keys</h2>
-                <p className="text-sm text-zinc-400">SAMA needs API keys to power its agents. At minimum, provide an Anthropic key.</p>
-              </div>
-              <KeyField label="Anthropic API Key *" value={data.anthropic_api_key} onChange={(v) => update("anthropic_api_key", v)} placeholder="sk-ant-..." show={!!showKeys.anthropic} toggle={() => toggleKey("anthropic")} />
-              <KeyField label="OpenAI API Key (optional)" value={data.openai_api_key} onChange={(v) => update("openai_api_key", v)} placeholder="sk-..." show={!!showKeys.openai} toggle={() => toggleKey("openai")} />
-              <KeyField label="Google API Key (optional)" value={data.google_api_key} onChange={(v) => update("google_api_key", v)} placeholder="AIza..." show={!!showKeys.google} toggle={() => toggleKey("google")} />
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-6">
-              <div>
                 <h2 className="text-xl font-semibold mb-1">Review Platforms</h2>
                 <p className="text-sm text-zinc-400">Add your review profile URLs so SAMA can monitor and respond to reviews. All optional.</p>
               </div>
@@ -369,7 +341,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {step === 5 && (
+          {step === 4 && (
             <div className="space-y-6 text-center py-6">
               <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
                 <Rocket className="h-8 w-8 text-emerald-400" />
@@ -385,7 +357,6 @@ export default function OnboardingPage() {
                 <SummaryRow label="Domain" value={data.domain} />
                 <SummaryRow label="Competitors" value={data.competitors.length > 0 ? data.competitors.join(", ") : "None"} />
                 <SummaryRow label="GEO Queries" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} queries` : "None"} />
-                <SummaryRow label="API Keys" value={[data.anthropic_api_key && "Anthropic", data.openai_api_key && "OpenAI", data.google_api_key && "Google"].filter(Boolean).join(", ") || "None"} />
               </div>
             </div>
           )}
@@ -462,28 +433,6 @@ function FieldTextarea({ label, value, onChange, placeholder }: {
         rows={3}
         className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
       />
-    </div>
-  );
-}
-
-function KeyField({ label, value, onChange, placeholder, show, toggle }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; show: boolean; toggle: () => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-1">{label}</label>
-      <div className="relative">
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 pr-10 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-        />
-        <button type="button" onClick={toggle} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
-          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
     </div>
   );
 }

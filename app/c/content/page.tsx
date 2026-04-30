@@ -8,9 +8,16 @@ import {
   ArrowRight, Trash2, Archive,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
+
+interface ContentTopicSuggestion {
+  topic: string;
+  type: string;
+  reason: string;
+}
 
 interface ContentPiece {
   id: string;
@@ -314,6 +321,37 @@ export default function CustomerContentPage() {
               <X className="h-4 w-4" />
             </button>
           </div>
+        )}
+
+        {/* AI Suggestions */}
+        {user && (
+          <SuggestionsPanel<ContentTopicSuggestion>
+            title="Content-förslag"
+            description="AI föreslår teman och format. Importera ett förslag så genererar Content-agenten ett utkast."
+            accent="purple"
+            importButtonLabel="Importera till Content"
+            importLabel="Importera till Content-agenten"
+            fetchSuggestions={async () => {
+              const client = tenantApi(user.id);
+              const res = await client.post<{ topics?: ContentTopicSuggestion[] }>("/api/content/suggest-topics", {});
+              return res.topics || [];
+            }}
+            renderItem={(item) => (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-medium text-purple-700 uppercase">{item.type}</span>
+                </div>
+                <p className="font-semibold text-slate-900 text-sm">{item.topic}</p>
+                <p className="text-xs text-slate-600 mt-1">{item.reason}</p>
+              </div>
+            )}
+            importItem={async (item) => {
+              const client = tenantApi(user.id);
+              await client.post("/api/content/generate", { type: item.type, topic: item.topic });
+              setTimeout(() => fetchContent(), 1500);
+              return `"${item.topic}" skickades till Content-agenten — ett utkast skapas snart.`;
+            }}
+          />
         )}
 
         {/* Filters */}
