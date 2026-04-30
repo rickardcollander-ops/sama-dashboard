@@ -25,7 +25,12 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ count: body.count ?? 10 }),
         signal: AbortSignal.timeout(30_000),
       });
-      if (upstream.ok) return NextResponse.json(await upstream.json());
+      if (upstream.ok) {
+        const data = await upstream.json();
+        if (Array.isArray(data?.queries) && data.queries.length > 0) {
+          return NextResponse.json(data);
+        }
+      }
     } catch {
       // fall through to mock
     }

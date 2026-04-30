@@ -38,7 +38,12 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ queries, platforms }),
         signal: AbortSignal.timeout(15_000),
       });
-      if (upstream.ok) return NextResponse.json(await upstream.json());
+      if (upstream.ok) {
+        const data = await upstream.json();
+        if ((data?.id && data?.status) || Array.isArray(data?.query_results)) {
+          return NextResponse.json(data);
+        }
+      }
     } catch {
       // fall through to mock
     }
