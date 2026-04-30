@@ -224,8 +224,8 @@ export default function CustomerDashboard() {
 
   const loadContentStats = async (days: number) => {
     if (!user) return;
+    const client = tenantApi(user.id);
     try {
-      const client = tenantApi(user.id);
       const data = await client.get<any>(`/api/content/stats?days=${days}`);
       if (data) {
         setContentStats({
@@ -235,15 +235,25 @@ export default function CustomerDashboard() {
           delta: data.delta_percent ?? data.delta,
           updated_at: data.updated_at,
         });
-      } else {
-        // Fallback to pieces endpoint
-        const pieces = await client.get<any>("/api/content/pieces?limit=1");
-        setContentStats({
-          total: pieces?.total ?? pieces?.pieces?.length ?? 0,
-          published: 0,
-          drafts: 0,
-        });
+        return;
       }
+    } catch (err: any) {
+      if (err?.status !== 404) {
+        console.error("Failed to load content stats:", err);
+        return;
+      }
+    }
+    // Fallback: stats endpoint missing or empty — derive from pieces list
+    try {
+      const pieces = await client.get<any>("/api/content/pieces");
+      const list: any[] = pieces?.pieces ?? [];
+      const published = list.filter((p) => p?.status === "published").length;
+      const drafts = list.filter((p) => p?.status === "draft").length;
+      setContentStats({
+        total: pieces?.total ?? list.length,
+        published,
+        drafts,
+      });
     } catch (err) {
       console.error("Failed to load content stats:", err);
     }
