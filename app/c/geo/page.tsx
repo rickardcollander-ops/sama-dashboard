@@ -10,8 +10,9 @@ import {
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
+import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
-import PeriodSelector, { type Period, PERIOD_DAYS } from "@/components/dashboard/PeriodSelector";
+import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import { exportCsv } from "@/lib/csv";
 
 interface Summary {
@@ -44,25 +45,12 @@ export default function CustomerGeoPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
-  const [period, setPeriod] = useState<Period>("30d");
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("sama-geo-period") as Period | null;
-      if (saved && ["7d", "30d", "90d"].includes(saved)) setPeriod(saved);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("sama-geo-period", period);
-    } catch {}
-  }, [period]);
+  const { period, setPeriod, days } = usePeriod();
 
   useEffect(() => {
     if (user) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, period]);
+  }, [user, days]);
 
   useEffect(() => {
     if (error) {
@@ -76,7 +64,6 @@ export default function CustomerGeoPage() {
     setLoading(true);
     setError("");
     const client = tenantApi(user.id);
-    const days = PERIOD_DAYS[period];
     try {
       const [summaryData, checksData] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),

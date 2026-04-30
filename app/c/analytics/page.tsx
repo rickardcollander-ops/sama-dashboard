@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   TrendingUp, Loader2, BarChart2, Users, MousePointerClick,
   Eye, DollarSign, ArrowUpRight, ArrowDownRight, AlertCircle, X,
@@ -12,9 +12,10 @@ import {
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
+import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
-import PeriodSelector, { type Period, PERIOD_DAYS } from "@/components/dashboard/PeriodSelector";
+import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import { exportCsv } from "@/lib/csv";
 
@@ -51,18 +52,16 @@ interface AnalyticsData {
 
 export default function CustomerAnalyticsPage() {
   const { user, loading: userLoading } = useUser();
+  const { period, setPeriod, days } = usePeriod();
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<Period>("30d");
   const [compare, setCompare] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("sama-analytics-period") as Period | null;
-      if (saved && ["7d", "30d", "90d"].includes(saved)) setPeriod(saved);
       const savedCompare = localStorage.getItem("sama-analytics-compare");
       if (savedCompare === "true") setCompare(true);
     } catch {}
@@ -70,15 +69,14 @@ export default function CustomerAnalyticsPage() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("sama-analytics-period", period);
       localStorage.setItem("sama-analytics-compare", String(compare));
     } catch {}
-  }, [period, compare]);
+  }, [compare]);
 
   useEffect(() => {
     if (user) fetchAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, period, compare]);
+  }, [user, days, compare]);
 
   useEffect(() => {
     if (error) {
@@ -99,7 +97,6 @@ export default function CustomerAnalyticsPage() {
     setError(null);
     try {
       const client = tenantApi(user.id);
-      const days = PERIOD_DAYS[period];
       const params = new URLSearchParams({ days: String(days) });
       if (compare) params.set("compare", "1");
       const result = await client.get<AnalyticsData>(`/api/analytics/overview?${params.toString()}`);
