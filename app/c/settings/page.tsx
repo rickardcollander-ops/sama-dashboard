@@ -456,7 +456,8 @@ function CustomerSettingsPageInner() {
 
   const connectGoogle = (service: string) => {
     if (!user) return;
-    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${user.id}`;
+    const returnUrl = `${window.location.origin}/c/settings`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${user.id}&return_url=${encodeURIComponent(returnUrl)}`;
   };
 
   const disconnectGoogle = async (service: string) => {
