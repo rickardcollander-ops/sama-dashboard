@@ -10,9 +10,19 @@ import {
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoAdCreatives } from "@/lib/demo-data";
+
+interface AdSuggestion {
+  platform: string;
+  goal: string;
+  headline: string;
+  body: string;
+  cta: string;
+  reason: string;
+}
 
 type Platform = "meta" | "linkedin" | "google";
 type AdFormat = "single_image" | "carousel" | "video" | "stories";
@@ -413,6 +423,47 @@ export default function CustomerAdsPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* AI Suggestions */}
+        {user && (
+          <SuggestionsPanel<AdSuggestion>
+            title="Annonsförslag"
+            description="AI föreslår nya kreativ baserat på ditt varumärke. Importera ett förslag så sparas det som utkast i Ads-agenten."
+            accent="orange"
+            importButtonLabel="Importera till Ads"
+            importLabel="Importera till Ads-agenten"
+            fetchSuggestions={async () => {
+              const client = tenantApi(user.id);
+              const res = await client.post<{ suggestions?: AdSuggestion[] }>("/api/ads/suggest-campaigns", {});
+              return res.suggestions || [];
+            }}
+            renderItem={(item) => (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold uppercase text-orange-700">{item.platform}</span>
+                  <span className="text-xs text-slate-500">· {item.goal}</span>
+                </div>
+                <p className="font-semibold text-slate-900 text-sm">{item.headline}</p>
+                <p className="text-xs text-slate-700 mt-1 whitespace-pre-wrap">{item.body}</p>
+                <p className="text-xs text-slate-500 mt-2">CTA: {item.cta}</p>
+                <p className="text-xs text-slate-500 mt-1 italic">{item.reason}</p>
+              </div>
+            )}
+            importItem={async (item) => {
+              const client = tenantApi(user.id);
+              await client.post("/api/ads/creatives", {
+                platform: item.platform,
+                goal: item.goal,
+                headline: item.headline,
+                body: item.body,
+                cta: item.cta,
+                status: "draft",
+              });
+              await loadDrafts();
+              return `Annonsförslaget sparades som utkast.`;
+            }}
+          />
         )}
 
         {/* Section 1: Ad Copy Generator */}

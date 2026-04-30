@@ -7,9 +7,16 @@ import {
   Sparkles, Save,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSocialPosts } from "@/lib/demo-data";
+
+interface SocialSuggestion {
+  platform: string;
+  content: string;
+  reason: string;
+}
 
 interface SocialPost {
   id: string;
@@ -227,6 +234,41 @@ export default function CustomerSocialPage() {
               <X className="h-4 w-4" />
             </button>
           </div>
+        )}
+
+        {/* AI Suggestions */}
+        {user && (
+          <SuggestionsPanel<SocialSuggestion>
+            title="Sociala förslag"
+            description="AI föreslår inlägg per plattform. Importera ett förslag så skapas ett utkast som du kan publicera."
+            accent="indigo"
+            importButtonLabel="Importera till Social"
+            importLabel="Importera till Social-agenten"
+            fetchSuggestions={async () => {
+              const client = tenantApi(user.id);
+              const res = await client.post<{ suggestions?: SocialSuggestion[] }>("/api/social/suggest-posts", {});
+              return res.suggestions || [];
+            }}
+            renderItem={(item) => (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold uppercase text-indigo-700">{item.platform}</span>
+                </div>
+                <p className="text-sm text-slate-800 whitespace-pre-wrap">{item.content}</p>
+                <p className="text-xs text-slate-500 mt-2 italic">{item.reason}</p>
+              </div>
+            )}
+            importItem={async (item) => {
+              const client = tenantApi(user.id);
+              await client.post("/api/social/posts", {
+                platform: item.platform,
+                content: item.content,
+                status: "draft",
+              });
+              await fetchData();
+              return "Inlägget sparades som utkast.";
+            }}
+          />
         )}
 
         {/* Posts */}
