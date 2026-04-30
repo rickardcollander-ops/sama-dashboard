@@ -17,7 +17,7 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   );
 }
-import { api, tenantApi } from "@/lib/api";
+import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
 interface UserSettings {
@@ -391,8 +391,19 @@ function CustomerSettingsPageInner() {
     setTriggeringAgent(agentName);
     try {
       const client = tenantApi(user.id);
-      await client.post(`/api/tenant/agents/${agentName}/trigger`);
+      // Trigger is fire-and-forget on the backend: returns run_id while the
+      // cycle continues in a background task. We refresh the runs list
+      // immediately so the user sees the "Running" row, then poll until it
+      // settles to refresh again with the final status.
+      const resp = await client.post<{ run_id?: string; status?: string }>(
+        `/api/tenant/agents/${agentName}/trigger`,
+      );
       await loadAgentStatus();
+
+      if (resp?.run_id && resp?.status === "running") {
+        // Poll in background — don't block the spinner on it.
+        pollAgentRun(user.id, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
+      }
     } catch {
       setError(`Could not run the ${agentName} agent`);
     }

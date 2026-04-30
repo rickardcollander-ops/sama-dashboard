@@ -118,3 +118,52 @@ export function tenantApi(tenantId: string) {
       }),
   };
 }
+
+/**
+ * Poll an agent_runs row until it leaves the "running" state.
+ *
+ * The backend trigger endpoint returns immediately with run_id; the actual
+ * cycle runs in a background task. Callers use this helper to follow
+ * completion without holding a long HTTP connection.
+ *
+ * Resolves with the final run record. If polling exceeds `timeoutMs` it
+ * resolves with the last seen record (caller can check status).
+ */
+export interface AgentRun {
+  id: string;
+  agent_name: string;
+  status: 'running' | 'completed' | 'failed' | string;
+  started_at: string;
+  completed_at: string | null;
+  summary: string | null;
+  error?: string | null;
+}
+
+export async function pollAgentRun(
+  tenantId: string,
+  runId: string,
+  options: {
+    intervalMs?: number;
+    timeoutMs?: number;
+    onUpdate?: (run: AgentRun) => void;
+  } = {},
+): Promise<AgentRun> {
+  const interval = options.intervalMs ?? 3000;
+  const timeout = options.timeoutMs ?? 15 * 60 * 1000; // matches backend STALE_RUN_AFTER
+  const client = tenantApi(tenantId);
+  const start = Date.now();
+  let last: AgentRun | null = null;
+
+  while (Date.now() - start < timeout) {
+    try {
+      const run = await client.get<AgentRun>(`/api/tenant/agent-runs/${runId}`);
+      last = run;
+      options.onUpdate?.(run);
+      if (run.status !== 'running') return run;
+    } catch {
+      // transient errors don't abort polling — the run may still finish
+    }
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return last ?? ({ id: runId, agent_name: '', status: 'running', started_at: new Date().toISOString(), completed_at: null, summary: null } as AgentRun);
+}
