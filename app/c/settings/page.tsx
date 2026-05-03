@@ -19,6 +19,7 @@ function getSupabase() {
 }
 import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
+import PublishingDestinations from "@/components/PublishingDestinations";
 
 interface UserSettings {
   openai_api_key: string;
@@ -1252,6 +1253,18 @@ function CustomerSettingsPageInner() {
               </div>
             </div>
           </Section>
+
+          {/* ── CMS Destinations ── */}
+          <section id="destinations" className="rounded-xl border bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-1">
+              <Globe className="h-5 w-5 text-slate-400" />
+              <h2 className="text-lg font-semibold text-slate-900">CMS Destinations</h2>
+            </div>
+            <p className="text-sm text-slate-500 mb-5 ml-8">
+              Push generated articles to WordPress, Webflow, Ghost, Notion or a custom webhook — with full HTML, JSON-LD schema and metadata.
+            </p>
+            <PublishingDestinations />
+          </section>
 
           {/* ── Ad Platforms ── */}
           <Section icon={Megaphone} title="Ad Platforms" desc="Connect your ad accounts for automatic sync and analysis">
