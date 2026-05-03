@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
-  History as HistoryIcon,
+  History as HistoryIcon, Search, Globe,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
@@ -105,7 +105,7 @@ export default function AnalysisPage() {
     if (!user) return;
     (async () => {
       try {
-        const supabase = getSupabaseBrowser();
+        const supabase = getSupabase();
         const { data } = await supabase
           .from("user_settings")
           .select("settings")
