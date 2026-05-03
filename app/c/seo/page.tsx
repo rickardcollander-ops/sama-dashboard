@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
+import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { api, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
@@ -407,6 +408,20 @@ export default function CustomerSeoPage() {
             </div>
           )}
         </div>
+
+        {/* Google data diagnostics — surfaces why no GSC data is flowing in */}
+        {user && (
+          <div className="mb-8">
+            <GoogleDataDiagnostics
+              service="search_console"
+              tenantId={user.id}
+              agentName="seo"
+              trackedCount={keywords.length}
+              onSynced={fetchKeywords}
+              showImportFromGsc
+            />
+          </div>
+        )}
 
         {/* AI Recommendations panel */}
         <div className="mb-8">
