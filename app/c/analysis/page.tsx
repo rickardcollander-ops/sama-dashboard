@@ -7,6 +7,7 @@ import {
   History as HistoryIcon, Gauge, Link2, Globe, ShieldCheck, AlertCircle,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
@@ -576,14 +577,16 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
 }
 
 function ResultsStage({ run }: { run: AnalysisRun }) {
-  const hasAudit = !!run.site_audit && run.site_audit.pages_crawled > 0;
-  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "audit">("overview");
-  const tabs: { id: typeof tab; label: string; show: boolean }[] = [
-    { id: "overview", label: "Overview", show: true },
-    { id: "audit", label: "Site audit", show: hasAudit },
-    { id: "matrix", label: "Per query", show: true },
-    { id: "gaps", label: "Gap analysis", show: true },
+  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "recommendations">("overview");
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "matrix", label: "Per query" },
+    { id: "gaps", label: "Gap analysis" },
+    { id: "recommendations", label: "Recommendations" },
   ];
+
+  const gapSummary = useMemo(() => buildGapSummary(run), [run]);
+  const existingKeywords = useMemo(() => run.query_results.map((q) => q.query), [run]);
 
   return (
     <div>
@@ -606,301 +609,48 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       {tab === "audit" && run.site_audit && <SiteAuditTab audit={run.site_audit} />}
       {tab === "matrix" && <MatrixTab run={run} />}
       {tab === "gaps" && <GapsTab run={run} />}
-    </div>
-  );
-}
-
-/* ── Site audit tab ─────────────────────────────────────────────────────── */
-
-function SiteAuditTab({ audit }: { audit: SiteAudit }) {
-  const { scores, issues, pages, robots_txt, sitemap, broken_links } = audit;
-  return (
-    <div className="space-y-6">
-      {/* Overall score + 4 gauges */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center">
-          <div className="flex flex-col items-center md:w-56">
-            <Gauge2 value={scores.overall} size={160} label="Overall" tone={scoreTone(scores.overall)} />
-            <p className="mt-2 text-xs text-slate-500">
-              {audit.pages_crawled} pages on <span className="font-medium text-slate-700">{audit.domain}</span>
-            </p>
-          </div>
-          <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
-            <CategoryGauge icon={ShieldCheck} label="Technical" value={scores.technical} />
-            <CategoryGauge icon={Sparkles} label="GEO / AI" value={scores.geo} />
-            <CategoryGauge icon={FileText} label="Content" value={scores.content} />
-            <CategoryGauge icon={Link2} label="Links" value={scores.links} />
-          </div>
-        </div>
-      </section>
-
-      {/* Critical issues */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <AlertCircle className="h-4 w-4 text-amber-500" />
-          What to fix first
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-            {issues.length}
-          </span>
-        </h3>
-        {issues.length === 0 ? (
-          <p className="text-sm text-slate-400">Nothing critical. Nice work.</p>
-        ) : (
-          <ul className="space-y-2">
-            {issues.map((iss, i) => (
-              <IssueRow key={i} issue={iss} />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Site infrastructure */}
-      <section className="grid gap-4 md:grid-cols-3">
-        <InfraCard label="robots.txt" ok={robots_txt.present}
-          detail={robots_txt.present ? `${robots_txt.size} bytes` : "Not found at /robots.txt"} />
-        <InfraCard label="sitemap.xml" ok={sitemap.present}
-          detail={sitemap.present ? `${sitemap.url_count} URLs` : "Not found"} />
-        <InfraCard label="External links" ok={broken_links.broken_count === 0}
-          detail={`${broken_links.checked} checked · ${broken_links.broken_count} broken`} />
-      </section>
-
-      {/* Detail metrics row */}
-      <DetailMetricsRow audit={audit} />
-
-      {/* Per-page table */}
-      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Globe className="h-4 w-4 text-slate-500" />
-            Pages crawled ({pages.length})
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="text-left px-3 py-2 font-medium">URL</th>
-                <th className="text-center px-3 py-2 font-medium">Score</th>
-                <th className="text-center px-3 py-2 font-medium">Status</th>
-                <th className="text-center px-3 py-2 font-medium">Words</th>
-                <th className="text-center px-3 py-2 font-medium">Title</th>
-                <th className="text-center px-3 py-2 font-medium">Meta</th>
-                <th className="text-center px-3 py-2 font-medium">H1</th>
-                <th className="text-center px-3 py-2 font-medium">Schema</th>
-                <th className="text-center px-3 py-2 font-medium">Alt</th>
-                <th className="text-left px-3 py-2 font-medium">Issues</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pages.map((p, i) => (
-                <PageRow key={i} page={p} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {broken_links.broken.length > 0 && (
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Link2 className="h-4 w-4 text-rose-500" />
-            Broken external links
-          </h3>
-          <ul className="divide-y divide-slate-100 text-sm">
-            {broken_links.broken.map((b, i) => (
-              <li key={i} className="flex items-center justify-between py-2">
-                <span className="truncate text-slate-700" title={b.url}>{b.url}</span>
-                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-                  {b.status === 0 ? "no response" : b.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {tab === "recommendations" && (
+        <KeywordGeoRecommendations
+          existingKeywords={existingKeywords}
+          gapSummary={gapSummary}
+          title="Recommended additions to track"
+          description="Based on your analysis gaps, AI proposes new keywords and GEO queries you can add to your tracking."
+        />
       )}
     </div>
   );
 }
 
-function scoreTone(v: number): "emerald" | "amber" | "rose" {
-  if (v >= 80) return "emerald";
-  if (v >= 60) return "amber";
-  return "rose";
-}
+function buildGapSummary(run: AnalysisRun): string {
+  const lines: string[] = [];
+  const o = run.overview;
+  lines.push(
+    `Brand visible in ${o.queries_with_presence}/${o.total_queries} queries; AI mention rate ${(o.overall_mention_rate * 100).toFixed(0)}%; Google top-10 coverage ${(o.seo_top10_coverage * 100).toFixed(0)}%.`,
+  );
 
-function toneColors(tone: "emerald" | "amber" | "rose") {
-  switch (tone) {
-    case "emerald": return { stroke: "#10b981", text: "text-emerald-700", bg: "bg-emerald-50" };
-    case "amber": return { stroke: "#f59e0b", text: "text-amber-700", bg: "bg-amber-50" };
-    case "rose": return { stroke: "#f43f5e", text: "text-rose-700", bg: "bg-rose-50" };
+  const competitorWins = run.query_results.filter((q) => q.gap === "competitor_dominates").slice(0, 8);
+  if (competitorWins.length) {
+    lines.push("Queries where competitors dominate:");
+    for (const q of competitorWins) {
+      const comps = new Set<string>();
+      q.ai_results.forEach((r) => r.competitors_mentioned?.forEach((c) => comps.add(c)));
+      lines.push(`- "${q.query}" (competitors: ${[...comps].slice(0, 4).join(", ") || "n/a"})`);
+    }
   }
-}
 
-function Gauge2({ value, size = 120, label, tone }: { value: number; size?: number; label: string; tone: "emerald" | "amber" | "rose" }) {
-  const r = (size - 16) / 2;
-  const c = 2 * Math.PI * r;
-  const v = Math.max(0, Math.min(100, value));
-  const dash = (v / 100) * c;
-  const colors = toneColors(tone);
-  return (
-    <div className="relative inline-flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#e2e8f0" strokeWidth="10" fill="none" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={colors.stroke}
-          strokeWidth="10"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${c}`}
-          style={{ transition: "stroke-dasharray 600ms ease" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`text-3xl font-bold ${colors.text}`}>{v}</span>
-        <span className="text-[10px] uppercase tracking-wide text-slate-500">{label}</span>
-      </div>
-    </div>
-  );
-}
+  const bothLosers = run.query_results.filter((q) => q.gap === "both_losers").slice(0, 6);
+  if (bothLosers.length) {
+    lines.push("Queries where brand has no SEO or GEO presence:");
+    for (const q of bothLosers) lines.push(`- "${q.query}"`);
+  }
 
-function CategoryGauge({ icon: Icon, label, value }: { icon: typeof Gauge; label: string; value: number }) {
-  const tone = scoreTone(value);
-  const colors = toneColors(tone);
-  return (
-    <div className={`rounded-xl border border-slate-100 ${colors.bg} p-4`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className={`h-4 w-4 ${colors.text}`} />
-          <span className="text-xs font-medium text-slate-600">{label}</span>
-        </div>
-        <span className={`text-lg font-bold ${colors.text}`}>{value}</span>
-      </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${value}%`, backgroundColor: colors.stroke, transition: "width 600ms ease" }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function IssueRow({ issue }: { issue: AuditIssue }) {
-  const severity: Record<AuditSeverity, string> = {
-    high: "border-rose-200 bg-rose-50 text-rose-700",
-    medium: "border-amber-200 bg-amber-50 text-amber-700",
-    low: "border-slate-200 bg-slate-50 text-slate-600",
-  };
-  const cat: Record<AuditCategory, string> = {
-    technical: "Technical",
-    geo: "GEO/AI",
-    content: "Content",
-    links: "Links",
-  };
-  return (
-    <li className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-      <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase ${severity[issue.severity]}`}>
-        {issue.severity}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-slate-900">{issue.title}</p>
-          <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-            {cat[issue.category]}
-          </span>
-        </div>
-        {issue.detail && <p className="mt-0.5 text-xs text-slate-500">{issue.detail}</p>}
-      </div>
-    </li>
-  );
-}
-
-function InfraCard({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
-  return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-        {ok ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-            <CheckCircle2 className="h-3 w-3" /> OK
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-            <AlertTriangle className="h-3 w-3" /> Issue
-          </span>
-        )}
-      </div>
-      <p className="mt-2 text-sm text-slate-700">{detail}</p>
-    </div>
-  );
-}
-
-function DetailMetricsRow({ audit }: { audit: SiteAudit }) {
-  const d = audit.scores.details;
-  const n = d.pages_total ?? Math.max(audit.pages.length, 1);
-  const items: { label: string; value: string }[] = [
-    { label: "Avg. word count", value: String(d.avg_word_count ?? 0) },
-    { label: "With schema", value: `${d.with_schema ?? 0}/${n}` },
-    { label: "Good titles", value: `${d.with_good_title ?? 0}/${n}` },
-    { label: "Good meta", value: `${d.with_good_meta ?? 0}/${n}` },
-    { label: "Single H1", value: `${d.with_proper_h1 ?? 0}/${n}` },
-    { label: "Alt-text coverage", value: `${d.alt_coverage ?? 0}%` },
-    { label: "Avg. internal links", value: String(d.avg_internal_links ?? 0) },
-    { label: "Broken-link rate", value: `${d.broken_link_rate ?? 0}%` },
-  ];
-  return (
-    <section className="rounded-xl border bg-white p-5 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">Crawl metrics</h3>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {items.map((it) => (
-          <div key={it.label}>
-            <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">{it.label}</div>
-            <div className="mt-0.5 text-lg font-semibold text-slate-900">{it.value}</div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PageRow({ page }: { page: AuditPageReport }) {
-  const status = page.status_code ?? 0;
-  const statusTone = status >= 200 && status < 400 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
-  const okMark = (ok: boolean) =>
-    ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 inline" /> : <X className="h-3.5 w-3.5 text-rose-400 inline" />;
-  const altPct = page.image_count
-    ? Math.round(((page.image_count - page.images_missing_alt) / page.image_count) * 100)
-    : 100;
-  const path = (() => {
-    try { return new URL(page.url).pathname || "/"; } catch { return page.url; }
-  })();
-  const tone = scoreTone(page.page_score);
-  const scoreColor = toneColors(tone);
-  return (
-    <tr className="border-t border-slate-100">
-      <td className="px-3 py-2 text-slate-700 max-w-[260px] truncate" title={page.url}>{path}</td>
-      <td className="px-3 py-2 text-center">
-        <span className={`inline-flex min-w-[32px] justify-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${scoreColor.bg} ${scoreColor.text}`}>
-          {page.page_score}
-        </span>
-      </td>
-      <td className="px-3 py-2 text-center">
-        <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusTone}`}>{status || "—"}</span>
-      </td>
-      <td className="px-3 py-2 text-center text-slate-600">{page.word_count}</td>
-      <td className="px-3 py-2 text-center">{okMark(!!page.title && page.title_length >= 20 && page.title_length <= 65)}</td>
-      <td className="px-3 py-2 text-center">{okMark(!!page.meta_description && page.meta_description_length >= 50 && page.meta_description_length <= 165)}</td>
-      <td className="px-3 py-2 text-center">{okMark(page.h1_count === 1)}</td>
-      <td className="px-3 py-2 text-center">{okMark(page.schema_types.length > 0)}</td>
-      <td className="px-3 py-2 text-center text-slate-600">{altPct}%</td>
-      <td className="px-3 py-2 text-slate-500 text-[11px] truncate max-w-[220px]" title={page.issues.join(" · ")}>
-        {page.issues.length === 0 ? "—" : `${page.issues.length} issue${page.issues.length === 1 ? "" : "s"}`}
-      </td>
-    </tr>
-  );
+  if (o.top_opportunities.length) {
+    lines.push("Top opportunities flagged:");
+    for (const op of o.top_opportunities.slice(0, 5)) {
+      lines.push(`- "${op.query}" — ${op.reason}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function OverviewTab({ run }: { run: AnalysisRun }) {
