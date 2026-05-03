@@ -9,6 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
@@ -269,6 +270,21 @@ export default function CustomerGeoPage() {
             </div>
           </div>
         )}
+
+        {/* AI Recommendations */}
+        <div className="mb-8">
+          <KeywordGeoRecommendations
+            sections={["geo_queries", "long_tail_phrases"]}
+            gapSummary={
+              summary
+                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
+                : undefined
+            }
+            title="Find new GEO queries to track"
+            description="AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add."
+            onAdded={() => loadData()}
+          />
+        </div>
 
         {/* Recent checks */}
         <div>

@@ -10,6 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { api, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
@@ -405,6 +406,17 @@ export default function CustomerSeoPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* AI Recommendations panel */}
+        <div className="mb-8">
+          <KeywordGeoRecommendations
+            existingKeywords={keywords.map((k) => k.keyword)}
+            sections={["keywords", "long_tail_phrases"]}
+            title="Discover new keywords with AI"
+            description="AI proposes new SEO keywords and long-tail phrases based on your brand and current tracked keywords. Pick the ones to add."
+            onAdded={() => fetchKeywords()}
+          />
         </div>
 
         {/* Position History Chart */}

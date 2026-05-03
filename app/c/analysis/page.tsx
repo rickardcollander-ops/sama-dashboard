@@ -7,6 +7,7 @@ import {
   History as HistoryIcon,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
@@ -570,12 +571,16 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
 }
 
 function ResultsStage({ run }: { run: AnalysisRun }) {
-  const [tab, setTab] = useState<"overview" | "matrix" | "gaps">("overview");
+  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "recommendations">("overview");
   const tabs: { id: typeof tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "matrix", label: "Per query" },
     { id: "gaps", label: "Gap analysis" },
+    { id: "recommendations", label: "Recommendations" },
   ];
+
+  const gapSummary = useMemo(() => buildGapSummary(run), [run]);
+  const existingKeywords = useMemo(() => run.query_results.map((q) => q.query), [run]);
 
   return (
     <div>
@@ -597,8 +602,48 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       {tab === "overview" && <OverviewTab run={run} />}
       {tab === "matrix" && <MatrixTab run={run} />}
       {tab === "gaps" && <GapsTab run={run} />}
+      {tab === "recommendations" && (
+        <KeywordGeoRecommendations
+          existingKeywords={existingKeywords}
+          gapSummary={gapSummary}
+          title="Recommended additions to track"
+          description="Based on your analysis gaps, AI proposes new keywords and GEO queries you can add to your tracking."
+        />
+      )}
     </div>
   );
+}
+
+function buildGapSummary(run: AnalysisRun): string {
+  const lines: string[] = [];
+  const o = run.overview;
+  lines.push(
+    `Brand visible in ${o.queries_with_presence}/${o.total_queries} queries; AI mention rate ${(o.overall_mention_rate * 100).toFixed(0)}%; Google top-10 coverage ${(o.seo_top10_coverage * 100).toFixed(0)}%.`,
+  );
+
+  const competitorWins = run.query_results.filter((q) => q.gap === "competitor_dominates").slice(0, 8);
+  if (competitorWins.length) {
+    lines.push("Queries where competitors dominate:");
+    for (const q of competitorWins) {
+      const comps = new Set<string>();
+      q.ai_results.forEach((r) => r.competitors_mentioned?.forEach((c) => comps.add(c)));
+      lines.push(`- "${q.query}" (competitors: ${[...comps].slice(0, 4).join(", ") || "n/a"})`);
+    }
+  }
+
+  const bothLosers = run.query_results.filter((q) => q.gap === "both_losers").slice(0, 6);
+  if (bothLosers.length) {
+    lines.push("Queries where brand has no SEO or GEO presence:");
+    for (const q of bothLosers) lines.push(`- "${q.query}"`);
+  }
+
+  if (o.top_opportunities.length) {
+    lines.push("Top opportunities flagged:");
+    for (const op of o.top_opportunities.slice(0, 5)) {
+      lines.push(`- "${op.query}" — ${op.reason}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function OverviewTab({ run }: { run: AnalysisRun }) {
