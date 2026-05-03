@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
+const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
+
+/** Hard ceiling on how long we'll poll before giving up (10 min). */
+const MAX_POLL_DURATION_MS = 10 * 60_000;
+/** Hard cap on number of polls regardless of duration. */
+const MAX_POLLS = 200;
 
 interface CycleStatus {
   cycle_id: string;
@@ -35,13 +41,23 @@ export function useBackgroundAnalysis({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const pollCountRef = useRef(0);
+  const pollStartRef = useRef(0);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    pollCountRef.current = 0;
+    pollStartRef.current = 0;
   }, []);
+
+  // Cleanup on unmount — without this, navigating away while analyzing
+  // leaks the interval and keeps hitting the backend forever.
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   const startAnalysis = useCallback(async () => {
     setAnalyzing(true);
@@ -51,7 +67,10 @@ export function useBackgroundAnalysis({
     stopPolling();
 
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/${agent}/analyze`, { method: 'POST' });
+      const res = await fetch(`${SAMA_API_URL}/api/${agent}/analyze`, {
+        method: 'POST',
+        headers: { 'X-Sama-Intent': 'user-action' },
+      });
 
       let data: {
         started?: boolean;
@@ -84,7 +103,22 @@ export function useBackgroundAnalysis({
       setPhase(data.phase || 'Collecting data...');
       setProgress(data.progress || 10);
 
+      pollCountRef.current = 0;
+      pollStartRef.current = Date.now();
+
       pollRef.current = setInterval(async () => {
+        // Hard safety bounds so a stuck "running" status can't poll forever.
+        pollCountRef.current += 1;
+        if (
+          pollCountRef.current > MAX_POLLS ||
+          Date.now() - pollStartRef.current > MAX_POLL_DURATION_MS
+        ) {
+          stopPolling();
+          setAnalyzing(false);
+          setError('Analysis polling timed out — stop has been forced to avoid runaway calls.');
+          onError?.('Polling timeout');
+          return;
+        }
         try {
           const statusRes = await fetch(
             `${SAMA_API_URL}/api/${agent}/cycle-status`

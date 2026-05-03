@@ -10,7 +10,7 @@ import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { tenantApi } from "@/lib/api";
 import { AGENTS, AGENT_LIST } from "@/lib/agents";
 import TrendBadge from "@/components/dashboard/TrendBadge";
@@ -61,13 +61,6 @@ interface LeadStats {
   updated_at?: string;
 }
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
-
 function fmtRelative(iso?: string): string {
   if (!iso) return "never";
   const diff = Date.now() - new Date(iso).getTime();
@@ -101,7 +94,7 @@ export default function CustomerDashboard() {
     if (!user || userLoading) return;
     (async () => {
       try {
-        const supabase = getSupabase();
+        const supabase = getSupabaseBrowser();
         const { data } = await supabase
           .from("user_settings")
           .select("settings")
@@ -157,7 +150,7 @@ export default function CustomerDashboard() {
 
   const loadSettings = async () => {
     if (!user) return;
-    const sb = getSupabase();
+    const sb = getSupabaseBrowser();
     const { data } = await sb.from("user_settings").select("settings").eq("user_id", user.id).single();
     if (data?.settings) setSettings(data.settings);
   };

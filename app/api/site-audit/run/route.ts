@@ -1,0 +1,40 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
+
+/**
+ * POST /api/site-audit/run
+ *
+ * Body: { domain?, max_pages? }
+ *
+ * Proxies to sama-agent's /api/site-audit/run, which inserts a row and runs
+ * the crawl in the background. Returns {id, status: "running"} so the
+ * frontend can poll /api/site-audit/runs/{id}.
+ */
+export async function POST(req: NextRequest) {
+  if (!SAMA_API_URL) {
+    return NextResponse.json({ error: "Backend not configured" }, { status: 503 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const tenantId = req.headers.get("X-Tenant-ID") || "";
+
+  try {
+    const upstream = await fetch(`${SAMA_API_URL}/api/site-audit/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": tenantId,
+      },
+      body: JSON.stringify({
+        domain: body.domain,
+        max_pages: body.max_pages,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const data = await upstream.json().catch(() => ({}));
+    return NextResponse.json(data, { status: upstream.status });
+  } catch {
+    return NextResponse.json({ error: "Upstream unavailable" }, { status: 502 });
+  }
+}

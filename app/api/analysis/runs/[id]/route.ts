@@ -7,6 +7,9 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
  *
  * Single run with full payload. Used for status polling (status === "running")
  * and for replay (status === "completed" returns the AnalysisRun shape).
+ *
+ * Backend status is preserved verbatim so the polling loop can distinguish
+ * between transient errors and permanent failures.
  */
 export async function GET(
   req: NextRequest,
@@ -14,7 +17,10 @@ export async function GET(
 ) {
   const { id } = await params;
   if (!SAMA_API_URL) {
-    return NextResponse.json({ error: "Backend not configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Backend not configured (NEXT_PUBLIC_SAMA_API_URL)" },
+      { status: 503 },
+    );
   }
   const tenantId = req.headers.get("X-Tenant-ID") || "";
   try {
@@ -22,9 +28,15 @@ export async function GET(
       headers: { "X-Tenant-ID": tenantId },
       signal: AbortSignal.timeout(15_000),
     });
-    const body = await upstream.json().catch(() => ({}));
+    const text = await upstream.text();
+    let body: unknown = {};
+    try { body = JSON.parse(text); } catch { body = { error: "non-JSON response", upstream_body: text.slice(0, 500) }; }
+    if (upstream.ok && body && typeof body === "object") {
+      (body as Record<string, unknown>)._source = "live";
+    }
     return NextResponse.json(body, { status: upstream.status });
-  } catch {
-    return NextResponse.json({ error: "Upstream unavailable" }, { status: 502 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Upstream unavailable";
+    return NextResponse.json({ error: `Upstream unavailable: ${msg}` }, { status: 502 });
   }
 }

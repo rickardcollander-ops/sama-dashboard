@@ -10,7 +10,8 @@ import AgentChat from "@/components/AgentChat";
 import { useToast } from "@/components/Toast";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
+const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

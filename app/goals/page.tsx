@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { Target, Plus, TrendingUp, Clock, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
+const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
 
 interface Goal {
   id: string;
