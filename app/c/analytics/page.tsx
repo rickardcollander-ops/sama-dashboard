@@ -11,6 +11,7 @@ import {
   LineChart, Line,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
@@ -233,6 +234,19 @@ export default function CustomerAnalyticsPage() {
             <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
+          </div>
+        )}
+
+        {/* Google data diagnostics — surfaces why no GA4 data is flowing in */}
+        {user && !loading && !data.daily?.length && !data.channels?.length && (
+          <div className="mb-8">
+            <GoogleDataDiagnostics
+              service="analytics"
+              tenantId={user.id}
+              agentName="analytics"
+              trackedCount={(data.channels?.length || 0) + (data.daily?.length || 0)}
+              onSynced={fetchAnalytics}
+            />
           </div>
         )}
 
