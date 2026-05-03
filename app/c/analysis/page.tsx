@@ -422,8 +422,10 @@ function SiteAuditMode({
         headers: { "Content-Type": "application/json", "X-Tenant-ID": tenantId },
         body: JSON.stringify({ domain, max_pages: maxPages }),
       });
-      if (!res.ok) throw new Error("audit failed to start");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `Audit failed to start (HTTP ${res.status})`);
+      }
       if (!data?.id) throw new Error(data?.error || "Backend did not return an audit id");
       const final = await pollSiteAuditRun(tenantId, data.id);
       if (final?.status === "completed") {

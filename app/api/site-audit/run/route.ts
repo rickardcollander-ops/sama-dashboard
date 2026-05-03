@@ -33,8 +33,18 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15_000),
     });
     const data = await upstream.json().catch(() => ({}));
+    // FastAPI returns errors as {detail: "…"} — surface that as `error` so
+    // the frontend can show the actual reason instead of a generic message.
+    if (!upstream.ok) {
+      const detail = (data as { detail?: string }).detail;
+      return NextResponse.json(
+        { error: detail || `Backend returned HTTP ${upstream.status}` },
+        { status: upstream.status },
+      );
+    }
     return NextResponse.json(data, { status: upstream.status });
-  } catch {
-    return NextResponse.json({ error: "Upstream unavailable" }, { status: 502 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Upstream unavailable";
+    return NextResponse.json({ error: `Upstream unavailable: ${msg}` }, { status: 502 });
   }
 }
