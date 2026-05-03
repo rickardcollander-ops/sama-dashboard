@@ -576,11 +576,13 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
   );
 }
 
+type ResultsTab = "overview" | "audit" | "matrix" | "gaps" | "recommendations";
+
 function ResultsStage({ run }: { run: AnalysisRun }) {
-  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "audit" | "recommendations">("overview");
-  const tabs: { id: typeof tab; label: string; show: boolean }[] = [
+  const [tab, setTab] = useState<ResultsTab>("overview");
+  const tabs: { id: ResultsTab; label: string; show: boolean }[] = [
     { id: "overview", label: "Overview", show: true },
-    { id: "audit", label: "Site Audit", show: !!run.site_audit },
+    { id: "audit", label: "Site audit", show: !!run.site_audit },
     { id: "matrix", label: "Per query", show: true },
     { id: "gaps", label: "Gap analysis", show: true },
     { id: "recommendations", label: "Recommendations", show: true },
@@ -623,142 +625,106 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
 }
 
 function SiteAuditTab({ audit }: { audit: SiteAudit }) {
-  const issuesBySeverity = useMemo(() => {
-    const buckets: Record<AuditSeverity, AuditIssue[]> = { high: [], medium: [], low: [] };
-    for (const issue of audit.issues) {
-      buckets[issue.severity].push(issue);
-    }
-    return buckets;
-  }, [audit.issues]);
-
-  const categoryLabel: Record<AuditCategory, string> = {
+  const sevTone: Record<AuditSeverity, string> = {
+    high: "bg-red-50 text-red-700 border-red-200",
+    medium: "bg-amber-50 text-amber-700 border-amber-200",
+    low: "bg-slate-50 text-slate-600 border-slate-200",
+  };
+  const catLabel: Record<AuditCategory, string> = {
     technical: "Technical",
     geo: "GEO",
     content: "Content",
     links: "Links",
   };
-  const sevTone: Record<AuditSeverity, string> = {
-    high: "border-red-200 bg-red-50 text-red-700",
-    medium: "border-amber-200 bg-amber-50 text-amber-700",
-    low: "border-slate-200 bg-slate-50 text-slate-600",
-  };
-
-  const ScoreCard = ({ label, value }: { label: string; value: number }) => {
-    const tone = value >= 80 ? "text-emerald-700" : value >= 60 ? "text-amber-700" : "text-red-700";
-    return (
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className={`mt-1 text-2xl font-bold ${tone}`}>{value}</p>
-      </div>
-    );
-  };
+  const scoreTone = (n: number) =>
+    n >= 80 ? "text-emerald-600" : n >= 60 ? "text-amber-600" : "text-red-600";
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-5">
-        <ScoreCard label="Overall" value={audit.scores.overall} />
-        <ScoreCard label="Technical" value={audit.scores.technical} />
-        <ScoreCard label="GEO" value={audit.scores.geo} />
-        <ScoreCard label="Content" value={audit.scores.content} />
-        <ScoreCard label="Links" value={audit.scores.links} />
-      </div>
-
       <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Globe className="h-4 w-4 text-slate-400" />
-            Crawl summary — {audit.domain}
-          </h3>
-          <span className="text-xs text-slate-500">{audit.pages_crawled} pages crawled</span>
+        <div className="flex items-baseline justify-between mb-4">
+          <h3 className="text-sm font-semibold text-slate-700">Scores</h3>
+          <span className="text-xs text-slate-400">{audit.pages_crawled} pages crawled · {audit.domain}</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-500">robots.txt</p>
-            <p className="font-medium text-slate-700 mt-0.5">{audit.robots_txt.present ? "Present" : "Missing"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Sitemap</p>
-            <p className="font-medium text-slate-700 mt-0.5">
-              {audit.sitemap.present ? `${audit.sitemap.url_count} URLs` : "Missing"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Broken links</p>
-            <p className="font-medium text-slate-700 mt-0.5">
-              {audit.broken_links.broken_count} / {audit.broken_links.checked}
-            </p>
-          </div>
+        <div className="grid gap-3 sm:grid-cols-5">
+          {(["overall", "technical", "geo", "content", "links"] as const).map((k) => (
+            <div key={k} className="rounded-lg border border-slate-100 bg-slate-50/60 p-4 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">{k}</div>
+              <div className={`mt-1 text-2xl font-bold ${scoreTone(audit.scores[k])}`}>{audit.scores[k]}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-x-6 gap-y-1 text-xs text-slate-500 sm:grid-cols-2">
+          <span>robots.txt: {audit.robots_txt.present ? "present" : "missing"}</span>
+          <span>sitemap: {audit.sitemap.present ? `${audit.sitemap.url_count} URLs` : "missing"}</span>
+          <span>broken links: {audit.broken_links.broken_count} of {audit.broken_links.checked} checked</span>
+          <span>avg word count: {audit.scores.details.avg_word_count ?? "—"}</span>
         </div>
       </section>
 
-      {(["high", "medium", "low"] as AuditSeverity[]).map((sev) => {
-        const issues = issuesBySeverity[sev];
-        if (issues.length === 0) return null;
-        return (
-          <section key={sev} className={`rounded-xl border p-5 shadow-sm ${sevTone[sev]}`}>
-            <h3 className="text-sm font-semibold mb-3 capitalize flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {sev} priority — {issues.length} {issues.length === 1 ? "issue" : "issues"}
-            </h3>
-            <ul className="space-y-2">
-              {issues.map((issue, i) => (
-                <li key={i} className="rounded-lg bg-white border border-slate-100 p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                      {categoryLabel[issue.category]}
-                    </span>
-                    <p className="text-sm font-medium text-slate-900">{issue.title}</p>
-                  </div>
-                  <p className="text-xs text-slate-600">{issue.detail}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">
+          Issues <span className="ml-1 text-xs text-slate-400">({audit.issues.length})</span>
+        </h3>
+        {audit.issues.length === 0 ? (
+          <p className="text-sm text-slate-400">No issues detected.</p>
+        ) : (
+          <ul className="space-y-2">
+            {audit.issues.map((iss, i) => (
+              <li key={i} className={`rounded-lg border px-3 py-2 text-sm ${sevTone[iss.severity]}`}>
+                <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide">
+                  <span>{iss.severity}</span>
+                  <span className="opacity-60">· {catLabel[iss.category]}</span>
+                </div>
+                <div className="mt-0.5 font-medium text-slate-900">{iss.title}</div>
+                <div className="text-xs text-slate-600 mt-0.5">{iss.detail}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      {audit.pages.length > 0 && (
-        <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-          <div className="border-b px-5 py-3">
-            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-slate-400" />
-              Per-page scores
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">URL</th>
-                  <th className="text-right px-3 py-2 font-medium">Score</th>
-                  <th className="text-right px-3 py-2 font-medium">Status</th>
-                  <th className="text-right px-3 py-2 font-medium">Words</th>
-                  <th className="text-left px-3 py-2 font-medium">Top issue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.pages.slice(0, 20).map((p) => (
-                  <tr key={p.url} className="border-t border-slate-100">
-                    <td className="px-3 py-2 truncate max-w-[300px] text-slate-700" title={p.url}>{p.url}</td>
-                    <td className="px-3 py-2 text-right">
-                      <span className={`rounded-full px-2 py-0.5 font-semibold ${
-                        p.page_score >= 80 ? "bg-emerald-100 text-emerald-700" :
-                        p.page_score >= 60 ? "bg-amber-100 text-amber-700" :
-                        "bg-red-100 text-red-700"
-                      }`}>{p.page_score}</span>
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.status_code ?? "—"}</td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.word_count}</td>
-                    <td className="px-3 py-2 text-slate-600 truncate max-w-[260px]">
-                      {p.issues[0] || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {audit.broken_links.broken.length > 0 && (
+        <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Broken links</h3>
+          <ul className="space-y-1 text-xs">
+            {audit.broken_links.broken.slice(0, 20).map((b) => (
+              <li key={b.url} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-1.5">
+                <span className="truncate text-slate-700" title={b.url}>{b.url}</span>
+                <span className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-red-700">{b.status}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
+
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Pages</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">URL</th>
+                <th className="text-right px-3 py-2 font-medium">Status</th>
+                <th className="text-right px-3 py-2 font-medium">Score</th>
+                <th className="text-right px-3 py-2 font-medium">Words</th>
+                <th className="text-right px-3 py-2 font-medium">Issues</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audit.pages.map((p) => (
+                <tr key={p.url} className="border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-700 max-w-[360px] truncate" title={p.url}>{p.url}</td>
+                  <td className="px-3 py-2 text-right font-mono text-slate-500">{p.status_code ?? "—"}</td>
+                  <td className={`px-3 py-2 text-right font-semibold ${scoreTone(p.page_score)}`}>{p.page_score}</td>
+                  <td className="px-3 py-2 text-right text-slate-600">{p.word_count}</td>
+                  <td className="px-3 py-2 text-right text-slate-500">{p.issues.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
