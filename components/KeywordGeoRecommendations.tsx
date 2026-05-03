@@ -93,7 +93,10 @@ export default function KeywordGeoRecommendations(props: Props) {
     try {
       const res = await fetch("/api/recommendations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Sama-Intent": "user-action",
+        },
         body: JSON.stringify({
           existing_keywords: existingKeywords,
           gap_summary: gapSummary,

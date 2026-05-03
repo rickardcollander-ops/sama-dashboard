@@ -134,11 +134,8 @@ export default function CustomerAdsPage() {
   const loadBrandContext = async () => {
     if (!user) return;
     try {
-      const { createBrowserClient } = await import("@supabase/ssr");
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-      );
+      const { getSupabaseBrowser } = await import("@/lib/supabase-browser");
+      const supabase = getSupabaseBrowser();
       const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
       if (data?.settings) setBrandContext(data.settings);
     } catch {}

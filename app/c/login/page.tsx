@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
-
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -30,7 +23,7 @@ export default function CustomerLoginPage() {
     setMessage("");
     setLoading(true);
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseBrowser();
 
     try {
       if (mode === "signup") {

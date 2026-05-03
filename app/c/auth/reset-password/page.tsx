@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Eye, EyeOff } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
-
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -23,7 +16,7 @@ export default function ResetPasswordPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = getSupabase();
+    const supabase = getSupabaseBrowser();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setReady(true);
@@ -50,7 +43,7 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const supabase = getSupabase();
+    const supabase = getSupabaseBrowser();
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setLoading(false);
 

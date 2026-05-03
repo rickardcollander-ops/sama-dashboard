@@ -90,6 +90,8 @@ export default function GoogleDataDiagnostics(props: Props) {
       const client = tenantApi(tenantId);
       const resp = await client.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/${agentName}/trigger`,
+        undefined,
+        { headers: { "X-Sama-Intent": "user-action" } },
       );
       if (resp?.run_id && resp?.status === "running") {
         setFeedback("Sync started — running in background…");

@@ -5,7 +5,8 @@ import { Linkedin, Sparkles, Send, BarChart3, Clock, FileText, RefreshCw, Trash2
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
+const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
 
 const TOPIC_SUGGESTIONS = [
   "Customer churn prevention strategies for SaaS",

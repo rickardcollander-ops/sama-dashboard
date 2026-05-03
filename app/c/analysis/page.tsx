@@ -108,7 +108,7 @@ export default function AnalysisPage() {
     if (!user) return;
     (async () => {
       try {
-        const supabase = getSupabase();
+        const supabase = getSupabaseBrowser();
         const { data } = await supabase
           .from("user_settings")
           .select("settings")
