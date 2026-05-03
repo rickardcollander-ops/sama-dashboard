@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, DollarSign, MousePointerClick, Eye, Zap, Clock, Play, CheckCircle, ChevronDown, ChevronUp, FileText, Target, Ban, PlusCircle, Wrench } from "lucide-react";
-import Link from "next/link";
+import { TrendingUp, DollarSign, Zap, Clock, Play, CheckCircle, ChevronDown, ChevronUp, FileText, Target, Ban, PlusCircle, Wrench } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
@@ -44,7 +43,7 @@ export default function AdsPage() {
   const [stats, setStats] = useState({ totalSpend: 0, totalClicks: 0, totalImpressions: 0, avgCTR: 0 });
 
   // Analysis state
-  const [analysis, setAnalysis] = useState<any>(null);
+  const analysis: any = null;
   const [actions, setActions] = useState<Action[]>([]);
 
   const fetchActions = async () => {
@@ -80,7 +79,7 @@ export default function AdsPage() {
         if (Array.isArray(raw)) {
           campaignList = raw;
         } else if (raw && typeof raw === 'object') {
-          campaignList = Object.entries(raw).map(([key, val]: [string, any], idx) => ({
+          campaignList = Object.entries(raw).map(([key, val]: [string, any]) => ({
             name: val?.name || key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
             status: 'Configured',
             impressions: 0, clicks: 0, cost: 0, conversions: 0, ctr: 0,
@@ -126,7 +125,7 @@ export default function AdsPage() {
       } else {
         setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
       }
-    } catch (error) {
+    } catch {
       setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Backend not reachable' } }));
     } finally {
       setExecuting(null);

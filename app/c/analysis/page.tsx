@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
-  History as HistoryIcon, Gauge, Link2, Globe, ShieldCheck, AlertCircle,
+  History as HistoryIcon,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
-import { tenantApi } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
 
 function getSupabase() {
@@ -59,8 +58,6 @@ import {
   type AIPlatform,
   type AnalysisRun,
   type AuditCategory,
-  type AuditIssue,
-  type AuditPageReport,
   type AuditSeverity,
   type GapCategory,
   type SiteAudit,

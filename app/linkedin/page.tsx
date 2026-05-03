@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Linkedin, Sparkles, Send, BarChart3, Clock, FileText, RefreshCw, Trash2, Copy, CheckCircle } from "lucide-react";
-import Link from "next/link";
+import { useState, useCallback } from "react";
+import { Linkedin, Sparkles, Send, BarChart3, Clock, Trash2, Copy, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';

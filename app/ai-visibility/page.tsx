@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import {
-  Bot, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock,
+  TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock,
   Play, RefreshCw, ChevronDown, ChevronUp, Zap, Target, BookOpen,
   MessageSquare, ShoppingCart, Wrench, BarChart2, Lightbulb, Eye,
   ArrowRight, Minus, Trash2
 } from "lucide-react";
-import Link from "next/link";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
 

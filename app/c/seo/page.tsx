@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Search, TrendingUp, ArrowUp, ArrowDown, Minus, RefreshCw,
-  Loader2, BarChart2, Target, AlertCircle, X, Plus, Sparkles, Trash2,
+  Search, TrendingUp, ArrowUp, ArrowDown, RefreshCw,
+  Loader2, BarChart2, Target, AlertCircle, X, Plus, Sparkles,
   Download, ArrowUpDown,
 } from "lucide-react";
 import {

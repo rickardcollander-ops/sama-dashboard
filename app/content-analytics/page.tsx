@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Eye, Clock, MousePointerClick, Target } from "lucide-react";
-import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
@@ -22,7 +21,7 @@ export default function ContentAnalyticsPage() {
   const [topContent, setTopContent] = useState<ContentPerformance[]>([]);
   const [underperforming, setUnderperforming] = useState<ContentPerformance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [metric, setMetric] = useState("pageviews");
   const [optimizingResults, setOptimizingResults] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
 

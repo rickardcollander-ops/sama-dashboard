@@ -80,7 +80,7 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
           content: "Sorry, I couldn't process that request. Please try again." 
         }]);
       }
-    } catch (error) {
+    } catch {
       setChatHistory(prev => [...prev, { 
         role: "agent", 
         content: "Error connecting to agent. Please check backend connection." 

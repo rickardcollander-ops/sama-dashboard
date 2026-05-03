@@ -49,7 +49,7 @@ export default function TermsPage() {
 
       <h2>7. Termination</h2>
       <p>
-        Either party may terminate for material breach with 30 days' written
+        Either party may terminate for material breach with 30 days&apos; written
         notice if the breach is not cured. Upon termination, you may export
         your data for 30 days after which it may be deleted.
       </p>

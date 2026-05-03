@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, XCircle, Clock, Play, Trash2, AlertTriangle, FileText, Search, BarChart3, MessageSquare, Star, CheckSquare, Square, Wifi } from "lucide-react";
-import Link from "next/link";
+import { CheckCircle, Clock, Play, Trash2, FileText, Search, BarChart3, MessageSquare, Star, CheckSquare, Square, Wifi } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";
 

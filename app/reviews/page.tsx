@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Star, MessageSquare, Zap, Clock, Play, ChevronDown, ChevronUp, CheckCircle,
   AlertTriangle, Mail, BarChart3, Trash2, Plus, Upload, XCircle, TrendingUp,
-  TrendingDown, Minus, RefreshCw, Shield, ExternalLink, Users, Target, Search,
+  TrendingDown, Minus, RefreshCw, Shield, ExternalLink, Target, Search,
   Eye, Crosshair
 } from "lucide-react";
-import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
@@ -693,7 +692,7 @@ export default function ReviewsPage() {
                               {action.review && (
                                 <div className="rounded-lg bg-blue-50 px-3 py-2.5 border border-blue-100">
                                   <p className="text-xs font-medium text-blue-600 mb-1">Review ({action.review.rating}/5 stars)</p>
-                                  <p className="text-xs text-slate-700 italic">"{action.review.text?.substring(0, 200)}"</p>
+                                  <p className="text-xs text-slate-700 italic">&ldquo;{action.review.text?.substring(0, 200)}&rdquo;</p>
                                   <p className="text-xs text-slate-500 mt-1">— {action.review.reviewer} on {action.review.platform}</p>
                                 </div>
                               )}

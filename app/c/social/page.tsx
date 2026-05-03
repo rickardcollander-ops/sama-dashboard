@@ -113,7 +113,7 @@ export default function CustomerSocialPage() {
         tone: "professional",
       });
       if (result.body) setCreateText(result.body);
-    } catch (err: any) {
+    } catch {
       setError("Could not generate content. Please try again.");
     }
     setGenerating(false);

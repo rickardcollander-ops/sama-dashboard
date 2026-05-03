@@ -1,5 +1,5 @@
 import {
-  Bot, Search, FileText, Share2, Megaphone, TrendingUp, BarChart2, Code2,
+  Bot, Search, FileText, Share2, Megaphone, BarChart2, Code2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 

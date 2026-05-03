@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Target, Users, TrendingUp, Zap, BarChart3, RefreshCw,
-  ChevronRight, ArrowUp, ArrowDown, Minus, Clock,
-  Crosshair, Megaphone, GitBranch, CheckCircle, AlertTriangle,
+  ChevronRight, Clock,
+  Crosshair, Megaphone, GitBranch,
   DollarSign, UserCheck
 } from "lucide-react";
 
@@ -179,7 +179,7 @@ export default function GTMPage() {
 
 // ── Overview Tab ────────────────────────────────────────────────────
 
-function OverviewTab({ dashboard, loading, running, onRun, reviewResult }: {
+function OverviewTab({ dashboard, loading: _loading, running, onRun, reviewResult }: {
   dashboard: DashboardData | null;
   loading: boolean;
   running: string | null;

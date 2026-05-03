@@ -2,7 +2,7 @@
  * CSV export helpers for client-side data export.
  */
 
-function escapeCell(value: any): string {
+function escapeCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   const str = String(value);
   if (/[",\n\r]/.test(str)) {
@@ -13,7 +13,7 @@ function escapeCell(value: any): string {
 
 export interface CsvColumn<T> {
   header: string;
-  accessor: (row: T) => any;
+  accessor: (row: T) => unknown;
 }
 
 export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Bot, TrendingUp, TrendingDown, AlertCircle, CheckCircle,
+  TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download,
 } from "lucide-react";
 import {

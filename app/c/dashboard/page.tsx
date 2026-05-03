@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, Play, ArrowRight, AlertCircle, X, Sparkles,
-  PenTool, Share2, Megaphone, Clock, Check, Bot, BarChart2, FileText,
+  PenTool, Share2, Megaphone, Clock, Check, Bot,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -16,7 +16,7 @@ import { AGENTS, AGENT_LIST } from "@/lib/agents";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
-import AgentCard, { type MetricRow, type QuickAction } from "@/components/dashboard/AgentCard";
+import AgentCard, { type MetricRow } from "@/components/dashboard/AgentCard";
 import OnboardingChecklist, { type ChecklistItem } from "@/components/dashboard/OnboardingChecklist";
 
 interface CustomerSettings {
@@ -185,7 +185,6 @@ export default function CustomerDashboard() {
 
   const loadContentStats = async () => {
     if (!user) return;
-    const client = tenantApi(user.id);
     try {
       const data = await tenantApi(user.id).get<any>(`/api/content/stats?days=${days}`);
       if (data) {

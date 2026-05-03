@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Megaphone, Loader2, Upload, Sparkles, Save, Trash2, Edit3,
-  Image, AlertCircle, CheckCircle, ChevronDown, ChevronUp,
+  Image as ImageIcon, AlertCircle, CheckCircle,
   Settings, ArrowRight, BarChart2, Lightbulb, ClipboardList,
   X,
 } from "lucide-react";
@@ -97,7 +97,6 @@ export default function CustomerAdsPage() {
   // Saved drafts
   const [drafts, setDrafts] = useState<AdCreative[]>([]);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [editingDraft, setEditingDraft] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   // Brand context (loaded from settings)
@@ -594,7 +593,7 @@ export default function CustomerAdsPage() {
         {/* Section 2: Screenshot Analyzer */}
         <section className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-6">
-            <Image className="h-5 w-5 text-violet-500" />
+            <ImageIcon className="h-5 w-5 text-violet-500" />
             Analyze Campaign Screenshot
           </h2>
 

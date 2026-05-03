@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  Send, Search, MessageSquare, TrendingUp, Users, BarChart3,
-  BarChart2, Zap, Bot, User, Loader2, Radio, Wrench, ChevronDown, ChevronRight, Terminal,
+  Send, User, Loader2, ChevronDown, ChevronRight, Terminal,
 } from "lucide-react";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
@@ -32,16 +31,6 @@ interface ChatMessage {
   timestamp: string;
   toolCalls?: ToolCall[];
 }
-
-const AGENT_ICONS: Record<string, React.ElementType> = {
-  seo: Search,
-  content: MessageSquare,
-  ads: TrendingUp,
-  social: Users,
-  reviews: BarChart3,
-  analytics: BarChart2,
-  dev: Wrench,
-};
 
 const AGENT_COLORS: Record<string, { bg: string; ring: string; text: string; gradient: string }> = {
   seo:       { bg: "bg-blue-500",    ring: "ring-blue-300",    text: "text-blue-600",    gradient: "from-blue-500 to-blue-600" },
@@ -255,17 +244,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   );
 }
 
-/** Small pill showing which agents were routed to */
-function RoutingPill({ agents }: { agents: string[] }) {
-  return (
-    <div className="flex items-center justify-center gap-1.5 py-1">
-      <span className="text-[10px] text-slate-400">
-        {agents.map((a) => AGENT_PERSONAS[a]?.name || a.toUpperCase()).join(", ")} svarar
-      </span>
-    </div>
-  );
-}
-
 // --- localStorage helpers for chat persistence ---
 const CACHE_KEY = "sama-agent-chat";
 
@@ -366,7 +344,7 @@ export default function AgentChatPage() {
       } else {
         setConversationIds((prev) => ({ ...prev, [mode]: cid }));
       }
-    } catch (e) {
+    } catch {
       // Silent — just start fresh
     }
     setLoadingHistory(false);
@@ -375,7 +353,7 @@ export default function AgentChatPage() {
   // On mount, try to refresh from backend (cache is already loaded via initial state)
   useEffect(() => {
     loadConversation("team");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleAgentSelect = (id: string) => {

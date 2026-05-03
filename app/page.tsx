@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Activity, Search, MessageSquare, TrendingUp, Users, BarChart3,
+  Activity, Search, TrendingUp, Users, BarChart3,
   Bot, CheckCircle, XCircle, ArrowRight, Zap, AlertTriangle,
   Clock, RefreshCw, Play, ChevronRight, Star, FileText,
-  Shield, Calendar, Timer, ArrowUp, ArrowDown, Minus
+  Shield, Calendar, Timer
 } from "lucide-react";
 import { useSEOData } from "@/lib/hooks/useSEOData";
 import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";

@@ -53,7 +53,14 @@ export function useBackgroundAnalysis({
     try {
       const res = await fetch(`${SAMA_API_URL}/api/${agent}/analyze`, { method: 'POST' });
 
-      let data: any;
+      let data: {
+        started?: boolean;
+        cycle_id?: string;
+        phase?: string;
+        progress?: number;
+        error?: string;
+        detail?: string;
+      };
       try {
         data = await res.json();
       } catch {
@@ -110,11 +117,11 @@ export function useBackgroundAnalysis({
       }, pollInterval);
 
       return data;
-    } catch (err: any) {
+    } catch (err) {
       setAnalyzing(false);
       setProgress(0);
       setPhase(null);
-      const msg = err.message || 'Error connecting to backend';
+      const msg = err instanceof Error ? err.message : 'Error connecting to backend';
       setError(msg);
       onError?.(msg);
       return null;

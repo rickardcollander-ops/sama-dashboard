@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import {
-  Users, MessageCircle, Repeat2, Zap, Clock, Play, ChevronDown, ChevronUp,
+  MessageCircle, Repeat2, Zap, Clock, Play, ChevronDown, ChevronUp,
   CheckCircle, Calendar, AlertTriangle, Send, Twitter, ExternalLink, FileText,
   TrendingUp, RefreshCw, Sparkles, Trash2, Search, X, ArrowUpRight
 } from "lucide-react";
-import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 
@@ -92,7 +91,7 @@ type TabId = 'actions' | 'interesting' | 'drafts' | 'calendar' | 'mentions' | 'r
 
 export default function SocialPage() {
   const toast = useToast();
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, _setAnalysis] = useState<any>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [executing, setExecuting] = useState<string | null>(null);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
@@ -143,7 +142,7 @@ export default function SocialPage() {
         const data = await res.json();
         setDrafts(data.drafts || []);
       }
-    } catch (err: any) {
+    } catch {
       toast.error('Failed to load drafts');
     }
     finally { setLoadingDrafts(false); }
@@ -755,7 +754,7 @@ export default function SocialPage() {
               <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
                 <FileText className="mx-auto h-12 w-12 text-slate-300" />
                 <h3 className="mt-4 text-lg font-semibold text-slate-900">No Drafts Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Execute "Generate Post" or "Generate Thread" actions to create saved drafts.</p>
+                <p className="mt-2 text-sm text-slate-500">Execute &ldquo;Generate Post&rdquo; or &ldquo;Generate Thread&rdquo; actions to create saved drafts.</p>
               </div>
             )}
           </div>
@@ -865,7 +864,7 @@ export default function SocialPage() {
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{action.type?.replace(/_/g, ' ') || 'action'}</span>
                         </div>
-                        <p className="text-sm text-slate-500 italic">"{action.description}"</p>
+                        <p className="text-sm text-slate-500 italic">&ldquo;{action.description}&rdquo;</p>
                         {executionResults[action.id]?.result?.reply && (
                           <div className="mt-2 rounded-lg bg-green-50 p-3">
                             <p className="text-xs font-medium text-green-700 mb-1">Generated Reply</p>
@@ -1332,7 +1331,7 @@ function ActionsList({
       <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
         <Zap className="mx-auto h-12 w-12 text-slate-300" />
         <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-        <p className="mt-2 text-sm text-slate-500">Click "Run Social Analysis" to generate your content calendar and find engagement opportunities.</p>
+        <p className="mt-2 text-sm text-slate-500">Click &ldquo;Run Social Analysis&rdquo; to generate your content calendar and find engagement opportunities.</p>
       </div>
     );
   }
@@ -1389,7 +1388,7 @@ function ActionsList({
                 {action.original_tweet && (
                   <div className="rounded-lg bg-blue-50 p-3">
                     <p className="text-xs font-medium text-blue-600 mb-1">Original Tweet</p>
-                    <p className="text-sm text-slate-700 italic">"{action.original_tweet}"</p>
+                    <p className="text-sm text-slate-700 italic">&ldquo;{action.original_tweet}&rdquo;</p>
                     {action.username && <p className="text-xs text-slate-500 mt-1">— @{action.username}</p>}
                     {action.tweet_url && (
                       <a href={action.tweet_url} target="_blank" rel="noopener noreferrer"
