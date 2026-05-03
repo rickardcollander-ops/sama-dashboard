@@ -5,7 +5,23 @@
  * - Consistent error formatting
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+/**
+ * BASE_URL routes all backend calls through the Next.js proxy at /api/sama
+ * to bypass CORS. The proxy forwards server-to-server to the real backend
+ * (configured via SAMA_API_URL env var on the server side).
+ *
+ * If NEXT_PUBLIC_SAMA_API_URL is explicitly set to a full URL it overrides
+ * the proxy — useful for local dev pointing at a local backend with CORS
+ * already configured.
+ */
+const RAW_BASE = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
+const BASE_URL = /^https?:\/\//.test(RAW_BASE) ? RAW_BASE : '/api/sama';
+
+/**
+ * Public helper for legacy pages that build URLs as `${SAMA_API_URL}/api/...`.
+ * Resolves to the same proxy path as BASE_URL by default.
+ */
+export const SAMA_API_URL = BASE_URL;
 
 interface FetchOptions extends RequestInit {
   retries?: number;

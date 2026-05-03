@@ -8,15 +8,9 @@ import {
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
   Play, Power, Clock, Activity, Zap, Code2, Link, Info, Star,
 } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
 import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 import PublishingDestinations from "@/components/PublishingDestinations";
@@ -340,7 +334,7 @@ function CustomerSettingsPageInner() {
     try {
       const currentSettings = { ...settings } as any;
       currentSettings.blog_url = blogUrl;
-      const { error: upsertError } = await getSupabase()
+      const { error: upsertError } = await getSupabaseBrowser()
         .from("user_settings")
         .upsert({
           user_id: user.id,
@@ -478,7 +472,7 @@ function CustomerSettingsPageInner() {
   const loadSettings = async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data } = await getSupabase()
+      const { data } = await getSupabaseBrowser()
         .from("user_settings")
         .select("*")
         .eq("user_id", user.id)
@@ -500,7 +494,7 @@ function CustomerSettingsPageInner() {
     setSaved(false);
 
     try {
-      const { error: upsertError } = await getSupabase()
+      const { error: upsertError } = await getSupabaseBrowser()
         .from("user_settings")
         .upsert({
           user_id: user.id,

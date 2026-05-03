@@ -10,14 +10,7 @@ import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
-import { createBrowserClient } from "@supabase/ssr";
-
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface AnalysisRunSummary {
   id: string;
@@ -103,7 +96,7 @@ export default function AnalysisPage() {
     if (!user) return;
     (async () => {
       try {
-        const supabase = getSupabase();
+        const supabase = getSupabaseBrowser();
         const { data } = await supabase
           .from("user_settings")
           .select("settings")

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { useState, useEffect } from "react";
 import type { User } from "@supabase/supabase-js";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 const isSupabaseConfigured = !!(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -10,21 +10,11 @@ const isSupabaseConfigured = !!(
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const supabase = useMemo(() => {
-    if (!isSupabaseConfigured) return null;
-    return createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }, []);
+  const [loading, setLoading] = useState(!isSupabaseConfigured ? false : true);
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
+    const supabase = getSupabaseBrowser();
 
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
@@ -36,11 +26,11 @@ export function useUser() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, []);
 
   const signOut = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
+    if (isSupabaseConfigured) {
+      await getSupabaseBrowser().auth.signOut();
     }
     document.cookie = "sama_auth=; path=/; max-age=0";
     window.location.href = "/c/login";
