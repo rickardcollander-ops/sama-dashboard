@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, TrendingUp, TrendingDown, Activity, Search } from "lucide-react";
-import Link from "next/link";
+import { AlertTriangle, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
@@ -153,8 +152,6 @@ export default function AnomaliesPage() {
       </div>
     </div>
   );
-
-  const allAnomalies = [...trafficAnomalies, ...conversionAnomalies, ...spendAnomalies];
 
   return (
     <div className="min-h-screen bg-slate-50">

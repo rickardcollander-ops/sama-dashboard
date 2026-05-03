@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, TrendingUp, Calendar, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
+import { FileText, TrendingUp, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
@@ -39,7 +39,7 @@ export default function ContentPage() {
 
   // Analysis state
   // analyzing state from useBackgroundAnalysis hook
-  const [analysis, setAnalysis] = useState<any>(null);
+  const analysis: any = null;
   const [actions, setActions] = useState<Action[]>([]);
 
   // Execution state

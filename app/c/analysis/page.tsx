@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
-  History as HistoryIcon, Globe, Search,
+  History as HistoryIcon,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
-import { tenantApi } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
@@ -61,8 +60,6 @@ import {
   type AIPlatform,
   type AnalysisRun,
   type AuditCategory,
-  type AuditIssue,
-  type AuditPageReport,
   type AuditSeverity,
   type GapCategory,
   type SiteAudit,

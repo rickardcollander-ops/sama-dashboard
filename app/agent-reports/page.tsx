@@ -62,7 +62,6 @@ function StatPill({ label, value, warn }: { label: string; value: number; warn?:
 function AgentCard({ report }: { report: AgentReport }) {
   const meta = AGENT_META[report.agent_name] || { name: report.agent_name.toUpperCase(), title: "Agent", emoji: "🤖", icon: Zap, color: "blue" };
   const colors = COLOR_MAP[meta.color] || COLOR_MAP.blue;
-  const Icon = meta.icon;
   const s = report.stats || {};
 
   return (

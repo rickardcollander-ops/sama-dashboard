@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, DollarSign, Users, RefreshCw, Play, Clock, Zap, Target } from "lucide-react";
-import Link from "next/link";
 import { useToast } from "@/components/Toast";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';

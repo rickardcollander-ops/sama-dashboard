@@ -3,10 +3,10 @@
 import { useState, ReactNode } from "react";
 import { Loader2, Sparkles, X, CheckCircle, AlertCircle } from "lucide-react";
 
-export interface SuggestionItem {
-  // Free-form payload — each page renders + imports its own shape
-  [key: string]: any;
-}
+// Free-form payload — each page renders and imports its own shape.
+// Using `any` index signature so concrete shapes don't need an explicit one.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SuggestionItem = Record<string, any>;
 
 interface Props<T extends SuggestionItem> {
   title: string;
@@ -55,8 +55,8 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
       const items = await fetchSuggestions();
       setSuggestions(items);
       if (!items.length) setError("Inga förslag returnerades. Försök igen om en stund.");
-    } catch (err: any) {
-      setError(err?.message || "Kunde inte hämta förslag.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte hämta förslag.");
     }
     setLoading(false);
   };
@@ -72,8 +72,8 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
       setSuggestions((prev) => prev.filter((s) => s !== pending));
       setPending(null);
       setTimeout(() => setFeedback(null), 4000);
-    } catch (err: any) {
-      setImportError(err?.message || "Kunde inte importera.");
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Kunde inte importera.");
     }
     setImporting(false);
   };

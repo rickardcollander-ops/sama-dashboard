@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CheckCircle, XCircle } from "lucide-react";
-import Link from "next/link";
+import { TrendingUp, TrendingDown, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
@@ -34,7 +33,7 @@ export default function BudgetOptimizerPage() {
   const [requiresApproval, setRequiresApproval] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     analyzeCampaigns();
@@ -98,7 +97,7 @@ export default function BudgetOptimizerPage() {
       } else {
         toast.error('Failed to apply budget changes');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error applying changes');
     }
   };

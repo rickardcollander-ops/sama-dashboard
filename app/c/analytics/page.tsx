@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   TrendingUp, Loader2, BarChart2, Users, MousePointerClick,
-  Eye, DollarSign, ArrowUpRight, ArrowDownRight, AlertCircle, X,
+  Eye, DollarSign, AlertCircle, X,
   RefreshCw, Download,
 } from "lucide-react";
 import {

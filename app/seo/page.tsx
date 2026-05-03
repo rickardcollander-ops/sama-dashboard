@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  ArrowUp, ArrowDown, Minus, Search, TrendingUp, Zap, FileText, Wrench,
+  ArrowUp, ArrowDown, Minus, Search, Zap, FileText, Wrench,
   CheckCircle, XCircle, AlertTriangle, Clock, Play, ChevronDown, ChevronUp,
   Gauge, RefreshCw, ExternalLink, BarChart2, Globe, Trash2, Target, Lightbulb
 } from "lucide-react";
-import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useToast } from "@/components/Toast";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
@@ -15,13 +14,6 @@ const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-interface StatCard {
-  label: string;
-  value: string | number;
-  sub?: string;
-  trend?: 'up' | 'down' | 'flat';
-}
 
 interface Keyword {
   keyword: string;
@@ -177,7 +169,7 @@ export default function SEOPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'vitals' | 'history' | 'serp' | 'strategy'>('overview');
   const [kwFilter, setKwFilter] = useState<'all' | 'quick_wins'>('all');
   const [kwSort, setKwSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'position', dir: 'asc' });
-  const [analysis, setAnalysis]     = useState<any>(null);
+  const [_analysis, setAnalysis]     = useState<any>(null);
   const [errorMsg, setErrorMsg]     = useState<string | null>(null);
   const [executing, setExecuting]   = useState<string | null>(null);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
@@ -194,9 +186,9 @@ export default function SEOPage() {
   // Strategy state
   const [strategy, setStrategy]             = useState<Strategy | null>(null);
   const [strategyTasks, setStrategyTasks]   = useState<StrategyTask[]>([]);
-  const [strategyId, setStrategyId]         = useState<string | null>(null);
+  const [_strategyId, setStrategyId]         = useState<string | null>(null);
   const [strategyCreatedAt, setStrategyCreatedAt] = useState<string | null>(null);
-  const [strategyFingerprint, setStrategyFingerprint] = useState<string | null>(null);
+  const [_strategyFingerprint, setStrategyFingerprint] = useState<string | null>(null);
   const [strategyCached, setStrategyCached] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [togglingTask, setTogglingTask]     = useState<string | null>(null);
@@ -368,7 +360,6 @@ export default function SEOPage() {
   };
 
   const resetSeoData = async (includeKeywords: boolean) => {
-    const mode = includeKeywords ? "ALL SEO data incl. keywords" : "SEO analysis data (keep keywords)";
     // Proceed with reset
 
     setResettingSeo(true);
@@ -790,7 +781,7 @@ export default function SEOPage() {
                           <td colSpan={8} className="px-5 py-12 text-center">
                             <Search className="mx-auto h-10 w-10 text-slate-200 mb-3" />
                             <p className="text-slate-500 font-medium">No keywords tracked yet</p>
-                            <p className="text-slate-400 text-xs mt-1">Click "Run Full Analysis" to pull data from Google Search Console</p>
+                            <p className="text-slate-400 text-xs mt-1">Click &ldquo;Run Full Analysis&rdquo; to pull data from Google Search Console</p>
                           </td>
                         </tr>
                       ) : (
@@ -1248,7 +1239,7 @@ export default function SEOPage() {
                     <div className="rounded-xl border bg-white p-5 shadow-sm">
                       <div className="flex items-center justify-between mb-4 gap-3">
                         <h4 className="font-semibold text-slate-900">
-                          Competitive Insights — <span className="text-blue-600">"{serpResult.keyword}"</span>
+                          Competitive Insights — <span className="text-blue-600">&ldquo;{serpResult.keyword}&rdquo;</span>
                           <span className="ml-2 text-xs text-slate-400 font-normal">{serpResult.results_analyzed} pages analyzed</span>
                         </h4>
                         {(() => {
@@ -1573,7 +1564,7 @@ export default function SEOPage() {
                   {!strategy && !strategyLoading && (
                     <div className="rounded-xl border bg-white p-12 text-center shadow-sm">
                       <Target className="mx-auto h-10 w-10 text-slate-200 mb-3" />
-                      <p className="text-slate-500 text-sm">Click "Generate Strategy" to get a Claude-powered 90-day SEO plan based on your data.</p>
+                      <p className="text-slate-500 text-sm">Click &ldquo;Generate Strategy&rdquo; to get a Claude-powered 90-day SEO plan based on your data.</p>
                     </div>
                   )}
 

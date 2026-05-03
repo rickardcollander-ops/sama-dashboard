@@ -42,12 +42,22 @@ export function useSEOData() {
 
         const data = await response.json();
 
-        if (data.keywords && data.keywords.length > 0) {
-          const totalClicks = data.keywords.reduce((sum: number, kw: any) => sum + (kw.current_clicks || 0), 0);
-          const totalImpressions = data.keywords.reduce((sum: number, kw: any) => sum + (kw.current_impressions || 0), 0);
-          const withPosition = data.keywords.filter((kw: any) => kw.current_position && kw.current_position > 0);
+        type ApiKeyword = {
+          keyword: string;
+          current_position?: number;
+          current_clicks?: number;
+          current_impressions?: number;
+          intent?: string;
+          priority?: string;
+        };
+        const apiKeywords: ApiKeyword[] = data.keywords ?? [];
+
+        if (apiKeywords.length > 0) {
+          const totalClicks = apiKeywords.reduce((sum, kw) => sum + (kw.current_clicks || 0), 0);
+          const totalImpressions = apiKeywords.reduce((sum, kw) => sum + (kw.current_impressions || 0), 0);
+          const withPosition = apiKeywords.filter((kw) => kw.current_position && kw.current_position > 0);
           const avgPosition = withPosition.length > 0
-            ? withPosition.reduce((sum: number, kw: any) => sum + kw.current_position, 0) / withPosition.length
+            ? withPosition.reduce((sum, kw) => sum + (kw.current_position ?? 0), 0) / withPosition.length
             : 0;
           const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
 
@@ -58,12 +68,12 @@ export function useSEOData() {
             avgCTR: parseFloat(avgCTR.toFixed(1)),
           });
 
-          setKeywords(data.keywords.slice(0, 10).map((kw: any) => ({
+          setKeywords(apiKeywords.slice(0, 10).map((kw) => ({
             keyword: kw.keyword,
             position: kw.current_position || 0,
             clicks: kw.current_clicks || 0,
             impressions: kw.current_impressions || 0,
-            ctr: kw.current_impressions > 0 ? ((kw.current_clicks / kw.current_impressions) * 100) : 0,
+            ctr: (kw.current_impressions ?? 0) > 0 ? (((kw.current_clicks ?? 0) / (kw.current_impressions ?? 1)) * 100) : 0,
             intent: kw.intent || '',
             priority: kw.priority || '',
           })));

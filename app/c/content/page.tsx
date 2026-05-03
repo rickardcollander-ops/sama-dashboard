@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
-  Clock, PenTool, Search, X, Sparkles, Save, AlertCircle,
+  PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Trash2, Archive,
+  ArrowRight, Archive,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import SuggestionsPanel from "@/components/SuggestionsPanel";

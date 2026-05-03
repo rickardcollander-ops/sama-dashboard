@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { Activity, CheckCircle, XCircle, AlertCircle, Search } from "lucide-react";
-import Link from "next/link";
 import { useActivityLogs } from "@/lib/hooks/useActivityLogs";
 
 interface LogEntry {
