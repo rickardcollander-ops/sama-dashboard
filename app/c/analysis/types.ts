@@ -105,5 +105,89 @@ export interface AnalysisRun {
   platforms: AIPlatform[];
   query_results: QueryResult[];
   overview: AnalysisOverview;
+  site_audit?: SiteAudit | null;
   status: "running" | "completed" | "failed";
+}
+
+/* ── Site audit (full SEO/GEO/technical/links report) ───────────────────── */
+
+export type AuditSeverity = "high" | "medium" | "low";
+export type AuditCategory = "technical" | "geo" | "content" | "links";
+
+export interface AuditIssue {
+  severity: AuditSeverity;
+  category: AuditCategory;
+  title: string;
+  detail: string;
+}
+
+export interface AuditScores {
+  overall: number;
+  technical: number;
+  geo: number;
+  content: number;
+  links: number;
+  details: {
+    pages_ok?: number;
+    pages_total?: number;
+    robots_present?: boolean;
+    sitemap_present?: boolean;
+    sitemap_url_count?: number;
+    with_canonical?: number;
+    with_viewport?: number;
+    with_lang?: number;
+    with_og?: number;
+    with_schema?: number;
+    with_faq_or_article_schema?: number;
+    with_proper_h1?: number;
+    with_good_title?: number;
+    with_good_meta?: number;
+    long_enough_pages?: number;
+    avg_word_count?: number;
+    alt_coverage?: number;
+    avg_internal_links?: number;
+    broken_link_rate?: number;
+  };
+}
+
+export interface AuditPageReport {
+  url: string;
+  status_code: number | null;
+  response_time_ms: number | null;
+  title: string | null;
+  title_length: number;
+  meta_description: string | null;
+  meta_description_length: number;
+  h1_count: number;
+  h1_text: string | null;
+  h2_count: number;
+  h3_count: number;
+  word_count: number;
+  canonical: string | null;
+  has_viewport: boolean;
+  has_lang: boolean;
+  has_og_tags: boolean;
+  has_twitter_card: boolean;
+  schema_types: string[];
+  image_count: number;
+  images_missing_alt: number;
+  internal_links: number;
+  external_links: number;
+  issues: string[];
+  page_score: number;
+}
+
+export interface SiteAudit {
+  domain: string;
+  pages_crawled: number;
+  robots_txt: { present: boolean; sitemap_url: string | null; size: number };
+  sitemap: { present: boolean; url: string | null; url_count: number; urls: string[] };
+  scores: AuditScores;
+  issues: AuditIssue[];
+  broken_links: {
+    checked: number;
+    broken_count: number;
+    broken: { url: string; status: number }[];
+  };
+  pages: AuditPageReport[];
 }
