@@ -141,7 +141,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchDashboard();
-    fetchRecommendations();
+    // Recommendations is an expensive backend AI call — load it lazily on
+    // user click ("Refresh recommendations") rather than on every mount.
   }, []);
 
   const fetchDashboard = async () => {
@@ -180,8 +181,8 @@ export default function Home() {
       setRunningAgent(agent.name);
       try {
         const options: RequestInit = agent.method === 'POST'
-          ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
-          : { method: 'GET' };
+          ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sama-Intent': 'user-action' }, body: JSON.stringify({}) }
+          : { method: 'GET', headers: { 'X-Sama-Intent': 'user-action' } };
         await fetch(`${SAMA_API_URL}${agent.endpoint}`, options);
       } catch { /* continue */ }
     }
@@ -194,7 +195,9 @@ export default function Home() {
   const fetchRecommendations = async () => {
     setRecsLoading(true);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/dashboard/recommendations`);
+      const res = await fetch(`${SAMA_API_URL}/api/dashboard/recommendations`, {
+        headers: { 'X-Sama-Intent': 'user-action' },
+      });
       if (res.ok) {
         const data = await res.json();
         setRecommendations(data.recommendations || []);
@@ -208,8 +211,8 @@ export default function Home() {
     setAgentResult(null);
     try {
       const options: RequestInit = agent.method === 'POST'
-        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
-        : { method: 'GET' };
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sama-Intent': 'user-action' }, body: JSON.stringify({}) }
+        : { method: 'GET', headers: { 'X-Sama-Intent': 'user-action' } };
       const response = await fetch(`${SAMA_API_URL}${agent.endpoint}`, options);
       if (response.ok) {
         const data = await response.json();

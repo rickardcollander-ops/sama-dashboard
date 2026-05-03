@@ -393,6 +393,8 @@ function CustomerSettingsPageInner() {
       // settles to refresh again with the final status.
       const resp = await client.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/${agentName}/trigger`,
+        undefined,
+        { headers: { "X-Sama-Intent": "user-action" } },
       );
       await loadAgentStatus();
 

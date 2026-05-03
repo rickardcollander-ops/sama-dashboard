@@ -108,9 +108,43 @@ function safeParse(text: string): Recommendations | null {
   }
 }
 
+/**
+ * Per-user/per-day call cap to prevent runaway AI usage. Stored in-memory
+ * (resets on each Lambda cold start) — good enough as a safety net; pair
+ * with the hard-cap on input/output tokens below.
+ */
+const DAILY_CAP_PER_USER = Number(process.env.RECOMMENDATIONS_DAILY_CAP || 30);
+const usage = new Map<string, { day: string; count: number }>();
+
+function checkUsage(userId: string): { ok: boolean; remaining: number; cap: number } {
+  const day = new Date().toISOString().slice(0, 10);
+  const cur = usage.get(userId);
+  if (!cur || cur.day !== day) {
+    usage.set(userId, { day, count: 1 });
+    return { ok: true, remaining: DAILY_CAP_PER_USER - 1, cap: DAILY_CAP_PER_USER };
+  }
+  cur.count += 1;
+  return {
+    ok: cur.count <= DAILY_CAP_PER_USER,
+    remaining: Math.max(0, DAILY_CAP_PER_USER - cur.count),
+    cap: DAILY_CAP_PER_USER,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const u = checkUsage(user.id);
+  if (!u.ok) {
+    return NextResponse.json(
+      {
+        error: `Daily cap reached (${u.cap} AI suggestion requests per day).`,
+        hint: "Raise RECOMMENDATIONS_DAILY_CAP env var if you need more.",
+      },
+      { status: 429 },
+    );
+  }
 
   const body = await req.json().catch(() => ({}));
   const settings = await loadSettings(user.id);
