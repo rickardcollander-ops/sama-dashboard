@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
-  History as HistoryIcon,
+  History as HistoryIcon, Gauge, Link2, Globe, ShieldCheck, AlertCircle,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
@@ -58,7 +58,12 @@ import {
   GAP_LABELS,
   type AIPlatform,
   type AnalysisRun,
+  type AuditCategory,
+  type AuditIssue,
+  type AuditPageReport,
+  type AuditSeverity,
   type GapCategory,
+  type SiteAudit,
 } from "./types";
 
 type Stage = "setup" | "running" | "results" | "history";
@@ -562,9 +567,10 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
         <Loader2 className="h-10 w-10 animate-spin text-violet-600 mb-4" />
         <h2 className="text-lg font-semibold text-slate-900">Running analysis…</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Querying Google search and {platformCount} AI platform{platformCount === 1 ? "" : "s"} for {queryCount} queries.
+          Querying Google search and {platformCount} AI platform{platformCount === 1 ? "" : "s"} for {queryCount} queries,
+          and crawling your domain for a full SEO + GEO audit.
         </p>
-        <p className="mt-3 text-xs text-slate-400">~{totalChecks} total checks. This typically takes 30–60 seconds.</p>
+        <p className="mt-3 text-xs text-slate-400">~{totalChecks} AI checks plus a 25-page crawl. This typically takes 1–2 minutes.</p>
       </div>
     </div>
   );
@@ -585,7 +591,7 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
   return (
     <div>
       <div className="mb-4 flex gap-1 border-b border-slate-200">
-        {tabs.map((t) => (
+        {tabs.filter((t) => t.show).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -600,6 +606,7 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       </div>
 
       {tab === "overview" && <OverviewTab run={run} />}
+      {tab === "audit" && run.site_audit && <SiteAuditTab audit={run.site_audit} />}
       {tab === "matrix" && <MatrixTab run={run} />}
       {tab === "gaps" && <GapsTab run={run} />}
       {tab === "recommendations" && (
@@ -648,12 +655,21 @@ function buildGapSummary(run: AnalysisRun): string {
 
 function OverviewTab({ run }: { run: AnalysisRun }) {
   const o = run.overview;
+  const audit = run.site_audit;
+  const cols = audit ? "sm:grid-cols-4" : "sm:grid-cols-3";
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${cols}`}>
         <Stat label="AI mention rate" value={`${(o.overall_mention_rate * 100).toFixed(0)}%`} hint={`across ${run.platforms.length} AI platforms`} />
         <Stat label="Google top-10 coverage" value={`${(o.seo_top10_coverage * 100).toFixed(0)}%`} hint="of analyzed queries" />
         <Stat label="Visible somewhere" value={`${o.queries_with_presence}/${o.total_queries}`} hint="queries where you appear" />
+        {audit && (
+          <Stat
+            label="Site audit score"
+            value={`${audit.scores.overall}`}
+            hint={`${audit.pages_crawled} pages crawled · see Site audit tab`}
+          />
+        )}
       </div>
 
       <section className="rounded-xl border bg-white p-5 shadow-sm">
