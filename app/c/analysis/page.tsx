@@ -4,13 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Play, RefreshCw, Plus, X, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
-  History as HistoryIcon, Gauge, Link2, Globe, ShieldCheck, AlertCircle,
+  History as HistoryIcon, Globe, Search,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { createBrowserClient } from "@supabase/ssr";
+import SiteAuditReport from "@/components/analysis/SiteAuditReport";
+import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
+
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 
 interface AnalysisRunSummary {
   id: string;
@@ -80,8 +89,11 @@ const GAP_ICON: Record<GapCategory, typeof Trophy> = {
   competitor_dominates: Crown,
 };
 
+type AnalysisMode = "visibility" | "audit";
+
 export default function AnalysisPage() {
   const { user, loading: userLoading } = useUser();
+  const [mode, setMode] = useState<AnalysisMode>("visibility");
   const [stage, setStage] = useState<Stage>("setup");
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const [queries, setQueries] = useState<string[]>([]);
@@ -134,11 +146,29 @@ export default function AnalysisPage() {
         headers: { "Content-Type": "application/json", "X-Tenant-ID": user?.id || "" },
         body: JSON.stringify(brand),
       });
-      if (!res.ok) throw new Error("generate failed");
-      const data = (await res.json()) as { queries: string[] };
+      const data = (await res.json().catch(() => ({}))) as {
+        queries?: string[];
+        error?: string;
+        upstream_status?: number;
+        upstream_body?: string;
+        _source?: "mock" | "live";
+        _mock_reason?: string;
+      };
+      if (!res.ok) {
+        const parts = [
+          data.error || `Generate failed (HTTP ${res.status})`,
+          data.upstream_status ? `upstream ${data.upstream_status}` : "",
+          data.upstream_body ? `— ${data.upstream_body}` : "",
+        ].filter(Boolean);
+        throw new Error(parts.join(" "));
+      }
       setQueries(data.queries || []);
-    } catch {
-      setError("Could not auto-generate queries. Add some manually below.");
+      if (data._source === "mock" && data._mock_reason) {
+        setError(`Using template queries: ${data._mock_reason}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not auto-generate queries.";
+      setError(msg);
     }
     setGenerating(false);
   };
@@ -160,17 +190,25 @@ export default function AnalysisPage() {
           platforms,
         }),
       });
-      if (!res.ok) throw new Error("run failed");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok) {
+        const detail = (data as { error?: string; upstream_status?: number; upstream_body?: string }) || {};
+        const parts = [
+          detail.error || `Analysis failed (HTTP ${res.status})`,
+          detail.upstream_status ? `upstream ${detail.upstream_status}` : "",
+          detail.upstream_body ? `— ${detail.upstream_body}` : "",
+        ].filter(Boolean);
+        throw new Error(parts.join(" "));
+      }
 
       // Real backend returns {id, status: "running"} and we poll until done.
       // Mock backend returns a complete AnalysisRun synchronously (detected
       // by presence of query_results).
-      if (data && Array.isArray(data.query_results)) {
+      if (data && Array.isArray((data as AnalysisRun).query_results)) {
         setRun(data as AnalysisRun);
         setStage("results");
-      } else if (data?.id) {
-        const finalRun = await pollAnalysisRun(user?.id || "", data.id);
+      } else if ((data as { id?: string }).id) {
+        const finalRun = await pollAnalysisRun(user?.id || "", (data as { id: string }).id);
         if (finalRun?.status === "completed" && Array.isArray(finalRun.query_results)) {
           setRun(finalRun);
           setStage("results");
@@ -231,8 +269,15 @@ export default function AnalysisPage() {
           stage={stage}
           onReset={() => { setStage("setup"); setRun(null); }}
           onShowHistory={() => setStage("history")}
+          mode={mode}
         />
 
+        <ModeSwitcher mode={mode} onChange={setMode} />
+
+        {mode === "audit" ? (
+          <SiteAuditMode tenantId={user?.id || ""} brand={brand} />
+        ) : (
+          <>
         {error && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
             <AlertTriangle className="h-4 w-4" /> {error}
@@ -256,7 +301,20 @@ export default function AnalysisPage() {
 
         {stage === "running" && <RunningStage queryCount={queries.length} platformCount={platforms.length} />}
 
-        {stage === "results" && run && <ResultsStage run={run} />}
+        {stage === "results" && run && (
+          <>
+            {run._source === "mock" && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <div className="font-medium">Showing mock data — not a real analysis.</div>
+                  {run._mock_reason && <div className="text-xs opacity-80">{run._mock_reason}</div>}
+                </div>
+              </div>
+            )}
+            <ResultsStage run={run} />
+          </>
+        )}
 
         {stage === "history" && (
           <HistoryStage tenantId={user?.id || ""} onOpen={handleOpenRun} />
@@ -265,7 +323,395 @@ export default function AnalysisPage() {
         {running && stage !== "running" && (
           <div className="mt-4 text-xs text-slate-400">Working…</div>
         )}
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+/* ── Mode switcher ───────────────────────────────────────────────────────── */
+
+function ModeSwitcher({
+  mode, onChange,
+}: { mode: AnalysisMode; onChange: (m: AnalysisMode) => void }) {
+  const options: { id: AnalysisMode; label: string; icon: typeof Search; hint: string }[] = [
+    { id: "visibility", label: "Visibility analysis", icon: Search,
+      hint: "Per-query SEO + AI mention rate" },
+    { id: "audit",      label: "Site audit",          icon: Globe,
+      hint: "Full domain crawl with score gauges" },
+  ];
+  return (
+    <div className="mb-6 grid gap-3 sm:grid-cols-2">
+      {options.map((o) => {
+        const Icon = o.icon;
+        const active = mode === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+              active
+                ? "border-violet-300 bg-violet-50/50 shadow-sm"
+                : "border-slate-200 bg-white hover:border-slate-300"
+            }`}
+          >
+            <span className={`rounded-lg p-2 ${active ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className={`text-sm font-semibold ${active ? "text-violet-900" : "text-slate-800"}`}>
+                {o.label}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">{o.hint}</div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Site audit mode ─────────────────────────────────────────────────────── */
+
+type AuditStage = "setup" | "running" | "results" | "history";
+
+async function pollSiteAuditRun(
+  tenantId: string, runId: string,
+): Promise<SiteAuditRun | null> {
+  const start = Date.now();
+  while (Date.now() - start < 10 * 60 * 1000) {
+    try {
+      const res = await fetch(`/api/site-audit/runs/${runId}`, {
+        headers: { "X-Tenant-ID": tenantId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.status && data.status !== "running") return data as SiteAuditRun;
+      }
+    } catch {
+      // transient errors don't abort polling
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return null;
+}
+
+function SiteAuditMode({
+  tenantId, brand,
+}: { tenantId: string; brand: BrandSettings | null }) {
+  const [stage, setStage] = useState<AuditStage>("setup");
+  const [run, setRun] = useState<SiteAuditRun | null>(null);
+  const [running, setRunning] = useState(false);
+  const [domain, setDomain] = useState(brand?.domain || "");
+  const [maxPages, setMaxPages] = useState(15);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (brand?.domain && !domain) setDomain(brand.domain);
+  }, [brand, domain]);
+
+  const handleRun = async () => {
+    if (!domain) {
+      setError("Domain is required.");
+      return;
+    }
+    setRunning(true);
+    setStage("running");
+    setError("");
+    try {
+      const res = await fetch("/api/site-audit/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": tenantId },
+        body: JSON.stringify({ domain, max_pages: maxPages }),
+      });
+      if (!res.ok) throw new Error("audit failed to start");
+      const data = await res.json();
+      if (!data?.id) throw new Error(data?.error || "Backend did not return an audit id");
+      const final = await pollSiteAuditRun(tenantId, data.id);
+      if (final?.status === "completed") {
+        setRun(final);
+        setStage("results");
+      } else {
+        throw new Error(final?.error || "Audit did not complete in time");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Audit failed");
+      setStage("setup");
+    }
+    setRunning(false);
+  };
+
+  const handleOpen = async (id: string) => {
+    setError("");
+    try {
+      const res = await fetch(`/api/site-audit/runs/${id}`, {
+        headers: { "X-Tenant-ID": tenantId },
+      });
+      if (!res.ok) throw new Error("could not load audit");
+      const data = await res.json();
+      if (data?.status === "completed") {
+        setRun(data);
+        setStage("results");
+      } else {
+        setError(data?.error || "This audit is not viewable yet.");
+      }
+    } catch {
+      setError("Could not load this audit.");
+    }
+  };
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <AlertTriangle className="h-4 w-4" /> {error}
+        </div>
+      )}
+
+      {stage === "setup" && (
+        <SiteAuditSetup
+          domain={domain}
+          setDomain={setDomain}
+          maxPages={maxPages}
+          setMaxPages={setMaxPages}
+          onRun={handleRun}
+          onShowHistory={() => setStage("history")}
+        />
+      )}
+
+      {stage === "running" && <SiteAuditRunning domain={domain} maxPages={maxPages} />}
+
+      {stage === "results" && run && (
+        <div>
+          <div className="mb-3 flex justify-end">
+            <button
+              onClick={() => { setRun(null); setStage("setup"); }}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <RefreshCw className="h-4 w-4" /> New audit
+            </button>
+          </div>
+          <SiteAuditReport run={run} />
+        </div>
+      )}
+
+      {stage === "history" && (
+        <SiteAuditHistory tenantId={tenantId} onOpen={handleOpen} onBack={() => setStage("setup")} />
+      )}
+
+      {running && stage !== "running" && (
+        <div className="mt-4 text-xs text-slate-400">Working…</div>
+      )}
+    </div>
+  );
+}
+
+function SiteAuditSetup({
+  domain, setDomain, maxPages, setMaxPages, onRun, onShowHistory,
+}: {
+  domain: string;
+  setDomain: (v: string) => void;
+  maxPages: number;
+  setMaxPages: (v: number) => void;
+  onRun: () => void;
+  onShowHistory: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-700">Audit configuration</h2>
+          <button
+            onClick={onShowHistory}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            <HistoryIcon className="h-3.5 w-3.5" /> History
+          </button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[1fr,auto]">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wide text-slate-400 font-medium mb-1">
+              Domain
+            </label>
+            <input
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="example.com"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Discovered via sitemap.xml; falls back to crawling links from the homepage.
+            </p>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wide text-slate-400 font-medium mb-1">
+              Max pages
+            </label>
+            <select
+              value={maxPages}
+              onChange={(e) => setMaxPages(Number(e.target.value))}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              {[5, 10, 15, 20, 30].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-2">What this audit checks</h3>
+        <ul className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />Technical SEO — HTTPS, robots.txt, sitemap, viewport, canonical, lang</li>
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />On-page SEO — titles, meta descriptions, headings, word count, alt text</li>
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />GEO readiness — schema.org, OpenGraph, llms.txt, AI-citable structure</li>
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />Link health — HEAD-checks outbound links for 4xx/5xx</li>
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />Performance — server response time across pages</li>
+          <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5" />Per-page findings + prioritised recommendations</li>
+        </ul>
+      </section>
+
+      <div className="flex justify-end">
+        <button
+          onClick={onRun}
+          disabled={!domain.trim()}
+          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
+        >
+          <Play className="h-4 w-4" /> Run site audit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SiteAuditRunning({ domain, maxPages }: { domain: string; maxPages: number }) {
+  return (
+    <div className="rounded-xl border bg-white p-12 shadow-sm">
+      <div className="flex flex-col items-center text-center">
+        <Loader2 className="h-10 w-10 animate-spin text-violet-600 mb-4" />
+        <h2 className="text-lg font-semibold text-slate-900">Auditing {domain}…</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Discovering pages, fetching HTML, parsing on-page signals, and checking links.
+        </p>
+        <p className="mt-3 text-xs text-slate-400">
+          Up to {maxPages} pages · typically takes 30–90 seconds.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SiteAuditHistory({
+  tenantId, onOpen, onBack,
+}: { tenantId: string; onOpen: (id: string) => void; onBack: () => void }) {
+  const [runs, setRuns] = useState<SiteAuditRunSummary[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!tenantId) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/site-audit/runs?limit=20", {
+          headers: { "X-Tenant-ID": tenantId },
+        });
+        if (!res.ok) throw new Error("load failed");
+        const data = (await res.json()) as { runs: SiteAuditRunSummary[] };
+        setRuns(data.runs || []);
+      } catch {
+        setError("Could not load history.");
+        setRuns([]);
+      }
+    })();
+  }, [tenantId]);
+
+  if (runs === null) {
+    return (
+      <div className="flex items-center justify-center py-16 text-slate-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> New audit
+        </button>
+      </div>
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+      )}
+      {runs.length === 0 ? (
+        <div className="rounded-xl border bg-white p-12 text-center text-slate-500">
+          <HistoryIcon className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+          <p className="text-sm">No audits yet. Run your first one to see it here.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">Date</th>
+                <th className="text-left px-4 py-2 font-medium">Domain</th>
+                <th className="text-left px-4 py-2 font-medium">Pages</th>
+                <th className="text-left px-4 py-2 font-medium">Score</th>
+                <th className="text-left px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r) => {
+                const completed = r.status === "completed";
+                const failed = r.status === "failed";
+                const statusTone = completed
+                  ? "bg-emerald-100 text-emerald-700"
+                  : failed
+                  ? "bg-red-100 text-red-700"
+                  : "bg-yellow-100 text-yellow-700";
+                return (
+                  <tr key={r.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2 text-slate-600">
+                      {new Date(r.started_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-slate-700">{r.domain || "—"}</td>
+                    <td className="px-4 py-2 text-slate-600">{r.pages_analyzed}</td>
+                    <td className="px-4 py-2 text-slate-700">
+                      {r.overall_score !== null && r.overall_score !== undefined
+                        ? <span className="font-semibold">{r.overall_score}/100</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${statusTone}`}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {completed && (
+                        <button
+                          onClick={() => onOpen(r.id)}
+                          className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                        >
+                          Open
+                        </button>
+                      )}
+                      {failed && r.error && (
+                        <span className="text-xs text-red-500" title={r.error}>error</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -373,11 +819,14 @@ function Header({
   stage,
   onReset,
   onShowHistory,
+  mode,
 }: {
   stage: Stage;
   onReset: () => void;
   onShowHistory: () => void;
+  mode: AnalysisMode;
 }) {
+  const isAudit = mode === "audit";
   return (
     <div className="mb-6 flex items-center justify-between">
       <div>
@@ -386,27 +835,31 @@ function Header({
           SEO + GEO Analysis
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Unified visibility report across Google search and AI assistants. Find gaps, drive content.
+          {isAudit
+            ? "Full domain audit with technical, on-page, GEO, and link-health scores."
+            : "Unified visibility report across Google search and AI assistants. Find gaps, drive content."}
         </p>
       </div>
-      <div className="flex items-center gap-2">
-        {stage !== "history" && (
-          <button
-            onClick={onShowHistory}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <HistoryIcon className="h-4 w-4" /> History
-          </button>
-        )}
-        {(stage === "results" || stage === "history") && (
-          <button
-            onClick={onReset}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <RefreshCw className="h-4 w-4" /> New analysis
-          </button>
-        )}
-      </div>
+      {!isAudit && (
+        <div className="flex items-center gap-2">
+          {stage !== "history" && (
+            <button
+              onClick={onShowHistory}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <HistoryIcon className="h-4 w-4" /> History
+            </button>
+          )}
+          {(stage === "results" || stage === "history") && (
+            <button
+              onClick={onReset}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <RefreshCw className="h-4 w-4" /> New analysis
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -569,11 +1022,13 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
   );
 }
 
+type ResultsTab = "overview" | "audit" | "matrix" | "gaps" | "recommendations";
+
 function ResultsStage({ run }: { run: AnalysisRun }) {
-  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "audit" | "recommendations">("overview");
-  const tabs: { id: typeof tab; label: string; show: boolean }[] = [
+  const [tab, setTab] = useState<ResultsTab>("overview");
+  const tabs: { id: ResultsTab; label: string; show: boolean }[] = [
     { id: "overview", label: "Overview", show: true },
-    { id: "audit", label: "Site Audit", show: !!run.site_audit },
+    { id: "audit", label: "Site audit", show: !!run.site_audit },
     { id: "matrix", label: "Per query", show: true },
     { id: "gaps", label: "Gap analysis", show: true },
     { id: "recommendations", label: "Recommendations", show: true },
@@ -616,142 +1071,106 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
 }
 
 function SiteAuditTab({ audit }: { audit: SiteAudit }) {
-  const issuesBySeverity = useMemo(() => {
-    const buckets: Record<AuditSeverity, AuditIssue[]> = { high: [], medium: [], low: [] };
-    for (const issue of audit.issues) {
-      buckets[issue.severity].push(issue);
-    }
-    return buckets;
-  }, [audit.issues]);
-
-  const categoryLabel: Record<AuditCategory, string> = {
+  const sevTone: Record<AuditSeverity, string> = {
+    high: "bg-red-50 text-red-700 border-red-200",
+    medium: "bg-amber-50 text-amber-700 border-amber-200",
+    low: "bg-slate-50 text-slate-600 border-slate-200",
+  };
+  const catLabel: Record<AuditCategory, string> = {
     technical: "Technical",
     geo: "GEO",
     content: "Content",
     links: "Links",
   };
-  const sevTone: Record<AuditSeverity, string> = {
-    high: "border-red-200 bg-red-50 text-red-700",
-    medium: "border-amber-200 bg-amber-50 text-amber-700",
-    low: "border-slate-200 bg-slate-50 text-slate-600",
-  };
-
-  const ScoreCard = ({ label, value }: { label: string; value: number }) => {
-    const tone = value >= 80 ? "text-emerald-700" : value >= 60 ? "text-amber-700" : "text-red-700";
-    return (
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className={`mt-1 text-2xl font-bold ${tone}`}>{value}</p>
-      </div>
-    );
-  };
+  const scoreTone = (n: number) =>
+    n >= 80 ? "text-emerald-600" : n >= 60 ? "text-amber-600" : "text-red-600";
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-5">
-        <ScoreCard label="Overall" value={audit.scores.overall} />
-        <ScoreCard label="Technical" value={audit.scores.technical} />
-        <ScoreCard label="GEO" value={audit.scores.geo} />
-        <ScoreCard label="Content" value={audit.scores.content} />
-        <ScoreCard label="Links" value={audit.scores.links} />
-      </div>
-
       <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Globe className="h-4 w-4 text-slate-400" />
-            Crawl summary — {audit.domain}
-          </h3>
-          <span className="text-xs text-slate-500">{audit.pages_crawled} pages crawled</span>
+        <div className="flex items-baseline justify-between mb-4">
+          <h3 className="text-sm font-semibold text-slate-700">Scores</h3>
+          <span className="text-xs text-slate-400">{audit.pages_crawled} pages crawled · {audit.domain}</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-500">robots.txt</p>
-            <p className="font-medium text-slate-700 mt-0.5">{audit.robots_txt.present ? "Present" : "Missing"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Sitemap</p>
-            <p className="font-medium text-slate-700 mt-0.5">
-              {audit.sitemap.present ? `${audit.sitemap.url_count} URLs` : "Missing"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Broken links</p>
-            <p className="font-medium text-slate-700 mt-0.5">
-              {audit.broken_links.broken_count} / {audit.broken_links.checked}
-            </p>
-          </div>
+        <div className="grid gap-3 sm:grid-cols-5">
+          {(["overall", "technical", "geo", "content", "links"] as const).map((k) => (
+            <div key={k} className="rounded-lg border border-slate-100 bg-slate-50/60 p-4 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">{k}</div>
+              <div className={`mt-1 text-2xl font-bold ${scoreTone(audit.scores[k])}`}>{audit.scores[k]}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-x-6 gap-y-1 text-xs text-slate-500 sm:grid-cols-2">
+          <span>robots.txt: {audit.robots_txt.present ? "present" : "missing"}</span>
+          <span>sitemap: {audit.sitemap.present ? `${audit.sitemap.url_count} URLs` : "missing"}</span>
+          <span>broken links: {audit.broken_links.broken_count} of {audit.broken_links.checked} checked</span>
+          <span>avg word count: {audit.scores.details.avg_word_count ?? "—"}</span>
         </div>
       </section>
 
-      {(["high", "medium", "low"] as AuditSeverity[]).map((sev) => {
-        const issues = issuesBySeverity[sev];
-        if (issues.length === 0) return null;
-        return (
-          <section key={sev} className={`rounded-xl border p-5 shadow-sm ${sevTone[sev]}`}>
-            <h3 className="text-sm font-semibold mb-3 capitalize flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              {sev} priority — {issues.length} {issues.length === 1 ? "issue" : "issues"}
-            </h3>
-            <ul className="space-y-2">
-              {issues.map((issue, i) => (
-                <li key={i} className="rounded-lg bg-white border border-slate-100 p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                      {categoryLabel[issue.category]}
-                    </span>
-                    <p className="text-sm font-medium text-slate-900">{issue.title}</p>
-                  </div>
-                  <p className="text-xs text-slate-600">{issue.detail}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">
+          Issues <span className="ml-1 text-xs text-slate-400">({audit.issues.length})</span>
+        </h3>
+        {audit.issues.length === 0 ? (
+          <p className="text-sm text-slate-400">No issues detected.</p>
+        ) : (
+          <ul className="space-y-2">
+            {audit.issues.map((iss, i) => (
+              <li key={i} className={`rounded-lg border px-3 py-2 text-sm ${sevTone[iss.severity]}`}>
+                <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide">
+                  <span>{iss.severity}</span>
+                  <span className="opacity-60">· {catLabel[iss.category]}</span>
+                </div>
+                <div className="mt-0.5 font-medium text-slate-900">{iss.title}</div>
+                <div className="text-xs text-slate-600 mt-0.5">{iss.detail}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      {audit.pages.length > 0 && (
-        <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
-          <div className="border-b px-5 py-3">
-            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-slate-400" />
-              Per-page scores
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">URL</th>
-                  <th className="text-right px-3 py-2 font-medium">Score</th>
-                  <th className="text-right px-3 py-2 font-medium">Status</th>
-                  <th className="text-right px-3 py-2 font-medium">Words</th>
-                  <th className="text-left px-3 py-2 font-medium">Top issue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.pages.slice(0, 20).map((p) => (
-                  <tr key={p.url} className="border-t border-slate-100">
-                    <td className="px-3 py-2 truncate max-w-[300px] text-slate-700" title={p.url}>{p.url}</td>
-                    <td className="px-3 py-2 text-right">
-                      <span className={`rounded-full px-2 py-0.5 font-semibold ${
-                        p.page_score >= 80 ? "bg-emerald-100 text-emerald-700" :
-                        p.page_score >= 60 ? "bg-amber-100 text-amber-700" :
-                        "bg-red-100 text-red-700"
-                      }`}>{p.page_score}</span>
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.status_code ?? "—"}</td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.word_count}</td>
-                    <td className="px-3 py-2 text-slate-600 truncate max-w-[260px]">
-                      {p.issues[0] || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {audit.broken_links.broken.length > 0 && (
+        <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Broken links</h3>
+          <ul className="space-y-1 text-xs">
+            {audit.broken_links.broken.slice(0, 20).map((b) => (
+              <li key={b.url} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-1.5">
+                <span className="truncate text-slate-700" title={b.url}>{b.url}</span>
+                <span className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-red-700">{b.status}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
+
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Pages</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">URL</th>
+                <th className="text-right px-3 py-2 font-medium">Status</th>
+                <th className="text-right px-3 py-2 font-medium">Score</th>
+                <th className="text-right px-3 py-2 font-medium">Words</th>
+                <th className="text-right px-3 py-2 font-medium">Issues</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audit.pages.map((p) => (
+                <tr key={p.url} className="border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-700 max-w-[360px] truncate" title={p.url}>{p.url}</td>
+                  <td className="px-3 py-2 text-right font-mono text-slate-500">{p.status_code ?? "—"}</td>
+                  <td className={`px-3 py-2 text-right font-semibold ${scoreTone(p.page_score)}`}>{p.page_score}</td>
+                  <td className="px-3 py-2 text-right text-slate-600">{p.word_count}</td>
+                  <td className="px-3 py-2 text-right text-slate-500">{p.issues.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

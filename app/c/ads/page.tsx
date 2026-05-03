@@ -337,28 +337,8 @@ export default function CustomerAdsPage() {
         platform: analysisPlatform,
       });
       setAnalysisResult(result);
-    } catch {
-      // Fallback demo analysis
-      setAnalysisResult({
-        metrics: [
-          { label: "CTR", value: "1.2%", benchmark: "0.9%", ok: true },
-          { label: "CPC", value: "€2.40", benchmark: "€1.80", ok: false },
-          { label: "CPM", value: "€12.50", benchmark: "€14.00", ok: true },
-          { label: "Frequency", value: "2.8", benchmark: "< 3.0", ok: true },
-        ],
-        recommendations: [
-          { action: "Lower CPC by testing more ad formats", reasoning: "Your CPC is 33% above industry average. A/B test carousel vs single image." },
-          { action: "Expand audience with lookalike audiences", reasoning: "Your CTR is good, indicating relevant messaging. Broaden the reach." },
-          { action: "Test shorter ad copy", reasoning: "Current copy may be too long for mobile placements." },
-        ],
-        instructions: [
-          "Go to Ads Manager > Ad Set > Edit",
-          "Duplicate your best performing ad",
-          "Change the format to Carousel with 3-5 cards",
-          "Create a Lookalike Audience based on your conversions",
-          "Set budget to 80% of current per ad set",
-        ],
-      });
+    } catch (err: any) {
+      setError(`Could not analyze screenshot: ${err?.message || err}. Try again or check that the Ads agent is configured.`);
     }
     setAnalyzing(false);
   };

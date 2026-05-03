@@ -1,9 +1,25 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Check, Sparkles, Zap, Building2 } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
+import { useUser } from "@/lib/hooks/useUser";
 
-const TIERS = [
+type TierName = "Starter" | "Growth" | "Enterprise";
+
+const TIERS: {
+  name: TierName;
+  price: string;
+  period: string;
+  description: string;
+  icon: typeof Zap;
+  features: string[];
+  cta: string;
+  href: string;
+  highlighted: boolean;
+  badge?: string;
+}[] = [
   {
     name: "Starter",
     price: "$149",
@@ -20,7 +36,6 @@ const TIERS = [
     cta: "Start Free Trial",
     href: "/c/dashboard",
     highlighted: false,
-    currentPlan: false,
   },
   {
     name: "Growth",
@@ -40,7 +55,6 @@ const TIERS = [
     href: "/c/dashboard",
     highlighted: true,
     badge: "Most Popular",
-    currentPlan: true,
   },
   {
     name: "Enterprise",
@@ -59,11 +73,43 @@ const TIERS = [
     cta: "Contact Us",
     href: "mailto:hello@successifier.com",
     highlighted: false,
-    currentPlan: false,
   },
 ];
 
+function getSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
+
 export default function PricingPage() {
+  const { user } = useUser();
+  const [currentPlan, setCurrentPlan] = useState<TierName | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", user.id)
+          .single();
+        const planRaw: unknown = data?.settings?.plan;
+        if (typeof planRaw === "string") {
+          const normalized = planRaw.charAt(0).toUpperCase() + planRaw.slice(1).toLowerCase();
+          if (normalized === "Starter" || normalized === "Growth" || normalized === "Enterprise") {
+            setCurrentPlan(normalized);
+          }
+        }
+      } catch {
+        // No subscription info yet — leave unset
+      }
+    })();
+  }, [user]);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Header */}
@@ -80,7 +126,9 @@ export default function PricingPage() {
       {/* Tier cards */}
       <div className="mx-auto max-w-5xl px-4 pb-20">
         <div className="grid gap-6 md:grid-cols-3">
-          {TIERS.map((tier) => (
+          {TIERS.map((tier) => {
+            const isCurrent = currentPlan === tier.name;
+            return (
             <div
               key={tier.name}
               className={`relative flex flex-col rounded-2xl border p-8 ${
@@ -96,7 +144,7 @@ export default function PricingPage() {
                   </span>
                 </div>
               )}
-              {tier.currentPlan && (
+              {isCurrent && (
                 <div className="absolute -top-3 right-4">
                   <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white">
                     Current Plan
@@ -160,7 +208,8 @@ export default function PricingPage() {
                 </Link>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
