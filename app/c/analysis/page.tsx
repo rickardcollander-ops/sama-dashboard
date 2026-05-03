@@ -7,6 +7,7 @@ import {
   History as HistoryIcon, Globe, Search,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { createBrowserClient } from "@supabase/ssr";
@@ -59,7 +60,12 @@ import {
   GAP_LABELS,
   type AIPlatform,
   type AnalysisRun,
+  type AuditCategory,
+  type AuditIssue,
+  type AuditPageReport,
+  type AuditSeverity,
   type GapCategory,
+  type SiteAudit,
 } from "./types";
 
 type Stage = "setup" | "running" | "results" | "history";
@@ -968,26 +974,31 @@ function RunningStage({ queryCount, platformCount }: { queryCount: number; platf
         <Loader2 className="h-10 w-10 animate-spin text-violet-600 mb-4" />
         <h2 className="text-lg font-semibold text-slate-900">Running analysis…</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Querying Google search and {platformCount} AI platform{platformCount === 1 ? "" : "s"} for {queryCount} queries.
+          Querying Google search and {platformCount} AI platform{platformCount === 1 ? "" : "s"} for {queryCount} queries,
+          and crawling your domain for a full SEO + GEO audit.
         </p>
-        <p className="mt-3 text-xs text-slate-400">~{totalChecks} total checks. This typically takes 30–60 seconds.</p>
+        <p className="mt-3 text-xs text-slate-400">~{totalChecks} AI checks plus a 25-page crawl. This typically takes 1–2 minutes.</p>
       </div>
     </div>
   );
 }
 
 function ResultsStage({ run }: { run: AnalysisRun }) {
-  const [tab, setTab] = useState<"overview" | "matrix" | "gaps">("overview");
+  const [tab, setTab] = useState<"overview" | "matrix" | "gaps" | "recommendations">("overview");
   const tabs: { id: typeof tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "matrix", label: "Per query" },
     { id: "gaps", label: "Gap analysis" },
+    { id: "recommendations", label: "Recommendations" },
   ];
+
+  const gapSummary = useMemo(() => buildGapSummary(run), [run]);
+  const existingKeywords = useMemo(() => run.query_results.map((q) => q.query), [run]);
 
   return (
     <div>
       <div className="mb-4 flex gap-1 border-b border-slate-200">
-        {tabs.map((t) => (
+        {tabs.filter((t) => t.show).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -1002,20 +1013,70 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       </div>
 
       {tab === "overview" && <OverviewTab run={run} />}
+      {tab === "audit" && run.site_audit && <SiteAuditTab audit={run.site_audit} />}
       {tab === "matrix" && <MatrixTab run={run} />}
       {tab === "gaps" && <GapsTab run={run} />}
+      {tab === "recommendations" && (
+        <KeywordGeoRecommendations
+          existingKeywords={existingKeywords}
+          gapSummary={gapSummary}
+          title="Recommended additions to track"
+          description="Based on your analysis gaps, AI proposes new keywords and GEO queries you can add to your tracking."
+        />
+      )}
     </div>
   );
 }
 
+function buildGapSummary(run: AnalysisRun): string {
+  const lines: string[] = [];
+  const o = run.overview;
+  lines.push(
+    `Brand visible in ${o.queries_with_presence}/${o.total_queries} queries; AI mention rate ${(o.overall_mention_rate * 100).toFixed(0)}%; Google top-10 coverage ${(o.seo_top10_coverage * 100).toFixed(0)}%.`,
+  );
+
+  const competitorWins = run.query_results.filter((q) => q.gap === "competitor_dominates").slice(0, 8);
+  if (competitorWins.length) {
+    lines.push("Queries where competitors dominate:");
+    for (const q of competitorWins) {
+      const comps = new Set<string>();
+      q.ai_results.forEach((r) => r.competitors_mentioned?.forEach((c) => comps.add(c)));
+      lines.push(`- "${q.query}" (competitors: ${[...comps].slice(0, 4).join(", ") || "n/a"})`);
+    }
+  }
+
+  const bothLosers = run.query_results.filter((q) => q.gap === "both_losers").slice(0, 6);
+  if (bothLosers.length) {
+    lines.push("Queries where brand has no SEO or GEO presence:");
+    for (const q of bothLosers) lines.push(`- "${q.query}"`);
+  }
+
+  if (o.top_opportunities.length) {
+    lines.push("Top opportunities flagged:");
+    for (const op of o.top_opportunities.slice(0, 5)) {
+      lines.push(`- "${op.query}" — ${op.reason}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 function OverviewTab({ run }: { run: AnalysisRun }) {
   const o = run.overview;
+  const audit = run.site_audit;
+  const cols = audit ? "sm:grid-cols-4" : "sm:grid-cols-3";
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${cols}`}>
         <Stat label="AI mention rate" value={`${(o.overall_mention_rate * 100).toFixed(0)}%`} hint={`across ${run.platforms.length} AI platforms`} />
         <Stat label="Google top-10 coverage" value={`${(o.seo_top10_coverage * 100).toFixed(0)}%`} hint="of analyzed queries" />
         <Stat label="Visible somewhere" value={`${o.queries_with_presence}/${o.total_queries}`} hint="queries where you appear" />
+        {audit && (
+          <Stat
+            label="Site audit score"
+            value={`${audit.scores.overall}`}
+            hint={`${audit.pages_crawled} pages crawled · see Site audit tab`}
+          />
+        )}
       </div>
 
       <section className="rounded-xl border bg-white p-5 shadow-sm">

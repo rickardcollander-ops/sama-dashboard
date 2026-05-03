@@ -8,9 +8,17 @@ import {
   ArrowRight, Trash2, Archive,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import SuggestionsPanel from "@/components/SuggestionsPanel";
+import PublishDialog from "@/components/PublishDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
+
+interface ContentTopicSuggestion {
+  topic: string;
+  type: string;
+  reason: string;
+}
 
 interface ContentPiece {
   id: string;
@@ -41,6 +49,8 @@ export default function CustomerContentPage() {
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<{ id: string; pr_url: string } | null>(null);
   const [publishError, setPublishError] = useState<{ id: string; message: string } | null>(null);
+  const [cmsDialog, setCmsDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
+  const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) fetchContent();
@@ -231,6 +241,23 @@ export default function CustomerContentPage() {
     await updateStatus(pieceId, "archived");
   };
 
+  const openCmsDialog = async (piece: ContentPiece) => {
+    if (!user) return;
+    setLoadingBodyId(piece.id);
+    let body = "";
+    try {
+      const client = tenantApi(user.id);
+      const data = await client.get<{ piece?: { body?: string; content?: string; markdown?: string } }>(
+        `/api/content/pieces/${piece.id}`,
+      );
+      body = data.piece?.body || data.piece?.content || data.piece?.markdown || "";
+    } catch {
+      // fall through with empty body — user can paste it
+    }
+    setLoadingBodyId(null);
+    setCmsDialog({ piece, body: body || `# ${piece.title}\n\n` });
+  };
+
   if (userLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -314,6 +341,37 @@ export default function CustomerContentPage() {
               <X className="h-4 w-4" />
             </button>
           </div>
+        )}
+
+        {/* AI Suggestions */}
+        {user && (
+          <SuggestionsPanel<ContentTopicSuggestion>
+            title="Content-förslag"
+            description="AI föreslår teman och format. Importera ett förslag så genererar Content-agenten ett utkast."
+            accent="purple"
+            importButtonLabel="Importera till Content"
+            importLabel="Importera till Content-agenten"
+            fetchSuggestions={async () => {
+              const client = tenantApi(user.id);
+              const res = await client.post<{ topics?: ContentTopicSuggestion[] }>("/api/content/suggest-topics", {});
+              return res.topics || [];
+            }}
+            renderItem={(item) => (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-medium text-purple-700 uppercase">{item.type}</span>
+                </div>
+                <p className="font-semibold text-slate-900 text-sm">{item.topic}</p>
+                <p className="text-xs text-slate-600 mt-1">{item.reason}</p>
+              </div>
+            )}
+            importItem={async (item) => {
+              const client = tenantApi(user.id);
+              await client.post("/api/content/generate", { type: item.type, topic: item.topic });
+              setTimeout(() => fetchContent(), 1500);
+              return `"${item.topic}" skickades till Content-agenten — ett utkast skapas snart.`;
+            }}
+          />
         )}
 
         {/* Filters */}
@@ -423,6 +481,23 @@ export default function CustomerContentPage() {
                       </button>
                     )}
 
+                    {/* Publish to CMS */}
+                    {(piece.status === "approved" || piece.status === "published") && (
+                      <button
+                        onClick={() => openCmsDialog(piece)}
+                        disabled={loadingBodyId === piece.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                        title="Publish to WordPress, Webflow, Ghost, Notion or webhook"
+                      >
+                        {loadingBodyId === piece.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                        Publish to CMS
+                      </button>
+                    )}
+
                     {/* Publish to GitHub (only for approved/published) */}
                     {(piece.status === "approved" || piece.status === "published") && (
                       ghConnected ? (
@@ -465,6 +540,18 @@ export default function CustomerContentPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* CMS publish dialog */}
+        {cmsDialog && (
+          <PublishDialog
+            open
+            onClose={() => setCmsDialog(null)}
+            title={cmsDialog.piece.title}
+            body={cmsDialog.body}
+            pieceId={cmsDialog.piece.id}
+            defaultTags={cmsDialog.piece.target_keyword ? [cmsDialog.piece.target_keyword] : []}
+          />
         )}
 
         {/* Generate Modal */}

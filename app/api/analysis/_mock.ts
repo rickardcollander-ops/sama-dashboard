@@ -2,8 +2,10 @@ import type {
   AIPlatform,
   AIPlatformResult,
   AnalysisRun,
+  AuditPageReport,
   GapCategory,
   QueryResult,
+  SiteAudit,
 } from "@/app/c/analysis/types";
 
 /**
@@ -97,7 +99,92 @@ export function buildMockRun(input: {
       total_queries: query_results.length,
       top_opportunities,
     },
+    site_audit: buildMockSiteAudit(domain),
     status: "completed",
+  };
+}
+
+export function buildMockSiteAudit(domain: string): SiteAudit {
+  const host = (domain || "example.com").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const samplePaths = ["/", "/pricing", "/features", "/blog", "/about", "/contact"];
+  const pages: AuditPageReport[] = samplePaths.map((path, i) => {
+    const wc = 320 + ((i * 173) % 900);
+    const hasMeta = i % 3 !== 0;
+    const hasSchema = i % 2 === 0;
+    const issues: string[] = [];
+    if (!hasMeta) issues.push("Missing meta description");
+    if (!hasSchema) issues.push("No schema.org JSON-LD (hurts AI/GEO discovery)");
+    if (wc < 400) issues.push(`Thin content (${wc} words)`);
+    return {
+      url: `https://${host}${path}`,
+      status_code: i === samplePaths.length - 1 ? 200 : 200,
+      response_time_ms: 240 + i * 35,
+      title: `${host} — ${path === "/" ? "Home" : path.slice(1)}`,
+      title_length: 30 + i * 4,
+      meta_description: hasMeta ? `Mock meta for ${path}` : null,
+      meta_description_length: hasMeta ? 120 : 0,
+      h1_count: 1,
+      h1_text: path === "/" ? "Welcome" : path.slice(1),
+      h2_count: 3 + (i % 3),
+      h3_count: 2,
+      word_count: wc,
+      canonical: `https://${host}${path}`,
+      has_viewport: true,
+      has_lang: true,
+      has_og_tags: i % 2 === 0,
+      has_twitter_card: i % 3 === 0,
+      schema_types: hasSchema ? ["Organization", i % 4 === 0 ? "FAQPage" : "Article"] : [],
+      image_count: 4 + i,
+      images_missing_alt: i % 4 === 0 ? 2 : 0,
+      internal_links: 8 + i * 2,
+      external_links: 1 + (i % 3),
+      issues,
+      page_score: 70 + ((i * 5) % 20),
+    };
+  });
+  return {
+    domain: host,
+    pages_crawled: pages.length,
+    robots_txt: { present: true, sitemap_url: `https://${host}/sitemap.xml`, size: 220 },
+    sitemap: { present: true, url: `https://${host}/sitemap.xml`, url_count: 12, urls: [] },
+    scores: {
+      overall: 72,
+      technical: 80,
+      geo: 64,
+      content: 70,
+      links: 78,
+      details: {
+        pages_ok: pages.length,
+        pages_total: pages.length,
+        robots_present: true,
+        sitemap_present: true,
+        sitemap_url_count: 12,
+        with_canonical: pages.length,
+        with_viewport: pages.length,
+        with_lang: pages.length,
+        with_og: 4,
+        with_schema: 3,
+        with_faq_or_article_schema: 2,
+        with_proper_h1: pages.length,
+        with_good_title: pages.length,
+        with_good_meta: 4,
+        long_enough_pages: 5,
+        avg_word_count: 720,
+        alt_coverage: 90,
+        avg_internal_links: 12.4,
+        broken_link_rate: 2.5,
+      },
+    },
+    issues: [
+      { severity: "high", category: "geo", title: "3/6 pages have no schema markup",
+        detail: "Add JSON-LD (Article, FAQPage, Product, Organization) to help AI engines cite you." },
+      { severity: "medium", category: "content", title: "2 thin pages (<400 words)",
+        detail: "Expand thin pages with substantive copy that answers buyer questions." },
+      { severity: "medium", category: "technical", title: "2 pages missing meta description",
+        detail: "Meta descriptions drive click-through from SERPs and AI summaries." },
+    ],
+    broken_links: { checked: 12, broken_count: 1, broken: [{ url: `https://${host}/old-page`, status: 404 }] },
+    pages,
   };
 }
 

@@ -1,5 +1,5 @@
 import {
-  Bot, Search, FileText, Share2, Megaphone, TrendingUp, BarChart2,
+  Bot, Search, FileText, Share2, Megaphone, TrendingUp, BarChart2, Code2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -109,6 +109,21 @@ export const AGENTS: Record<string, AgentDef> = {
     hoverBg: "hover:bg-indigo-100",
     solidBg: "bg-indigo-600",
     solidHover: "hover:bg-indigo-700",
+  },
+  tech: {
+    id: "tech",
+    label: "Tech",
+    description: "Site improvements via GitHub PRs",
+    href: "/c/tech",
+    icon: Code2,
+    color: "slate",
+    iconColor: "text-slate-700",
+    bg: "bg-slate-50",
+    borderColor: "border-slate-200",
+    textColor: "text-slate-700",
+    hoverBg: "hover:bg-slate-100",
+    solidBg: "bg-slate-800",
+    solidHover: "hover:bg-slate-900",
   },
 };
 

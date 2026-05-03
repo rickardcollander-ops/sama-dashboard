@@ -10,8 +10,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
-import { tenantApi } from "@/lib/api";
+import { api, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { exportCsv } from "@/lib/csv";
@@ -72,10 +73,11 @@ export default function CustomerSeoPage() {
       const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
       if (data?.settings) setBrandContext(data.settings);
     } catch {}
-    // Check GSC connection
+    // Check GSC connection — mirror settings page (backend reads tenant_id from query)
     try {
-      const client = tenantApi(user.id);
-      const status = await client.get<{ search_console?: { connected?: boolean } }>("/api/auth/google/status");
+      const status = await api.get<Record<string, { connected?: boolean }>>(
+        `/api/auth/google/status?tenant_id=${user.id}`
+      );
       setGscConnected(!!status?.search_console?.connected);
     } catch {
       setGscConnected(false);
@@ -404,6 +406,17 @@ export default function CustomerSeoPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* AI Recommendations panel */}
+        <div className="mb-8">
+          <KeywordGeoRecommendations
+            existingKeywords={keywords.map((k) => k.keyword)}
+            sections={["keywords", "long_tail_phrases"]}
+            title="Discover new keywords with AI"
+            description="AI proposes new SEO keywords and long-tail phrases based on your brand and current tracked keywords. Pick the ones to add."
+            onAdded={() => fetchKeywords()}
+          />
         </div>
 
         {/* Position History Chart */}
