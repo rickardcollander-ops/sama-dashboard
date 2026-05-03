@@ -107,6 +107,10 @@ export interface AnalysisRun {
   overview: AnalysisOverview;
   site_audit?: SiteAudit | null;
   status: "running" | "completed" | "failed";
+  /** "mock" when the dashboard could not reach the live agent backend. */
+  _source?: "mock" | "live";
+  /** Human-readable explanation when _source === "mock". */
+  _mock_reason?: string;
 }
 
 /* ── Site audit (full SEO/GEO/technical/links report) ───────────────────── */

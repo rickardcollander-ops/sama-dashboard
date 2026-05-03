@@ -140,11 +140,29 @@ export default function AnalysisPage() {
         headers: { "Content-Type": "application/json", "X-Tenant-ID": user?.id || "" },
         body: JSON.stringify(brand),
       });
-      if (!res.ok) throw new Error("generate failed");
-      const data = (await res.json()) as { queries: string[] };
+      const data = (await res.json().catch(() => ({}))) as {
+        queries?: string[];
+        error?: string;
+        upstream_status?: number;
+        upstream_body?: string;
+        _source?: "mock" | "live";
+        _mock_reason?: string;
+      };
+      if (!res.ok) {
+        const parts = [
+          data.error || `Generate failed (HTTP ${res.status})`,
+          data.upstream_status ? `upstream ${data.upstream_status}` : "",
+          data.upstream_body ? `— ${data.upstream_body}` : "",
+        ].filter(Boolean);
+        throw new Error(parts.join(" "));
+      }
       setQueries(data.queries || []);
-    } catch {
-      setError("Could not auto-generate queries. Add some manually below.");
+      if (data._source === "mock" && data._mock_reason) {
+        setError(`Using template queries: ${data._mock_reason}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not auto-generate queries.";
+      setError(msg);
     }
     setGenerating(false);
   };
@@ -166,17 +184,25 @@ export default function AnalysisPage() {
           platforms,
         }),
       });
-      if (!res.ok) throw new Error("run failed");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok) {
+        const detail = (data as { error?: string; upstream_status?: number; upstream_body?: string }) || {};
+        const parts = [
+          detail.error || `Analysis failed (HTTP ${res.status})`,
+          detail.upstream_status ? `upstream ${detail.upstream_status}` : "",
+          detail.upstream_body ? `— ${detail.upstream_body}` : "",
+        ].filter(Boolean);
+        throw new Error(parts.join(" "));
+      }
 
       // Real backend returns {id, status: "running"} and we poll until done.
       // Mock backend returns a complete AnalysisRun synchronously (detected
       // by presence of query_results).
-      if (data && Array.isArray(data.query_results)) {
+      if (data && Array.isArray((data as AnalysisRun).query_results)) {
         setRun(data as AnalysisRun);
         setStage("results");
-      } else if (data?.id) {
-        const finalRun = await pollAnalysisRun(user?.id || "", data.id);
+      } else if ((data as { id?: string }).id) {
+        const finalRun = await pollAnalysisRun(user?.id || "", (data as { id: string }).id);
         if (finalRun?.status === "completed" && Array.isArray(finalRun.query_results)) {
           setRun(finalRun);
           setStage("results");
@@ -262,7 +288,20 @@ export default function AnalysisPage() {
 
         {stage === "running" && <RunningStage queryCount={queries.length} platformCount={platforms.length} />}
 
-        {stage === "results" && run && <ResultsStage run={run} />}
+        {stage === "results" && run && (
+          <>
+            {run._source === "mock" && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <div className="font-medium">Showing mock data — not a real analysis.</div>
+                  {run._mock_reason && <div className="text-xs opacity-80">{run._mock_reason}</div>}
+                </div>
+              </div>
+            )}
+            <ResultsStage run={run} />
+          </>
+        )}
 
         {stage === "history" && (
           <HistoryStage tenantId={user?.id || ""} onOpen={handleOpenRun} />
