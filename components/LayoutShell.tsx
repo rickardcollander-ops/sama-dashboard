@@ -7,9 +7,10 @@ import NotificationBell from "@/components/NotificationBell";
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isCustomerPortal = pathname.startsWith("/c/") || pathname === "/c";
+  const isPublicLanding = pathname === "/audit" || pathname.startsWith("/audit/");
 
-  // Customer portal: no admin sidebar, no notification bell
-  if (isCustomerPortal) {
+  // Customer portal & public landing pages: no admin sidebar, no notification bell
+  if (isCustomerPortal || isPublicLanding) {
     return <>{children}</>;
   }
 

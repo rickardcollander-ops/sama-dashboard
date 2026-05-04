@@ -52,6 +52,11 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  // ── Public landing page (free AI-readiness audit) — no auth ─────────────────
+  if (pathname === '/audit' || pathname.startsWith('/audit/') || pathname === '/api/public-audit') {
+    return NextResponse.next();
+  }
+
   // ── Admin dashboard (everything else) — MISSION_SECRET ───────────────────────
   if (pathname === '/login' || pathname.startsWith('/api/auth') || pathname.startsWith('/api/')) {
     return NextResponse.next();
