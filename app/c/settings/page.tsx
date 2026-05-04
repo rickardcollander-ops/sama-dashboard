@@ -14,6 +14,7 @@ import { useUser } from "@/lib/hooks/useUser";
 import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 import PublishingDestinations from "@/components/PublishingDestinations";
+import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
 
 interface UserSettings {
   openai_api_key: string;
@@ -1032,6 +1033,9 @@ function CustomerSettingsPageInner() {
                         )}
                       </div>
                     </div>
+                    {key === "analytics" && connected && user && (
+                      <GoogleAnalyticsPropertyPicker tenantId={user.id} />
+                    )}
                   </div>
                 );
               })}
