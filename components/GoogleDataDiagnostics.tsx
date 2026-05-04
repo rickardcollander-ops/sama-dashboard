@@ -131,13 +131,33 @@ export default function GoogleDataDiagnostics(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-      setFeedback(
-        data.imported != null
-          ? `Imported ${data.imported} top quer${data.imported === 1 ? "y" : "ies"} from GSC.`
-          : "Import requested — refreshing.",
-      );
-      await refresh();
-      onSynced?.();
+
+      if (data.triggered_agent && data.run_id) {
+        setFeedback("No direct import endpoint — triggered SEO agent. Fetching GSC data in background…");
+        await refresh();
+        try {
+          const run = await pollAgentRun(tenantId, data.run_id);
+          if (run.status === "completed") {
+            setFeedback(run.summary || "GSC import completed");
+            await refresh();
+            onSynced?.();
+          } else if (run.status === "failed") {
+            setError(run.error || run.summary || "GSC import failed");
+          } else {
+            setError("Import is still running — refresh in a few minutes to see results.");
+          }
+        } catch {
+          setError("Import polling failed — refresh manually to see results.");
+        }
+      } else {
+        setFeedback(
+          data.imported != null
+            ? `Imported ${data.imported} top quer${data.imported === 1 ? "y" : "ies"} from GSC.`
+            : "Import completed.",
+        );
+        await refresh();
+        onSynced?.();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     }
@@ -188,12 +208,27 @@ export default function GoogleDataDiagnostics(props: Props) {
         cta: null,
       };
     }
-    if (service === "search_console" && trackedCount === 0) {
+    if (trackedCount === 0) {
+      if (service === "search_console") {
+        return {
+          tone: "amber" as const,
+          title: "Connected and synced — but no keywords tracked",
+          body: "GSC API only returns data for keywords you ask about. Either import top GSC queries automatically or add keywords manually above.",
+          cta: null,
+        };
+      }
+      const lastSummary = lastSuccessful.summary || "";
+      const looksEmpty = /\b0\b|no\s+(data|metrics|channels|campaigns)/i.test(lastSummary);
+      const itemLabel = service === "analytics" ? "channels" : "campaigns";
       return {
         tone: "amber" as const,
-        title: "Connected and synced — but no keywords tracked",
-        body: "GSC API only returns data for keywords you ask about. Either import top GSC queries automatically or add keywords manually above.",
-        cta: null,
+        title: `Connected and synced — but the agent returned no ${itemLabel}`,
+        body:
+          (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
+          (service === "analytics"
+            ? "Open Settings to verify a GA4 property is selected, that the connected Google account has access to it, and that the property has traffic for the selected period."
+            : "Open Settings to verify a Google Ads account is selected and that the connected Google account has access to it."),
+        cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
       };
     }
     return {
