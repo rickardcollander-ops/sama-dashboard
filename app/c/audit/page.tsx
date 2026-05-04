@@ -110,7 +110,7 @@ export default function AuditLandingPage() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyserar…
+                  Crawlar din sajt…
                 </>
               ) : (
                 <>
@@ -121,7 +121,7 @@ export default function AuditLandingPage() {
             </button>
           </form>
           <p className="mt-3 text-xs text-slate-400">
-            Gratis · Inget kort · Inget konto · Tar ca 10–30 sekunder
+            Gratis · Inget kort · Inget konto · Tar ca 15–60 sekunder
           </p>
 
           {error && (

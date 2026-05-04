@@ -16,7 +16,7 @@ export async function generateMetadata(
   if (!result) {
     return { title: "Audit hittades inte — Sama AI" };
   }
-  const score = result.scores.overall;
+  const score = result.audit.scores.overall;
   const title = `${result.domain} — ${score}/100 i AI-synlighet`;
   const description = `Se hela AI-synlighetsrapporten för ${result.domain} och kör din egen gratis audit på 30 sekunder.`;
   return {

@@ -10,7 +10,7 @@ export default async function OG({ params }: { params: Promise<{ id: string }> }
   const { id } = await params;
   const result = await loadPublicAudit(id);
   const domain = result?.domain ?? "din-sajt.se";
-  const score = result?.scores.overall ?? 0;
+  const score = result?.audit.scores.overall ?? 0;
   const grade = score >= 80 ? "Stark" : score >= 60 ? "OK" : score >= 40 ? "Svag" : "Kritisk";
   const ringColor = score >= 80 ? "#22c55e" : score >= 60 ? "#eab308" : score >= 40 ? "#f97316" : "#ef4444";
 
