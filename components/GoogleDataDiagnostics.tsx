@@ -131,11 +131,21 @@ export default function GoogleDataDiagnostics(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-      setFeedback(
-        data.imported != null
-          ? `Imported ${data.imported} top quer${data.imported === 1 ? "y" : "ies"} from GSC.`
-          : "Import requested — refreshing.",
-      );
+      const inserted = data.imported;
+      const updated = data.updated;
+      let message: string;
+      if (inserted != null && updated != null) {
+        message = `GSC sync: ${inserted} new keyword${inserted === 1 ? "" : "s"}, ${updated} updated${
+          data.total_gsc != null ? ` (${data.total_gsc} total in GSC)` : ""
+        }.`;
+      } else if (inserted != null) {
+        message = `Imported ${inserted} top quer${inserted === 1 ? "y" : "ies"} from GSC.`;
+      } else if (data.triggered_agent) {
+        message = "No direct import endpoint — SEO agent triggered to pull GSC data in the background.";
+      } else {
+        message = "Import requested — refreshing.";
+      }
+      setFeedback(message);
       await refresh();
       onSynced?.();
     } catch (e) {
