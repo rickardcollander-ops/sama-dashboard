@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, Play, ArrowRight, AlertCircle, X, Sparkles,
-  PenTool, Share2, Megaphone, Clock, Check, Bot,
+  PenTool, Share2, Megaphone, Clock, Check, Bot, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -12,6 +12,7 @@ import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { tenantApi } from "@/lib/api";
+import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
 import { AGENTS, AGENT_LIST } from "@/lib/agents";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
@@ -89,6 +90,10 @@ export default function CustomerDashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [runningAction, setRunningAction] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const { runs, triggerRun } = useActiveRuns();
+  const runAllActive = runs.some(
+    (r) => r.status === "running" || r.status === "pending",
+  );
 
   useEffect(() => {
     if (!user || userLoading) return;
@@ -224,6 +229,21 @@ export default function CustomerDashboard() {
     setRunningAction(null);
   };
 
+  const runAllChecks = async () => {
+    if (!user) return;
+    const targets: { agent: AgentKey; endpoint: string }[] = [
+      { agent: "ai_visibility", endpoint: "/api/ai-visibility/check" },
+      { agent: "seo", endpoint: "/api/seo/keywords/track" },
+      { agent: "analytics", endpoint: "/api/tenant/agents/analytics/trigger" },
+      { agent: "ads", endpoint: "/api/tenant/agents/ads/trigger" },
+    ];
+    setActionFeedback("Triggering all agents — progress shown in the bottom-right banner.");
+    for (const t of targets) {
+      // Fire sequentially so we don't blast the rate limiter all at once
+      await triggerRun(t.agent, t.endpoint);
+    }
+  };
+
   // Derived
   const hasSetup = !!(settings.brand_name && settings.domain);
   const mentionRate = geoSummary?.mention_rate ?? 0;
@@ -333,6 +353,15 @@ export default function CustomerDashboard() {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
+            </button>
+            <button
+              onClick={runAllChecks}
+              disabled={runAllActive || !hasSetup}
+              title={!hasSetup ? "Configure your brand in Settings first" : "Triggers GEO, SEO, Analytics and Ads agents"}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {runAllActive ? "Running…" : "Run All Checks"}
             </button>
           </div>
         </div>
