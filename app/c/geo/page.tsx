@@ -47,6 +47,7 @@ export default function CustomerGeoPage() {
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runNotice, setRunNotice] = useState("");
   const [error, setError] = useState("");
   const { period, setPeriod, days } = usePeriod();
 
@@ -62,9 +63,16 @@ export default function CustomerGeoPage() {
     }
   }, [error]);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (runNotice) {
+      const t = setTimeout(() => setRunNotice(""), 12000);
+      return () => clearTimeout(t);
+    }
+  }, [runNotice]);
+
+  const loadData = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError("");
     const client = tenantApi(user.id);
     try {
@@ -81,7 +89,7 @@ export default function CustomerGeoPage() {
       console.error("Failed to load GEO data:", err);
       setError(`Could not load data: ${err?.message || err}`);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const removeTrackedQuery = async (query: string) => {
@@ -122,10 +130,20 @@ export default function CustomerGeoPage() {
   const runCheck = async () => {
     if (!user) return;
     setRunning(true);
+    setError("");
+    setRunNotice("");
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/ai-visibility/check");
-      await loadData();
+      await client.post("/api/ai-visibility/check", undefined, {
+        headers: { "X-Sama-Intent": "user-action" },
+      });
+      setRunNotice(
+        "Check started — the agent runs in the background and results appear here as each engine responds (typically a few minutes).",
+      );
+      // Pull a fresh summary in 30s and again at 90s without flashing the
+      // full-page spinner, so completed checks show up without manual reload.
+      setTimeout(() => loadData(true), 30_000);
+      setTimeout(() => loadData(true), 90_000);
     } catch (err: any) {
       console.error("Failed to run check:", err);
       setError(`Could not run check: ${err?.message || err}`);
@@ -175,6 +193,7 @@ export default function CustomerGeoPage() {
               Export
             </button>
             <button
+              type="button"
               onClick={runCheck}
               disabled={running}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
@@ -190,6 +209,16 @@ export default function CustomerGeoPage() {
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
             <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {runNotice && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
+            {runNotice}
+            <button onClick={() => setRunNotice("")} className="ml-auto text-blue-500 hover:text-blue-700">
               <X className="h-4 w-4" />
             </button>
           </div>
