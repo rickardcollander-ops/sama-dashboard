@@ -21,6 +21,12 @@ interface AgentRun {
   error?: string | null;
 }
 
+interface ImportDiagnostics {
+  sync_response_keys?: string[];
+  backend_keywords_count?: number;
+  gsc_query_probes?: { path: string; status: number | string; count: number; sample?: string }[];
+}
+
 interface Props {
   /** Which Google service to diagnose. */
   service: Service;
@@ -55,6 +61,7 @@ export default function GoogleDataDiagnostics(props: Props) {
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
@@ -123,6 +130,7 @@ export default function GoogleDataDiagnostics(props: Props) {
     setImporting(true);
     setError(null);
     setFeedback(null);
+    setDiagnostics(null);
     try {
       const res = await fetch(`/api/integrations/gsc/import?tenant_id=${tenantId}`, {
         method: "POST",
@@ -169,6 +177,7 @@ export default function GoogleDataDiagnostics(props: Props) {
           message = "Import completed.";
         }
         setFeedback(message);
+        if (data.diagnostics) setDiagnostics(data.diagnostics as ImportDiagnostics);
         await refresh();
         onSynced?.();
       }
@@ -349,6 +358,39 @@ export default function GoogleDataDiagnostics(props: Props) {
               <AlertCircle className="h-3.5 w-3.5" /> {error}
               <button onClick={() => setError(null)} className="ml-auto"><X className="h-3 w-3" /></button>
             </div>
+          )}
+          {diagnostics && (
+            <details className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+              <summary className="cursor-pointer font-medium select-none">
+                Import diagnostics — backend probe results
+              </summary>
+              <div className="mt-2 space-y-1 font-mono">
+                {diagnostics.sync_response_keys && (
+                  <div>
+                    <span className="text-slate-500">sync response keys: </span>
+                    {diagnostics.sync_response_keys.join(", ") || "(none)"}
+                  </div>
+                )}
+                {typeof diagnostics.backend_keywords_count === "number" && (
+                  <div>
+                    <span className="text-slate-500">/api/seo/keywords returned: </span>
+                    {diagnostics.backend_keywords_count} keyword
+                    {diagnostics.backend_keywords_count === 1 ? "" : "s"}
+                  </div>
+                )}
+                {diagnostics.gsc_query_probes && (
+                  <div className="pt-1">
+                    <div className="text-slate-500 mb-0.5">GSC-query endpoint probes:</div>
+                    {diagnostics.gsc_query_probes.map((p) => (
+                      <div key={p.path} className="pl-2">
+                        {p.status === 200 ? "✓" : "✗"} {p.path} — {p.status} ({p.count})
+                        {p.sample ? ` "${p.sample}"` : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
           )}
 
           <div className="flex flex-wrap gap-2">

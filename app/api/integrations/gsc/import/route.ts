@@ -45,18 +45,32 @@ async function persistTrackedKeywords(userId: string, keywords: string[]): Promi
 }
 
 async function fetchBackendKeywords(userId: string): Promise<string[]> {
-  try {
-    const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
-      method: "GET",
-      headers: { "X-Tenant-ID": userId },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json().catch(() => ({}));
-    return extractKeywordStrings(data?.keywords);
-  } catch {
-    return [];
+  // Pass an explicit high limit to defeat any default pagination on the
+  // backend (some builds cap at 10 by default).
+  const paths = ["/api/seo/keywords?limit=1000", "/api/seo/keywords"];
+  for (const path of paths) {
+    try {
+      const res = await fetch(`${SAMA_API_URL}${path}`, {
+        method: "GET",
+        headers: { "X-Tenant-ID": userId },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => ({}));
+      const list = extractKeywordStrings(data?.keywords);
+      if (list.length > 0) return list;
+    } catch {
+      // try next path
+    }
   }
+  return [];
+}
+
+interface QueryProbe {
+  path: string;
+  status: number | "error";
+  count: number;
+  sample?: string;
 }
 
 // sync-gsc only returns counts, and `/api/seo/keywords` only returns the
@@ -66,16 +80,21 @@ async function fetchBackendKeywords(userId: string): Promise<string[]> {
 async function fetchBackendGscQueries(
   userId: string,
   limit: number | null,
-): Promise<string[]> {
+): Promise<{ keywords: string[]; probes: QueryProbe[] }> {
   const headers = { "X-Tenant-ID": userId };
-  const qs = limit == null ? "" : `?limit=${limit}`;
+  const qs = limit == null ? "?limit=1000" : `?limit=${limit}`;
   const candidates = [
     `/api/seo/gsc/queries${qs}`,
     `/api/seo/search-console/queries${qs}`,
     `/api/seo/gsc/top-queries${qs}`,
     `/api/integrations/gsc/queries${qs}`,
     `/api/seo/keywords/gsc${qs}`,
+    `/api/seo/keywords/all${qs}`,
+    `/api/seo/rankings${qs}`,
+    `/api/seo/metrics${qs}`,
   ];
+  const probes: QueryProbe[] = [];
+  let firstHit: string[] = [];
   for (const path of candidates) {
     try {
       const res = await fetch(`${SAMA_API_URL}${path}`, {
@@ -83,17 +102,21 @@ async function fetchBackendGscQueries(
         headers,
         signal: AbortSignal.timeout(15_000),
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        probes.push({ path, status: res.status, count: 0 });
+        continue;
+      }
       const data = await res.json().catch(() => ({}));
       const list = extractKeywordStrings(
         data?.queries ?? data?.keywords ?? data?.items ?? data,
       );
-      if (list.length > 0) return list;
+      probes.push({ path, status: res.status, count: list.length, sample: list[0] });
+      if (list.length > 0 && firstHit.length === 0) firstHit = list;
     } catch {
-      // try next candidate
+      probes.push({ path, status: "error", count: 0 });
     }
   }
-  return [];
+  return { keywords: firstHit, probes };
 }
 
 async function syncKeywordsToBackend(userId: string, keywords: string[]): Promise<number> {
@@ -200,7 +223,7 @@ export async function POST(req: NextRequest) {
       ]);
       const allKeywords = Array.from(
         new Set(
-          [...returnedFromResp, ...fromBackend, ...fromGsc]
+          [...returnedFromResp, ...fromBackend, ...fromGsc.keywords]
             .map((k) => k.trim())
             .filter(Boolean),
         ),
@@ -230,6 +253,11 @@ export async function POST(req: NextRequest) {
         total_tracked: allKeywords.length,
         keywords: allKeywords,
         source_endpoint: c.path,
+        diagnostics: {
+          sync_response_keys: Object.keys(data || {}),
+          backend_keywords_count: fromBackend.length,
+          gsc_query_probes: fromGsc.probes,
+        },
       });
     } catch (e) {
       errors.push(`${c.path}: ${e instanceof Error ? e.message : "fetch failed"}`);
