@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase, isRealtimeEnabled } from '@/lib/supabase';
+import { isRealtimeEnabled } from '@/lib/supabase';
+import { getSupabaseBrowser } from '@/lib/supabase-browser';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type RealtimeEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
 
@@ -31,7 +33,7 @@ export function useRealtimeSubscription<T extends { id: string }>({
   onPoll,
 }: UseRealtimeOptions<T>) {
   const [connected, setConnected] = useState(false);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<SupabaseClient['channel']> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const onInsertRef = useRef(onInsert);
@@ -64,6 +66,7 @@ export function useRealtimeSubscription<T extends { id: string }>({
       return () => stopPolling();
     }
 
+    const supabase = getSupabaseBrowser();
     const channelName = `realtime-${table}-${filter || 'all'}`;
     let retryCount = 0;
     const MAX_RETRIES = 3;

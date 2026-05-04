@@ -1116,7 +1116,12 @@ function CustomerSettingsPageInner() {
                 ) : (
                   <div className="space-y-4">
                     {!ghTokenValidated ? (
-                      <>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!ghConnecting && ghToken.trim()) handleGhValidateToken();
+                        }}
+                      >
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-1">Personal Access Token</label>
                           <div className="relative">
@@ -1153,14 +1158,14 @@ function CustomerSettingsPageInner() {
                           </a>
                         </div>
                         <button
-                          onClick={handleGhValidateToken}
+                          type="submit"
                           disabled={ghConnecting || !ghToken.trim()}
-                          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+                          className="mt-4 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
                         >
                           {ghConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Code2 className="h-4 w-4" />}
                           Connect
                         </button>
-                      </>
+                      </form>
                     ) : (
                       <>
                         <div>

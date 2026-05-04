@@ -41,6 +41,17 @@ const EXPENSIVE_PATTERNS: RegExp[] = [
 ];
 const ALLOW_EXPENSIVE = process.env.SAMA_ALLOW_EXPENSIVE_PATHS === "1";
 
+/**
+ * Optional GET endpoints — the dashboard polls these on every render but the
+ * backend may not have them yet. When upstream returns 404, translate to a
+ * 200 with an empty payload so the browser console isn't flooded with red
+ * network errors that the UI already handles silently.
+ */
+const SOFT_404_PATTERNS: RegExp[] = [
+  /^\/api\/activity(\b|\/|\?)/,
+  /^\/api\/content\/stats(\b|\/|\?)/,
+];
+
 const HOP_BY_HOP = new Set([
   "connection",
   "keep-alive",
@@ -206,6 +217,20 @@ async function handle(
   const respHeaders = copyResponseHeaders(upstream.headers);
   respHeaders.set("X-RateLimit-Limit", String(limit));
   respHeaders.set("X-RateLimit-Remaining", String(rl.remaining));
+
+  if (
+    upstream.status === 404 &&
+    req.method === "GET" &&
+    SOFT_404_PATTERNS.some((re) => re.test(fullPath))
+  ) {
+    respHeaders.set("Content-Type", "application/json");
+    respHeaders.delete("Content-Length");
+    return new Response(JSON.stringify({}), {
+      status: 200,
+      headers: respHeaders,
+    });
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
