@@ -1122,6 +1122,19 @@ function CustomerSettingsPageInner() {
                           if (!ghConnecting && ghToken.trim()) handleGhValidateToken();
                         }}
                       >
+                        {/* Hidden username field so Chrome's password-form
+                            heuristic stops warning about missing accessibility
+                            metadata. */}
+                        <input
+                          type="text"
+                          name="username"
+                          autoComplete="username"
+                          value="github"
+                          readOnly
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="hidden"
+                        />
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-1">Personal Access Token</label>
                           <div className="relative">

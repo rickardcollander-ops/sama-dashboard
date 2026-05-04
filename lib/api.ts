@@ -18,6 +18,24 @@ const RAW_BASE = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const BASE_URL = /^https?:\/\//.test(RAW_BASE) ? RAW_BASE : '/api/sama';
 
 /**
+ * Paths that may not exist on the backend yet. These always go through the
+ * local Next.js proxy (which translates upstream 404s to 200/{}) so the
+ * dashboard doesn't flood the browser console with red network errors that
+ * the UI already handles silently. Bypasses NEXT_PUBLIC_SAMA_API_URL.
+ */
+const SOFT_404_PATTERNS: RegExp[] = [
+  /^\/api\/activity(\b|\/|\?)/,
+  /^\/api\/content\/stats(\b|\/|\?)/,
+];
+
+function resolveUrl(path: string): string {
+  if (SOFT_404_PATTERNS.some((re) => re.test(path))) {
+    return `/api/sama${path}`;
+  }
+  return `${BASE_URL}${path}`;
+}
+
+/**
  * Public helper for legacy pages that build URLs as `${SAMA_API_URL}/api/...`.
  * Resolves to the same proxy path as BASE_URL by default.
  */
@@ -76,7 +94,7 @@ export const api = {
   baseUrl: BASE_URL,
 
   async get<T = any>(path: string, options?: FetchOptions): Promise<T> {
-    const res = await fetchWithRetry(`${BASE_URL}${path}`, { method: 'GET', ...options });
+    const res = await fetchWithRetry(resolveUrl(path), { method: 'GET', ...options });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       throw new ApiError(`GET ${path}: ${res.status} ${detail.slice(0, 200)}`, res.status);
@@ -86,7 +104,7 @@ export const api = {
 
   async post<T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> {
     const { headers: extraHeaders, ...restOptions } = options || {};
-    const res = await fetchWithRetry(`${BASE_URL}${path}`, {
+    const res = await fetchWithRetry(resolveUrl(path), {
       method: 'POST',
       ...restOptions,
       headers: { 'Content-Type': 'application/json', ...extraHeaders },
@@ -100,7 +118,7 @@ export const api = {
   },
 
   async delete(path: string, body?: any, options?: FetchOptions): Promise<void> {
-    const res = await fetchWithRetry(`${BASE_URL}${path}`, {
+    const res = await fetchWithRetry(resolveUrl(path), {
       method: 'DELETE',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
