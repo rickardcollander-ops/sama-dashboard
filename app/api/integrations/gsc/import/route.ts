@@ -45,18 +45,96 @@ async function persistTrackedKeywords(userId: string, keywords: string[]): Promi
 }
 
 async function fetchBackendKeywords(userId: string): Promise<string[]> {
-  try {
-    const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
-      method: "GET",
-      headers: { "X-Tenant-ID": userId },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json().catch(() => ({}));
-    return extractKeywordStrings(data?.keywords);
-  } catch {
-    return [];
+  // Pass an explicit high limit to defeat any default pagination on the
+  // backend (some builds cap at 10 by default).
+  const paths = ["/api/seo/keywords?limit=1000", "/api/seo/keywords"];
+  for (const path of paths) {
+    try {
+      const res = await fetch(`${SAMA_API_URL}${path}`, {
+        method: "GET",
+        headers: { "X-Tenant-ID": userId },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => ({}));
+      const list = extractKeywordStrings(data?.keywords);
+      if (list.length > 0) return list;
+    } catch {
+      // try next path
+    }
   }
+  return [];
+}
+
+interface QueryProbe {
+  path: string;
+  status: number | "error";
+  count: number;
+  sample?: string;
+}
+
+// sync-gsc only returns counts, and `/api/seo/keywords` only returns the
+// tenant's tracked list — neither exposes the raw GSC query strings. Try
+// known GSC-query endpoints so we can pull every query the property has
+// ranked for and add them to the tracked list ourselves.
+async function fetchBackendGscQueries(
+  userId: string,
+  limit: number | null,
+): Promise<{ keywords: string[]; probes: QueryProbe[] }> {
+  const headers = { "X-Tenant-ID": userId };
+  const qs = limit == null ? "?limit=1000" : `?limit=${limit}`;
+  const candidates = [
+    `/api/seo/gsc/queries${qs}`,
+    `/api/seo/search-console/queries${qs}`,
+    `/api/seo/gsc/top-queries${qs}`,
+    `/api/integrations/gsc/queries${qs}`,
+    `/api/seo/keywords/gsc${qs}`,
+    `/api/seo/keywords/all${qs}`,
+    `/api/seo/rankings${qs}`,
+    `/api/seo/metrics${qs}`,
+  ];
+  const probes: QueryProbe[] = [];
+  let firstHit: string[] = [];
+  for (const path of candidates) {
+    try {
+      const res = await fetch(`${SAMA_API_URL}${path}`, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        probes.push({ path, status: res.status, count: 0 });
+        continue;
+      }
+      const data = await res.json().catch(() => ({}));
+      const list = extractKeywordStrings(
+        data?.queries ?? data?.keywords ?? data?.items ?? data,
+      );
+      probes.push({ path, status: res.status, count: list.length, sample: list[0] });
+      if (list.length > 0 && firstHit.length === 0) firstHit = list;
+    } catch {
+      probes.push({ path, status: "error", count: 0 });
+    }
+  }
+  return { keywords: firstHit, probes };
+}
+
+async function syncKeywordsToBackend(userId: string, keywords: string[]): Promise<number> {
+  let synced = 0;
+  for (const kw of keywords) {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": userId },
+        body: JSON.stringify({ keyword: kw }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) synced += 1;
+    } catch {
+      // backend unreachable for this keyword — local persistence still wins
+    }
+  }
+  return synced;
 }
 
 /**
@@ -86,12 +164,11 @@ export async function POST(req: NextRequest) {
     "X-Tenant-ID": user.id,
   };
 
-  // Order matters: sync-gsc is the proven endpoint that inserts new
-  // keywords into the tenant's tracked list (used by the legacy admin
-  // page). When the caller wants "all" we send an empty body — that's
-  // sync-gsc's historical signal to import every GSC query. The other
-  // candidates are speculative fallbacks for older / alternative
-  // backend builds.
+  // sync-gsc is the canonical endpoint for refreshing GSC stats; the
+  // other paths cover older / alternative backend builds. Note: current
+  // sync-gsc only updates metrics — it does NOT insert new tracked
+  // keywords. We pull the actual query strings via fetchBackendGscQueries
+  // below and persist them ourselves.
   const candidates: { path: string; body: Record<string, unknown> }[] = [
     { path: "/api/seo/keywords/sync-gsc", body: limit == null ? {} : { limit } },
     { path: "/api/seo/keywords/import-gsc", body: limit == null ? {} : { limit } },
@@ -130,29 +207,57 @@ export async function POST(req: NextRequest) {
         errors.push(`${c.path}: backend reported success=false`);
         continue;
       }
-      // Capture queries from the response when present, then ALSO refetch
-      // the backend's keyword list — sync-gsc historically returns only
-      // counts, so the actual queries live in the tracked-keywords table
-      // afterward. Persisting both into local settings means the SEO page
-      // shows the full set even if backend storage is flaky.
+      // sync-gsc reports counts but not the actual query strings, and the
+      // backend's tracked-keywords list only contains keywords the tenant
+      // has explicitly added. To surface every GSC query the property
+      // ranks for in "all keywords", pull the strings from the response
+      // (best case), the backend tracked list, and a dedicated GSC-query
+      // endpoint, then persist the union locally and push any new ones
+      // back to the backend tracked list so future GETs return them too.
       const returnedFromResp = extractKeywordStrings(
         data?.keywords ?? data?.queries ?? data?.items,
       );
-      const fromBackend = await fetchBackendKeywords(user.id);
+      const [fromBackend, fromGsc] = await Promise.all([
+        fetchBackendKeywords(user.id),
+        fetchBackendGscQueries(user.id, limit),
+      ]);
       const allKeywords = Array.from(
-        new Set([...returnedFromResp, ...fromBackend].map((k) => k.trim()).filter(Boolean)),
+        new Set(
+          [...returnedFromResp, ...fromBackend, ...fromGsc.keywords]
+            .map((k) => k.trim())
+            .filter(Boolean),
+        ),
       );
       const persisted = await persistTrackedKeywords(user.id, allKeywords);
-      const inserted = data.inserted ?? data.imported ?? data.count ?? data.added ?? persisted;
+      // If we discovered queries the backend didn't already have in its
+      // tracked list, register them there too so its `/api/seo/keywords`
+      // GET starts returning them.
+      const missingOnBackend = allKeywords.filter(
+        (k) => !fromBackend.some((b) => b.toLowerCase() === k.toLowerCase()),
+      );
+      const backendSynced = missingOnBackend.length
+        ? await syncKeywordsToBackend(user.id, missingOnBackend)
+        : 0;
+      // Prefer the count of keywords we actually added to the user's
+      // tracked list — `data.inserted` reflects backend-internal state
+      // and is often 0 even when 80+ queries are newly visible to the user.
+      const backendInserted = data.inserted ?? data.imported ?? data.count ?? data.added ?? 0;
+      const imported = Math.max(Number(backendInserted) || 0, persisted);
       const updated = data.updated ?? null;
       return NextResponse.json({
-        imported: inserted,
+        imported,
         persisted,
+        backend_synced: backendSynced,
         updated,
         total_gsc: data.total_gsc ?? null,
         total_tracked: allKeywords.length,
         keywords: allKeywords,
         source_endpoint: c.path,
+        diagnostics: {
+          sync_response_keys: Object.keys(data || {}),
+          backend_keywords_count: fromBackend.length,
+          gsc_query_probes: fromGsc.probes,
+        },
       });
     } catch (e) {
       errors.push(`${c.path}: ${e instanceof Error ? e.message : "fetch failed"}`);
