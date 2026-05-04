@@ -61,6 +61,7 @@ export default function GoogleDataDiagnostics(props: Props) {
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
   // GA4-specific: which property the agent will query.
   // null = endpoint exists but no property selected.
   // undefined = endpoint not yet implemented on backend (treat as unknown).
