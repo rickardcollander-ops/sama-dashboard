@@ -19,8 +19,19 @@ export interface SiteAuditScores {
   performance: number;
 }
 
+export interface SiteAuditMetaFileInfo {
+  url?: string;
+  status?: number;
+  error?: string | null;
+  fallback_from?: string;
+  attempts?: SiteAuditMetaFileInfo[];
+}
+
 export interface SiteAuditSummary {
   pages_analyzed: number;
+  pages_loaded?: number;
+  pages_failed?: number;
+  reachable?: boolean;
   total_pages_discovered: number;
   has_robots_txt: boolean;
   has_sitemap_xml: boolean;
@@ -30,6 +41,11 @@ export interface SiteAuditSummary {
   total_links_checked: number;
   broken_links_count: number;
   audit_duration_ms: number;
+  meta_files?: {
+    robots_txt?: SiteAuditMetaFileInfo;
+    sitemap_xml?: SiteAuditMetaFileInfo;
+    llms_txt?: SiteAuditMetaFileInfo;
+  };
 }
 
 export interface SiteAuditPage {

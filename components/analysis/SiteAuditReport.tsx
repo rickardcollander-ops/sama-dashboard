@@ -40,6 +40,11 @@ const PRIORITY_TONE: Record<AuditPriority, string> = {
 export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
   const [tab, setTab] = useState<"overview" | "findings" | "pages" | "links">("overview");
 
+  const unreachable = run.summary.reachable === false
+    || (typeof run.summary.pages_loaded === "number"
+        && run.summary.pages_loaded === 0
+        && run.summary.pages_analyzed > 0);
+
   const tabs: { id: typeof tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "findings", label: "Findings", count: run.findings.length },
@@ -49,7 +54,9 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
 
   return (
     <div className="space-y-6">
-      <ReportHeader run={run} />
+      <ReportHeader run={run} unreachable={unreachable} />
+
+      {unreachable && <UnreachableBanner run={run} />}
 
       <div className="flex gap-1 border-b border-slate-200">
         {tabs.map((t) => (
@@ -71,7 +78,7 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
         ))}
       </div>
 
-      {tab === "overview" && <OverviewTab run={run} />}
+      {tab === "overview" && <OverviewTab run={run} unreachable={unreachable} />}
       {tab === "findings" && <FindingsTab findings={run.findings} />}
       {tab === "pages" && <PagesTab pages={run.pages} />}
       {tab === "links" && <BrokenLinksTab broken={run.broken_links} />}
@@ -79,9 +86,57 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
   );
 }
 
+function UnreachableBanner({ run }: { run: SiteAuditRun }) {
+  const meta = run.summary.meta_files || {};
+  const diagnostics: string[] = [];
+  for (const [label, info] of [
+    ["robots.txt", meta.robots_txt],
+    ["sitemap.xml", meta.sitemap_xml],
+    ["llms.txt", meta.llms_txt],
+  ] as const) {
+    if (!info) continue;
+    const samples = info.attempts && info.attempts.length > 0 ? info.attempts : [info];
+    for (const s of samples) {
+      if (s.error) { diagnostics.push(`${label}: ${s.error}`); break; }
+      if (typeof s.status === "number" && s.status >= 500) {
+        diagnostics.push(`${label}: HTTP ${s.status}`);
+        break;
+      }
+    }
+  }
+  const uniqueDiagnostics = Array.from(new Set(diagnostics));
+
+  return (
+    <section className="rounded-xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-md bg-rose-100">
+          <AlertCircle className="h-5 w-5 text-rose-700" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-rose-900">
+            We couldn&rsquo;t reach {run.domain}
+          </h3>
+          <p className="mt-1 text-xs text-rose-800/90 leading-relaxed">
+            Every audited URL failed to load, so the scores below have nothing
+            to measure against. Confirm the domain is correct and publicly
+            reachable over HTTPS, then re-run the audit.
+          </p>
+          {uniqueDiagnostics.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-[11px] text-rose-700/80 font-mono">
+              {uniqueDiagnostics.map((d, i) => (
+                <li key={i}>· {d}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── Report header ────────────────────────────────────────────────────────── */
 
-function ReportHeader({ run }: { run: SiteAuditRun }) {
+function ReportHeader({ run, unreachable }: { run: SiteAuditRun; unreachable: boolean }) {
   return (
     <section className="rounded-xl border bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -103,17 +158,26 @@ function ReportHeader({ run }: { run: SiteAuditRun }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Pill ok={run.summary.https} label="HTTPS" />
-          <Pill ok={run.summary.has_robots_txt} label="robots.txt" />
-          <Pill ok={run.summary.has_sitemap_xml} label="sitemap.xml" />
-          <Pill ok={run.summary.has_llms_txt} label="llms.txt" tone="optional" />
+          <Pill ok={run.summary.https} label="HTTPS" unknown={unreachable} />
+          <Pill ok={run.summary.has_robots_txt} label="robots.txt" unknown={unreachable} />
+          <Pill ok={run.summary.has_sitemap_xml} label="sitemap.xml" unknown={unreachable} />
+          <Pill ok={run.summary.has_llms_txt} label="llms.txt" tone="optional" unknown={unreachable} />
         </div>
       </div>
     </section>
   );
 }
 
-function Pill({ ok, label, tone }: { ok: boolean; label: string; tone?: "optional" }) {
+function Pill({ ok, label, tone, unknown }: { ok: boolean; label: string; tone?: "optional"; unknown?: boolean }) {
+  if (unknown) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium bg-slate-50 text-slate-400 border-slate-200"
+            title="Not checked — site was unreachable">
+        <Info className="h-3 w-3" />
+        {label}
+      </span>
+    );
+  }
   const cls = ok
     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
     : tone === "optional"
@@ -129,60 +193,68 @@ function Pill({ ok, label, tone }: { ok: boolean; label: string; tone?: "optiona
 
 /* ── Overview tab ─────────────────────────────────────────────────────────── */
 
-function OverviewTab({ run }: { run: SiteAuditRun }) {
+function OverviewTab({ run, unreachable }: { run: SiteAuditRun; unreachable?: boolean }) {
   const subScores: (keyof typeof run.scores)[] = [
     "technical_seo", "on_page_seo", "geo_readiness", "link_health", "performance",
   ];
 
   return (
     <div className="space-y-6">
-      {/* Hero gauge + 5 subgauges */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <div className="grid gap-6 lg:grid-cols-[auto,1fr] lg:items-center">
-          <div className="flex justify-center lg:justify-start">
-            <Gauge
-              score={run.scores.overall}
-              label={SCORE_CATEGORY_META.overall.label}
-              description={SCORE_CATEGORY_META.overall.description}
-              size="lg"
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {subScores.map((key) => (
+      {/* Hero gauge + 5 subgauges — hidden when unreachable since they'd be
+          meaningless against a site that didn't actually load. */}
+      {!unreachable && (
+        <section className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="grid gap-6 lg:grid-cols-[auto,1fr] lg:items-center">
+            <div className="flex justify-center lg:justify-start">
               <Gauge
-                key={key}
-                score={run.scores[key]}
-                label={SCORE_CATEGORY_META[key].label}
-                description={SCORE_CATEGORY_META[key].description}
-                size="sm"
+                score={run.scores.overall}
+                label={SCORE_CATEGORY_META.overall.label}
+                description={SCORE_CATEGORY_META.overall.description}
+                size="lg"
               />
-            ))}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {subScores.map((key) => (
+                <Gauge
+                  key={key}
+                  score={run.scores[key]}
+                  label={SCORE_CATEGORY_META[key].label}
+                  description={SCORE_CATEGORY_META[key].description}
+                  size="sm"
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Quick stats */}
       <section className="grid gap-4 sm:grid-cols-4">
         <Stat
           icon={Activity}
           label="Avg response time"
-          value={`${run.summary.avg_response_ms} ms`}
+          value={unreachable ? "—" : `${run.summary.avg_response_ms} ms`}
         />
         <Stat
           icon={Zap}
-          label="Pages analyzed"
-          value={`${run.summary.pages_analyzed}`}
+          label={unreachable ? "Pages reached" : "Pages analyzed"}
+          value={
+            unreachable
+              ? `0 / ${run.summary.pages_analyzed}`
+              : `${run.summary.pages_analyzed}`
+          }
+          tone={unreachable ? "rose" : "slate"}
         />
         <Stat
           icon={ExternalLink}
           label="Links checked"
-          value={`${run.summary.total_links_checked}`}
+          value={unreachable ? "—" : `${run.summary.total_links_checked}`}
         />
         <Stat
           icon={FileWarning}
           label="Broken links"
-          value={`${run.summary.broken_links_count}`}
-          tone={run.summary.broken_links_count > 0 ? "rose" : "emerald"}
+          value={unreachable ? "—" : `${run.summary.broken_links_count}`}
+          tone={unreachable ? "slate" : run.summary.broken_links_count > 0 ? "rose" : "emerald"}
         />
       </section>
 
