@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Search, Sparkles, ArrowRight, CheckCircle, AlertTriangle, XCircle,
   Copy, ExternalLink, Bot, Shield, Zap, Share2, Linkedin, Twitter, Link2,
+  Swords, Mail, Loader2, Globe,
 } from "lucide-react";
 
 export interface AuditFinding {
@@ -50,7 +51,12 @@ const TEST_TARGETS = [
   { id: "google", label: "Google AI", url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}&udm=50` },
 ];
 
-export default function PublicAuditResult({ result }: { result: AuditResult }) {
+export default function PublicAuditResult({
+  result: initialResult,
+}: {
+  result: AuditResult;
+}) {
+  const [result, setResult] = useState<AuditResult>(initialResult);
   const [copied, setCopied] = useState<string | null>(null);
 
   const copy = async (text: string, id: string) => {
@@ -236,6 +242,226 @@ export default function PublicAuditResult({ result }: { result: AuditResult }) {
           </div>
         </div>
       </div>
+
+      {/* Email capture for weekly report */}
+      <EmailCapture domain={result.domain} auditId={result.id} />
+
+      {/* Competitor audit */}
+      <CompetitorAudit currentDomain={result.domain} onResult={setResult} />
+    </div>
+  );
+}
+
+function EmailCapture({ domain, auditId }: { domain: string; auditId?: string }) {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || state === "loading") return;
+    setState("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/public-audit/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), domain, audit_id: auditId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMsg(data?.error || "Kunde inte spara. Försök igen.");
+        setState("error");
+        return;
+      }
+      setState("ok");
+    } catch {
+      setErrorMsg("Nätverksfel. Försök igen.");
+      setState("error");
+    }
+  };
+
+  if (state === "ok") {
+    return (
+      <div className="rounded-2xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-white p-6 text-center sm:p-8">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-green-100 text-green-600">
+          <CheckCircle className="h-6 w-6" />
+        </div>
+        <h3 className="mt-3 text-xl font-bold text-slate-900">Du är på listan</h3>
+        <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
+          Vi mejlar dig en fullständig 20-sidors rapport och uppdaterar dig varje vecka när din
+          AI-synlighet förändras. Kolla inkorgen om någon minut.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 via-white to-blue-50 p-6 sm:p-8">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+            <Mail className="h-3.5 w-3.5" />
+            Veckovis AI-bevakning
+          </div>
+          <h3 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+            Få en 20-sidors PDF + bevakning varje vecka
+          </h3>
+          <p className="mt-3 text-sm text-slate-600">
+            Skriv din e-post så skickar vi en fördjupad rapport med konkreta åtgärder, övervakar
+            {" "}{domain} mot ChatGPT/Perplexity/Google AI varje vecka, och larmar när något ändras.
+          </p>
+          <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Detaljerad PDF (sida för sida)</li>
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Veckomejl med ranking-förändringar</li>
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Avregistrera när som helst</li>
+          </ul>
+        </div>
+
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block text-sm font-medium text-slate-700">
+            Din jobb-e-post
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="namn@foretag.se"
+              className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base shadow-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+              disabled={state === "loading"}
+              autoComplete="email"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={state === "loading" || !email.trim()}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
+          >
+            {state === "loading" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Skickar…
+              </>
+            ) : (
+              <>
+                Skicka mig rapporten
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </button>
+          {state === "error" && (
+            <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              {errorMsg}
+            </p>
+          )}
+          <p className="text-xs text-slate-400">
+            Genom att skicka godkänner du vår{" "}
+            <Link href="/c/legal/privacy" className="underline hover:text-slate-600">integritetspolicy</Link>.
+            Vi spammar inte.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CompetitorAudit({
+  currentDomain,
+  onResult,
+}: {
+  currentDomain: string;
+  onResult: (r: AuditResult) => void;
+}) {
+  const [domain, setDomain] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = domain.trim();
+    if (!value || state === "loading") return;
+    setState("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/public-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data?.error || "Kunde inte analysera den domänen.");
+        setState("error");
+        return;
+      }
+      onResult(data);
+      setDomain("");
+      setState("idle");
+      setTimeout(() => {
+        document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
+      }, 80);
+    } catch {
+      setErrorMsg("Nätverksfel. Försök igen.");
+      setState("error");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+      <div className="grid gap-5 sm:grid-cols-[auto,1fr] sm:items-center">
+        <div className="grid h-14 w-14 place-items-center rounded-xl bg-orange-50 text-orange-600">
+          <Swords className="h-7 w-7" />
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
+            Hur står sig konkurrenterna?
+          </h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Kör samma audit på en konkurrent och jämför direkt mot {currentDomain}.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={submit} className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Globe className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="konkurrent.se"
+            className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-3 text-base shadow-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+            disabled={state === "loading"}
+            autoComplete="url"
+            inputMode="url"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={state === "loading" || !domain.trim()}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-orange-300"
+        >
+          {state === "loading" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Analyserar…
+            </>
+          ) : (
+            <>
+              Audita konkurrent
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </form>
+
+      {state === "error" && (
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          {errorMsg}
+        </p>
+      )}
     </div>
   );
 }
@@ -248,8 +474,8 @@ function ShareRow({
   copied: string | null;
 }) {
   const url = typeof window !== "undefined"
-    ? `${window.location.origin}/audit/r/${id}`
-    : `/audit/r/${id}`;
+    ? `${window.location.origin}/c/audit/r/${id}`
+    : `/c/audit/r/${id}`;
   const text = `${domain} fick ${score}/100 i AI-synlighet. Kör din egen gratis audit:`;
   const li = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
   const tw = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;

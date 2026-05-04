@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Search, Sparkles, ArrowRight, CheckCircle, XCircle,
-  Loader2, Globe, TrendingUp, Bot,
+  Loader2, Globe, TrendingUp, Bot, LogIn,
 } from "lucide-react";
 import PublicAuditResult, { type AuditResult } from "@/components/analysis/PublicAuditResult";
 
@@ -46,14 +46,18 @@ export default function AuditLandingPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/audit" className="flex items-center gap-2 text-base font-bold">
+          <Link href="/c/audit" className="flex items-center gap-2 text-base font-bold">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
               <Sparkles className="h-4 w-4" />
             </span>
             <span>Sama AI-audit</span>
           </Link>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/c/login" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/c/login"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
+            >
+              <LogIn className="h-4 w-4" />
               Logga in
             </Link>
             <Link
@@ -246,16 +250,6 @@ export default function AuditLandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-100 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs text-slate-400 sm:flex-row sm:px-6">
-          <span>&copy; {new Date().getFullYear()} Sama AI</span>
-          <div className="flex gap-4">
-            <Link href="/c/legal/privacy" className="hover:text-slate-600">Integritet</Link>
-            <Link href="/c/legal/terms" className="hover:text-slate-600">Villkor</Link>
-            <Link href="/c/legal/dpa" className="hover:text-slate-600">DPA</Link>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

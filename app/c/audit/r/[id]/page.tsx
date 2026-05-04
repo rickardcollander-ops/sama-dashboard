@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, LogIn } from "lucide-react";
 import PublicAuditResult from "@/components/analysis/PublicAuditResult";
 import { loadPublicAudit } from "@/lib/public-audit-store";
 
@@ -47,19 +47,28 @@ export default async function SharedAuditPage(
     <div className="min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/audit" className="flex items-center gap-2 text-base font-bold">
+          <Link href="/c/audit" className="flex items-center gap-2 text-base font-bold">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
               <Sparkles className="h-4 w-4" />
             </span>
             <span>Sama AI-audit</span>
           </Link>
-          <Link
-            href="/audit"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
-          >
-            Kör din egen
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/c/login"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
+            >
+              <LogIn className="h-4 w-4" />
+              Logga in
+            </Link>
+            <Link
+              href="/c/audit"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
+            >
+              Kör din egen
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -86,7 +95,7 @@ export default async function SharedAuditPage(
             Gratis. Inget kort. Inget konto. 30 sekunder.
           </p>
           <Link
-            href="/audit"
+            href="/c/audit"
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
           >
             Kör gratis audit
