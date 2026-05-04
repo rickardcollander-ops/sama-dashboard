@@ -5,11 +5,14 @@ export async function proxy(req: NextRequest) {
 
   // ── Customer portal (/c/*) — Supabase Auth ──────────────────────────────────
   if (pathname.startsWith('/c/') || pathname === '/c') {
-    // Always allow customer login page, auth callback, and password reset
+    // Always allow customer login page, auth callback, password reset, and
+    // the public AI-readiness audit landing page.
     if (
       pathname === '/c/login' ||
       pathname === '/c/auth/callback' ||
-      pathname === '/c/auth/reset-password'
+      pathname === '/c/auth/reset-password' ||
+      pathname === '/c/audit' ||
+      pathname.startsWith('/c/audit/')
     ) {
       return NextResponse.next();
     }
@@ -50,6 +53,11 @@ export async function proxy(req: NextRequest) {
     } catch {
       return NextResponse.redirect(new URL('/c/login', req.url));
     }
+  }
+
+  // ── Public audit API endpoints — no auth ────────────────────────────────────
+  if (pathname === '/api/public-audit' || pathname.startsWith('/api/public-audit/')) {
+    return NextResponse.next();
   }
 
   // ── Admin dashboard (everything else) — MISSION_SECRET ───────────────────────
