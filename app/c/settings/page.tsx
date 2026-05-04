@@ -6,7 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
@@ -115,6 +115,7 @@ const AGENT_INFO: Record<string, { label: string; icon: React.ElementType }> = {
   reviews: { label: "Reviews Agent", icon: Star },
   analytics: { label: "Analytics Agent", icon: BarChart2 },
   geo: { label: "GEO Monitor", icon: Globe },
+  strategy: { label: "Strategy Agent", icon: Compass },
 };
 
 // Used as fallback when no configs exist yet
@@ -126,6 +127,7 @@ const ALL_AGENT_DEFAULTS = [
   { name: "reviews", enabled: true, schedule: "daily", last_run: null },
   { name: "analytics", enabled: true, schedule: "daily", last_run: null },
   { name: "geo", enabled: true, schedule: "weekly", last_run: null },
+  { name: "strategy", enabled: true, schedule: "weekly", last_run: null },
 ];
 
 export default function CustomerSettingsPage() {

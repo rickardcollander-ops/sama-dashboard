@@ -1,5 +1,5 @@
 import {
-  Bot, Search, FileText, Share2, Megaphone, BarChart2, Code2,
+  Bot, Search, FileText, Share2, Megaphone, BarChart2, Code2, Compass,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -20,6 +20,21 @@ export interface AgentDef {
 }
 
 export const AGENTS: Record<string, AgentDef> = {
+  strategy: {
+    id: "strategy",
+    label: "Strategy",
+    description: "Synthesized cross-channel marketing strategy",
+    href: "/c/strategy",
+    icon: Compass,
+    color: "emerald",
+    iconColor: "text-emerald-600",
+    bg: "bg-emerald-50",
+    borderColor: "border-emerald-200",
+    textColor: "text-emerald-700",
+    hoverBg: "hover:bg-emerald-100",
+    solidBg: "bg-emerald-600",
+    solidHover: "hover:bg-emerald-700",
+  },
   geo: {
     id: "geo",
     label: "GEO Monitor",
