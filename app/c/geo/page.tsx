@@ -39,6 +39,18 @@ interface AICheck {
   checked_at: string;
 }
 
+interface AgentRunSummary {
+  id: string;
+  agent_name: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  summary: string | null;
+  error?: string | null;
+}
+
+const AI_VISIBILITY_AGENT_NAMES = ["ai_visibility", "geo", "ai-visibility", "aivisibility"];
+
 export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -154,6 +166,7 @@ export default function CustomerGeoPage() {
     setError("");
     setRunNotice("");
     const initialChecks = checks.length;
+    const triggeredAt = Date.now();
     try {
       const client = tenantApi(user.id);
       await client.post("/api/ai-visibility/check", undefined, {
@@ -164,16 +177,59 @@ export default function CustomerGeoPage() {
       );
       let stableCount = 0;
       let lastCount = initialChecks;
+      const findLatestRun = async (): Promise<AgentRunSummary | null> => {
+        try {
+          const data = await client.get<{ runs?: AgentRunSummary[] }>(
+            `/api/tenant/agent-runs?limit=20`,
+          );
+          const runs = data.runs || [];
+          const candidate = runs
+            .filter((r) =>
+              AI_VISIBILITY_AGENT_NAMES.includes((r.agent_name || "").toLowerCase()),
+            )
+            .filter((r) => Date.parse(r.started_at) >= triggeredAt - 30_000)
+            .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))[0];
+          return candidate || null;
+        } catch {
+          return null;
+        }
+      };
       pollIntervalRef.current = setInterval(async () => {
         await loadData(true);
-        // We compare against the freshest checks state via a callback
+        const run = await findLatestRun();
+        if (run?.status === "failed") {
+          stopPolling();
+          setRunning(false);
+          setError(
+            `Agent run failed: ${run.error || run.summary || "no details available"}`,
+          );
+          setRunNotice("");
+          return;
+        }
+        if (run?.status === "completed") {
+          stopPolling();
+          setRunning(false);
+          await loadData(true);
+          setChecks((current) => {
+            const added = current.length - initialChecks;
+            if (added > 0) {
+              setRunNotice(`Check completed — ${added} new row${added === 1 ? "" : "s"}.`);
+            } else {
+              setRunNotice(
+                `Agent completed but produced no checks. ${run.summary ? `Summary: "${run.summary}". ` : ""}This usually means AI engine API keys (OpenAI / Anthropic / Perplexity / Gemini) are not configured on the backend, or no GEO queries are tracked.`,
+              );
+            }
+            return current;
+          });
+          return;
+        }
+        // Fallback: count-based detection if agent_runs isn't queryable
         setChecks((current) => {
           if (current.length > lastCount) {
             lastCount = current.length;
             stableCount = 0;
           } else if (current.length > initialChecks) {
             stableCount += 1;
-            // 4 stable polls × 15s = 60s without new rows → assume done
             if (stableCount >= 4) {
               stopPolling();
               setRunning(false);
@@ -183,7 +239,6 @@ export default function CustomerGeoPage() {
           return current;
         });
       }, 15_000);
-      // Hard timeout — stop after 20 min so the spinner doesn't run forever
       pollTimeoutRef.current = setTimeout(() => {
         stopPolling();
         setRunning(false);
