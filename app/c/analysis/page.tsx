@@ -9,16 +9,11 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
+const getSupabase = getSupabaseBrowser;
 
 interface AnalysisRunSummary {
   id: string;

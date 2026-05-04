@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Sparkles, Zap, Building2 } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
 
 type TierName = "Starter" | "Growth" | "Enterprise";
@@ -76,12 +76,7 @@ const TIERS: {
   },
 ];
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
-}
+const getSupabase = getSupabaseBrowser;
 
 export default function PricingPage() {
   const { user } = useUser();
