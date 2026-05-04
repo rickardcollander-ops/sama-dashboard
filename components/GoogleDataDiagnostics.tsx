@@ -7,7 +7,7 @@ import {
   Download, Clock, AlertTriangle, X,
 } from "lucide-react";
 import Link from "next/link";
-import { api, tenantApi, pollAgentRun } from "@/lib/api";
+import { api, tenantApi, pollAgentRun, ApiError } from "@/lib/api";
 
 type Service = "search_console" | "analytics" | "ads";
 
@@ -55,25 +55,53 @@ export default function GoogleDataDiagnostics(props: Props) {
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // GA4-specific: which property the agent will query.
+  // null = endpoint exists but no property selected.
+  // undefined = endpoint not yet implemented on backend (treat as unknown).
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [statusRes, runsRes] = await Promise.allSettled([
+      const calls: Promise<unknown>[] = [
         api.get<Record<string, { connected?: boolean }>>(`/api/auth/google/status?tenant_id=${tenantId}`),
         tenantApi(tenantId).get<{ runs?: AgentRun[] }>(`/api/tenant/agent-runs?limit=20`),
-      ]);
+      ];
+      if (service === "analytics") {
+        calls.push(
+          tenantApi(tenantId).get<{ selected_property_id?: string | null }>(
+            `/api/integrations/google/analytics/properties`,
+          ),
+        );
+      }
+      const results = await Promise.allSettled(calls);
+      const statusRes = results[0];
+      const runsRes = results[1];
+      const propertyRes = results[2];
+
       if (statusRes.status === "fulfilled") {
-        setConnected(!!statusRes.value?.[service]?.connected);
+        const data = statusRes.value as Record<string, { connected?: boolean }>;
+        setConnected(!!data?.[service]?.connected);
       } else {
         setConnected(null);
       }
       if (runsRes.status === "fulfilled") {
-        const runs = (runsRes.value?.runs || []).filter((r) => r.agent_name === agentName);
+        const data = runsRes.value as { runs?: AgentRun[] };
+        const runs = (data?.runs || []).filter((r) => r.agent_name === agentName);
         setRecentRuns(runs);
         setLastSuccessful(runs.find((r) => r.status === "completed") || null);
         setLastFailed(runs.find((r) => r.status === "failed") || null);
+      }
+      if (propertyRes) {
+        if (propertyRes.status === "fulfilled") {
+          const data = propertyRes.value as { selected_property_id?: string | null };
+          setSelectedPropertyId(data?.selected_property_id ?? null);
+        } else if (propertyRes.reason instanceof ApiError && propertyRes.reason.status === 404) {
+          setSelectedPropertyId(undefined);
+        } else {
+          setSelectedPropertyId(undefined);
+        }
       }
     } finally {
       setLoading(false);
@@ -234,13 +262,28 @@ export default function GoogleDataDiagnostics(props: Props) {
       const lastSummary = lastSuccessful.summary || "";
       const looksEmpty = /\b0\b|no\s+(data|metrics|channels|campaigns)/i.test(lastSummary);
       const itemLabel = service === "analytics" ? "channels" : "campaigns";
+      // For analytics, the most actionable diagnosis is "no GA4 property selected".
+      if (service === "analytics" && selectedPropertyId === null) {
+        return {
+          tone: "amber" as const,
+          title: "Connected and synced — but no GA4 property is selected",
+          body: (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
+            "The analytics agent doesn't know which GA4 property to query. Open Settings and pick the property the agent should use.",
+          cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
+        };
+      }
+      const propertyHint =
+        service === "analytics" && selectedPropertyId
+          ? `Agent is querying GA4 property ${selectedPropertyId}. `
+          : "";
       return {
         tone: "amber" as const,
         title: `Connected and synced — but the agent returned no ${itemLabel}`,
         body:
           (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
+          propertyHint +
           (service === "analytics"
-            ? "Open Settings to verify a GA4 property is selected, that the connected Google account has access to it, and that the property has traffic for the selected period."
+            ? "Verify the connected Google account has access to this property and that it has traffic for the selected period."
             : "Open Settings to verify a Google Ads account is selected and that the connected Google account has access to it."),
         cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
       };
@@ -316,6 +359,25 @@ export default function GoogleDataDiagnostics(props: Props) {
               warning={trackedCount === 0}
             />
           </div>
+
+          {service === "analytics" && (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                GA4 property the agent will query
+              </p>
+              <p className={`text-sm font-mono mt-0.5 ${
+                selectedPropertyId ? "text-slate-800" :
+                selectedPropertyId === null ? "text-amber-700" :
+                "text-slate-400"
+              }`}>
+                {selectedPropertyId
+                  ? selectedPropertyId
+                  : selectedPropertyId === null
+                    ? "None selected — pick one in Settings"
+                    : "Unknown — backend has no property endpoint"}
+              </p>
+            </div>
+          )}
 
           {diagnosis && (
             <div className={`rounded-lg border p-3 mb-4 ${toneStyles[diagnosis.tone]}`}>
