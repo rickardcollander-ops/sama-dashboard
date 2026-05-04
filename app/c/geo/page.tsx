@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
-  Play, RefreshCw, Minus, Eye, X, Download,
+  Play, RefreshCw, Minus, Eye, X, Download, Trash2,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -43,6 +43,8 @@ export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [checks, setChecks] = useState<AICheck[]>([]);
+  const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
+  const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
@@ -66,18 +68,38 @@ export default function CustomerGeoPage() {
     setError("");
     const client = tenantApi(user.id);
     try {
-      const [summaryData, checksData] = await Promise.all([
+      const [summaryData, checksData, trackedRes] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),
         client.get(`/api/ai-visibility/checks?limit=50&days=${days}`).catch(() => []),
+        fetch("/api/recommendations/list").then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
       else if (checksData?.checks) setChecks(checksData.checks);
+      setTrackedQueries(Array.isArray(trackedRes?.geo_queries) ? trackedRes.geo_queries : []);
     } catch (err: any) {
       console.error("Failed to load GEO data:", err);
       setError(`Could not load data: ${err?.message || err}`);
     }
     setLoading(false);
+  };
+
+  const removeTrackedQuery = async (query: string) => {
+    setRemovingQuery(query);
+    try {
+      const res = await fetch("/api/recommendations/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : []);
+    } catch (err: any) {
+      console.error("Failed to remove tracked query:", err);
+      setError(`Could not remove query: ${err?.message || err}`);
+    }
+    setRemovingQuery(null);
   };
 
   const handleExportCsv = () => {
@@ -270,6 +292,49 @@ export default function CustomerGeoPage() {
             </div>
           </div>
         )}
+
+        {/* Tracked GEO Queries */}
+        <div className="mb-8">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Tracked GEO Queries</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Prompts the AI Visibility agent runs against ChatGPT, Claude, Perplexity and Gemini.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                {trackedQueries.length}
+              </span>
+            </div>
+            {trackedQueries.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No tracked queries yet. Use the panel below to generate suggestions and add the ones you want monitored.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {trackedQueries.map((q) => (
+                  <li key={q} className="flex items-start gap-3 py-2.5">
+                    <span className="flex-1 text-sm text-slate-700">{q}</span>
+                    <button
+                      onClick={() => removeTrackedQuery(q)}
+                      disabled={removingQuery === q}
+                      className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
+                      aria-label={`Remove "${q}"`}
+                    >
+                      {removingQuery === q ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
 
         {/* AI Recommendations */}
         <div className="mb-8">
