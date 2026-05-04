@@ -7,7 +7,7 @@ import {
   Download, Clock, AlertTriangle, X,
 } from "lucide-react";
 import Link from "next/link";
-import { api, tenantApi, pollAgentRun } from "@/lib/api";
+import { api, tenantApi, pollAgentRun, ApiError } from "@/lib/api";
 
 type Service = "search_console" | "analytics" | "ads";
 
@@ -19,6 +19,12 @@ interface AgentRun {
   completed_at: string | null;
   summary: string | null;
   error?: string | null;
+}
+
+interface ImportDiagnostics {
+  sync_response_keys?: string[];
+  backend_keywords_count?: number;
+  gsc_query_probes?: { path: string; status: number | string; count: number; sample?: string }[];
 }
 
 interface Props {
@@ -55,25 +61,53 @@ export default function GoogleDataDiagnostics(props: Props) {
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // GA4-specific: which property the agent will query.
+  // null = endpoint exists but no property selected.
+  // undefined = endpoint not yet implemented on backend (treat as unknown).
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [statusRes, runsRes] = await Promise.allSettled([
+      const calls: Promise<unknown>[] = [
         api.get<Record<string, { connected?: boolean }>>(`/api/auth/google/status?tenant_id=${tenantId}`),
         tenantApi(tenantId).get<{ runs?: AgentRun[] }>(`/api/tenant/agent-runs?limit=20`),
-      ]);
+      ];
+      if (service === "analytics") {
+        calls.push(
+          tenantApi(tenantId).get<{ selected_property_id?: string | null }>(
+            `/api/integrations/google/analytics/properties`,
+          ),
+        );
+      }
+      const results = await Promise.allSettled(calls);
+      const statusRes = results[0];
+      const runsRes = results[1];
+      const propertyRes = results[2];
+
       if (statusRes.status === "fulfilled") {
-        setConnected(!!statusRes.value?.[service]?.connected);
+        const data = statusRes.value as Record<string, { connected?: boolean }>;
+        setConnected(!!data?.[service]?.connected);
       } else {
         setConnected(null);
       }
       if (runsRes.status === "fulfilled") {
-        const runs = (runsRes.value?.runs || []).filter((r) => r.agent_name === agentName);
+        const data = runsRes.value as { runs?: AgentRun[] };
+        const runs = (data?.runs || []).filter((r) => r.agent_name === agentName);
         setRecentRuns(runs);
         setLastSuccessful(runs.find((r) => r.status === "completed") || null);
         setLastFailed(runs.find((r) => r.status === "failed") || null);
+      }
+      if (propertyRes) {
+        if (propertyRes.status === "fulfilled") {
+          const data = propertyRes.value as { selected_property_id?: string | null };
+          setSelectedPropertyId(data?.selected_property_id ?? null);
+        } else if (propertyRes.reason instanceof ApiError && propertyRes.reason.status === 404) {
+          setSelectedPropertyId(undefined);
+        } else {
+          setSelectedPropertyId(undefined);
+        }
       }
     } finally {
       setLoading(false);
@@ -123,15 +157,17 @@ export default function GoogleDataDiagnostics(props: Props) {
     setImporting(true);
     setError(null);
     setFeedback(null);
+    setDiagnostics(null);
     try {
       const res = await fetch(`/api/integrations/gsc/import?tenant_id=${tenantId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 25 }),
+        // No limit → the route asks the backend to import every GSC query
+        // the property has ranked for, not just the top 25.
+        body: JSON.stringify({ limit: "all" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-
       if (data.triggered_agent && data.run_id) {
         setFeedback("No direct import endpoint — triggered SEO agent. Fetching GSC data in background…");
         await refresh();
@@ -150,11 +186,25 @@ export default function GoogleDataDiagnostics(props: Props) {
           setError("Import polling failed — refresh manually to see results.");
         }
       } else {
-        setFeedback(
-          data.imported != null
-            ? `Imported ${data.imported} top quer${data.imported === 1 ? "y" : "ies"} from GSC.`
-            : "Import completed.",
-        );
+        const inserted = data.imported;
+        const updated = data.updated;
+        const totalTracked = data.total_tracked;
+        const parts: string[] = [];
+        if (inserted != null) parts.push(`${inserted} new`);
+        if (updated != null) parts.push(`${updated} updated`);
+        let message: string;
+        if (parts.length > 0) {
+          message = `GSC sync: ${parts.join(", ")} keyword${inserted === 1 && updated == null ? "" : "s"}`;
+          if (data.total_gsc != null) message += ` (${data.total_gsc} total in GSC)`;
+          if (totalTracked != null) message += `. ${totalTracked} now tracked.`;
+          else message += ".";
+        } else if (totalTracked != null) {
+          message = `${totalTracked} keyword${totalTracked === 1 ? "" : "s"} now tracked.`;
+        } else {
+          message = "Import completed.";
+        }
+        setFeedback(message);
+        if (data.diagnostics) setDiagnostics(data.diagnostics as ImportDiagnostics);
         await refresh();
         onSynced?.();
       }
@@ -203,7 +253,7 @@ export default function GoogleDataDiagnostics(props: Props) {
         tone: "blue" as const,
         title: "Connected — but no sync has run yet",
         body: isSeo && trackedCount === 0
-          ? "GSC won't return data until you have keywords tracked. Import your top 25 GSC queries below, or add keywords manually, then trigger a sync."
+          ? "GSC won't return data until you have keywords tracked. Click \"Import all GSC keywords\" below to pull everything you already rank for, or add keywords manually, then trigger a sync."
           : "Click \"Sync now\" below to fetch your first batch of data from Google.",
         cta: null,
       };
@@ -220,13 +270,28 @@ export default function GoogleDataDiagnostics(props: Props) {
       const lastSummary = lastSuccessful.summary || "";
       const looksEmpty = /\b0\b|no\s+(data|metrics|channels|campaigns)/i.test(lastSummary);
       const itemLabel = service === "analytics" ? "channels" : "campaigns";
+      // For analytics, the most actionable diagnosis is "no GA4 property selected".
+      if (service === "analytics" && selectedPropertyId === null) {
+        return {
+          tone: "amber" as const,
+          title: "Connected and synced — but no GA4 property is selected",
+          body: (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
+            "The analytics agent doesn't know which GA4 property to query. Open Settings and pick the property the agent should use.",
+          cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
+        };
+      }
+      const propertyHint =
+        service === "analytics" && selectedPropertyId
+          ? `Agent is querying GA4 property ${selectedPropertyId}. `
+          : "";
       return {
         tone: "amber" as const,
         title: `Connected and synced — but the agent returned no ${itemLabel}`,
         body:
           (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
+          propertyHint +
           (service === "analytics"
-            ? "Open Settings to verify a GA4 property is selected, that the connected Google account has access to it, and that the property has traffic for the selected period."
+            ? "Verify the connected Google account has access to this property and that it has traffic for the selected period."
             : "Open Settings to verify a Google Ads account is selected and that the connected Google account has access to it."),
         cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
       };
@@ -303,6 +368,25 @@ export default function GoogleDataDiagnostics(props: Props) {
             />
           </div>
 
+          {service === "analytics" && (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                GA4 property the agent will query
+              </p>
+              <p className={`text-sm font-mono mt-0.5 ${
+                selectedPropertyId ? "text-slate-800" :
+                selectedPropertyId === null ? "text-amber-700" :
+                "text-slate-400"
+              }`}>
+                {selectedPropertyId
+                  ? selectedPropertyId
+                  : selectedPropertyId === null
+                    ? "None selected — pick one in Settings"
+                    : "Unknown — backend has no property endpoint"}
+              </p>
+            </div>
+          )}
+
           {diagnosis && (
             <div className={`rounded-lg border p-3 mb-4 ${toneStyles[diagnosis.tone]}`}>
               <div className="flex items-start gap-2">
@@ -336,6 +420,39 @@ export default function GoogleDataDiagnostics(props: Props) {
               <button onClick={() => setError(null)} className="ml-auto"><X className="h-3 w-3" /></button>
             </div>
           )}
+          {diagnostics && (
+            <details className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+              <summary className="cursor-pointer font-medium select-none">
+                Import diagnostics — backend probe results
+              </summary>
+              <div className="mt-2 space-y-1 font-mono">
+                {diagnostics.sync_response_keys && (
+                  <div>
+                    <span className="text-slate-500">sync response keys: </span>
+                    {diagnostics.sync_response_keys.join(", ") || "(none)"}
+                  </div>
+                )}
+                {typeof diagnostics.backend_keywords_count === "number" && (
+                  <div>
+                    <span className="text-slate-500">/api/seo/keywords returned: </span>
+                    {diagnostics.backend_keywords_count} keyword
+                    {diagnostics.backend_keywords_count === 1 ? "" : "s"}
+                  </div>
+                )}
+                {diagnostics.gsc_query_probes && (
+                  <div className="pt-1">
+                    <div className="text-slate-500 mb-0.5">GSC-query endpoint probes:</div>
+                    {diagnostics.gsc_query_probes.map((p) => (
+                      <div key={p.path} className="pl-2">
+                        {p.status === 200 ? "✓" : "✗"} {p.path} — {p.status} ({p.count})
+                        {p.sample ? ` "${p.sample}"` : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <button
@@ -353,7 +470,7 @@ export default function GoogleDataDiagnostics(props: Props) {
                 className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
               >
                 {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Import top 25 GSC queries
+                Import all GSC keywords
               </button>
             )}
             <Link

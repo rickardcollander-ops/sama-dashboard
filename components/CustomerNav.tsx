@@ -1,38 +1,110 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
-  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles, ShieldCheck, Code2, Calendar,
+  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles, ShieldCheck, Code2, Calendar, Compass,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
+import { tenantApi } from "@/lib/api";
 import NotificationBell from "@/components/NotificationBell";
 
-const NAV_ITEMS = [
-  { href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
-  { href: "/c/analysis", label: "Analysis", icon: Sparkles },
-  { href: "/c/seo", label: "SEO", icon: Search },
-  { href: "/c/content", label: "Content", icon: FileText },
-  { href: "/c/content/calendar", label: "Calendar", icon: Calendar },
-  { href: "/c/social", label: "Social", icon: Share2 },
-  { href: "/c/ads", label: "Ads", icon: Megaphone },
-  { href: "/c/tech", label: "Tech", icon: Code2 },
-  { href: "/c/analytics", label: "Analytics", icon: TrendingUp },
-  { href: "/c/geo", label: "GEO Monitor", icon: Bot },
-  { href: "/c/approvals", label: "Approvals", icon: ShieldCheck },
-  { href: "/c/settings", label: "Settings", icon: Settings },
+interface NavItem {
+  id?: string;
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const ICONS: Record<string, LucideIcon> = {
+  dashboard: BarChart2,
+  analysis: Sparkles,
+  strategy: Compass,
+  seo: Search,
+  content: FileText,
+  calendar: Calendar,
+  social: Share2,
+  ads: Megaphone,
+  tech: Code2,
+  analytics: TrendingUp,
+  geo: Bot,
+  approvals: ShieldCheck,
+  settings: Settings,
+};
+
+const DEFAULT_NAV_ITEMS: NavItem[] = [
+  { id: "dashboard", href: "/c/dashboard", label: "Dashboard", icon: BarChart2 },
+  { id: "analysis", href: "/c/analysis", label: "Analysis", icon: Sparkles },
+  { id: "strategy", href: "/c/strategy", label: "Strategy", icon: Compass },
+  { id: "seo", href: "/c/seo", label: "SEO", icon: Search },
+  { id: "content", href: "/c/content", label: "Content", icon: FileText },
+  { id: "calendar", href: "/c/content/calendar", label: "Calendar", icon: Calendar },
+  { id: "social", href: "/c/social", label: "Social", icon: Share2 },
+  { id: "ads", href: "/c/ads", label: "Ads", icon: Megaphone },
+  { id: "tech", href: "/c/tech", label: "Tech", icon: Code2 },
+  { id: "analytics", href: "/c/analytics", label: "Analytics", icon: TrendingUp },
+  { id: "geo", href: "/c/geo", label: "GEO Monitor", icon: Bot },
+  { id: "approvals", href: "/c/approvals", label: "Approvals", icon: ShieldCheck },
+  { id: "settings", href: "/c/settings", label: "Settings", icon: Settings },
 ];
 
-const BOTTOM_NAV_ITEMS = [
+const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/c/pricing", label: "Plan", icon: CreditCard },
 ];
+
+interface MenuItem {
+  id: string;
+  label: string;
+  route: string;
+  icon?: string;
+  enabled: boolean;
+}
+
+interface MenuResponse {
+  items?: MenuItem[];
+  visible?: MenuItem[];
+}
 
 export default function CustomerNav() {
   const pathname = usePathname();
   const { user, signOut } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await tenantApi(user.id).get<MenuResponse>("/api/menu");
+        const visible = data.visible ?? data.items?.filter((i) => i.enabled !== false);
+        if (cancelled || !visible || visible.length === 0) return;
+        // Preserve default order: keep DEFAULT_NAV_ITEMS sequence, but only
+        // include items the backend reports as visible. Fall back to backend
+        // order for any new ids the dashboard doesn't yet know about.
+        const visibleIds = new Set(visible.map((i) => i.id));
+        const knownInOrder = DEFAULT_NAV_ITEMS.filter((i) => i.id && visibleIds.has(i.id));
+        const knownIdSet = new Set(knownInOrder.map((i) => i.id));
+        const extras: NavItem[] = visible
+          .filter((i) => !knownIdSet.has(i.id))
+          .map((i) => ({
+            id: i.id,
+            href: i.route,
+            label: i.label,
+            icon: ICONS[i.id] ?? Bot,
+          }));
+        setNavItems([...knownInOrder, ...extras]);
+      } catch {
+        // Backend may not yet expose /api/menu — keep defaults.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   return (
     <>
@@ -52,7 +124,7 @@ export default function CustomerNav() {
 
           {/* Desktop nav */}
           <nav className="hidden sm:flex items-center gap-1 ml-6">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -114,7 +186,7 @@ export default function CustomerNav() {
         <>
           <div className="fixed inset-0 z-30 bg-black/30 sm:hidden" onClick={() => setMobileOpen(false)} />
           <nav className="fixed top-14 left-0 right-0 z-30 bg-white border-b shadow-lg sm:hidden p-2 overflow-y-auto max-h-[calc(100vh-3.5rem)]">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
