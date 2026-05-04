@@ -127,7 +127,9 @@ export default function GoogleDataDiagnostics(props: Props) {
       const res = await fetch(`/api/integrations/gsc/import?tenant_id=${tenantId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 25 }),
+        // No limit → the route asks the backend to import every GSC query
+        // the property has ranked for, not just the top 25.
+        body: JSON.stringify({ limit: "all" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
@@ -151,13 +153,18 @@ export default function GoogleDataDiagnostics(props: Props) {
       } else {
         const inserted = data.imported;
         const updated = data.updated;
+        const totalTracked = data.total_tracked;
+        const parts: string[] = [];
+        if (inserted != null) parts.push(`${inserted} new`);
+        if (updated != null) parts.push(`${updated} updated`);
         let message: string;
-        if (inserted != null && updated != null) {
-          message = `GSC sync: ${inserted} new keyword${inserted === 1 ? "" : "s"}, ${updated} updated${
-            data.total_gsc != null ? ` (${data.total_gsc} total in GSC)` : ""
-          }.`;
-        } else if (inserted != null) {
-          message = `Imported ${inserted} top quer${inserted === 1 ? "y" : "ies"} from GSC.`;
+        if (parts.length > 0) {
+          message = `GSC sync: ${parts.join(", ")} keyword${inserted === 1 && updated == null ? "" : "s"}`;
+          if (data.total_gsc != null) message += ` (${data.total_gsc} total in GSC)`;
+          if (totalTracked != null) message += `. ${totalTracked} now tracked.`;
+          else message += ".";
+        } else if (totalTracked != null) {
+          message = `${totalTracked} keyword${totalTracked === 1 ? "" : "s"} now tracked.`;
         } else {
           message = "Import completed.";
         }
@@ -210,7 +217,7 @@ export default function GoogleDataDiagnostics(props: Props) {
         tone: "blue" as const,
         title: "Connected — but no sync has run yet",
         body: isSeo && trackedCount === 0
-          ? "GSC won't return data until you have keywords tracked. Import your top 25 GSC queries below, or add keywords manually, then trigger a sync."
+          ? "GSC won't return data until you have keywords tracked. Click \"Import all GSC keywords\" below to pull everything you already rank for, or add keywords manually, then trigger a sync."
           : "Click \"Sync now\" below to fetch your first batch of data from Google.",
         cta: null,
       };
@@ -360,7 +367,7 @@ export default function GoogleDataDiagnostics(props: Props) {
                 className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
               >
                 {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Import top 25 GSC queries
+                Import all GSC keywords
               </button>
             )}
             <Link

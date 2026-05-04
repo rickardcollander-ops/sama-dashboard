@@ -44,6 +44,21 @@ async function persistTrackedKeywords(userId: string, keywords: string[]): Promi
   return added;
 }
 
+async function fetchBackendKeywords(userId: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
+      method: "GET",
+      headers: { "X-Tenant-ID": userId },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    return extractKeywordStrings(data?.keywords);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Imports the user's top GSC search queries as tracked keywords.
  *
@@ -51,13 +66,20 @@ async function persistTrackedKeywords(userId: string, keywords: string[]): Promi
  * try them in order and return the first success. If all fail with 404 we
  * fall back to triggering the SEO agent — which on a fresh tenant will
  * typically pull GSC top queries as part of its first run.
+ *
+ * `limit` is optional. When omitted (or set to "all"/0) we call the backend
+ * with no body — that's the legacy contract for sync-gsc which imports
+ * every GSC query the property has ranked for.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 100);
+  const rawLimit = body?.limit;
+  const wantAll =
+    rawLimit === undefined || rawLimit === null || rawLimit === "all" || Number(rawLimit) <= 0;
+  const limit = wantAll ? null : Math.min(Math.max(Number(rawLimit) || 25, 1), 1000);
 
   const headers = {
     "Content-Type": "application/json",
@@ -66,14 +88,22 @@ export async function POST(req: NextRequest) {
 
   // Order matters: sync-gsc is the proven endpoint that inserts new
   // keywords into the tenant's tracked list (used by the legacy admin
-  // page). The other candidates are speculative fallbacks for older /
-  // alternative backend builds.
-  const candidates = [
-    { path: "/api/seo/keywords/sync-gsc", body: { limit } },
-    { path: "/api/seo/keywords/import-gsc", body: { limit } },
-    { path: "/api/seo/import-from-gsc", body: { limit } },
-    { path: "/api/seo/keywords/import", body: { source: "gsc", limit } },
-    { path: "/api/seo/sync", body: { source: "gsc", import_top: limit } },
+  // page). When the caller wants "all" we send an empty body — that's
+  // sync-gsc's historical signal to import every GSC query. The other
+  // candidates are speculative fallbacks for older / alternative
+  // backend builds.
+  const candidates: { path: string; body: Record<string, unknown> }[] = [
+    { path: "/api/seo/keywords/sync-gsc", body: limit == null ? {} : { limit } },
+    { path: "/api/seo/keywords/import-gsc", body: limit == null ? {} : { limit } },
+    { path: "/api/seo/import-from-gsc", body: limit == null ? {} : { limit } },
+    {
+      path: "/api/seo/keywords/import",
+      body: limit == null ? { source: "gsc" } : { source: "gsc", limit },
+    },
+    {
+      path: "/api/seo/sync",
+      body: limit == null ? { source: "gsc" } : { source: "gsc", import_top: limit },
+    },
   ];
 
   const errors: string[] = [];
@@ -100,11 +130,19 @@ export async function POST(req: NextRequest) {
         errors.push(`${c.path}: backend reported success=false`);
         continue;
       }
-      // Persist returned queries into the tenant's settings so they show up
-      // as tracked keywords even when the backend's own keyword store
-      // doesn't survive a restart.
-      const returned = extractKeywordStrings(data?.keywords ?? data?.queries ?? data?.items);
-      const persisted = await persistTrackedKeywords(user.id, returned);
+      // Capture queries from the response when present, then ALSO refetch
+      // the backend's keyword list — sync-gsc historically returns only
+      // counts, so the actual queries live in the tracked-keywords table
+      // afterward. Persisting both into local settings means the SEO page
+      // shows the full set even if backend storage is flaky.
+      const returnedFromResp = extractKeywordStrings(
+        data?.keywords ?? data?.queries ?? data?.items,
+      );
+      const fromBackend = await fetchBackendKeywords(user.id);
+      const allKeywords = Array.from(
+        new Set([...returnedFromResp, ...fromBackend].map((k) => k.trim()).filter(Boolean)),
+      );
+      const persisted = await persistTrackedKeywords(user.id, allKeywords);
       const inserted = data.inserted ?? data.imported ?? data.count ?? data.added ?? persisted;
       const updated = data.updated ?? null;
       return NextResponse.json({
@@ -112,7 +150,8 @@ export async function POST(req: NextRequest) {
         persisted,
         updated,
         total_gsc: data.total_gsc ?? null,
-        keywords: returned,
+        total_tracked: allKeywords.length,
+        keywords: allKeywords,
         source_endpoint: c.path,
       });
     } catch (e) {
@@ -122,10 +161,12 @@ export async function POST(req: NextRequest) {
 
   // Fallback: trigger the SEO agent — it should pull GSC data on first run
   try {
+    const triggerBody: Record<string, unknown> = { reason: "gsc_initial_import" };
+    if (limit != null) triggerBody.limit = limit;
     const res = await fetch(`${SAMA_API_URL}/api/tenant/agents/seo/trigger`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ reason: "gsc_initial_import", limit }),
+      body: JSON.stringify(triggerBody),
     });
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
