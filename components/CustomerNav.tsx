@@ -80,23 +80,18 @@ export default function CustomerNav() {
     (async () => {
       try {
         const data = await tenantApi(user.id).get<MenuResponse>("/api/menu");
-        const visible = data.visible ?? data.items?.filter((i) => i.enabled !== false);
-        if (cancelled || !visible || visible.length === 0) return;
-        // Preserve default order: keep DEFAULT_NAV_ITEMS sequence, but only
-        // include items the backend reports as visible. Fall back to backend
-        // order for any new ids the dashboard doesn't yet know about.
-        const visibleIds = new Set(visible.map((i) => i.id));
-        const knownInOrder = DEFAULT_NAV_ITEMS.filter((i) => i.id && visibleIds.has(i.id));
-        const knownIdSet = new Set(knownInOrder.map((i) => i.id));
-        const extras: NavItem[] = visible
-          .filter((i) => !knownIdSet.has(i.id))
-          .map((i) => ({
-            id: i.id,
-            href: i.route,
-            label: i.label,
-            icon: ICONS[i.id] ?? Bot,
-          }));
-        setNavItems([...knownInOrder, ...extras]);
+        const items = data.items ?? data.visible;
+        if (cancelled || !items) return;
+        // Backend /api/menu is a partial, agent-focused config whose routes
+        // live in the admin portal (/seo, not /c/seo). Use it strictly as an
+        // opt-out signal: hide a default item only when backend explicitly
+        // marks it disabled. Never drop items the backend has no opinion on
+        // (dashboard, analysis, calendar, tech, approvals, settings) and
+        // never inject backend extras into the /c/* customer namespace.
+        const disabledIds = new Set(
+          items.filter((i) => i.enabled === false).map((i) => i.id),
+        );
+        setNavItems(DEFAULT_NAV_ITEMS.filter((i) => !i.id || !disabledIds.has(i.id)));
       } catch {
         // Backend may not yet expose /api/menu — keep defaults.
       }
