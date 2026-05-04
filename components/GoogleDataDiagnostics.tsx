@@ -131,7 +131,6 @@ export default function GoogleDataDiagnostics(props: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-
       if (data.triggered_agent && data.run_id) {
         setFeedback("No direct import endpoint — triggered SEO agent. Fetching GSC data in background…");
         await refresh();
@@ -150,11 +149,19 @@ export default function GoogleDataDiagnostics(props: Props) {
           setError("Import polling failed — refresh manually to see results.");
         }
       } else {
-        setFeedback(
-          data.imported != null
-            ? `Imported ${data.imported} top quer${data.imported === 1 ? "y" : "ies"} from GSC.`
-            : "Import completed.",
-        );
+        const inserted = data.imported;
+        const updated = data.updated;
+        let message: string;
+        if (inserted != null && updated != null) {
+          message = `GSC sync: ${inserted} new keyword${inserted === 1 ? "" : "s"}, ${updated} updated${
+            data.total_gsc != null ? ` (${data.total_gsc} total in GSC)` : ""
+          }.`;
+        } else if (inserted != null) {
+          message = `Imported ${inserted} top quer${inserted === 1 ? "y" : "ies"} from GSC.`;
+        } else {
+          message = "Import completed.";
+        }
+        setFeedback(message);
         await refresh();
         onSynced?.();
       }

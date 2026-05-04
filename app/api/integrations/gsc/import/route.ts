@@ -64,7 +64,12 @@ export async function POST(req: NextRequest) {
     "X-Tenant-ID": user.id,
   };
 
+  // Order matters: sync-gsc is the proven endpoint that inserts new
+  // keywords into the tenant's tracked list (used by the legacy admin
+  // page). The other candidates are speculative fallbacks for older /
+  // alternative backend builds.
   const candidates = [
+    { path: "/api/seo/keywords/sync-gsc", body: { limit } },
     { path: "/api/seo/keywords/import-gsc", body: { limit } },
     { path: "/api/seo/import-from-gsc", body: { limit } },
     { path: "/api/seo/keywords/import", body: { source: "gsc", limit } },
@@ -89,12 +94,24 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const data = await res.json().catch(() => ({}));
+      // sync-gsc returns {success, inserted, updated, total_gsc}; treat
+      // success=false as a soft failure so we move on to the next candidate.
+      if (data && data.success === false) {
+        errors.push(`${c.path}: backend reported success=false`);
+        continue;
+      }
+      // Persist returned queries into the tenant's settings so they show up
+      // as tracked keywords even when the backend's own keyword store
+      // doesn't survive a restart.
       const returned = extractKeywordStrings(data?.keywords ?? data?.queries ?? data?.items);
       const persisted = await persistTrackedKeywords(user.id, returned);
-      const importedCount = data.imported ?? data.count ?? data.added ?? persisted;
+      const inserted = data.inserted ?? data.imported ?? data.count ?? data.added ?? persisted;
+      const updated = data.updated ?? null;
       return NextResponse.json({
-        imported: importedCount,
+        imported: inserted,
         persisted,
+        updated,
+        total_gsc: data.total_gsc ?? null,
         keywords: returned,
         source_endpoint: c.path,
       });
