@@ -163,6 +163,17 @@ function CustomerSettingsPageInner() {
   const [successMessage, setSuccessMessage] = useState("");
   const [googleError, setGoogleError] = useState("");
 
+  // GA4 property picker
+  interface GA4Property {
+    property_id: string;
+    display_name: string;
+  }
+  const [ga4Properties, setGa4Properties] = useState<GA4Property[]>([]);
+  const [ga4SelectedId, setGa4SelectedId] = useState<string>("");
+  const [ga4LoadingProps, setGa4LoadingProps] = useState(false);
+  const [ga4Saving, setGa4Saving] = useState(false);
+  const [ga4Error, setGa4Error] = useState<string>("");
+
   // Agent control state
   interface AgentConfig {
     name: string;
@@ -235,6 +246,19 @@ function CustomerSettingsPageInner() {
   useEffect(() => {
     if (user) loadGoogleStatus();
   }, [user]);
+
+  // Load GA4 properties + current selection whenever analytics becomes connected
+  useEffect(() => {
+    if (googleStatus.analytics) {
+      loadGa4Properties();
+      loadGa4SelectedProperty();
+    } else {
+      setGa4Properties([]);
+      setGa4SelectedId("");
+      setGa4Error("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleStatus.analytics]);
 
   useEffect(() => {
     if (user) loadAgentStatus();
@@ -469,6 +493,64 @@ function CustomerSettingsPageInner() {
       setGoogleError("Could not disconnect. Please try again.");
     }
     setGoogleLoading(null);
+  };
+
+  const loadGa4Properties = async () => {
+    if (!user) return;
+    setGa4LoadingProps(true);
+    setGa4Error("");
+    try {
+      const data = await api.get<{ properties?: GA4Property[] }>(
+        `/api/integrations/google/analytics/properties?tenant_id=${user.id}`,
+      );
+      setGa4Properties(Array.isArray(data?.properties) ? data.properties : []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("403")) {
+        setGa4Error(
+          "Permission denied. The connected Google account doesn't have access to GA4 Admin API. Reconnect Google or check that the user has at least Viewer access on a GA4 property.",
+        );
+      } else if (msg.includes("401")) {
+        setGa4Error("Google session expired — reconnect Google Analytics below.");
+      } else {
+        setGa4Error(`Could not load GA4 properties: ${msg.slice(0, 160)}`);
+      }
+      setGa4Properties([]);
+    } finally {
+      setGa4LoadingProps(false);
+    }
+  };
+
+  const loadGa4SelectedProperty = async () => {
+    if (!user) return;
+    try {
+      const data = await api.get<{ property_id?: string }>(
+        `/api/integrations/google/analytics/selected-property?tenant_id=${user.id}`,
+      );
+      setGa4SelectedId(data?.property_id || "");
+    } catch {
+      // No selection yet — leave empty, the dropdown shows the placeholder
+    }
+  };
+
+  const handleSelectGa4Property = async (propertyId: string) => {
+    if (!user || !propertyId) return;
+    const prop = ga4Properties.find((p) => p.property_id === propertyId);
+    setGa4Saving(true);
+    setGa4Error("");
+    try {
+      await api.post(
+        `/api/integrations/google/analytics/select-property?tenant_id=${user.id}`,
+        { property_id: propertyId, display_name: prop?.display_name },
+      );
+      setGa4SelectedId(propertyId);
+      setSuccessMessage(`GA4 property selected: ${prop?.display_name || propertyId}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setGa4Error(`Could not save property selection: ${msg.slice(0, 160)}`);
+    } finally {
+      setGa4Saving(false);
+    }
   };
 
   const loadSettings = async () => {
@@ -1032,6 +1114,61 @@ function CustomerSettingsPageInner() {
                         )}
                       </div>
                     </div>
+                    {key === "analytics" && connected && (
+                      <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3">
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          GA4 property
+                        </label>
+                        {ga4LoadingProps ? (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading properties from your Google account…
+                          </div>
+                        ) : ga4Error ? (
+                          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p>{ga4Error}</p>
+                              <button
+                                onClick={loadGa4Properties}
+                                className="mt-1 inline-flex items-center gap-1 font-medium underline hover:opacity-80"
+                              >
+                                <Loader2 className="h-3 w-3" /> Retry
+                              </button>
+                            </div>
+                          </div>
+                        ) : ga4Properties.length === 0 ? (
+                          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                            No GA4 properties found for the connected Google account. Make sure the account has at least Viewer access on a GA4 property.
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={ga4SelectedId}
+                              onChange={(e) => handleSelectGa4Property(e.target.value)}
+                              disabled={ga4Saving}
+                              className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                            >
+                              <option value="">— Select a property —</option>
+                              {ga4Properties.map((p) => (
+                                <option key={p.property_id} value={p.property_id}>
+                                  {p.display_name} ({p.property_id})
+                                </option>
+                              ))}
+                            </select>
+                            {ga4Saving && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                            {!ga4Saving && ga4SelectedId && (
+                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            )}
+                          </div>
+                        )}
+                        <p className="mt-1.5 text-[11px] text-slate-500">
+                          {ga4SelectedId
+                            ? "The Analytics agent will pull data from this property on its next run."
+                            : "Pick the property the Analytics agent should pull from."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
