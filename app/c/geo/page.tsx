@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
@@ -13,6 +13,7 @@ import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import { exportCsv } from "@/lib/csv";
 
@@ -39,18 +40,6 @@ interface AICheck {
   checked_at: string;
 }
 
-interface AgentRunSummary {
-  id: string;
-  agent_name: string;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  summary: string | null;
-  error?: string | null;
-}
-
-const AI_VISIBILITY_AGENT_NAMES = ["ai_visibility", "geo", "ai-visibility", "aivisibility"];
-
 export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -58,17 +47,28 @@ export default function CustomerGeoPage() {
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [runNotice, setRunNotice] = useState("");
   const [error, setError] = useState("");
   const { period, setPeriod, days } = usePeriod();
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { runs, triggerRun } = useActiveRuns();
+
+  const activeGeoRun = runs.find(
+    (r) => r.agent === "ai_visibility" && (r.status === "running" || r.status === "pending"),
+  );
+  const lastCompletedGeoRunId = runs
+    .filter((r) => r.agent === "ai_visibility" && r.status === "completed")
+    .sort((a, b) => (b.completed_at || 0) - (a.completed_at || 0))[0]?.id;
 
   useEffect(() => {
     if (user) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, days]);
+
+  // Reload page data once a GEO run completes so new checks appear
+  useEffect(() => {
+    if (!lastCompletedGeoRunId) return;
+    loadData(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastCompletedGeoRunId]);
 
   useEffect(() => {
     if (error) {
@@ -76,20 +76,6 @@ export default function CustomerGeoPage() {
       return () => clearTimeout(t);
     }
   }, [error]);
-
-  useEffect(() => {
-    if (runNotice && !running) {
-      const t = setTimeout(() => setRunNotice(""), 12000);
-      return () => clearTimeout(t);
-    }
-  }, [runNotice, running]);
-
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    };
-  }, []);
 
   const loadData = async (silent = false) => {
     if (!user) return;
@@ -148,108 +134,13 @@ export default function CustomerGeoPage() {
     );
   };
 
-  const stopPolling = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (pollTimeoutRef.current) {
-      clearTimeout(pollTimeoutRef.current);
-      pollTimeoutRef.current = null;
-    }
-  };
-
   const runCheck = async () => {
     if (!user) return;
-    stopPolling();
-    setRunning(true);
     setError("");
-    setRunNotice("");
-    const initialChecks = checks.length;
-    const triggeredAt = Date.now();
-    try {
-      const client = tenantApi(user.id);
-      await client.post("/api/ai-visibility/check", undefined, {
-        headers: { "X-Sama-Intent": "user-action" },
-      });
-      setRunNotice(
-        "Check started — fetching mentions across ChatGPT, Claude, Perplexity and Gemini. This typically takes 2-5 minutes; new rows appear in Recent Checks as engines respond.",
-      );
-      let stableCount = 0;
-      let lastCount = initialChecks;
-      const findLatestRun = async (): Promise<AgentRunSummary | null> => {
-        try {
-          const data = await client.get<{ runs?: AgentRunSummary[] }>(
-            `/api/tenant/agent-runs?limit=20`,
-          );
-          const runs = data.runs || [];
-          const candidate = runs
-            .filter((r) =>
-              AI_VISIBILITY_AGENT_NAMES.includes((r.agent_name || "").toLowerCase()),
-            )
-            .filter((r) => Date.parse(r.started_at) >= triggeredAt - 30_000)
-            .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))[0];
-          return candidate || null;
-        } catch {
-          return null;
-        }
-      };
-      pollIntervalRef.current = setInterval(async () => {
-        await loadData(true);
-        const run = await findLatestRun();
-        if (run?.status === "failed") {
-          stopPolling();
-          setRunning(false);
-          setError(
-            `Agent run failed: ${run.error || run.summary || "no details available"}`,
-          );
-          setRunNotice("");
-          return;
-        }
-        if (run?.status === "completed") {
-          stopPolling();
-          setRunning(false);
-          await loadData(true);
-          setChecks((current) => {
-            const added = current.length - initialChecks;
-            if (added > 0) {
-              setRunNotice(`Check completed — ${added} new row${added === 1 ? "" : "s"}.`);
-            } else {
-              setRunNotice(
-                `Agent completed but produced no checks. ${run.summary ? `Summary: "${run.summary}". ` : ""}This usually means AI engine API keys (OpenAI / Anthropic / Perplexity / Gemini) are not configured on the backend, or no GEO queries are tracked.`,
-              );
-            }
-            return current;
-          });
-          return;
-        }
-        // Fallback: count-based detection if agent_runs isn't queryable
-        setChecks((current) => {
-          if (current.length > lastCount) {
-            lastCount = current.length;
-            stableCount = 0;
-          } else if (current.length > initialChecks) {
-            stableCount += 1;
-            if (stableCount >= 4) {
-              stopPolling();
-              setRunning(false);
-              setRunNotice(`Check completed — ${current.length - initialChecks} new rows.`);
-            }
-          }
-          return current;
-        });
-      }, 15_000);
-      pollTimeoutRef.current = setTimeout(() => {
-        stopPolling();
-        setRunning(false);
-        setRunNotice("Check still running in the background — refresh later to see results.");
-      }, 20 * 60 * 1000);
-    } catch (err: any) {
-      console.error("Failed to run check:", err);
-      setError(`Could not run check: ${err?.message || err}`);
-      setRunning(false);
-    }
+    await triggerRun("ai_visibility", "/api/ai-visibility/check");
   };
+
+  const running = !!activeGeoRun;
 
   const trendIcon = (t?: string) =>
     t === "up" ? <TrendingUp className="h-4 w-4 text-emerald-500" /> :
@@ -314,13 +205,10 @@ export default function CustomerGeoPage() {
           </div>
         )}
 
-        {runNotice && (
+        {activeGeoRun && (
           <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
             <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
-            {runNotice}
-            <button onClick={() => setRunNotice("")} className="ml-auto text-blue-500 hover:text-blue-700">
-              <X className="h-4 w-4" />
-            </button>
+            Check is running across ChatGPT, Claude, Perplexity and Gemini — typically 2-5 minutes. You can leave this page; progress is shown in the bottom-right banner and results appear here automatically.
           </div>
         )}
 

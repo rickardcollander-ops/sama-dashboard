@@ -8,6 +8,10 @@
     {
       "path": "/api/integrations/cron",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/integrations/cron/weekly-agents",
+      "schedule": "30 7 * * 1"
     }
   ]
 }
