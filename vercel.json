@@ -11,7 +11,11 @@
     },
     {
       "path": "/api/integrations/cron/weekly-agents",
-      "schedule": "30 7 * * 1"
+      "schedule": "30 5 * * 1"
+    },
+    {
+      "path": "/api/integrations/cron/weekly-agents",
+      "schedule": "30 6 * * 1"
     }
   ]
 }

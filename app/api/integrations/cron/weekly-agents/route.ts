@@ -22,16 +22,44 @@ const WEEKLY_TRIGGERS: AgentTrigger[] = [
 ];
 
 /**
- * Weekly cron — runs every Monday 07:30 UTC (configured in vercel.json).
- * For each user with a configured brand, fires off all marketing agents
- * sequentially against the SAMA backend. Backend handles the actual work
- * in background tasks; we just fan out the triggers.
+ * Weekly cron — fires every Monday 07:30 Europe/Stockholm time, year-round.
+ *
+ * Vercel cron only speaks UTC and a single fixed expression, but Sweden
+ * switches between CET (UTC+1) and CEST (UTC+2). vercel.json registers
+ * two cron entries (05:30 and 06:30 UTC) so one of them always lines up
+ * with 07:30 local. This handler then gates on the actual local time —
+ * the off-target invocation is a no-op.
  */
+function isStockholm0730Window(): boolean {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Stockholm",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(new Date());
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "-1");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "-1");
+  // Allow a 20-minute window so brief Vercel scheduling drift still counts
+  if (hour !== 7) return false;
+  return minute >= 20 && minute <= 40;
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   const expected = process.env.CRON_SECRET;
   if (!expected || auth !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Skip the duplicate Vercel cron invocation (we register both 05:30 and
+  // 06:30 UTC so DST transitions are covered; only one matches 07:30 local)
+  if (!isStockholm0730Window()) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "not 07:30 Europe/Stockholm",
+    });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
