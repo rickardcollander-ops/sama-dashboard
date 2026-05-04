@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { savePublicAudit } from "@/lib/public-audit-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -292,7 +293,7 @@ export async function POST(req: NextRequest) {
   const { overall, seo, geo, technical, findings } = scoreSignals(signals);
   const queries = suggestQueries(signals, target.host);
 
-  return NextResponse.json({
+  const result = {
     domain: target.host,
     final_url: fetched.finalUrl,
     fetched_at: new Date().toISOString(),
@@ -300,5 +301,10 @@ export async function POST(req: NextRequest) {
     signals,
     findings,
     suggested_queries: queries,
-  });
+  };
+
+  // Persist for shareable URL — fail open if Supabase isn't configured.
+  const id = await savePublicAudit(result).catch(() => null);
+
+  return NextResponse.json({ ...result, id: id ?? undefined });
 }
