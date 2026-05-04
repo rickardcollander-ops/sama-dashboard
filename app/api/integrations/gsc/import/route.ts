@@ -1,10 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
 
 export const runtime = "nodejs";
 
 const SAMA_API_URL =
   process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
+
+function extractKeywordStrings(payload: unknown): string[] {
+  if (!Array.isArray(payload)) return [];
+  const out: string[] = [];
+  for (const item of payload) {
+    if (typeof item === "string") {
+      const v = item.trim();
+      if (v) out.push(v);
+    } else if (item && typeof item === "object") {
+      const obj = item as Record<string, unknown>;
+      const v = (obj.keyword ?? obj.query ?? obj.text) as unknown;
+      if (typeof v === "string" && v.trim()) out.push(v.trim());
+    }
+  }
+  return out;
+}
+
+async function persistTrackedKeywords(userId: string, keywords: string[]): Promise<number> {
+  if (keywords.length === 0) return 0;
+  const settings = await loadSettings(userId);
+  const existing: string[] = Array.isArray(settings.tracked_keywords)
+    ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const lower = new Set(existing.map((k) => k.toLowerCase()));
+  const merged = [...existing];
+  let added = 0;
+  for (const kw of keywords) {
+    if (!lower.has(kw.toLowerCase())) {
+      merged.push(kw);
+      lower.add(kw.toLowerCase());
+      added += 1;
+    }
+  }
+  if (added > 0) {
+    await saveSettings(userId, { ...settings, tracked_keywords: merged });
+  }
+  return added;
+}
 
 /**
  * Imports the user's top GSC search queries as tracked keywords.
@@ -51,9 +89,13 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const data = await res.json().catch(() => ({}));
+      const returned = extractKeywordStrings(data?.keywords ?? data?.queries ?? data?.items);
+      const persisted = await persistTrackedKeywords(user.id, returned);
+      const importedCount = data.imported ?? data.count ?? data.added ?? persisted;
       return NextResponse.json({
-        imported: data.imported ?? data.count ?? data.added ?? null,
-        keywords: data.keywords || [],
+        imported: importedCount,
+        persisted,
+        keywords: returned,
         source_endpoint: c.path,
       });
     } catch (e) {

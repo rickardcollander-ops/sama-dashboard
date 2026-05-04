@@ -36,21 +36,44 @@ export async function POST(req: NextRequest) {
   let keywordsAdded = 0;
   let keywordsSkipped = 0;
   if (keywords.length > 0) {
+    // Persist locally to user_settings.tracked_keywords (source of truth so
+    // the SEO page sees them even if the backend silently drops them).
+    const settingsAfterGeo = geoAdded > 0 ? { ...settings, geo_queries: merged } : settings;
+    const existingTracked: string[] = Array.isArray(settingsAfterGeo.tracked_keywords)
+      ? (settingsAfterGeo.tracked_keywords as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : [];
+    const trackedLower = new Set(existingTracked.map((k) => k.toLowerCase()));
+    const trackedMerged = [...existingTracked];
+    for (const kw of keywords) {
+      if (!trackedLower.has(kw.toLowerCase())) {
+        trackedMerged.push(kw);
+        trackedLower.add(kw.toLowerCase());
+        keywordsAdded += 1;
+      } else {
+        keywordsSkipped += 1;
+      }
+    }
+    if (keywordsAdded > 0) {
+      await saveSettings(user.id, { ...settingsAfterGeo, tracked_keywords: trackedMerged });
+    }
+
+    // Best-effort: forward to backend so the SEO agent picks them up too.
     const backend = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
     for (const kw of keywords) {
       try {
-        const res = await fetch(`${backend}/api/seo/keywords/add`, {
+        await fetch(`${backend}/api/seo/keywords/add`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Tenant-ID": user.id,
           },
           body: JSON.stringify({ keyword: kw }),
+          signal: AbortSignal.timeout(15_000),
         });
-        if (res.ok) keywordsAdded += 1;
-        else keywordsSkipped += 1;
       } catch {
-        keywordsSkipped += 1;
+        // backend unreachable — local persistence already succeeded
       }
     }
   }
