@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
@@ -47,8 +47,11 @@ export default function CustomerGeoPage() {
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runNotice, setRunNotice] = useState("");
   const [error, setError] = useState("");
   const { period, setPeriod, days } = usePeriod();
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (user) loadData();
@@ -62,9 +65,23 @@ export default function CustomerGeoPage() {
     }
   }, [error]);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (runNotice && !running) {
+      const t = setTimeout(() => setRunNotice(""), 12000);
+      return () => clearTimeout(t);
+    }
+  }, [runNotice, running]);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, []);
+
+  const loadData = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError("");
     const client = tenantApi(user.id);
     try {
@@ -81,7 +98,7 @@ export default function CustomerGeoPage() {
       console.error("Failed to load GEO data:", err);
       setError(`Could not load data: ${err?.message || err}`);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const removeTrackedQuery = async (query: string) => {
@@ -119,18 +136,64 @@ export default function CustomerGeoPage() {
     );
   };
 
+  const stopPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  };
+
   const runCheck = async () => {
     if (!user) return;
+    stopPolling();
     setRunning(true);
+    setError("");
+    setRunNotice("");
+    const initialChecks = checks.length;
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/ai-visibility/check");
-      await loadData();
+      await client.post("/api/ai-visibility/check", undefined, {
+        headers: { "X-Sama-Intent": "user-action" },
+      });
+      setRunNotice(
+        "Check started — fetching mentions across ChatGPT, Claude, Perplexity and Gemini. This typically takes 2-5 minutes; new rows appear in Recent Checks as engines respond.",
+      );
+      let stableCount = 0;
+      let lastCount = initialChecks;
+      pollIntervalRef.current = setInterval(async () => {
+        await loadData(true);
+        // We compare against the freshest checks state via a callback
+        setChecks((current) => {
+          if (current.length > lastCount) {
+            lastCount = current.length;
+            stableCount = 0;
+          } else if (current.length > initialChecks) {
+            stableCount += 1;
+            // 4 stable polls × 15s = 60s without new rows → assume done
+            if (stableCount >= 4) {
+              stopPolling();
+              setRunning(false);
+              setRunNotice(`Check completed — ${current.length - initialChecks} new rows.`);
+            }
+          }
+          return current;
+        });
+      }, 15_000);
+      // Hard timeout — stop after 20 min so the spinner doesn't run forever
+      pollTimeoutRef.current = setTimeout(() => {
+        stopPolling();
+        setRunning(false);
+        setRunNotice("Check still running in the background — refresh later to see results.");
+      }, 20 * 60 * 1000);
     } catch (err: any) {
       console.error("Failed to run check:", err);
       setError(`Could not run check: ${err?.message || err}`);
+      setRunning(false);
     }
-    setRunning(false);
   };
 
   const trendIcon = (t?: string) =>
@@ -175,6 +238,7 @@ export default function CustomerGeoPage() {
               Export
             </button>
             <button
+              type="button"
               onClick={runCheck}
               disabled={running}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
@@ -190,6 +254,16 @@ export default function CustomerGeoPage() {
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
             <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {runNotice && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
+            {runNotice}
+            <button onClick={() => setRunNotice("")} className="ml-auto text-blue-500 hover:text-blue-700">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -225,6 +299,65 @@ export default function CustomerGeoPage() {
             </div>
           </div>
         )}
+
+        {/* Recent checks */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Checks</h2>
+          {checks.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
+              <div className="flex flex-col items-center text-center">
+                <div className="rounded-full bg-violet-100 p-4 mb-4">
+                  <Eye className="h-8 w-8 text-violet-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">No AI visibility data yet</h3>
+                <p className="text-sm text-slate-500 max-w-md mb-6">
+                  Run your first check to see how visible your brand is in AI assistants like ChatGPT, Claude, and Perplexity.
+                </p>
+                <button
+                  onClick={runCheck}
+                  disabled={running}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
+                >
+                  {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  {running ? "Running..." : "Run Check"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Query</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Engine</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Mentioned</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Rank</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Competitors</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {checks.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
+                      <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
+                      <td className="px-4 py-3">
+                        {c.mentioned ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-red-400" />
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {c.competitors_mentioned?.join(", ") || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* Mention Rate History */}
         {summary?.history && summary.history.length > 1 && (
@@ -293,8 +426,38 @@ export default function CustomerGeoPage() {
           </div>
         )}
 
-        {/* Tracked GEO Queries */}
+        {/* Top competitors */}
+        {summary?.top_competitors && summary.top_competitors.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Most Common Competitors in AI Responses</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {summary.top_competitors.map((c) => (
+                <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm font-medium text-slate-700">{c.name}</p>
+                  <p className="text-xs text-slate-500">{c.count} mentions</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Recommendations */}
         <div className="mb-8">
+          <KeywordGeoRecommendations
+            sections={["geo_queries", "long_tail_phrases"]}
+            gapSummary={
+              summary
+                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
+                : undefined
+            }
+            title="Find new GEO queries to track"
+            description="AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add."
+            onAdded={() => loadData()}
+          />
+        </div>
+
+        {/* Tracked GEO Queries */}
+        <div>
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -309,7 +472,7 @@ export default function CustomerGeoPage() {
             </div>
             {trackedQueries.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No tracked queries yet. Use the panel below to generate suggestions and add the ones you want monitored.
+                No tracked queries yet. Use the panel above to generate suggestions and add the ones you want monitored.
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">
@@ -335,95 +498,6 @@ export default function CustomerGeoPage() {
             )}
           </div>
         </div>
-
-        {/* AI Recommendations */}
-        <div className="mb-8">
-          <KeywordGeoRecommendations
-            sections={["geo_queries", "long_tail_phrases"]}
-            gapSummary={
-              summary
-                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
-                : undefined
-            }
-            title="Find new GEO queries to track"
-            description="AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add."
-            onAdded={() => loadData()}
-          />
-        </div>
-
-        {/* Recent checks */}
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Checks</h2>
-          {checks.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
-              <div className="flex flex-col items-center text-center">
-                <div className="rounded-full bg-violet-100 p-4 mb-4">
-                  <Eye className="h-8 w-8 text-violet-500" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">No AI visibility data yet</h3>
-                <p className="text-sm text-slate-500 max-w-md mb-6">
-                  Run your first check to see how visible your brand is in AI assistants like ChatGPT, Claude, and Perplexity.
-                </p>
-                <button
-                  onClick={runCheck}
-                  disabled={running}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
-                >
-                  {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  {running ? "Running..." : "Run Check"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Query</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Engine</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Mentioned</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Rank</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Competitors</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {checks.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
-                      <td className="px-4 py-3">
-                        {c.mentioned ? (
-                          <CheckCircle className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-red-400" />
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {c.competitors_mentioned?.join(", ") || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Top competitors */}
-        {summary?.top_competitors && summary.top_competitors.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Most Common Competitors in AI Responses</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {summary.top_competitors.map((c) => (
-                <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-sm font-medium text-slate-700">{c.name}</p>
-                  <p className="text-xs text-slate-500">{c.count} mentions</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

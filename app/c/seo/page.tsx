@@ -90,8 +90,9 @@ export default function CustomerSeoPage() {
     setLoading(true);
     setError(null);
     try {
-      const client = tenantApi(user.id);
-      const data = await client.get<{ keywords?: Keyword[] }>("/api/seo/keywords");
+      const res = await fetch("/api/seo/keywords", { method: "GET" });
+      if (!res.ok) throw new Error(`GET /api/seo/keywords: ${res.status}`);
+      const data = (await res.json()) as { keywords?: Keyword[] };
       const kws = data.keywords || [];
       setKeywords(kws.length > 0 ? kws : IS_DEMO ? demoSeoKeywords : []);
     } catch (err: any) {
@@ -126,20 +127,24 @@ export default function CustomerSeoPage() {
   const addKeyword = async () => {
     if (!user || !newKeyword.trim()) return;
     setAddingKeyword(true);
+    const trimmed = newKeyword.trim();
     try {
-      const client = tenantApi(user.id);
-      await client.post("/api/seo/keywords/add", { keyword: newKeyword.trim() });
-      // Optimistically add to UI immediately
-      setKeywords(prev => [...prev, {
-        keyword: newKeyword.trim(),
-        position: 0,
-        clicks: 0,
-        impressions: 0,
-        ctr: 0,
-      }]);
+      const res = await fetch("/api/seo/keywords/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword: trimmed }),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`${res.status} ${detail.slice(0, 200)}`);
+      }
+      setKeywords(prev =>
+        prev.some(k => k.keyword.toLowerCase() === trimmed.toLowerCase())
+          ? prev
+          : [...prev, { keyword: trimmed, position: 0, clicks: 0, impressions: 0, ctr: 0 }],
+      );
       setNewKeyword("");
-      // Also refresh from server
-      setTimeout(() => fetchKeywords(), 1000);
+      await fetchKeywords();
     } catch (err: any) {
       setError(`Could not add keyword: ${err?.message || err}`);
     }
@@ -149,8 +154,15 @@ export default function CustomerSeoPage() {
   const addSuggestion = async (keyword: string) => {
     if (!user) return;
     try {
-      const client = tenantApi(user.id);
-      await client.post("/api/seo/keywords/add", { keyword });
+      const res = await fetch("/api/seo/keywords/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword }),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`${res.status} ${detail.slice(0, 200)}`);
+      }
       setSuggestions((prev) => prev.filter((s) => s !== keyword));
       await fetchKeywords();
     } catch (err: any) {

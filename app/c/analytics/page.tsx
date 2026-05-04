@@ -101,7 +101,14 @@ export default function CustomerAnalyticsPage() {
       const params = new URLSearchParams({ days: String(days) });
       if (compare) params.set("compare", "1");
       const result = await client.get<AnalyticsData>(`/api/analytics/overview?${params.toString()}`);
-      const hasData = result.channels?.length || result.daily?.length || result.totals;
+      const totals = result.totals;
+      const totalsHaveValues = !!totals && (
+        (totals.clicks ?? 0) > 0 ||
+        (totals.impressions ?? 0) > 0 ||
+        (totals.conversions ?? 0) > 0 ||
+        (totals.spend ?? 0) > 0
+      );
+      const hasData = (result.channels?.length || 0) > 0 || (result.daily?.length || 0) > 0 || totalsHaveValues;
       setData(hasData ? result : IS_DEMO ? demoAnalytics : result);
     } catch (err: any) {
       console.error("Failed to fetch analytics:", err);
