@@ -589,10 +589,10 @@ function CustomerSettingsPageInner() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Settings className="h-7 w-7 text-slate-400" />
-              Konto
+              Inställningar
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Varumärke, agenter och anslutningar
+              Konfigurera ert varumärke, integrationer och plan. Det här används av alla andra sidor i SAMA.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -647,6 +647,16 @@ function CustomerSettingsPageInner() {
             </button>
           </div>
         )}
+
+        {/* Sprint 1 (SET-3) — at-a-glance integration health. Each row is a
+            status dot + short label; clicking jumps to the section that
+            owns the integration so red dots have a clear next step. */}
+        <IntegrationStatusSummary
+          gsc={googleStatus.search_console}
+          analytics={googleStatus.analytics}
+          ads={googleStatus.ads}
+          github={ghStatus.connected}
+        />
 
         <div className="space-y-8">
           {/* ── SAMA Agenter ── */}
@@ -1003,7 +1013,7 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Google Integrations ── */}
-          <Section icon={Globe} title="Google-integrationer" desc="Anslut Google-tjänster via OAuth för automatisk datasynk">
+          <Section id="google-integrations" icon={Globe} title="Google-integrationer" desc="Anslut Google-tjänster via OAuth för automatisk datasynk">
             <div className="space-y-4">
               {GOOGLE_SERVICES.map(({ key, label, icon: ServiceIcon, description }) => {
                 const connected = googleStatus[key];
@@ -1070,7 +1080,7 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Publishing / GitHub ── */}
-          <Section icon={Code2} title="Publicering" desc="Anslut GitHub för att publicera blogginlägg som Pull Requests">
+          <Section id="publishing" icon={Code2} title="Publicering" desc="Anslut GitHub för att publicera blogginlägg som Pull Requests">
             {/* Info box */}
             <div className="rounded-lg bg-blue-50 border border-blue-100 p-4 mb-6">
               <div className="flex items-start gap-2">
@@ -1461,11 +1471,11 @@ function CustomerSettingsPageInner() {
   );
 }
 
-function Section({ icon: Icon, title, desc, children }: {
-  icon: React.ElementType; title: string; desc: string; children: React.ReactNode;
+function Section({ icon: Icon, title, desc, children, id }: {
+  icon: React.ElementType; title: string; desc: string; children: React.ReactNode; id?: string;
 }) {
   return (
-    <section className="rounded-xl border bg-white p-6 shadow-sm">
+    <section id={id} className="rounded-xl border bg-white p-6 shadow-sm scroll-mt-20">
       <div className="flex items-center gap-3 mb-1">
         <Icon className="h-5 w-5 text-slate-400" />
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
@@ -1506,6 +1516,94 @@ function TextareaField({ label, value, onChange, placeholder }: {
         rows={3}
         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
       />
+    </div>
+  );
+}
+
+// Sprint 1 (SET-3) — integration status summary with traffic-light dots.
+// Green = connected, amber = optional and unconfigured, red = required but
+// disconnected. Each row links to the relevant section so a red dot has a
+// concrete next step.
+function IntegrationStatusSummary({
+  gsc,
+  analytics,
+  ads,
+  github,
+}: {
+  gsc: boolean;
+  analytics: boolean;
+  ads: boolean;
+  github: boolean;
+}) {
+  type Tone = "ok" | "warn" | "off";
+  const items: { label: string; tone: Tone; status: string; fix?: string; anchor: string }[] = [
+    {
+      label: "Google Search Console",
+      tone: gsc ? "ok" : "off",
+      status: gsc ? "Ansluten" : "Inte ansluten",
+      fix: gsc ? undefined : "Klicka på Anslut i Google-integrationer nedan.",
+      anchor: "google-integrations",
+    },
+    {
+      label: "Google Analytics",
+      tone: analytics ? "ok" : "warn",
+      status: analytics ? "Ansluten" : "Valfri",
+      fix: analytics ? undefined : "Lägg till om ni vill mäta klick och konverteringar.",
+      anchor: "google-integrations",
+    },
+    {
+      label: "Google Ads",
+      tone: ads ? "ok" : "warn",
+      status: ads ? "Ansluten" : "Valfri",
+      fix: ads ? undefined : "Lägg till om ni kör annonser via SAMA.",
+      anchor: "google-integrations",
+    },
+    {
+      label: "GitHub (publicering)",
+      tone: github ? "ok" : "off",
+      status: github ? "Ansluten" : "Inte ansluten",
+      fix: github ? undefined : "Anslut för att publicera artiklar via Pull Request.",
+      anchor: "publishing",
+    },
+  ];
+  const toneClass: Record<Tone, string> = {
+    ok: "bg-emerald-500",
+    warn: "bg-amber-400",
+    off: "bg-red-500",
+  };
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Integrationer
+      </h2>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+        {items.map((it) => (
+          <li
+            key={it.label}
+            className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2"
+          >
+            <span
+              className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${toneClass[it.tone]}`}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-slate-900">{it.label}</span>
+                <a
+                  href={`#${it.anchor}`}
+                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                >
+                  {it.tone === "ok" ? "Hantera" : "Fixa"}
+                </a>
+              </div>
+              <p className="text-xs text-slate-500">
+                {it.status}
+                {it.fix && <> — {it.fix}</>}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
