@@ -5,6 +5,7 @@ import {
   AlertCircle, Check, Loader2, Sparkles, X, Wand2,
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 // Sprint 4 (C5) — Förbättra med AI dialog.
 //
@@ -19,7 +20,6 @@ interface PieceFull {
   content?: string;
   markdown?: string;
   target_keyword?: string;
-  target_audience?: string;
 }
 
 interface RefineResponse {
@@ -35,6 +35,8 @@ interface Props {
   pieceId: string;
   /** Called after the user keeps the rewrite. */
   onSaved?: () => void;
+  /** Optional pre-loaded user_settings.target_audience used to ground the rewrite. */
+  audience?: string;
 }
 
 const INTENTS: { id: string; label: string; description: string }[] = [
@@ -45,7 +47,7 @@ const INTENTS: { id: string; label: string; description: string }[] = [
   { id: "expand", label: "Utveckla", description: "Lägg till exempel och en skarpare avslutning." },
 ];
 
-export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved }: Props) {
+export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved, audience }: Props) {
   const [piece, setPiece] = useState<PieceFull | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
   const [refining, setRefining] = useState(false);
   const [refined, setRefined] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [resolvedAudience, setResolvedAudience] = useState<string | undefined>(audience);
 
   useEffect(() => {
     if (!open) {
@@ -78,6 +81,26 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
     })();
   }, [open, tenantId, pieceId]);
 
+  // Pull target_audience from user_settings once the dialog opens, if the
+  // caller didn't supply one. Used to ground the AI rewrite.
+  useEffect(() => {
+    if (!open || audience) return;
+    (async () => {
+      try {
+        const supabase = getSupabaseBrowser();
+        const { data } = await supabase
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", tenantId)
+          .single();
+        const a = data?.settings?.target_audience;
+        if (typeof a === "string" && a.trim()) setResolvedAudience(a.trim());
+      } catch {
+        /* silent — audience is optional */
+      }
+    })();
+  }, [open, tenantId, audience]);
+
   if (!open) return null;
 
   const body = piece?.body || piece?.content || piece?.markdown || "";
@@ -96,7 +119,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
           text: body,
           intent,
           target_keyword: piece?.target_keyword,
-          audience: piece?.target_audience,
+          audience: resolvedAudience,
         },
       );
       setRefined(res.refined_text || "");
