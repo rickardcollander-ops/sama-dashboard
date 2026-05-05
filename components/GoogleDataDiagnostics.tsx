@@ -64,8 +64,12 @@ export default function GoogleDataDiagnostics(props: Props) {
   const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
   // GA4-specific: which property the agent will query.
   // null = endpoint exists but no property selected.
-  // undefined = endpoint not yet implemented on backend (treat as unknown).
+  // undefined = endpoint not implemented on backend (genuine 404).
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null | undefined>(undefined);
+  // Non-404 errors from /properties — endpoint exists but the call failed
+  // (e.g. token expired, scope missing, upstream Google API error). We surface
+  // these instead of mislabelling them as "backend has no property endpoint".
+  const [propertyError, setPropertyError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
@@ -104,10 +108,16 @@ export default function GoogleDataDiagnostics(props: Props) {
         if (propertyRes.status === "fulfilled") {
           const data = propertyRes.value as { selected_property_id?: string | null };
           setSelectedPropertyId(data?.selected_property_id ?? null);
+          setPropertyError(null);
         } else if (propertyRes.reason instanceof ApiError && propertyRes.reason.status === 404) {
           setSelectedPropertyId(undefined);
+          setPropertyError(null);
         } else {
-          setSelectedPropertyId(undefined);
+          // Endpoint exists, but the call failed. Don't claim the endpoint is
+          // missing — preserve the previously known selection (if any) and
+          // surface the error so the user can act on it.
+          const reason = propertyRes.reason;
+          setPropertyError(reason instanceof Error ? reason.message : String(reason));
         }
       }
     } finally {
@@ -376,15 +386,22 @@ export default function GoogleDataDiagnostics(props: Props) {
               </p>
               <p className={`text-sm font-mono mt-0.5 ${
                 selectedPropertyId ? "text-slate-800" :
-                selectedPropertyId === null ? "text-amber-700" :
+                selectedPropertyId === null || propertyError ? "text-amber-700" :
                 "text-slate-400"
               }`}>
                 {selectedPropertyId
                   ? selectedPropertyId
-                  : selectedPropertyId === null
-                    ? "None selected — pick one in Settings"
-                    : "Unknown — backend has no property endpoint"}
+                  : propertyError
+                    ? "Couldn't read — see error below"
+                    : selectedPropertyId === null
+                      ? "None selected — pick one in Settings"
+                      : "Unknown — backend has no property endpoint"}
               </p>
+              {propertyError && (
+                <p className="text-[11px] text-amber-700 mt-1 break-all">
+                  {propertyError}
+                </p>
+              )}
             </div>
           )}
 

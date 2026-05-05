@@ -16,9 +16,36 @@ interface GA4Property {
   currency_code?: string;
 }
 
+// Wire shape from sama-agent /api/integrations/google/analytics/properties.
+// Older versions of the picker assumed { id, account_name } but the backend
+// actually returns { property_id, parent_account } — keep both names to stay
+// forward/backward compatible.
+interface GA4PropertyWire {
+  id?: string;
+  property_id?: string;
+  property_resource?: string;
+  display_name?: string;
+  account_id?: string;
+  account_name?: string;
+  parent_account?: string;
+  time_zone?: string;
+  currency_code?: string;
+}
+
 interface PropertiesResponse {
-  properties?: GA4Property[];
+  properties?: GA4PropertyWire[];
   selected_property_id?: string | null;
+}
+
+function normaliseProperty(p: GA4PropertyWire): GA4Property {
+  return {
+    id: p.id || p.property_id || (p.property_resource?.split("/").pop() ?? ""),
+    display_name: p.display_name || "Unnamed property",
+    account_id: p.account_id,
+    account_name: p.account_name || p.parent_account,
+    time_zone: p.time_zone,
+    currency_code: p.currency_code,
+  };
 }
 
 interface Props {
@@ -46,7 +73,10 @@ export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Pr
           `/api/integrations/google/analytics/properties`,
         );
         if (cancelled) return;
-        setProperties(data.properties || []);
+        const normalised = (data.properties || [])
+          .map(normaliseProperty)
+          .filter((p) => p.id);
+        setProperties(normalised);
         setSelectedId(data.selected_property_id ?? null);
         setUnsupported(false);
         setError(null);
