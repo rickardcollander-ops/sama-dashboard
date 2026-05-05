@@ -6,7 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star, Compass,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
@@ -86,6 +86,10 @@ interface GoogleServiceStatus {
   ads: boolean;
 }
 
+type GoogleServiceKey = "search_console" | "analytics" | "ads";
+
+type GoogleAccountEmails = Partial<Record<GoogleServiceKey, string | null>>;
+
 const GOOGLE_SERVICES = [
   {
     key: "search_console" as const,
@@ -162,6 +166,7 @@ function CustomerSettingsPageInner() {
     analytics: false,
     ads: false,
   });
+  const [googleEmails, setGoogleEmails] = useState<GoogleAccountEmails>({});
   const [googleLoading, setGoogleLoading] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [googleError, setGoogleError] = useState("");
@@ -441,7 +446,7 @@ function CustomerSettingsPageInner() {
   const loadGoogleStatus = async () => {
     if (!user) return;
     try {
-      const data = await api.get<Record<string, { connected?: boolean }>>(
+      const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
         `/api/auth/google/status?tenant_id=${user.id}`
       );
       setGoogleStatus({
@@ -449,8 +454,14 @@ function CustomerSettingsPageInner() {
         analytics: !!data?.analytics?.connected,
         ads: !!data?.ads?.connected,
       });
+      setGoogleEmails({
+        search_console: data?.search_console?.account_email ?? null,
+        analytics: data?.analytics?.account_email ?? null,
+        ads: data?.ads?.account_email ?? null,
+      });
     } catch {
       setGoogleStatus({ search_console: false, analytics: false, ads: false });
+      setGoogleEmails({});
     }
   };
 
@@ -997,16 +1008,22 @@ function CustomerSettingsPageInner() {
               {GOOGLE_SERVICES.map(({ key, label, icon: ServiceIcon, description }) => {
                 const connected = googleStatus[key];
                 const isLoading = googleLoading === key;
+                const accountEmail = googleEmails[key];
                 return (
                   <div key={key} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={`rounded-lg p-2 ${connected ? "bg-emerald-50" : "bg-slate-100"}`}>
                           <ServiceIcon className={`h-5 w-5 ${connected ? "text-emerald-500" : "text-slate-400"}`} />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h4 className="text-sm font-medium text-slate-900">{label}</h4>
                           <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+                          {connected && accountEmail && (
+                            <p className="text-[11px] text-slate-500 mt-1 truncate">
+                              Ansluten som <span className="font-mono text-slate-700">{accountEmail}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4 flex-shrink-0">
@@ -1015,6 +1032,14 @@ function CustomerSettingsPageInner() {
                             <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                               <CheckCircle className="h-3.5 w-3.5" /> Ansluten
                             </span>
+                            <button
+                              onClick={() => connectGoogle(key)}
+                              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                              title="Koppla till ett annat Google-konto"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Byt konto
+                            </button>
                             <button
                               onClick={() => disconnectGoogle(key)}
                               disabled={isLoading}
