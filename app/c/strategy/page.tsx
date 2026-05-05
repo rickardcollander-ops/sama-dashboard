@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, Calendar, CheckCircle, ChevronRight,
-  Compass, History, Loader2, Sparkles, Target, TrendingUp,
+  AlertTriangle, Calendar, CheckCircle, ChevronRight,
+  Compass, History, Loader2, RefreshCw, Sparkles, Target, TrendingUp,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { ApiError, tenantApi } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
+import RoadmapTimeline from "@/components/strategy/RoadmapTimeline";
 
 type Verdict = "critical" | "weak" | "improving" | "strong" | string;
 type Horizon = "monthly" | "quarterly" | "annual";
@@ -72,6 +73,13 @@ function formatDate(iso?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function strategyAgeDays(iso?: string): number | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
 function northStarText(ns: Strategy["north_star_metric"]): string {
@@ -266,6 +274,35 @@ export default function StrategyPage() {
                 )}
               </div>
 
+              {/* S2 stub — staleness indicator + Refine CTA */}
+              {(() => {
+                const days = strategyAgeDays(current.generated_at);
+                if (days === null) return null;
+                if (days > 30) {
+                  return (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-900">
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>
+                        Strategin är <strong>{days} dagar gammal</strong> — utfallet kan ha hunnit ändras.
+                      </span>
+                      <button
+                        onClick={handleGenerate}
+                        disabled={generating}
+                        className="ml-auto inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                      >
+                        {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                        Förfina med AI
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-3 text-xs text-slate-400">
+                    Senast uppdaterad för {days === 0 ? "mindre än ett dygn" : days === 1 ? "1 dag" : `${days} dagar`} sen.
+                  </div>
+                );
+              })()}
+
               {current.headline && (
                 <h2 className="mt-3 text-xl font-bold text-slate-900">{current.headline}</h2>
               )}
@@ -357,35 +394,9 @@ export default function StrategyPage() {
               </section>
             )}
 
-            {/* Roadmap */}
+            {/* Roadmap (S3 — horizontal timeline) */}
             {current.roadmap && current.roadmap.length > 0 && (
-              <section>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  Plan framåt
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {current.roadmap.map((m, i) => (
-                    <div key={`${m.horizon}-${i}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                        <ArrowRight className="h-3 w-3" />
-                        {m.horizon}
-                      </div>
-                      {m.title && <div className="mt-2 text-sm font-semibold text-slate-900">{m.title}</div>}
-                      {m.description && <p className="mt-1 text-sm text-slate-600">{m.description}</p>}
-                      {m.items && m.items.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {m.items.map((item, idx) => (
-                            <li key={idx} className="flex items-start gap-1.5 text-sm text-slate-700">
-                              <ChevronRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <RoadmapTimeline milestones={current.roadmap} />
             )}
 
             {/* Risks */}
