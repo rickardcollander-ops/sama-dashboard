@@ -66,6 +66,43 @@ export default function ContentCalendarPage() {
     load();
   };
 
+  // Sprint 4 (C2) — drag-and-drop. We persist the new scheduled_at via the
+  // existing PATCH /api/integrations/scheduled endpoint and update locally.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [hoverDay, setHoverDay] = useState<string | null>(null);
+
+  const moveTo = async (id: string, target: Date) => {
+    const current = scheduled.find((s) => s.id === id);
+    if (!current) return;
+    const prev = new Date(current.scheduled_at);
+    if (isSameDay(prev, target)) return;
+    const next = new Date(target);
+    next.setHours(prev.getHours(), prev.getMinutes(), 0, 0);
+    const iso = next.toISOString();
+
+    // Optimistic local update.
+    setScheduled((prevList) =>
+      prevList.map((s) => (s.id === id ? { ...s, scheduled_at: iso } : s)),
+    );
+
+    try {
+      const res = await fetch("/api/integrations/scheduled", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, patch: { scheduled_at: iso } }),
+      });
+      if (!res.ok) throw new Error("patch failed");
+    } catch {
+      // Roll back on failure
+      setScheduled((prevList) =>
+        prevList.map((s) =>
+          s.id === id ? { ...s, scheduled_at: current.scheduled_at } : s,
+        ),
+      );
+      alert("Kunde inte flytta — försök igen");
+    }
+  };
+
   const destLabel = (id: string) => {
     const d = destinations.find((x) => x.id === id);
     if (!d) return "Okänd";
@@ -125,6 +162,11 @@ export default function ContentCalendarPage() {
           </div>
         ) : (
           <>
+            {scheduled.some((s) => s.status === "scheduled" || s.status === "failed") && (
+              <p className="mb-3 text-xs text-slate-400">
+                Tips: dra och släpp en planerad publicering till en annan dag för att flytta den.
+              </p>
+            )}
             <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
               <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-medium text-slate-500">
                 {["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"].map((d) => (
@@ -135,12 +177,30 @@ export default function ContentCalendarPage() {
                 {grid.map((d, i) => {
                   const items = d ? itemsForDay(d) : [];
                   const today = d && isSameDay(d, new Date());
+                  const dayKey = d ? d.toISOString().slice(0, 10) : null;
+                  const isHover = dayKey && hoverDay === dayKey;
                   return (
                     <div
                       key={i}
-                      className={`min-h-[110px] border-b border-r border-slate-100 p-2 ${
+                      onDragOver={(e) => {
+                        if (!d || !draggingId) return;
+                        e.preventDefault();
+                        if (dayKey && hoverDay !== dayKey) setHoverDay(dayKey);
+                      }}
+                      onDragLeave={() => {
+                        if (dayKey && hoverDay === dayKey) setHoverDay(null);
+                      }}
+                      onDrop={(e) => {
+                        if (!d || !draggingId) return;
+                        e.preventDefault();
+                        moveTo(draggingId, d);
+                        setHoverDay(null);
+                      }}
+                      className={`min-h-[110px] border-b border-r border-slate-100 p-2 transition-colors ${
                         d ? "bg-white" : "bg-slate-50/40"
-                      } ${today ? "ring-2 ring-blue-200 ring-inset" : ""}`}
+                      } ${today ? "ring-2 ring-blue-200 ring-inset" : ""} ${
+                        isHover ? "bg-blue-50/60 ring-2 ring-blue-300 ring-inset" : ""
+                      }`}
                     >
                       {d && (
                         <>
@@ -148,23 +208,38 @@ export default function ContentCalendarPage() {
                             {d.getDate()}
                           </div>
                           <div className="mt-1 space-y-1">
-                            {items.map((it) => (
-                              <div
-                                key={it.id}
-                                className={`group flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] truncate ${
-                                  it.status === "published" ? "bg-emerald-50 text-emerald-700" :
-                                  it.status === "failed" ? "bg-red-50 text-red-700" :
-                                  it.status === "publishing" ? "bg-amber-50 text-amber-700" :
-                                  "bg-blue-50 text-blue-700"
-                                }`}
-                                title={it.payload?.title || it.piece_id}
-                              >
-                                {it.status === "published" ? <CheckCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
-                                  it.status === "failed" ? <AlertCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
-                                  <Clock className="h-2.5 w-2.5 flex-shrink-0" />}
-                                <span className="truncate">{it.payload?.title || "Planerad publicering"}</span>
-                              </div>
-                            ))}
+                            {items.map((it) => {
+                              const draggable = it.status === "scheduled" || it.status === "failed";
+                              return (
+                                <div
+                                  key={it.id}
+                                  draggable={draggable}
+                                  onDragStart={() => draggable && setDraggingId(it.id)}
+                                  onDragEnd={() => {
+                                    setDraggingId(null);
+                                    setHoverDay(null);
+                                  }}
+                                  className={`group flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] truncate ${
+                                    it.status === "published" ? "bg-emerald-50 text-emerald-700" :
+                                    it.status === "failed" ? "bg-red-50 text-red-700" :
+                                    it.status === "publishing" ? "bg-amber-50 text-amber-700" :
+                                    "bg-blue-50 text-blue-700"
+                                  } ${draggable ? "cursor-grab active:cursor-grabbing" : ""} ${
+                                    draggingId === it.id ? "opacity-50" : ""
+                                  }`}
+                                  title={
+                                    draggable
+                                      ? `${it.payload?.title || it.piece_id} — dra för att flytta`
+                                      : it.payload?.title || it.piece_id
+                                  }
+                                >
+                                  {it.status === "published" ? <CheckCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
+                                    it.status === "failed" ? <AlertCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
+                                    <Clock className="h-2.5 w-2.5 flex-shrink-0" />}
+                                  <span className="truncate">{it.payload?.title || "Planerad publicering"}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </>
                       )}

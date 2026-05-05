@@ -9,6 +9,8 @@ import { useUser } from "@/lib/hooks/useUser";
 import { ApiError, tenantApi } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 import RoadmapTimeline from "@/components/strategy/RoadmapTimeline";
+import EditableSection from "@/components/strategy/EditableSection";
+import StrategyEvaluation from "@/components/strategy/StrategyEvaluation";
 
 type Verdict = "critical" | "weak" | "improving" | "strong" | string;
 type Horizon = "monthly" | "quarterly" | "annual";
@@ -153,6 +155,20 @@ export default function StrategyPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  const saveStrategyPatch = async (patch: Partial<Strategy>) => {
+    if (!user) return;
+    const data = await tenantApi(user.id).patch<{ strategy?: Strategy }>(
+      "/api/strategy/current",
+      patch,
+    );
+    if (data?.strategy) {
+      setCurrent(data.strategy);
+    } else {
+      // Optimistic — merge locally if backend didn't return the strategy
+      setCurrent((prev) => (prev ? { ...prev, ...patch } : prev));
+    }
+  };
 
   const handleGenerate = async () => {
     if (!user) return;
@@ -303,14 +319,26 @@ export default function StrategyPage() {
                 );
               })()}
 
-              {current.headline && (
-                <h2 className="mt-3 text-xl font-bold text-slate-900">{current.headline}</h2>
-              )}
-              {current.executive_summary && (
-                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                  {current.executive_summary}
-                </p>
-              )}
+              <div className="mt-3">
+                <EditableSection
+                  value={current.headline ?? ""}
+                  onSave={(next) => saveStrategyPatch({ headline: next })}
+                  placeholder="Lägg till en huvudrubrik för strategin"
+                  textClassName="text-xl font-bold text-slate-900"
+                  label="Redigera huvudrubrik"
+                />
+              </div>
+
+              <div className="mt-3">
+                <EditableSection
+                  value={current.executive_summary ?? ""}
+                  onSave={(next) => saveStrategyPatch({ executive_summary: next })}
+                  variant="textarea"
+                  placeholder="Skriv en kort sammanfattning av strategin (3–5 meningar)."
+                  textClassName="text-sm leading-relaxed text-slate-700"
+                  label="Redigera sammanfattning"
+                />
+              </div>
 
               {northStarText(current.north_star_metric) && (
                 <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800">
@@ -398,6 +426,9 @@ export default function StrategyPage() {
             {current.roadmap && current.roadmap.length > 0 && (
               <RoadmapTimeline milestones={current.roadmap} />
             )}
+
+            {/* Strategy evaluation (S2) */}
+            {user && <StrategyEvaluation tenantId={user.id} />}
 
             {/* Risks */}
             {current.risks && current.risks.length > 0 && (
