@@ -70,18 +70,21 @@ export default function GoogleDataDiagnostics(props: Props) {
   // (e.g. token expired, scope missing, upstream Google API error). We surface
   // these instead of mislabelling them as "backend has no property endpoint".
   const [propertyError, setPropertyError] = useState<string | null>(null);
+  // Email of the Google account currently linked for this service. Surfaced
+  // so the user can quickly tell whether they connected the wrong account.
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
       const calls: Promise<unknown>[] = [
-        api.get<Record<string, { connected?: boolean }>>(`/api/auth/google/status?tenant_id=${tenantId}`),
+        api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(`/api/auth/google/status?tenant_id=${tenantId}`),
         tenantApi(tenantId).get<{ runs?: AgentRun[] }>(`/api/tenant/agent-runs?limit=20`),
       ];
       if (service === "analytics") {
         calls.push(
-          tenantApi(tenantId).get<{ selected_property_id?: string | null }>(
+          tenantApi(tenantId).get<{ selected_property_id?: string | null; connected_account_email?: string | null }>(
             `/api/integrations/google/analytics/properties`,
           ),
         );
@@ -92,10 +95,12 @@ export default function GoogleDataDiagnostics(props: Props) {
       const propertyRes = results[2];
 
       if (statusRes.status === "fulfilled") {
-        const data = statusRes.value as Record<string, { connected?: boolean }>;
+        const data = statusRes.value as Record<string, { connected?: boolean; account_email?: string | null }>;
         setConnected(!!data?.[service]?.connected);
+        setConnectedEmail(data?.[service]?.account_email ?? null);
       } else {
         setConnected(null);
+        setConnectedEmail(null);
       }
       if (runsRes.status === "fulfilled") {
         const data = runsRes.value as { runs?: AgentRun[] };
@@ -106,8 +111,9 @@ export default function GoogleDataDiagnostics(props: Props) {
       }
       if (propertyRes) {
         if (propertyRes.status === "fulfilled") {
-          const data = propertyRes.value as { selected_property_id?: string | null };
+          const data = propertyRes.value as { selected_property_id?: string | null; connected_account_email?: string | null };
           setSelectedPropertyId(data?.selected_property_id ?? null);
+          if (data?.connected_account_email) setConnectedEmail(data.connected_account_email);
           setPropertyError(null);
         } else if (propertyRes.reason instanceof ApiError && propertyRes.reason.status === 404) {
           setSelectedPropertyId(undefined);
@@ -126,6 +132,12 @@ export default function GoogleDataDiagnostics(props: Props) {
   }, [tenantId, service, agentName]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  const handleSwitchAccount = () => {
+    if (typeof window === "undefined") return;
+    const returnUrl = `${window.location.origin}/c/settings`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${tenantId}&return_url=${encodeURIComponent(returnUrl)}`;
+  };
 
   const handleSyncNow = async () => {
     setSyncing(true);
@@ -283,11 +295,15 @@ export default function GoogleDataDiagnostics(props: Props) {
       const itemLabel = service === "analytics" ? "channels" : "campaigns";
       // For analytics, the most actionable diagnosis is "no GA4 property selected".
       if (service === "analytics" && selectedPropertyId === null) {
+        const accountHint = connectedEmail
+          ? `The connected Google account (${connectedEmail}) needs to have access to a GA4 property — `
+          : "";
         return {
           tone: "amber" as const,
           title: "Connected and synced — but no GA4 property is selected",
           body: (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
-            "The analytics agent doesn't know which GA4 property to query. Open Settings and pick the property the agent should use.",
+            accountHint +
+            "open Settings and pick the property the agent should use, or switch to a Google account that has GA4 access.",
           cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
         };
       }
@@ -295,6 +311,7 @@ export default function GoogleDataDiagnostics(props: Props) {
         service === "analytics" && selectedPropertyId
           ? `Agent is querying GA4 property ${selectedPropertyId}. `
           : "";
+      const accountHint = connectedEmail ? ` (connected as ${connectedEmail})` : "";
       return {
         tone: "amber" as const,
         title: `Connected and synced — but the agent returned no ${itemLabel}`,
@@ -302,8 +319,8 @@ export default function GoogleDataDiagnostics(props: Props) {
           (looksEmpty && lastSummary ? `Agent reported: "${lastSummary}". ` : "") +
           propertyHint +
           (service === "analytics"
-            ? "Verify the connected Google account has access to this property and that it has traffic for the selected period."
-            : "Open Settings to verify a Google Ads account is selected and that the connected Google account has access to it."),
+            ? `Verify the connected Google account${accountHint} has access to this property and that it has traffic for the selected period.`
+            : `Open Settings to verify a Google Ads account is selected and that the connected Google account${accountHint} has access to it.`),
         cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
       };
     }
@@ -361,7 +378,15 @@ export default function GoogleDataDiagnostics(props: Props) {
           <div className="grid gap-3 sm:grid-cols-3 mb-4">
             <DiagItem
               label="Connection"
-              value={connected === null ? "Unknown" : connected ? "Connected" : "Not connected"}
+              value={
+                connected === null
+                  ? "Unknown"
+                  : connected
+                    ? connectedEmail
+                      ? `Connected · ${connectedEmail}`
+                      : "Connected"
+                    : "Not connected"
+              }
               ok={connected === true}
               warning={connected === false}
             />
@@ -481,6 +506,16 @@ export default function GoogleDataDiagnostics(props: Props) {
               {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {syncing ? "Syncing…" : "Sync now"}
             </button>
+            {connected && (
+              <button
+                onClick={handleSwitchAccount}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                title="Sign in with a different Google account"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Switch Google account
+              </button>
+            )}
             {showImportFromGsc && service === "search_console" && (
               <button
                 onClick={handleImportFromGsc}

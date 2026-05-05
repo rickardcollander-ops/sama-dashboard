@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle, ArrowRight, BarChart2, CheckCircle2, ExternalLink, Globe,
-  Loader2, Mail, Megaphone, Plug, Search,
+  Loader2, Mail, Megaphone, Plug, RefreshCw, Search,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -85,6 +85,7 @@ export default function IntegrationsPage() {
     analytics: "loading",
     ads: "loading",
   });
+  const [googleEmails, setGoogleEmails] = useState<Partial<Record<GoogleService["key"], string | null>>>({});
   const [cmsDestinations, setCmsDestinations] = useState<CmsDestination[] | null>(null);
   const [cmsError, setCmsError] = useState(false);
 
@@ -92,7 +93,7 @@ export default function IntegrationsPage() {
     if (!user) return;
     (async () => {
       try {
-        const data = await api.get<Record<string, { connected?: boolean }>>(
+        const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
           `/api/auth/google/status?tenant_id=${user.id}`,
         );
         setGoogleStatus({
@@ -100,8 +101,14 @@ export default function IntegrationsPage() {
           analytics: data?.analytics?.connected ? "connected" : "not_connected",
           ads: data?.ads?.connected ? "connected" : "not_connected",
         });
+        setGoogleEmails({
+          search_console: data?.search_console?.account_email ?? null,
+          analytics: data?.analytics?.account_email ?? null,
+          ads: data?.ads?.account_email ?? null,
+        });
       } catch {
         setGoogleStatus({ search_console: "error", analytics: "error", ads: "error" });
+        setGoogleEmails({});
       }
     })();
 
@@ -151,25 +158,41 @@ export default function IntegrationsPage() {
           <ul className="divide-y divide-slate-100">
             {GOOGLE_SERVICES.map((s) => {
               const status = googleStatus[s.key];
+              const accountEmail = googleEmails[s.key];
               return (
                 <li key={s.key} className="flex items-center gap-4 px-6 py-4">
                   <span className="rounded-lg bg-slate-100 p-2.5">
                     <s.icon className="h-5 w-5 text-slate-700" />
                   </span>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-900">{s.label}</span>
                       <StatusChip status={status} />
                     </div>
                     <p className="text-xs text-slate-500">{s.description}</p>
+                    {status === "connected" && accountEmail && (
+                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                        Ansluten som <span className="font-mono text-slate-700">{accountEmail}</span>
+                      </p>
+                    )}
                   </div>
                   {status === "connected" ? (
-                    <Link
-                      href="/c/settings"
-                      className="text-sm font-medium text-slate-600 hover:text-slate-900"
-                    >
-                      Hantera
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => connectGoogle(s.key)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                        title="Koppla till ett annat Google-konto"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Byt konto
+                      </button>
+                      <Link
+                        href="/c/settings"
+                        className="text-sm font-medium text-slate-600 hover:text-slate-900"
+                      >
+                        Hantera
+                      </Link>
+                    </div>
                   ) : (
                     <button
                       onClick={() => connectGoogle(s.key)}
