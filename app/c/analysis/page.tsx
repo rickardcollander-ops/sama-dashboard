@@ -11,6 +11,7 @@ import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
+import InsightsOverview from "@/components/analysis/InsightsOverview";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
 
 const getSupabase = getSupabaseBrowser;
@@ -298,18 +299,25 @@ export default function AnalysisPage() {
         )}
 
         {stage === "setup" && (
-          <SetupStage
-            brand={brand}
-            queries={queries}
-            setQueries={setQueries}
-            newQuery={newQuery}
-            setNewQuery={setNewQuery}
-            platforms={platforms}
-            togglePlatform={togglePlatform}
-            generating={generating}
-            onGenerate={handleGenerateQueries}
-            onRun={handleRun}
-          />
+          <>
+            {user && (
+              <div className="mb-6">
+                <InsightsOverview tenantId={user.id} />
+              </div>
+            )}
+            <SetupStage
+              brand={brand}
+              queries={queries}
+              setQueries={setQueries}
+              newQuery={newQuery}
+              setNewQuery={setNewQuery}
+              platforms={platforms}
+              togglePlatform={togglePlatform}
+              generating={generating}
+              onGenerate={handleGenerateQueries}
+              onRun={handleRun}
+            />
+          </>
         )}
 
         {stage === "running" && <RunningStage queryCount={queries.length} platformCount={platforms.length} />}
@@ -896,8 +904,41 @@ function SetupStage(props: {
 
   return (
     <div className="space-y-6">
-      {/* Brand summary */}
+      {/* Run a deeper analysis — primary CTA */}
       <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Kör en djupare analys</h2>
+            <p className="text-xs text-slate-500">
+              {canRun
+                ? `${queries.length} frågor × ${platforms.length} plattformar — startar en ny mätning som ger uppdaterade gap.`
+                : "Lägg in varumärkesnamn, domän och minst en fråga för att kunna köra."}
+            </p>
+          </div>
+          <button
+            onClick={onRun}
+            disabled={!canRun}
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
+          >
+            <Play className="h-4 w-4" /> Kör analys
+          </button>
+        </div>
+      </section>
+
+      {/* Configuration accordion */}
+      <details className="group rounded-xl border bg-white shadow-sm">
+        <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <span className="flex items-center gap-2">
+            <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-90" />
+            Konfiguration — varumärke, frågor och plattformar
+          </span>
+          <span className="text-xs text-slate-400">
+            {queries.length} frågor · {platforms.length} plattformar
+          </span>
+        </summary>
+        <div className="space-y-6 border-t border-slate-100 p-5">
+      {/* Brand summary */}
+      <section>
         <h2 className="text-sm font-semibold text-slate-700 mb-3">Varumärkeskontext</h2>
         {!brand.brand_name || !brand.domain ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -914,7 +955,7 @@ function SetupStage(props: {
       </section>
 
       {/* Queries */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-700">Frågor att analysera</h2>
           <button
@@ -974,12 +1015,12 @@ function SetupStage(props: {
             <Plus className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">{queries.length}/25 queries · max 25 per analysis</p>
+        <p className="mt-2 text-[11px] text-slate-400">{queries.length}/25 frågor · max 25 per analys</p>
       </section>
 
       {/* Platforms */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">AI platforms to include</h2>
+      <section>
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">AI-plattformar att inkludera</h2>
         <div className="flex flex-wrap gap-2">
           {ALL_PLATFORMS.map((p) => {
             const active = platforms.includes(p);
@@ -999,23 +1040,11 @@ function SetupStage(props: {
           })}
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
-          Each query is run on Google (SerpAPI) plus the selected AI platforms.
+          Varje fråga körs i Google (SerpAPI) plus valda AI-plattformar.
         </p>
       </section>
-
-      {/* Run */}
-      <div className="flex justify-end">
-        <button
-          onClick={onRun}
-          disabled={!canRun}
-          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
-        >
-          <Play className="h-4 w-4" /> Run analysis
-          <span className="text-[11px] font-normal opacity-80 ml-1">
-            ({queries.length} queries × {platforms.length} platforms)
-          </span>
-        </button>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
