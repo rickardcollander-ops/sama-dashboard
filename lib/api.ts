@@ -117,6 +117,21 @@ export const api = {
     return res.json();
   },
 
+  async patch<T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> {
+    const { headers: extraHeaders, ...restOptions } = options || {};
+    const res = await fetchWithRetry(resolveUrl(path), {
+      method: 'PATCH',
+      ...restOptions,
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new ApiError(`PATCH ${path}: ${res.status} ${detail.slice(0, 200)}`, res.status);
+    }
+    return res.json();
+  },
+
   async delete(path: string, body?: any, options?: FetchOptions): Promise<void> {
     const res = await fetchWithRetry(resolveUrl(path), {
       method: 'DELETE',
@@ -142,6 +157,11 @@ export function tenantApi(tenantId: string) {
       }),
     post: <T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> =>
       api.post<T>(path, body, {
+        ...options,
+        headers: { ...tenantHeaders, ...options?.headers },
+      }),
+    patch: <T = any>(path: string, body?: any, options?: FetchOptions): Promise<T> =>
+      api.patch<T>(path, body, {
         ...options,
         headers: { ...tenantHeaders, ...options?.headers },
       }),

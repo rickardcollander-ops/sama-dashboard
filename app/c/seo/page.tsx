@@ -288,10 +288,10 @@ export default function CustomerSeoPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Search className="h-7 w-7 text-blue-500" />
-              SEO Overview
+              Google-synlighet
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Track your keyword rankings and search performance
+              Sökord, ranking och klick från Google Search Console
             </p>
           </div>
           <div className="relative group">
@@ -305,11 +305,11 @@ export default function CustomerSeoPage() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {checking ? "Running..." : "Run Check"}
+              {checking ? "Kör…" : "Kör kontroll"}
             </button>
             {keywords.length === 0 && (
               <span className="absolute right-0 top-full mt-1 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white shadow-lg z-10">
-                Add keywords first to run a check
+                Lägg till sökord först för att köra en kontroll
               </span>
             )}
           </div>
@@ -321,16 +321,16 @@ export default function CustomerSeoPage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-blue-900">Google Search Console is not connected</p>
+                <p className="text-sm font-medium text-blue-900">Google Search Console är inte anslutet</p>
                 <p className="text-sm text-blue-700 mt-1">
-                  Connect Google Search Console in Settings to automatically fetch search data.
-                  You can also add keywords manually below.
+                  Anslut Google Search Console i Inställningar så hämtas sökdata automatiskt.
+                  Du kan också lägga till sökord manuellt nedan.
                 </p>
                 <Link
-                  href="/c/settings"
+                  href="/c/settings/integrations"
                   className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
                 >
-                  Go to Settings →
+                  Gå till Integrationer →
                 </Link>
               </div>
             </div>
@@ -340,22 +340,22 @@ export default function CustomerSeoPage() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <StatCard
-            label="Keywords"
+            label="Sökord"
             value={keywords.length}
             icon={<Target className="h-5 w-5 text-blue-500" />}
           />
           <StatCard
-            label="Avg. Position"
+            label="Snittposition"
             value={avgPosition > 0 ? avgPosition.toFixed(1) : "--"}
             icon={<BarChart2 className="h-5 w-5 text-violet-500" />}
           />
           <StatCard
-            label="Clicks"
+            label="Klick"
             value={(totalClicks ?? 0).toLocaleString()}
             icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
           />
           <StatCard
-            label="Impressions"
+            label="Visningar"
             value={(totalImpressions ?? 0).toLocaleString()}
             icon={<Search className="h-5 w-5 text-amber-500" />}
           />
@@ -373,14 +373,14 @@ export default function CustomerSeoPage() {
 
         {/* Add Keyword + AI Suggestions */}
         <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-          <h2 className="font-semibold text-slate-900 mb-4">Add Keywords</h2>
+          <h2 className="font-semibold text-slate-900 mb-4">Lägg till sökord</h2>
           <div className="flex gap-2 mb-4">
             <input
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-              placeholder="Enter a keyword, e.g. 'customer success platform'"
+              placeholder="Skriv in ett sökord, t.ex. 'frisör Stockholm'"
               className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
@@ -404,7 +404,7 @@ export default function CustomerSeoPage() {
           {/* AI Suggestions */}
           {suggestions.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Suggested Keywords</p>
+              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Föreslagna sökord</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
                   <button
@@ -440,7 +440,7 @@ export default function CustomerSeoPage() {
           <KeywordGeoRecommendations
             existingKeywords={keywords.map((k) => k.keyword)}
             sections={["keywords", "long_tail_phrases"]}
-            title="Discover new keywords with AI"
+            title="Hitta nya sökord med AI"
             description="AI proposes new SEO keywords and long-tail phrases based on your brand and current tracked keywords. Pick the ones to add."
             onAdded={() => fetchKeywords()}
           />
@@ -506,7 +506,7 @@ export default function CustomerSeoPage() {
         {/* Top Performing Keywords */}
         {topKeywords.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-4">Top Performing Keywords</h2>
+            <h2 className="font-semibold text-slate-900 mb-4">Sökord som presterar bäst</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {topKeywords.slice(0, 6).map((kw) => (
                 <div
@@ -548,7 +548,7 @@ export default function CustomerSeoPage() {
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filter keywords..."
+                placeholder="Filtrera sökord…"
                 className="rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
               />
             </div>
@@ -557,11 +557,11 @@ export default function CustomerSeoPage() {
               onChange={(e) => setPositionFilter(e.target.value as PositionFilter)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="all">All positions</option>
-              <option value="top3">Top 3</option>
-              <option value="top10">Top 10</option>
-              <option value="top30">Top 30</option>
-              <option value="outside">Outside top 30</option>
+              <option value="all">Alla positioner</option>
+              <option value="top3">Topp 3</option>
+              <option value="top10">Topp 10</option>
+              <option value="top30">Topp 30</option>
+              <option value="outside">Utanför topp 30</option>
             </select>
             <button
               onClick={handleExportCsv}
@@ -569,7 +569,7 @@ export default function CustomerSeoPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Export CSV
+              Exportera CSV
             </button>
           </div>
 
@@ -580,28 +580,28 @@ export default function CustomerSeoPage() {
           ) : keywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">No keywords yet</p>
+              <p className="text-sm font-medium text-slate-600">Inga sökord än</p>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Add keywords manually above, use AI suggestions, or connect Google Search Console in Settings for automatic import.
+                Lägg till sökord ovan, använd AI-förslag, eller anslut Google Search Console i Inställningar för automatisk import.
               </p>
             </div>
           ) : sortedKeywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">No matches</p>
-              <p className="text-xs text-slate-400 mt-1">Try adjusting your filters.</p>
+              <p className="text-sm font-medium text-slate-600">Inga matchningar</p>
+              <p className="text-xs text-slate-400 mt-1">Justera filtret och försök igen.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <SortHeader label="Keyword" sortKey="keyword" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="left" />
+                    <SortHeader label="Sökord" sortKey="keyword" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="left" />
                     <SortHeader label="Position" sortKey="position" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <SortHeader label="Clicks" sortKey="clicks" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <SortHeader label="Impressions" sortKey="impressions" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label="Klick" sortKey="clicks" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label="Visningar" sortKey="impressions" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
                     <SortHeader label="CTR" sortKey="ctr" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <th className="px-4 py-3 font-medium text-slate-500 text-center">History</th>
+                    <th className="px-4 py-3 font-medium text-slate-500 text-center">Historik</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -629,7 +629,7 @@ export default function CustomerSeoPage() {
                             onClick={() => setSelectedKeyword(kw)}
                             className="text-blue-500 hover:text-blue-700 text-xs font-medium"
                           >
-                            View
+                            Visa
                           </button>
                         ) : (
                           <span className="text-slate-300">--</span>

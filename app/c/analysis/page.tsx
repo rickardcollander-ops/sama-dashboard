@@ -11,6 +11,7 @@ import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
+import InsightsOverview from "@/components/analysis/InsightsOverview";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
 
 const getSupabase = getSupabaseBrowser;
@@ -298,18 +299,25 @@ export default function AnalysisPage() {
         )}
 
         {stage === "setup" && (
-          <SetupStage
-            brand={brand}
-            queries={queries}
-            setQueries={setQueries}
-            newQuery={newQuery}
-            setNewQuery={setNewQuery}
-            platforms={platforms}
-            togglePlatform={togglePlatform}
-            generating={generating}
-            onGenerate={handleGenerateQueries}
-            onRun={handleRun}
-          />
+          <>
+            {user && (
+              <div className="mb-6">
+                <InsightsOverview tenantId={user.id} />
+              </div>
+            )}
+            <SetupStage
+              brand={brand}
+              queries={queries}
+              setQueries={setQueries}
+              newQuery={newQuery}
+              setNewQuery={setNewQuery}
+              platforms={platforms}
+              togglePlatform={togglePlatform}
+              generating={generating}
+              onGenerate={handleGenerateQueries}
+              onRun={handleRun}
+            />
+          </>
         )}
 
         {stage === "running" && <RunningStage queryCount={queries.length} platformCount={platforms.length} />}
@@ -666,9 +674,11 @@ function SiteAuditHistory({
       {runs.length === 0 ? (
         <div className="rounded-xl border bg-white p-12 text-center text-slate-500">
           <HistoryIcon className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-          <p className="text-sm">No audits yet. Run your first one to see it here.</p>
+          <p className="text-sm">Inga revisioner än. Kör den första för att se den här.</p>
         </div>
       ) : (
+        <>
+        <AuditScoreTimeline runs={runs} />
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
@@ -726,7 +736,100 @@ function SiteAuditHistory({
             </tbody>
           </table>
         </div>
+        </>
       )}
+    </div>
+  );
+}
+
+// Sprint 3 (I5) — score-historik som linjegraf.
+function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
+  const points = runs
+    .filter((r) => r.status === "completed" && typeof r.overall_score === "number")
+    .map((r) => ({
+      ts: new Date(r.started_at).getTime(),
+      score: r.overall_score as number,
+      label: new Date(r.started_at).toLocaleDateString("sv-SE", {
+        day: "numeric",
+        month: "short",
+      }),
+    }))
+    .sort((a, b) => a.ts - b.ts);
+
+  if (points.length < 2) {
+    return null;
+  }
+
+  const W = 600;
+  const H = 120;
+  const PAD_X = 24;
+  const PAD_Y = 16;
+  const minScore = Math.min(...points.map((p) => p.score), 0);
+  const maxScore = Math.max(...points.map((p) => p.score), 100);
+  const span = Math.max(1, maxScore - minScore);
+
+  const xFor = (i: number) =>
+    PAD_X + (i * (W - 2 * PAD_X)) / Math.max(1, points.length - 1);
+  const yFor = (s: number) =>
+    H - PAD_Y - ((s - minScore) / span) * (H - 2 * PAD_Y);
+
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p.score).toFixed(1)}`)
+    .join(" ");
+
+  const last = points[points.length - 1];
+  const first = points[0];
+  const delta = last.score - first.score;
+
+  return (
+    <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Score-historik</h3>
+          <p className="text-xs text-slate-500">
+            {points.length} kompletta revisioner — {first.label} → {last.label}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-2xl font-bold text-slate-900">{last.score}</span>
+          <span
+            className={`text-xs font-semibold ${
+              delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400"
+            }`}
+          >
+            {delta > 0 ? "+" : ""}
+            {delta} vs första
+          </span>
+        </div>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-32 w-full"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Audit-score över tid"
+      >
+        <line x1={PAD_X} x2={W - PAD_X} y1={yFor(80)} y2={yFor(80)} stroke="#e2e8f0" strokeDasharray="2 4" />
+        <line x1={PAD_X} x2={W - PAD_X} y1={yFor(60)} y2={yFor(60)} stroke="#e2e8f0" strokeDasharray="2 4" />
+        <path d={path} fill="none" stroke="#8b5cf6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={xFor(i)}
+            cy={yFor(p.score)}
+            r={3}
+            fill="#fff"
+            stroke="#8b5cf6"
+            strokeWidth={2}
+          >
+            <title>{`${p.label}: ${p.score}/100`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+        <span>{first.label}</span>
+        <span>{last.label}</span>
+      </div>
     </div>
   );
 }
@@ -847,12 +950,12 @@ function Header({
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
           <Sparkles className="h-6 w-6 text-violet-600" />
-          SEO + GEO Analysis
+          Insikter — översikt
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           {isAudit
-            ? "Full domain audit with technical, on-page, GEO, and link-health scores."
-            : "Unified visibility report across Google search and AI assistants. Find gaps, drive content."}
+            ? "Heltäckande sajt-revision: teknik, sidinnehåll, AI-synlighet och länk-hälsa."
+            : "Samlad synlighetsrapport för Google och AI-assistenter — hitta gap, skapa content."}
         </p>
       </div>
       {!isAudit && (
@@ -862,7 +965,7 @@ function Header({
               onClick={onShowHistory}
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <HistoryIcon className="h-4 w-4" /> History
+              <HistoryIcon className="h-4 w-4" /> Historik
             </button>
           )}
           {(stage === "results" || stage === "history") && (
@@ -870,7 +973,7 @@ function Header({
               onClick={onReset}
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <RefreshCw className="h-4 w-4" /> New analysis
+              <RefreshCw className="h-4 w-4" /> Ny analys
             </button>
           )}
         </div>
@@ -896,40 +999,73 @@ function SetupStage(props: {
 
   return (
     <div className="space-y-6">
-      {/* Brand summary */}
+      {/* Run a deeper analysis — primary CTA */}
       <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Brand context</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Kör en djupare analys</h2>
+            <p className="text-xs text-slate-500">
+              {canRun
+                ? `${queries.length} frågor × ${platforms.length} plattformar — startar en ny mätning som ger uppdaterade gap.`
+                : "Lägg in varumärkesnamn, domän och minst en fråga för att kunna köra."}
+            </p>
+          </div>
+          <button
+            onClick={onRun}
+            disabled={!canRun}
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
+          >
+            <Play className="h-4 w-4" /> Kör analys
+          </button>
+        </div>
+      </section>
+
+      {/* Configuration accordion */}
+      <details className="group rounded-xl border bg-white shadow-sm">
+        <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <span className="flex items-center gap-2">
+            <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-90" />
+            Konfiguration — varumärke, frågor och plattformar
+          </span>
+          <span className="text-xs text-slate-400">
+            {queries.length} frågor · {platforms.length} plattformar
+          </span>
+        </summary>
+        <div className="space-y-6 border-t border-slate-100 p-5">
+      {/* Brand summary */}
+      <section>
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Varumärkeskontext</h2>
         {!brand.brand_name || !brand.domain ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Brand name and domain are missing. <a href="/c/settings" className="underline font-medium">Complete in Settings</a> to enable auto-generated queries.
+            Varumärkesnamn och domän saknas. <a href="/c/settings" className="underline font-medium">Komplettera i Inställningar</a> för att aktivera AI-genererade frågor.
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <Field label="Brand" value={brand.brand_name} />
-            <Field label="Domain" value={brand.domain} />
-            <Field label="Audience" value={brand.target_audience || "—"} />
-            <Field label="Competitors" value={brand.competitors.length ? brand.competitors.join(", ") : "—"} />
+            <Field label="Varumärke" value={brand.brand_name} />
+            <Field label="Domän" value={brand.domain} />
+            <Field label="Målgrupp" value={brand.target_audience || "—"} />
+            <Field label="Konkurrenter" value={brand.competitors.length ? brand.competitors.join(", ") : "—"} />
           </div>
         )}
       </section>
 
       {/* Queries */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-700">Queries to analyze</h2>
+          <h2 className="text-sm font-semibold text-slate-700">Frågor att analysera</h2>
           <button
             onClick={onGenerate}
             disabled={generating || !brand.brand_name}
             className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Auto-generate
+            Auto-generera
           </button>
         </div>
 
         {queries.length === 0 ? (
           <p className="text-xs text-slate-400 mb-3">
-            No queries yet. Click <em>Auto-generate</em> to draft 10 buyer-intent queries from your brand context, or add manually below.
+            Inga frågor än. Klicka <em>Auto-generera</em> för att skapa 10 köpintresse-frågor från ert sammanhang, eller lägg till manuellt nedan.
           </p>
         ) : (
           <ul className="mb-3 space-y-1">
@@ -939,7 +1075,7 @@ function SetupStage(props: {
                 <button
                   onClick={() => setQueries(queries.filter((_, i) => i !== idx))}
                   className="text-slate-400 hover:text-red-500"
-                  title="Remove"
+                  title="Ta bort"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -959,7 +1095,7 @@ function SetupStage(props: {
                 setNewQuery("");
               }
             }}
-            placeholder="Add a query (e.g. 'best CRM for B2B SaaS')…"
+            placeholder="Lägg till en fråga (t.ex. 'bästa frisören i Stockholm')…"
             className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
           />
           <button
@@ -969,17 +1105,17 @@ function SetupStage(props: {
               setNewQuery("");
             }}
             className="rounded-lg bg-slate-100 px-3 text-slate-600 hover:bg-slate-200"
-            title="Add"
+            title="Lägg till"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">{queries.length}/25 queries · max 25 per analysis</p>
+        <p className="mt-2 text-[11px] text-slate-400">{queries.length}/25 frågor · max 25 per analys</p>
       </section>
 
       {/* Platforms */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">AI platforms to include</h2>
+      <section>
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">AI-plattformar att inkludera</h2>
         <div className="flex flex-wrap gap-2">
           {ALL_PLATFORMS.map((p) => {
             const active = platforms.includes(p);
@@ -999,23 +1135,11 @@ function SetupStage(props: {
           })}
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
-          Each query is run on Google (SerpAPI) plus the selected AI platforms.
+          Varje fråga körs i Google (SerpAPI) plus valda AI-plattformar.
         </p>
       </section>
-
-      {/* Run */}
-      <div className="flex justify-end">
-        <button
-          onClick={onRun}
-          disabled={!canRun}
-          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
-        >
-          <Play className="h-4 w-4" /> Run analysis
-          <span className="text-[11px] font-normal opacity-80 ml-1">
-            ({queries.length} queries × {platforms.length} platforms)
-          </span>
-        </button>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -1042,11 +1166,11 @@ type ResultsTab = "overview" | "audit" | "matrix" | "gaps" | "recommendations";
 function ResultsStage({ run }: { run: AnalysisRun }) {
   const [tab, setTab] = useState<ResultsTab>("overview");
   const tabs: { id: ResultsTab; label: string; show: boolean }[] = [
-    { id: "overview", label: "Overview", show: true },
-    { id: "audit", label: "Site audit", show: !!run.site_audit },
-    { id: "matrix", label: "Per query", show: true },
-    { id: "gaps", label: "Gap analysis", show: true },
-    { id: "recommendations", label: "Recommendations", show: true },
+    { id: "overview", label: "Översikt", show: true },
+    { id: "audit", label: "Sajt-revision", show: !!run.site_audit },
+    { id: "matrix", label: "Per fråga", show: true },
+    { id: "gaps", label: "Gap-analys", show: true },
+    { id: "recommendations", label: "Rekommendationer", show: true },
   ];
 
   const gapSummary = useMemo(() => buildGapSummary(run), [run]);
@@ -1077,8 +1201,8 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
         <KeywordGeoRecommendations
           existingKeywords={existingKeywords}
           gapSummary={gapSummary}
-          title="Recommended additions to track"
-          description="Based on your analysis gaps, AI proposes new keywords and GEO queries you can add to your tracking."
+          title="Rekommenderade tillägg att spåra"
+          description="Baserat på dina gap föreslår AI nya sökord och AI-frågor som du kan lägga till."
         />
       )}
     </div>
@@ -1092,10 +1216,10 @@ function SiteAuditTab({ audit }: { audit: SiteAudit }) {
     low: "bg-slate-50 text-slate-600 border-slate-200",
   };
   const catLabel: Record<AuditCategory, string> = {
-    technical: "Technical",
-    geo: "GEO",
-    content: "Content",
-    links: "Links",
+    technical: "Teknik",
+    geo: "AI-synlighet",
+    content: "Innehåll",
+    links: "Länkar",
   };
   const scoreTone = (n: number) =>
     n >= 80 ? "text-emerald-600" : n >= 60 ? "text-amber-600" : "text-red-600";
@@ -1104,8 +1228,8 @@ function SiteAuditTab({ audit }: { audit: SiteAudit }) {
     <div className="space-y-6">
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex items-baseline justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-700">Scores</h3>
-          <span className="text-xs text-slate-400">{audit.pages_crawled} pages crawled · {audit.domain}</span>
+          <h3 className="text-sm font-semibold text-slate-700">Poäng</h3>
+          <span className="text-xs text-slate-400">{audit.pages_crawled} sidor genomsökta · {audit.domain}</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-5">
           {(["overall", "technical", "geo", "content", "links"] as const).map((k) => (

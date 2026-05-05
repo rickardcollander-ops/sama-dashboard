@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -39,6 +40,8 @@ interface AICheck {
   mentioned: boolean;
   rank: number | null;
   competitors_mentioned: string[];
+  ai_response_excerpt?: string | null;
+  full_response?: string | null;
   checked_at: string;
 }
 
@@ -48,6 +51,7 @@ export default function CustomerGeoPage() {
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
+  const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { period, setPeriod, days } = usePeriod();
@@ -169,10 +173,10 @@ export default function CustomerGeoPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Eye className="h-7 w-7 text-slate-400" />
-              AI Visibility / GEO
+              Synlighet i AI-assistenter
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              How visible is your brand in AI assistants?
+              Hur ofta nämns ditt varumärke i ChatGPT, Claude, Perplexity och Gemini?
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -183,7 +187,7 @@ export default function CustomerGeoPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Export
+              Exportera
             </button>
             <button
               type="button"
@@ -192,7 +196,7 @@ export default function CustomerGeoPage() {
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
             >
               {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? "Running..." : "Run Check"}
+              {running ? "Kör…" : "Kör kontroll"}
             </button>
           </div>
         </div>
@@ -210,7 +214,7 @@ export default function CustomerGeoPage() {
         {activeGeoRun && (
           <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
             <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
-            Check is running across ChatGPT, Claude, Perplexity and Gemini — typically 2-5 minutes. You can leave this page; progress is shown in the bottom-right banner and results appear here automatically.
+            Kontroll körs i ChatGPT, Claude, Perplexity och Gemini — vanligtvis 2–5 minuter. Du kan lämna sidan; status visas nere till höger och resultat dyker upp här automatiskt.
           </div>
         )}
 
@@ -218,7 +222,7 @@ export default function CustomerGeoPage() {
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Mention Rate</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Omnämnandegrad</p>
               <div className="mt-2 flex items-end gap-2">
                 <span className="text-2xl font-bold text-slate-900">
                   {(summary.mention_rate * 100).toFixed(0)}%
@@ -227,19 +231,19 @@ export default function CustomerGeoPage() {
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Avg Rank</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Snittposition</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {summary.avg_rank ? `#${summary.avg_rank.toFixed(1)}` : "—"}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Total Checks</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Antal kontroller</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {(summary.total_checks ?? 0).toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Open Gaps</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">Öppna gap</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{summary.open_gaps ?? 0}</p>
             </div>
           </div>
@@ -247,16 +251,16 @@ export default function CustomerGeoPage() {
 
         {/* Recent checks */}
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Checks</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Senaste kontroller</h2>
           {checks.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
               <div className="flex flex-col items-center text-center">
                 <div className="rounded-full bg-violet-100 p-4 mb-4">
                   <Eye className="h-8 w-8 text-violet-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">No AI visibility data yet</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Ingen data än</h3>
                 <p className="text-sm text-slate-500 max-w-md mb-6">
-                  Run your first check to see how visible your brand is in AI assistants like ChatGPT, Claude, and Perplexity.
+                  Kör en första kontroll för att se hur synligt ditt varumärke är i AI-assistenter som ChatGPT, Claude och Perplexity.
                 </p>
                 <button
                   onClick={runCheck}
@@ -264,7 +268,7 @@ export default function CustomerGeoPage() {
                   className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
                 >
                   {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  {running ? "Running..." : "Run Check"}
+                  {running ? "Kör…" : "Kör kontroll"}
                 </button>
               </div>
             </div>
@@ -273,31 +277,60 @@ export default function CustomerGeoPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Query</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Engine</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Mentioned</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Rank</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Competitors</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Fråga</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">AI</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Nämnd</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Position</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">Konkurrenter</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {checks.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
-                      <td className="px-4 py-3">
-                        {c.mentioned ? (
-                          <CheckCircle className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-red-400" />
+                  {checks.map((c) => {
+                    const expanded = expandedCheckId === c.id;
+                    const responseText = c.full_response || c.ai_response_excerpt || "";
+                    return (
+                      <Fragment key={c.id}>
+                        <tr
+                          className="hover:bg-slate-50 cursor-pointer"
+                          onClick={() => setExpandedCheckId(expanded ? null : c.id)}
+                        >
+                          <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
+                          <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
+                          <td className="px-4 py-3">
+                            {c.mentioned ? (
+                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-red-400" />
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">
+                            {c.competitors_mentioned?.join(", ") || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {expanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="bg-slate-50/50">
+                            <td colSpan={6} className="px-4 py-4">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Svar från {c.ai_engine}
+                              </p>
+                              <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700 max-h-96 overflow-y-auto">
+                                {responseText || "(inget svar sparades)"}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {c.competitors_mentioned?.join(", ") || "—"}
-                      </td>
-                    </tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -307,7 +340,7 @@ export default function CustomerGeoPage() {
         {/* Mention Rate History */}
         {summary?.history && summary.history.length > 1 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Mention Rate Over Time</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Omnämnandegrad över tid</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
@@ -336,7 +369,7 @@ export default function CustomerGeoPage() {
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    formatter={(value) => [`${Math.round(Number(value ?? 0) * 100)}%`, "Mention Rate"]}
+                    formatter={(value) => [`${Math.round(Number(value ?? 0) * 100)}%`, "Omnämnandegrad"]}
                   />
                   <Line
                     type="monotone"
@@ -354,7 +387,7 @@ export default function CustomerGeoPage() {
         {/* Engine breakdown */}
         {summary?.engine_stats && Object.keys(summary.engine_stats).length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Per AI Engine</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Per AI-tjänst</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {Object.entries(summary.engine_stats).map(([engine, stats]) => (
                 <div key={engine} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -363,7 +396,7 @@ export default function CustomerGeoPage() {
                     {(stats.rate * 100).toFixed(0)}%
                   </p>
                   <p className="text-xs text-slate-500">
-                    {stats.mentioned}/{stats.total} mentions
+                    {stats.mentioned}/{stats.total} omnämnanden
                   </p>
                 </div>
               ))}
@@ -374,12 +407,12 @@ export default function CustomerGeoPage() {
         {/* Top competitors */}
         {summary?.top_competitors && summary.top_competitors.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Most Common Competitors in AI Responses</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Konkurrenter som nämns mest av AI</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {summary.top_competitors.map((c) => (
                 <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-sm font-medium text-slate-700">{c.name}</p>
-                  <p className="text-xs text-slate-500">{c.count} mentions</p>
+                  <p className="text-xs text-slate-500">{c.count} omnämnanden</p>
                 </div>
               ))}
             </div>
@@ -395,8 +428,8 @@ export default function CustomerGeoPage() {
                 ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
                 : undefined
             }
-            title="Find new GEO queries to track"
-            description={`AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add (max ${MAX_GEO_QUERIES} tracked at a time).`}
+            title="Hitta nya frågor att bevaka"
+            description={`AI föreslår nya naturliga frågor att bevaka i ChatGPT, Claude, Perplexity och Gemini. Välj vilka du vill lägga till (max ${MAX_GEO_QUERIES} samtidigt).`}
             geoTrackedCount={trackedQueries.length}
             geoMax={MAX_GEO_QUERIES}
             onAdded={() => loadData()}
@@ -408,10 +441,10 @@ export default function CustomerGeoPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Tracked GEO Queries</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Bevakade frågor</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Prompts the AI Visibility agent runs against ChatGPT, Claude, Perplexity and Gemini.
-                  Capped at {MAX_GEO_QUERIES} so each check finishes quickly.
+                  Frågor som AI-agenten kör mot ChatGPT, Claude, Perplexity och Gemini.
+                  Begränsat till {MAX_GEO_QUERIES} för att kontrollerna ska gå snabbt.
                 </p>
               </div>
               <span
@@ -426,7 +459,7 @@ export default function CustomerGeoPage() {
             </div>
             {trackedQueries.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No tracked queries yet. Use the panel above to generate suggestions and add the ones you want monitored.
+                Inga bevakade frågor än. Använd panelen ovan för att generera förslag och lägga till de du vill bevaka.
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">

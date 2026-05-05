@@ -6,7 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star, Compass,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
@@ -86,6 +86,10 @@ interface GoogleServiceStatus {
   ads: boolean;
 }
 
+type GoogleServiceKey = "search_console" | "analytics" | "ads";
+
+type GoogleAccountEmails = Partial<Record<GoogleServiceKey, string | null>>;
+
 const GOOGLE_SERVICES = [
   {
     key: "search_console" as const,
@@ -162,6 +166,7 @@ function CustomerSettingsPageInner() {
     analytics: false,
     ads: false,
   });
+  const [googleEmails, setGoogleEmails] = useState<GoogleAccountEmails>({});
   const [googleLoading, setGoogleLoading] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [googleError, setGoogleError] = useState("");
@@ -441,7 +446,7 @@ function CustomerSettingsPageInner() {
   const loadGoogleStatus = async () => {
     if (!user) return;
     try {
-      const data = await api.get<Record<string, { connected?: boolean }>>(
+      const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
         `/api/auth/google/status?tenant_id=${user.id}`
       );
       setGoogleStatus({
@@ -449,8 +454,14 @@ function CustomerSettingsPageInner() {
         analytics: !!data?.analytics?.connected,
         ads: !!data?.ads?.connected,
       });
+      setGoogleEmails({
+        search_console: data?.search_console?.account_email ?? null,
+        analytics: data?.analytics?.account_email ?? null,
+        ads: data?.ads?.account_email ?? null,
+      });
     } catch {
       setGoogleStatus({ search_console: false, analytics: false, ads: false });
+      setGoogleEmails({});
     }
   };
 
@@ -578,10 +589,10 @@ function CustomerSettingsPageInner() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Settings className="h-7 w-7 text-slate-400" />
-              Settings
+              Konto
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Configure API keys, brand info and GEO monitoring
+              Varumärke, agenter och anslutningar
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -590,7 +601,7 @@ function CustomerSettingsPageInner() {
               className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
             >
               <Rocket className="h-4 w-4" />
-              Run Onboarding
+              Kör onboarding
             </button>
             <button
               onClick={saveSettings}
@@ -598,14 +609,14 @@ function CustomerSettingsPageInner() {
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving..." : "Save"}
+              {saving ? "Sparar…" : "Spara"}
             </button>
           </div>
         </div>
 
         {saved && (
           <div className="mb-6 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-            <CheckCircle className="h-4 w-4" /> Settings saved!
+            <CheckCircle className="h-4 w-4" /> Inställningarna är sparade!
           </div>
         )}
 
@@ -639,7 +650,7 @@ function CustomerSettingsPageInner() {
 
         <div className="space-y-8">
           {/* ── SAMA Agenter ── */}
-          <Section icon={Activity} title="SAMA Agents" desc="Control which agents run and when">
+          <Section icon={Activity} title="SAMA-agenter" desc="Styr vilka agenter som körs och när">
             {agentsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
@@ -650,7 +661,7 @@ function CustomerSettingsPageInner() {
                   {(agents.length > 0 ? agents : ALL_AGENT_DEFAULTS).map((agent, idx) => {
                     const info = AGENT_INFO[agent.name] || { label: agent.name, icon: Bot };
                     const Icon = info.icon;
-                    const scheduleLabel = agent.schedule === "daily" ? "Daily" : agent.schedule === "weekly" ? "Weekly" : "Manual";
+                    const scheduleLabel = agent.schedule === "daily" ? "Dagligen" : agent.schedule === "weekly" ? "Varje vecka" : "Manuellt";
                     const isToggling = togglingAgent === agent.name;
                     const isTriggering = triggeringAgent === agent.name;
                     return (
@@ -670,7 +681,7 @@ function CustomerSettingsPageInner() {
                               </span>
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              Last run: {agent.last_run ? new Date(agent.last_run).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}
+                              Senast körd: {agent.last_run ? new Date(agent.last_run).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Aldrig"}
                             </p>
                           </div>
                         </div>
@@ -698,7 +709,7 @@ function CustomerSettingsPageInner() {
                             ) : (
                               <Play className="h-3 w-3" />
                             )}
-                            Run
+                            Kör
                           </button>
                         </div>
                       </div>
@@ -709,16 +720,16 @@ function CustomerSettingsPageInner() {
                 {/* Recent runs */}
                 {agentRuns.length > 0 && (
                   <div className="mt-5">
-                    <h3 className="text-sm font-medium text-slate-700 mb-2">Recent Runs</h3>
+                    <h3 className="text-sm font-medium text-slate-700 mb-2">Senaste körningar</h3>
                     <div className="rounded-lg border border-slate-200 overflow-hidden">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500">
                             <th className="text-left px-3 py-2 font-medium">Agent</th>
-                            <th className="text-left px-3 py-2 font-medium">Time</th>
+                            <th className="text-left px-3 py-2 font-medium">Tid</th>
                             <th className="text-left px-3 py-2 font-medium">Status</th>
-                            <th className="text-left px-3 py-2 font-medium">Result</th>
-                            <th className="text-left px-3 py-2 font-medium w-24">Action</th>
+                            <th className="text-left px-3 py-2 font-medium">Resultat</th>
+                            <th className="text-left px-3 py-2 font-medium w-24">Åtgärd</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -729,7 +740,7 @@ function CustomerSettingsPageInner() {
                               <tr key={run.id} className={`border-t border-slate-100 ${isFailed ? "bg-red-50/40" : ""}`}>
                                 <td className="px-3 py-2 font-medium text-slate-700 capitalize">{run.agent_name}</td>
                                 <td className="px-3 py-2 text-slate-500">
-                                  {new Date(run.started_at).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                  {new Date(run.started_at).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                                 </td>
                                 <td className="px-3 py-2">
                                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
@@ -739,12 +750,12 @@ function CustomerSettingsPageInner() {
                                   }`}>
                                     {run.status === "completed" ? <CheckCircle className="h-2.5 w-2.5" /> : null}
                                     {isFailed ? <AlertCircle className="h-2.5 w-2.5" /> : null}
-                                    {run.status === "completed" ? "Done" : isFailed ? "Failed" : "Running..."}
+                                    {run.status === "completed" ? "Klar" : isFailed ? "Misslyckades" : "Kör…"}
                                   </span>
                                 </td>
                                 <td className="px-3 py-2 text-slate-500 truncate max-w-[240px]" title={run.summary || ""}>
                                   {isFailed ? (
-                                    <span className="text-red-700">{run.summary || "Run did not complete. Try again or check integrations."}</span>
+                                    <span className="text-red-700">{run.summary || "Körningen slutfördes inte. Försök igen eller kontrollera integrationerna."}</span>
                                   ) : (
                                     run.summary || "-"
                                   )}
@@ -757,7 +768,7 @@ function CustomerSettingsPageInner() {
                                       className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50"
                                     >
                                       {isRetrying ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Play className="h-2.5 w-2.5" />}
-                                      Re-run
+                                      Kör igen
                                     </button>
                                   ) : null}
                                 </td>
@@ -777,7 +788,7 @@ function CustomerSettingsPageInner() {
                       <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
                         <CheckCircle className="h-4 w-4 flex-shrink-0" />
                         <span>
-                          SAMA activated! {activationResult.keywords_added} keywords added, {activationResult.content_created} content pieces created.
+                          SAMA är aktiverat! {activationResult.keywords_added} sökord tillagda, {activationResult.content_created} content-utkast skapade.
                         </span>
                       </div>
                     ) : (
@@ -789,12 +800,12 @@ function CustomerSettingsPageInner() {
                         {activating ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Configuring your agents...
+                            Konfigurerar agenterna…
                           </>
                         ) : (
                           <>
                             <Zap className="h-4 w-4" />
-                            Activate SAMA — Run Initial Setup
+                            Aktivera SAMA — kör initial setup
                           </>
                         )}
                       </button>
@@ -806,19 +817,19 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── AI Platform Access (managed) ── */}
-          <Section icon={Key} title="AI Platform Access" desc="LLM and search providers SAMA uses to power your agents">
+          <Section icon={Key} title="AI-tjänster" desc="LLM- och sökleverantörer som SAMA använder för agenterna">
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle className="h-5 w-5 flex-shrink-0 text-emerald-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-emerald-900">
-                    Managed by SAMA — no setup required
+                    Hanteras av SAMA — ingen konfiguration krävs
                   </p>
                   <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                    SAMA covers OpenAI, Anthropic, Perplexity and SerpAPI usage as part of your plan.
-                    Your monthly token budget scales with your subscription tier — see your{" "}
-                    <a href="/c/pricing" className="font-medium underline hover:text-emerald-900">plan</a>{" "}
-                    for details.
+                    SAMA bekostar OpenAI, Anthropic, Perplexity och SerpAPI som del av planen.
+                    Din månadsbudget skalar med ditt abonnemang — se{" "}
+                    <a href="/c/settings/billing" className="font-medium underline hover:text-emerald-900">plan</a>{" "}
+                    för detaljer.
                   </p>
                 </div>
               </div>
@@ -829,19 +840,19 @@ function CustomerSettingsPageInner() {
               className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
             >
               {showAdvancedKeys ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {showAdvancedKeys ? "Hide" : "Show"} advanced: bring-your-own keys
+              {showAdvancedKeys ? "Dölj" : "Visa"} avancerat: egna API-nycklar
             </button>
             {showAdvancedKeys && (
               <div className="mt-4 space-y-4">
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Optional. Provide your own provider keys to bypass SAMA&apos;s managed quota
-                  (Enterprise / dev use only). Leave blank to use SAMA-managed access.
+                  Valfritt. Använd egna leverantörsnycklar för att förbigå SAMAs hanterade kvot
+                  (Enterprise / utveckling). Lämna tomt för att använda SAMAs hanterade åtkomst.
                 </p>
                 {([
-                  { key: "openai", field: "openai_api_key" as const, label: "OpenAI API Key", placeholder: "sk-..." },
-                  { key: "anthropic", field: "anthropic_api_key" as const, label: "Anthropic API Key", placeholder: "sk-ant-..." },
-                  { key: "perplexity", field: "perplexity_api_key" as const, label: "Perplexity API Key", placeholder: "pplx-..." },
-                  { key: "google", field: "google_api_key" as const, label: "SerpAPI Key", placeholder: "..." },
+                  { key: "openai", field: "openai_api_key" as const, label: "OpenAI API-nyckel", placeholder: "sk-..." },
+                  { key: "anthropic", field: "anthropic_api_key" as const, label: "Anthropic API-nyckel", placeholder: "sk-ant-..." },
+                  { key: "perplexity", field: "perplexity_api_key" as const, label: "Perplexity API-nyckel", placeholder: "pplx-..." },
+                  { key: "google", field: "google_api_key" as const, label: "SerpAPI-nyckel", placeholder: "..." },
                 ]).map(({ key, field, label, placeholder }) => (
                   <div key={key}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -864,7 +875,7 @@ function CustomerSettingsPageInner() {
                       </div>
                       {settings[field] && (
                         <span className="flex items-center rounded-lg bg-green-100 px-2 text-xs font-medium text-green-700 border border-green-200">
-                          <CheckCircle className="h-3 w-3 mr-1" /> Override active
+                          <CheckCircle className="h-3 w-3 mr-1" /> Egen nyckel aktiv
                         </span>
                       )}
                     </div>
@@ -875,16 +886,16 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Brand ── */}
-          <Section icon={Globe} title="Brand & Domain" desc="Information about your brand for agent context">
+          <Section icon={Globe} title="Varumärke & domän" desc="Grunddata om er verksamhet som agenterna utgår från">
             <div className="grid gap-4 sm:grid-cols-2">
-              <InputField label="Brand Name" value={settings.brand_name} onChange={(v) => updateField("brand_name", v)} placeholder="Acme Corp" />
-              <InputField label="Domain" value={settings.domain} onChange={(v) => updateField("domain", v)} placeholder="acme.com" />
-              <InputField label="Country" value={settings.country} onChange={(v) => updateField("country", v)} placeholder="SE" />
-              <InputField label="Language" value={settings.language} onChange={(v) => updateField("language", v)} placeholder="en" />
+              <InputField label="Varumärkesnamn" value={settings.brand_name} onChange={(v) => updateField("brand_name", v)} placeholder="Acme AB" />
+              <InputField label="Domän" value={settings.domain} onChange={(v) => updateField("domain", v)} placeholder="acme.se" />
+              <InputField label="Land" value={settings.country} onChange={(v) => updateField("country", v)} placeholder="SE" />
+              <InputField label="Språk" value={settings.language} onChange={(v) => updateField("language", v)} placeholder="sv" />
             </div>
             <div className="mt-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Content Language</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Språk för content</label>
                 <select
                   value={settings.content_language || "en"}
                   onChange={(e) => updateField("content_language", e.target.value)}
@@ -894,37 +905,37 @@ function CustomerSettingsPageInner() {
                     <option key={lang.code} value={lang.code}>{lang.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-400 mt-1">Language used when SAMA generates content for your brand.</p>
+                <p className="text-xs text-slate-400 mt-1">Språket SAMA använder när content skapas för ert varumärke.</p>
               </div>
-              <TextareaField label="Description" value={settings.brand_description} onChange={(v) => updateField("brand_description", v)} placeholder="Short description of what you do..." />
-              <TextareaField label="Target Audience" value={settings.target_audience} onChange={(v) => updateField("target_audience", v)} placeholder="B2B SaaS companies with 50-500 employees..." />
-              <TextareaField label="Unique Selling Points" value={settings.unique_selling_points} onChange={(v) => updateField("unique_selling_points", v)} placeholder="AI-driven, 10x faster, best in market..." />
+              <TextareaField label="Beskrivning" value={settings.brand_description} onChange={(v) => updateField("brand_description", v)} placeholder="Kort beskrivning av vad ni gör…" />
+              <TextareaField label="Målgrupp" value={settings.target_audience} onChange={(v) => updateField("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag, restauranger…" />
+              <TextareaField label="Det som gör er unika" value={settings.unique_selling_points} onChange={(v) => updateField("unique_selling_points", v)} placeholder="Personlig service, lokal närvaro, snabbast i området…" />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tone of Voice</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tonalitet</label>
                 <select
                   value={settings.tone_of_voice}
                   onChange={(e) => updateField("tone_of_voice", e.target.value)}
                   className="w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="professional">Professional</option>
-                  <option value="casual">Casual</option>
-                  <option value="technical">Technical</option>
-                  <option value="friendly">Friendly</option>
-                  <option value="bold">Bold</option>
+                  <option value="professional">Professionell</option>
+                  <option value="casual">Avslappnad</option>
+                  <option value="technical">Teknisk</option>
+                  <option value="friendly">Vänlig</option>
+                  <option value="bold">Modig</option>
                 </select>
               </div>
             </div>
           </Section>
 
           {/* ── Competitors ── */}
-          <Section icon={Users} title="Competitors" desc="Brands to compare with in GEO monitoring">
+          <Section icon={Users} title="Konkurrenter" desc="Varumärken att jämföra med i AI-bevakningen">
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
                 value={newCompetitor}
                 onChange={(e) => setNewCompetitor(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-                placeholder="Add competitor..."
+                placeholder="Lägg till konkurrent…"
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <button onClick={addCompetitor} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
@@ -932,7 +943,7 @@ function CustomerSettingsPageInner() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {settings.competitors.length === 0 && <p className="text-sm text-slate-400">No competitors added</p>}
+              {settings.competitors.length === 0 && <p className="text-sm text-slate-400">Inga konkurrenter tillagda</p>}
               {settings.competitors.map((c) => (
                 <span key={c} className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800 border border-orange-200">
                   {c}
@@ -943,14 +954,14 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── GEO Queries ── */}
-          <Section icon={Search} title="GEO Queries" desc="Questions to ask AI platforms to track your brand">
+          <Section icon={Search} title="Sökfrågor till AI" desc="Frågor att bevaka i AI-assistenter för ert varumärke">
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
                 value={newQuery}
                 onChange={(e) => setNewQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addQuery())}
-                placeholder='e.g. "best CRM for startups"'
+                placeholder='t.ex. "bästa frisören i Stockholm"'
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <button onClick={addQuery} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
@@ -958,7 +969,7 @@ function CustomerSettingsPageInner() {
               </button>
             </div>
             <div className="space-y-2">
-              {settings.geo_queries.length === 0 && <p className="text-sm text-slate-400">No queries added</p>}
+              {settings.geo_queries.length === 0 && <p className="text-sm text-slate-400">Inga frågor tillagda</p>}
               {settings.geo_queries.map((q) => (
                 <div key={q} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2">
                   <span className="text-sm text-slate-700">&ldquo;{q}&rdquo;</span>
@@ -969,7 +980,7 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── AI Platforms ── */}
-          <Section icon={Bot} title="AI Platforms" desc="Which AI platforms should the GEO agent monitor?">
+          <Section icon={Bot} title="AI-plattformar" desc="Vilka AI-tjänster ska bevakningsagenten köra mot?">
             <div className="flex flex-wrap gap-3">
               {AVAILABLE_PLATFORMS.map((p) => {
                 const active = settings.geo_platforms.includes(p);
@@ -992,36 +1003,50 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Google Integrations ── */}
-          <Section icon={Globe} title="Google Integrations" desc="Connect your Google services via OAuth for automatic data sync">
+          <Section icon={Globe} title="Google-integrationer" desc="Anslut Google-tjänster via OAuth för automatisk datasynk">
             <div className="space-y-4">
               {GOOGLE_SERVICES.map(({ key, label, icon: ServiceIcon, description }) => {
                 const connected = googleStatus[key];
                 const isLoading = googleLoading === key;
+                const accountEmail = googleEmails[key];
                 return (
                   <div key={key} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={`rounded-lg p-2 ${connected ? "bg-emerald-50" : "bg-slate-100"}`}>
                           <ServiceIcon className={`h-5 w-5 ${connected ? "text-emerald-500" : "text-slate-400"}`} />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h4 className="text-sm font-medium text-slate-900">{label}</h4>
                           <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+                          {connected && accountEmail && (
+                            <p className="text-[11px] text-slate-500 mt-1 truncate">
+                              Ansluten som <span className="font-mono text-slate-700">{accountEmail}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                         {connected ? (
                           <>
                             <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                              <CheckCircle className="h-3.5 w-3.5" /> Connected
+                              <CheckCircle className="h-3.5 w-3.5" /> Ansluten
                             </span>
+                            <button
+                              onClick={() => connectGoogle(key)}
+                              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                              title="Koppla till ett annat Google-konto"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Byt konto
+                            </button>
                             <button
                               onClick={() => disconnectGoogle(key)}
                               disabled={isLoading}
                               className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
                             >
                               {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
-                              Disconnect
+                              Koppla från
                             </button>
                           </>
                         ) : (
@@ -1030,7 +1055,7 @@ function CustomerSettingsPageInner() {
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            Connect
+                            Anslut
                           </button>
                         )}
                       </div>
@@ -1045,18 +1070,18 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Publishing / GitHub ── */}
-          <Section icon={Code2} title="Publishing" desc="Connect GitHub to publish blog posts as Pull Requests">
+          <Section icon={Code2} title="Publicering" desc="Anslut GitHub för att publicera blogginlägg som Pull Requests">
             {/* Info box */}
             <div className="rounded-lg bg-blue-50 border border-blue-100 p-4 mb-6">
               <div className="flex items-start gap-2">
                 <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-blue-800 space-y-1">
-                  <p className="font-medium text-sm text-blue-900 mb-1">How publishing works:</p>
+                  <p className="font-medium text-sm text-blue-900 mb-1">Så fungerar publicering:</p>
                   <ol className="list-decimal list-inside space-y-0.5">
-                    <li>SAMA generates blog posts as drafts</li>
-                    <li>You review and approve in the Content tab</li>
-                    <li>Click &quot;Publish&quot; &rarr; SAMA creates a Pull Request in your GitHub repo</li>
-                    <li>Review the PR and merge &rarr; the blog post is live!</li>
+                    <li>SAMA skapar blogginlägg som utkast</li>
+                    <li>Du granskar och godkänner i Content-fliken</li>
+                    <li>Klicka &quot;Publicera&quot; &rarr; SAMA skapar en Pull Request i ert GitHub-repo</li>
+                    <li>Granska PR:en och merga &rarr; inlägget är publicerat!</li>
                   </ol>
                 </div>
               </div>
@@ -1070,15 +1095,15 @@ function CustomerSettingsPageInner() {
                     <Code2 className={`h-5 w-5 ${ghStatus.connected ? "text-emerald-500" : "text-slate-400"}`} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-slate-900">GitHub Connection</h4>
+                    <h4 className="text-sm font-medium text-slate-900">GitHub-anslutning</h4>
                     <p className={`text-xs mt-0.5 ${ghStatus.connected ? "text-emerald-600" : "text-slate-400"}`}>
-                      {ghLoading ? "Loading..." : ghStatus.connected ? `Connected to ${ghStatus.repo}` : "Not connected"}
+                      {ghLoading ? "Hämtar…" : ghStatus.connected ? `Ansluten till ${ghStatus.repo}` : "Inte ansluten"}
                     </p>
                   </div>
                 </div>
                 {ghStatus.connected && (
                   <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                    <CheckCircle className="h-3.5 w-3.5" /> Connected
+                    <CheckCircle className="h-3.5 w-3.5" /> Ansluten
                   </span>
                 )}
               </div>
@@ -1104,7 +1129,7 @@ function CustomerSettingsPageInner() {
                         <p className="font-medium text-slate-900">{ghStatus.branch}</p>
                       </div>
                       <div>
-                        <span className="text-slate-500 text-xs">Blog Path</span>
+                        <span className="text-slate-500 text-xs">Blogg-sökväg</span>
                         <p className="font-medium text-slate-900 font-mono text-xs">{ghStatus.blog_path}</p>
                       </div>
                     </div>
@@ -1115,7 +1140,7 @@ function CustomerSettingsPageInner() {
                         className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
                       >
                         {ghConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
-                        Disconnect
+                        Koppla från
                       </button>
                     </div>
                   </div>
@@ -1142,7 +1167,7 @@ function CustomerSettingsPageInner() {
                           className="hidden"
                         />
                         <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Personal Access Token</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Personal Access Token (PAT)</label>
                           <div className="relative">
                             <input
                               type={ghShowToken ? "text" : "password"}
@@ -1173,7 +1198,7 @@ function CustomerSettingsPageInner() {
                             className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-600 hover:text-blue-700"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            Create a token at github.com/settings/tokens (needs repo scope)
+                            Skapa en token på github.com/settings/tokens (behöver repo-scope)
                           </a>
                         </div>
                         <button
@@ -1182,16 +1207,16 @@ function CustomerSettingsPageInner() {
                           className="mt-4 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
                         >
                           {ghConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Code2 className="h-4 w-4" />}
-                          Connect
+                          Anslut
                         </button>
                       </form>
                     ) : (
                       <>
                         <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Select repository</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Välj repo</label>
                           {ghReposLoading ? (
                             <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-                              <Loader2 className="h-3 w-3 animate-spin" /> Fetching repos...
+                              <Loader2 className="h-3 w-3 animate-spin" /> Hämtar repos…
                             </div>
                           ) : (
                             <select
@@ -1203,10 +1228,10 @@ function CustomerSettingsPageInner() {
                               }}
                               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
-                              <option value="">-- Select repo --</option>
+                              <option value="">-- Välj repo --</option>
                               {ghRepos.map((r) => (
                                 <option key={r.full_name} value={r.full_name}>
-                                  {r.full_name} {r.private ? "(private)" : ""}
+                                  {r.full_name} {r.private ? "(privat)" : ""}
                                 </option>
                               ))}
                             </select>
@@ -1214,7 +1239,7 @@ function CustomerSettingsPageInner() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Blog Path</label>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Blogg-sökväg</label>
                             <input
                               type="text"
                               value={ghBlogPath}
@@ -1240,7 +1265,7 @@ function CustomerSettingsPageInner() {
                           className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
                         >
                           {ghConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          Save
+                          Spara
                         </button>
                       </>
                     )}
@@ -1256,8 +1281,8 @@ function CustomerSettingsPageInner() {
                   <Link className="h-5 w-5 text-slate-400" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-slate-900">Blog URL</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">URL to your published blog</p>
+                  <h4 className="text-sm font-medium text-slate-900">Blogg-URL</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">URL till er publicerade blogg</p>
                 </div>
               </div>
               <div className="border-t border-slate-100 px-4 py-4">
@@ -1266,7 +1291,7 @@ function CustomerSettingsPageInner() {
                     type="url"
                     value={blogUrl}
                     onChange={(e) => setBlogUrl(e.target.value)}
-                    placeholder="https://mybrand.com/blog"
+                    placeholder="https://exempel.se/blogg"
                     className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <button
@@ -1274,7 +1299,7 @@ function CustomerSettingsPageInner() {
                     className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
                   >
                     <Save className="h-3.5 w-3.5" />
-                    Save
+                    Spara
                   </button>
                 </div>
               </div>
@@ -1285,16 +1310,16 @@ function CustomerSettingsPageInner() {
           <section id="destinations" className="rounded-xl border bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-1">
               <Globe className="h-5 w-5 text-slate-400" />
-              <h2 className="text-lg font-semibold text-slate-900">CMS Destinations</h2>
+              <h2 className="text-lg font-semibold text-slate-900">CMS-destinationer</h2>
             </div>
             <p className="text-sm text-slate-500 mb-5 ml-8">
-              Push generated articles to WordPress, Webflow, Ghost, Notion or a custom webhook — with full HTML, JSON-LD schema and metadata.
+              Publicera genererade artiklar till WordPress, Webflow, Ghost, Notion eller en webhook — med HTML, JSON-LD-schema och metadata.
             </p>
             <PublishingDestinations />
           </section>
 
           {/* ── Ad Platforms ── */}
-          <Section icon={Megaphone} title="Ad Platforms" desc="Connect your ad accounts for automatic sync and analysis">
+          <Section icon={Megaphone} title="Annonsplattformar" desc="Anslut annonskonton för automatisk synk och analys">
             <div className="space-y-4">
               {([
                 {
@@ -1303,10 +1328,10 @@ function CustomerSettingsPageInner() {
                   tokenField: "meta_ads_token" as const,
                   accountField: "meta_ads_account_id" as const,
                   instructions: [
-                    "Go to developers.facebook.com and create an app",
-                    "Generate a User Access Token with ads_read permission",
-                    "Copy your Ad Account ID from Ads Manager",
-                    "Paste both values below",
+                    "Gå till developers.facebook.com och skapa en app",
+                    "Generera en User Access Token med ads_read-behörighet",
+                    "Kopiera ditt Ad Account ID från Ads Manager",
+                    "Klistra in båda värdena nedan",
                   ],
                 },
                 {
@@ -1315,10 +1340,10 @@ function CustomerSettingsPageInner() {
                   tokenField: "linkedin_ads_token" as const,
                   accountField: "linkedin_ads_account_id" as const,
                   instructions: [
-                    "Go to linkedin.com/developers and create an app",
-                    "Request Marketing Developer Platform access",
-                    "Generate an OAuth 2.0 access token",
-                    "Get your Sponsored Account ID from Campaign Manager",
+                    "Gå till linkedin.com/developers och skapa en app",
+                    "Begär åtkomst till Marketing Developer Platform",
+                    "Generera en OAuth 2.0-access token",
+                    "Hämta ditt Sponsored Account ID från Campaign Manager",
                   ],
                 },
                 {
@@ -1327,10 +1352,10 @@ function CustomerSettingsPageInner() {
                   tokenField: "google_ads_token" as const,
                   accountField: "google_ads_account_id" as const,
                   instructions: [
-                    "Go to console.cloud.google.com and enable Google Ads API",
-                    "Create OAuth2 credentials and generate a refresh token",
-                    "Get your Customer ID from Google Ads (xxx-xxx-xxxx)",
-                    "Paste both values below",
+                    "Gå till console.cloud.google.com och aktivera Google Ads API",
+                    "Skapa OAuth2-uppgifter och generera en refresh token",
+                    "Hämta ditt Customer ID från Google Ads (xxx-xxx-xxxx)",
+                    "Klistra in båda värdena nedan",
                   ],
                 },
               ]).map(({ key, label, tokenField, accountField, instructions }) => {
@@ -1346,7 +1371,7 @@ function CustomerSettingsPageInner() {
                         <div>
                           <h4 className="text-sm font-medium text-slate-900">{label}</h4>
                           <p className={`text-xs ${isConnected ? "text-emerald-600" : "text-slate-400"}`}>
-                            {isConnected ? "Connected" : "Not connected"}
+                            {isConnected ? "Ansluten" : "Inte ansluten"}
                             {isConnected && <CheckCircle className="h-3 w-3 inline ml-1" />}
                           </p>
                         </div>
@@ -1364,13 +1389,13 @@ function CustomerSettingsPageInner() {
                           <>
                             <div className="space-y-2">
                               <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-500">Access Token</span>
+                                <span className="text-slate-500">Access token</span>
                                 <span className="font-mono text-xs text-slate-400">
-                                  {"*".repeat(8)}...{settings[tokenField].slice(-4)}
+                                  {"*".repeat(8)}…{settings[tokenField].slice(-4)}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-500">Account ID</span>
+                                <span className="text-slate-500">Konto-ID</span>
                                 <span className="font-mono text-xs text-slate-400">{settings[accountField]}</span>
                               </div>
                             </div>
@@ -1384,14 +1409,14 @@ function CustomerSettingsPageInner() {
                               }}
                               className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
                             >
-                              <Unplug className="h-3.5 w-3.5" /> Disconnect
+                              <Unplug className="h-3.5 w-3.5" /> Koppla från
                             </button>
                           </>
                         ) : (
                           <>
                             {/* Setup instructions */}
                             <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
-                              <p className="text-xs font-medium text-blue-800 mb-2">How to connect:</p>
+                              <p className="text-xs font-medium text-blue-800 mb-2">Så ansluter du:</p>
                               <ol className="space-y-1 list-decimal list-inside text-xs text-blue-700">
                                 {instructions.map((step, i) => (
                                   <li key={i}>{step}</li>
@@ -1400,22 +1425,22 @@ function CustomerSettingsPageInner() {
                             </div>
                             <div className="space-y-3">
                               <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Access Token</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Access token</label>
                                 <input
                                   type="password"
                                   value={settings[tokenField]}
                                   onChange={(e) => updateField(tokenField, e.target.value)}
-                                  placeholder="Paste your access token..."
+                                  placeholder="Klistra in access token…"
                                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Account ID</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Konto-ID</label>
                                 <input
                                   type="text"
                                   value={settings[accountField]}
                                   onChange={(e) => updateField(accountField, e.target.value)}
-                                  placeholder="Your account ID..."
+                                  placeholder="Ditt konto-ID…"
                                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                                 />
                               </div>

@@ -89,7 +89,7 @@ export default function AgentCard({
           href={agent.href}
           className={`flex flex-1 items-center justify-center gap-2 rounded-lg ${agent.solidBg} px-3 py-2 text-sm font-medium text-white ${agent.solidHover} transition-colors`}
         >
-          <Icon className="h-4 w-4" /> Open
+          <Icon className="h-4 w-4" /> Öppna
         </Link>
       </div>
     </div>

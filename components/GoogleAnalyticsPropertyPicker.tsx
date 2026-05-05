@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import {
   CheckCircle, AlertCircle, Loader2, RefreshCw, Info, ChevronDown,
 } from "lucide-react";
-import { tenantApi, ApiError } from "@/lib/api";
+import { api, tenantApi, ApiError } from "@/lib/api";
 
 interface GA4Property {
   id: string;
@@ -16,9 +16,37 @@ interface GA4Property {
   currency_code?: string;
 }
 
+// Wire shape from sama-agent /api/integrations/google/analytics/properties.
+// Older versions of the picker assumed { id, account_name } but the backend
+// actually returns { property_id, parent_account } — keep both names to stay
+// forward/backward compatible.
+interface GA4PropertyWire {
+  id?: string;
+  property_id?: string;
+  property_resource?: string;
+  display_name?: string;
+  account_id?: string;
+  account_name?: string;
+  parent_account?: string;
+  time_zone?: string;
+  currency_code?: string;
+}
+
 interface PropertiesResponse {
-  properties?: GA4Property[];
+  properties?: GA4PropertyWire[];
   selected_property_id?: string | null;
+  connected_account_email?: string | null;
+}
+
+function normaliseProperty(p: GA4PropertyWire): GA4Property {
+  return {
+    id: p.id || p.property_id || (p.property_resource?.split("/").pop() ?? ""),
+    display_name: p.display_name || "Unnamed property",
+    account_id: p.account_id,
+    account_name: p.account_name || p.parent_account,
+    time_zone: p.time_zone,
+    currency_code: p.currency_code,
+  };
 }
 
 interface Props {
@@ -29,6 +57,7 @@ interface Props {
 export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Props) {
   const [properties, setProperties] = useState<GA4Property[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +75,12 @@ export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Pr
           `/api/integrations/google/analytics/properties`,
         );
         if (cancelled) return;
-        setProperties(data.properties || []);
+        const normalised = (data.properties || [])
+          .map(normaliseProperty)
+          .filter((p) => p.id);
+        setProperties(normalised);
         setSelectedId(data.selected_property_id ?? null);
+        setConnectedEmail(data.connected_account_email ?? null);
         setUnsupported(false);
         setError(null);
       } catch (e) {
@@ -65,6 +98,12 @@ export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Pr
     load();
     return () => { cancelled = true; };
   }, [tenantId, reloadCount]);
+
+  const switchAccount = () => {
+    if (typeof window === "undefined") return;
+    const returnUrl = `${window.location.origin}/c/settings`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=analytics&tenant_id=${tenantId}&return_url=${encodeURIComponent(returnUrl)}`;
+  };
 
   const refresh = () => setReloadCount((n) => n + 1);
 
@@ -153,6 +192,22 @@ export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Pr
             </button>
           </div>
 
+          {connectedEmail && (
+            <div className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+              <span className="min-w-0 truncate">
+                Connected as <span className="font-mono text-slate-800">{connectedEmail}</span>
+              </span>
+              <button
+                onClick={switchAccount}
+                className="flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50 flex-shrink-0"
+                title="Sign in with a different Google account"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Switch account
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-start gap-1.5 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
               <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
@@ -166,13 +221,28 @@ export default function GoogleAnalyticsPropertyPicker({ tenantId, onChange }: Pr
               Loading properties from Google…
             </div>
           ) : properties.length === 0 ? (
-            <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
-              <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
-              <span>
-                The connected Google account has no GA4 properties it can read.
-                Sign in to <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="underline">analytics.google.com</a>{" "}
-                and verify the account has a GA4 property (Universal Analytics is not supported).
-              </span>
+            <div className="rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800 space-y-1.5">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                <span>
+                  {connectedEmail ? (
+                    <>The Google account <span className="font-mono">{connectedEmail}</span> has no GA4 properties it can read.</>
+                  ) : (
+                    <>The connected Google account has no GA4 properties it can read.</>
+                  )}{" "}
+                  Either sign in with a different Google account, or sign in to{" "}
+                  <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="underline">analytics.google.com</a>{" "}
+                  with this account and grant it at least Viewer access on the property
+                  (Universal Analytics is not supported).
+                </span>
+              </div>
+              <button
+                onClick={switchAccount}
+                className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Byt Google-konto
+              </button>
             </div>
           ) : (
             <div className="rounded border border-slate-200 bg-white overflow-hidden">

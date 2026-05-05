@@ -12,7 +12,7 @@ import {
 import { tenantApi } from "@/lib/api";
 import { useUser } from "@/lib/hooks/useUser";
 
-export type AgentKey = "ai_visibility" | "seo" | "analytics" | "ads" | "content" | "social";
+export type AgentKey = "ai_visibility" | "seo" | "analytics" | "ads" | "content" | "social" | "strategy";
 
 export interface ActiveRun {
   id: string;
@@ -45,6 +45,7 @@ const AGENT_NAME_ALIASES: Record<AgentKey, string[]> = {
   ads: ["ads", "google_ads", "ad_performance"],
   content: ["content", "content_generation", "article"],
   social: ["social", "social_post"],
+  strategy: ["strategy", "marketing_strategy", "strategi"],
 };
 
 function matchesAgent(backendName: string, agent: AgentKey): boolean {
@@ -59,11 +60,16 @@ export const AGENT_DEFAULTS: Record<AgentKey, { label: string; expected_seconds:
   ads: { label: "Google Ads", expected_seconds: 45 },
   content: { label: "Content generation", expected_seconds: 90 },
   social: { label: "Social", expected_seconds: 45 },
+  strategy: { label: "Strategi-syntes", expected_seconds: 90 },
 };
 
 interface ActiveRunsContextValue {
   runs: ActiveRun[];
-  triggerRun: (agent: AgentKey, endpoint: string, options?: { label?: string }) => Promise<void>;
+  triggerRun: (
+    agent: AgentKey,
+    endpoint: string,
+    options?: { label?: string; body?: unknown },
+  ) => Promise<string | undefined>;
   dismissRun: (id: string) => void;
   clearCompleted: () => void;
 }
@@ -136,7 +142,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
 
   const triggerRun = useCallback<ActiveRunsContextValue["triggerRun"]>(
     async (agent, endpoint, options) => {
-      if (!user) return;
+      if (!user) return undefined;
       const id = `${agent}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const defaults = AGENT_DEFAULTS[agent];
       const newRun: ActiveRun = {
@@ -152,7 +158,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
         const client = tenantApi(user.id);
         const resp = await client.post<Record<string, unknown>>(
           endpoint,
-          undefined,
+          options?.body,
           { headers: { "X-Sama-Intent": "user-action" } },
         );
         // Backend may return run_id in several shapes — normalise here
@@ -166,12 +172,14 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
           status: "running",
           run_id: runId || undefined,
         });
+        return id;
       } catch (e) {
         updateRun(id, {
           status: "failed",
           error: e instanceof Error ? e.message : "Could not trigger agent",
           completed_at: Date.now(),
         });
+        return id;
       }
     },
     [user, updateRun],

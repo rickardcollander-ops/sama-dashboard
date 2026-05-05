@@ -46,7 +46,7 @@ export default function ApprovalsPage() {
       const data = (await res.json()) as { approvals: Approval[] };
       setApprovals(data.approvals || []);
     } catch {
-      setError("Could not load approvals.");
+      setError("Kunde inte hämta utkast.");
       setApprovals([]);
     }
   };
@@ -71,7 +71,7 @@ export default function ApprovalsPage() {
       if (!res.ok) throw new Error("decide failed");
       await load();
     } catch {
-      setError(`Could not ${action} this draft.`);
+      setError(action === "approve" ? "Kunde inte godkänna utkastet." : "Kunde inte avvisa utkastet.");
     }
     setWorking(null);
   };
@@ -88,7 +88,7 @@ export default function ApprovalsPage() {
       setEditing(null);
       await load();
     } catch {
-      setError("Could not save edit.");
+      setError("Kunde inte spara ändringen.");
     }
     setWorking(null);
   };
@@ -111,26 +111,29 @@ export default function ApprovalsPage() {
         <div className="mb-6">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
             <ShieldCheck className="h-6 w-6 text-emerald-600" />
-            Approvals
+            Att godkänna
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Drafts your agents have prepared for human review before publishing.
+            Utkast som dina agenter har förberett — granska innan publicering.
           </p>
         </div>
 
         <div className="mb-4 flex gap-1 border-b border-slate-200">
-          {(["pending", "approved", "rejected"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`relative px-4 py-2 text-sm font-medium capitalize transition-colors ${
-                tab === t ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              {t}
-              {tab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-emerald-600 rounded-t-sm" />}
-            </button>
-          ))}
+          {(["pending", "approved", "rejected"] as const).map((t) => {
+            const label = t === "pending" ? "Väntar" : t === "approved" ? "Godkända" : "Avvisade";
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+                  tab === t ? "text-emerald-700" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {label}
+                {tab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-emerald-600 rounded-t-sm" />}
+              </button>
+            );
+          })}
         </div>
 
         {error && (
@@ -148,8 +151,10 @@ export default function ApprovalsPage() {
             <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-slate-300" />
             <p className="text-sm">
               {tab === "pending"
-                ? "No drafts awaiting review."
-                : `No ${tab} drafts.`}
+                ? "Inga utkast väntar på granskning."
+                : tab === "approved"
+                  ? "Inga godkända utkast."
+                  : "Inga avvisade utkast."}
             </p>
           </div>
         ) : (
@@ -194,7 +199,7 @@ export default function ApprovalsPage() {
                         </>
                       )}
                       {a.reviewer_note && (
-                        <p className="mt-2 text-xs italic text-slate-500">Note: {a.reviewer_note}</p>
+                        <p className="mt-2 text-xs italic text-slate-500">Notering: {a.reviewer_note}</p>
                       )}
                     </div>
                   </div>
@@ -209,7 +214,7 @@ export default function ApprovalsPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
                             {working === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                            Approve & publish
+                            Godkänn & publicera
                           </button>
                           <button
                             onClick={() => decide(a.id, "reject")}
@@ -217,7 +222,7 @@ export default function ApprovalsPage() {
                             className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                           >
                             <XCircle className="h-3.5 w-3.5" />
-                            Reject
+                            Avvisa
                           </button>
                           <button
                             onClick={() => {
@@ -226,7 +231,7 @@ export default function ApprovalsPage() {
                             }}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            Edit
+                            Redigera
                           </button>
                         </>
                       ) : (
@@ -236,13 +241,13 @@ export default function ApprovalsPage() {
                             disabled={working === a.id}
                             className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
                           >
-                            Save
+                            Spara
                           </button>
                           <button
                             onClick={() => setEditing(null)}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            Cancel
+                            Avbryt
                           </button>
                         </>
                       )}
