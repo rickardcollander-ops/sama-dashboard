@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -39,6 +40,8 @@ interface AICheck {
   mentioned: boolean;
   rank: number | null;
   competitors_mentioned: string[];
+  ai_response_excerpt?: string | null;
+  full_response?: string | null;
   checked_at: string;
 }
 
@@ -48,6 +51,7 @@ export default function CustomerGeoPage() {
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
+  const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { period, setPeriod, days } = usePeriod();
@@ -278,26 +282,55 @@ export default function CustomerGeoPage() {
                     <th className="text-left px-4 py-3 font-medium text-slate-600">Nämnd</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-600">Position</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-600">Konkurrenter</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {checks.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
-                      <td className="px-4 py-3">
-                        {c.mentioned ? (
-                          <CheckCircle className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-red-400" />
+                  {checks.map((c) => {
+                    const expanded = expandedCheckId === c.id;
+                    const responseText = c.full_response || c.ai_response_excerpt || "";
+                    return (
+                      <Fragment key={c.id}>
+                        <tr
+                          className="hover:bg-slate-50 cursor-pointer"
+                          onClick={() => setExpandedCheckId(expanded ? null : c.id)}
+                        >
+                          <td className="px-4 py-3 text-slate-700 max-w-xs truncate">{c.prompt}</td>
+                          <td className="px-4 py-3 text-slate-600 capitalize">{c.ai_engine}</td>
+                          <td className="px-4 py-3">
+                            {c.mentioned ? (
+                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-red-400" />
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">
+                            {c.competitors_mentioned?.join(", ") || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {expanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="bg-slate-50/50">
+                            <td colSpan={6} className="px-4 py-4">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Svar från {c.ai_engine}
+                              </p>
+                              <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700 max-h-96 overflow-y-auto">
+                                {responseText || "(inget svar sparades)"}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{c.rank ?? "—"}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {c.competitors_mentioned?.join(", ") || "—"}
-                      </td>
-                    </tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
