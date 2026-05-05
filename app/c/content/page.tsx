@@ -5,8 +5,9 @@ import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Archive,
+  ArrowRight, Archive, ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import PublishDialog from "@/components/PublishDialog";
@@ -51,6 +52,7 @@ export default function CustomerContentPage() {
   const [publishError, setPublishError] = useState<{ id: string; message: string } | null>(null);
   const [cmsDialog, setCmsDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
   useEffect(() => {
     if (user) fetchContent();
@@ -58,6 +60,23 @@ export default function CustomerContentPage() {
 
   useEffect(() => {
     if (user) checkGitHubStatus();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/approvals?status=pending", {
+          headers: { "X-Tenant-ID": user.id },
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { approvals?: unknown[] };
+          setPendingApprovalsCount(data.approvals?.length ?? 0);
+        }
+      } catch {
+        /* silent — banner just won't show */
+      }
+    })();
   }, [user]);
 
   const checkGitHubStatus = async () => {
@@ -343,6 +362,32 @@ export default function CustomerContentPage() {
           </div>
         )}
 
+        {/* Pending approvals banner (C4) */}
+        {pendingApprovalsCount > 0 && (
+          <Link
+            href="/c/approvals"
+            className="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm transition-colors hover:bg-emerald-100"
+          >
+            <span className="rounded-lg bg-emerald-500 p-1.5">
+              <ShieldCheck className="h-4 w-4 text-white" />
+            </span>
+            <div className="flex-1">
+              <p className="font-semibold text-emerald-900">
+                {pendingApprovalsCount === 1
+                  ? "1 utkast väntar på din granskning"
+                  : `${pendingApprovalsCount} utkast väntar på din granskning`}
+              </p>
+              <p className="text-xs text-emerald-700">
+                Tills du godkänner ligger publiceringen still.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700">
+              Granska
+              <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          </Link>
+        )}
+
         {/* AI Suggestions */}
         {user && (
           <SuggestionsPanel<ContentTopicSuggestion>
@@ -359,10 +404,17 @@ export default function CustomerContentPage() {
             renderItem={(item) => (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-purple-700 uppercase">{item.type}</span>
+                  <span className="text-xs font-medium text-purple-700 uppercase">
+                    {formatTypeLabel(item.type)}
+                  </span>
                 </div>
                 <p className="font-semibold text-slate-900 text-sm">{item.topic}</p>
-                <p className="text-xs text-slate-600 mt-1">{item.reason}</p>
+                {item.reason && (
+                  <p className="text-xs text-slate-600 mt-1">
+                    <span className="font-medium text-slate-700">Varför: </span>
+                    {item.reason}
+                  </p>
+                )}
               </div>
             )}
             importItem={async (item) => {
@@ -429,7 +481,7 @@ export default function CustomerContentPage() {
                     <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
-                        {piece.type || "blog_post"}
+                        {formatTypeLabel(piece.type)}
                       </span>
                       {piece.word_count > 0 && (
                         <span className="flex items-center gap-1">
@@ -662,6 +714,30 @@ export default function CustomerContentPage() {
       </main>
     </div>
   );
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  linkedin_post: "LinkedIn-inlägg",
+  linkedin: "LinkedIn-inlägg",
+  blog_post: "Blogginlägg",
+  blog: "Blogginlägg",
+  blogg: "Blogginlägg",
+  email: "E-post",
+  epost: "E-post",
+  faq: "FAQ-sida",
+  faq_page: "FAQ-sida",
+  landing_page: "Landningssida",
+  landing: "Landningssida",
+  comparison: "Jämförelseartikel",
+  product_page: "Produktsida",
+  guide: "Guide",
+  case_study: "Kundcase",
+};
+
+function formatTypeLabel(type: string | undefined): string {
+  if (!type) return "Förslag";
+  const normalized = type.toLowerCase();
+  return TYPE_LABELS[normalized] || type;
 }
 
 function StatusBadge({ status }: { status: string }) {
