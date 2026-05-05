@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
-  FileText, Compass, Sparkles,
+  FileText, Compass, Sparkles, Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
+import { isAdminEmail } from "@/lib/admin";
 import NotificationBell from "@/components/NotificationBell";
 
-// Sprint 1a IA — 5 top-level tabs.
+// Sprint 1a IA — 5 top-level tabs (+ Admin for the operator account).
 //
 // Hidden but still routable so existing bookmarks / external links work:
 //   /c/social, /c/ads, /c/tech, /c/approvals
@@ -35,7 +36,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-type SectionId = "home" | "strategy" | "insights" | "content" | "settings";
+type SectionId = "home" | "strategy" | "insights" | "content" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -75,6 +76,14 @@ const TOP_NAV: NavItem[] = [
   },
 ];
 
+const ADMIN_NAV: NavItem = {
+  id: "admin",
+  href: "/c/admin",
+  label: "Admin",
+  icon: Shield,
+  matchPrefixes: ["/c/admin"],
+};
+
 const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   home: [],
   strategy: [],
@@ -93,10 +102,11 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
     { href: "/c/settings/integrations", label: "Integrationer" },
     { href: "/c/settings/billing", label: "Plan & fakturering" },
   ],
+  admin: [],
 };
 
-function activeSection(pathname: string): SectionId | null {
-  for (const item of TOP_NAV) {
+function activeSection(pathname: string, items: NavItem[]): SectionId | null {
+  for (const item of items) {
     if (item.matchPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
       return item.id;
     }
@@ -114,7 +124,10 @@ export default function CustomerNav() {
   const { user, signOut } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const section = activeSection(pathname);
+  const showAdmin = isAdminEmail(user?.email);
+  const navItems = showAdmin ? [...TOP_NAV, ADMIN_NAV] : TOP_NAV;
+
+  const section = activeSection(pathname, navItems);
   const subItems = section ? SUB_NAV[section] : [];
 
   return (
@@ -136,7 +149,7 @@ export default function CustomerNav() {
 
           {/* Desktop nav */}
           <nav className="hidden sm:flex items-center gap-1 ml-6">
-            {TOP_NAV.map((item) => {
+            {navItems.map((item) => {
               const isActive = section === item.id;
               return (
                 <Link
@@ -205,7 +218,7 @@ export default function CustomerNav() {
         <>
           <div className="fixed inset-0 z-30 bg-black/30 sm:hidden" onClick={() => setMobileOpen(false)} />
           <nav className="fixed top-14 left-0 right-0 z-30 bg-white border-b shadow-lg sm:hidden p-2 overflow-y-auto max-h-[calc(100vh-3.5rem)]">
-            {TOP_NAV.map((item) => {
+            {navItems.map((item) => {
               const isActive = section === item.id;
               const itemSubs = SUB_NAV[item.id];
               return (
