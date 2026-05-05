@@ -333,7 +333,7 @@ export default function AdminPage() {
                 </tr>
               )}
               {filtered.map((acc) => {
-                const isSelf = acc.email && isAdminEmail(acc.email);
+                const isSelf = isAdminEmail(acc.email);
                 const busy = pendingId === acc.id;
                 return (
                   <tr key={acc.id} className="hover:bg-slate-50/60">
