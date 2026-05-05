@@ -29,6 +29,8 @@ interface Summary {
   history?: { date: string; mention_rate: number }[];
 }
 
+const MAX_GEO_QUERIES = 5;
+
 interface AICheck {
   id: string;
   prompt: string;
@@ -394,7 +396,9 @@ export default function CustomerGeoPage() {
                 : undefined
             }
             title="Find new GEO queries to track"
-            description="AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add."
+            description={`AI suggests new natural-language prompts to monitor across ChatGPT, Claude, Perplexity and Gemini. Pick the ones to add (max ${MAX_GEO_QUERIES} tracked at a time).`}
+            geoTrackedCount={trackedQueries.length}
+            geoMax={MAX_GEO_QUERIES}
             onAdded={() => loadData()}
           />
         </div>
@@ -407,10 +411,17 @@ export default function CustomerGeoPage() {
                 <h2 className="text-lg font-semibold text-slate-900">Tracked GEO Queries</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Prompts the AI Visibility agent runs against ChatGPT, Claude, Perplexity and Gemini.
+                  Capped at {MAX_GEO_QUERIES} so each check finishes quickly.
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                {trackedQueries.length}
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  trackedQueries.length >= MAX_GEO_QUERIES
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {trackedQueries.length} / {MAX_GEO_QUERIES}
               </span>
             </div>
             {trackedQueries.length === 0 ? (

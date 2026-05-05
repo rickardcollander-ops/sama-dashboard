@@ -28,6 +28,24 @@ interface AnalysisRunSummary {
 }
 
 /**
+ * Persist a completed analysis run to the user's saved history. Best-effort:
+ * failures are swallowed so the UI flow is unaffected if the save endpoint
+ * is unavailable.
+ */
+async function persistAnalysisRun(run: AnalysisRun): Promise<void> {
+  if (!run || run.status !== "completed") return;
+  try {
+    await fetch("/api/analysis/runs/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(run),
+    });
+  } catch {
+    // best-effort persistence
+  }
+}
+
+/**
  * Poll /api/analysis/runs/{id} until status leaves "running". Returns the
  * final run record (with full payload if completed). Times out at 15min.
  */
@@ -197,13 +215,16 @@ export default function AnalysisPage() {
       // Mock backend returns a complete AnalysisRun synchronously (detected
       // by presence of query_results).
       if (data && Array.isArray((data as AnalysisRun).query_results)) {
-        setRun(data as AnalysisRun);
+        const completed = data as AnalysisRun;
+        setRun(completed);
         setStage("results");
+        void persistAnalysisRun(completed);
       } else if ((data as { id?: string }).id) {
         const finalRun = await pollAnalysisRun(user?.id || "", (data as { id: string }).id);
         if (finalRun?.status === "completed" && Array.isArray(finalRun.query_results)) {
           setRun(finalRun);
           setStage("results");
+          void persistAnalysisRun(finalRun);
         } else {
           throw new Error(finalRun?.error || "Analysis did not complete");
         }
