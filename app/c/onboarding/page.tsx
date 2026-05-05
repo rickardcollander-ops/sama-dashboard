@@ -11,11 +11,11 @@ import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 
 const STEPS = [
-  { label: "Brand Info", icon: Building2 },
-  { label: "Competitors", icon: Globe },
-  { label: "GEO Queries", icon: Search },
-  { label: "Reviews", icon: Star },
-  { label: "Launch", icon: Rocket },
+  { label: "Varumärke", icon: Building2 },
+  { label: "Konkurrenter", icon: Globe },
+  { label: "Sökfrågor", icon: Search },
+  { label: "Recensioner", icon: Star },
+  { label: "Klart", icon: Rocket },
 ];
 
 interface OnboardingData {
@@ -32,15 +32,15 @@ interface OnboardingData {
 }
 
 const CONTENT_LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "sv", label: "Swedish" },
-  { code: "de", label: "German" },
-  { code: "fr", label: "French" },
-  { code: "es", label: "Spanish" },
-  { code: "no", label: "Norwegian" },
-  { code: "da", label: "Danish" },
-  { code: "fi", label: "Finnish" },
-  { code: "nl", label: "Dutch" },
+  { code: "en", label: "Engelska" },
+  { code: "sv", label: "Svenska" },
+  { code: "de", label: "Tyska" },
+  { code: "fr", label: "Franska" },
+  { code: "es", label: "Spanska" },
+  { code: "no", label: "Norska" },
+  { code: "da", label: "Danska" },
+  { code: "fi", label: "Finska" },
+  { code: "nl", label: "Nederländska" },
 ];
 
 const INITIAL: OnboardingData = {
@@ -112,13 +112,13 @@ export default function OnboardingPage() {
 
   const validationHint = () => {
     if (step === 0) {
-      if (!data.brand_name.trim()) return "Brand name is required";
+      if (!data.brand_name.trim()) return "Varumärkesnamn krävs";
       if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim()))
-        return "Enter a valid domain (e.g. acme.com)";
+        return "Ange en giltig domän (t.ex. exempel.se)";
       return null;
     }
     if (step === 1 && data.competitors.length < 1)
-      return "Add at least one competitor so SAMA can benchmark you";
+      return "Lägg till minst en konkurrent så SAMA kan jämföra";
     return null;
   };
 
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
       router.push("/c/dashboard");
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to save onboarding data";
+        err instanceof Error ? err.message : "Kunde inte spara dina uppgifter";
       console.error("Failed to save onboarding data:", err);
       setSaveError(message);
     } finally {
@@ -190,13 +190,13 @@ export default function OnboardingPage() {
           <button
             onClick={() => router.push("/c/dashboard")}
             className="absolute right-0 top-0 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
-            title="Skip"
+            title="Hoppa över"
           >
             <X className="h-5 w-5" />
           </button>
-          <h1 className="text-3xl font-bold">Set up SAMA</h1>
+          <h1 className="text-3xl font-bold">Konfigurera SAMA</h1>
           <p className="mt-2 text-zinc-400">
-            Let&apos;s configure your autonomous marketing agents
+            Sätt upp dina marknads-AI-agenter på några minuter
           </p>
         </div>
 
@@ -233,15 +233,15 @@ export default function OnboardingPage() {
           {step === 0 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold mb-1">Brand Information</h2>
-                <p className="text-sm text-zinc-400">Tell us about your brand so SAMA can represent you accurately.</p>
+                <h2 className="text-xl font-semibold mb-1">Varumärke</h2>
+                <p className="text-sm text-zinc-400">Berätta om er verksamhet så SAMA kan representera er på rätt sätt.</p>
               </div>
-              <Field label="Brand Name *" value={data.brand_name} onChange={(v) => update("brand_name", v)} placeholder="Acme Corp" />
-              <Field label="Domain *" value={data.domain} onChange={(v) => update("domain", v)} placeholder="acme.com" />
-              <FieldTextarea label="Brand Description" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="What does your company do?" />
-              <FieldTextarea label="Target Audience" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="B2B SaaS companies with 50-500 employees..." />
+              <Field label="Varumärkesnamn *" value={data.brand_name} onChange={(v) => update("brand_name", v)} placeholder="Acme AB" />
+              <Field label="Domän *" value={data.domain} onChange={(v) => update("domain", v)} placeholder="acme.se" />
+              <FieldTextarea label="Beskrivning" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="Vad gör ert företag?" />
+              <FieldTextarea label="Målgrupp" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag, restauranger..." />
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Content Language</label>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Språk för content</label>
                 <select
                   value={data.content_language}
                   onChange={(e) => update("content_language", e.target.value)}
@@ -251,7 +251,7 @@ export default function OnboardingPage() {
                     <option key={lang.code} value={lang.code}>{lang.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-zinc-500 mt-1">Language used when SAMA generates content for your brand.</p>
+                <p className="text-xs text-zinc-500 mt-1">Språket SAMA använder när content skapas för ert varumärke.</p>
               </div>
             </div>
           )}
@@ -259,8 +259,8 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold mb-1">Competitors</h2>
-                <p className="text-sm text-zinc-400">Add 3-5 competitors by domain. SAMA will track them across channels.</p>
+                <h2 className="text-xl font-semibold mb-1">Konkurrenter</h2>
+                <p className="text-sm text-zinc-400">Lägg till 3–5 konkurrenter via domän. SAMA jämför er mot dem.</p>
               </div>
               <div className="flex gap-2">
                 <input
@@ -268,7 +268,7 @@ export default function OnboardingPage() {
                   value={newCompetitor}
                   onChange={(e) => setNewCompetitor(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-                  placeholder="competitor.com"
+                  placeholder="konkurrent.se"
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button onClick={addCompetitor} className="rounded-lg bg-zinc-700 px-3 py-2 text-sm hover:bg-zinc-600 transition-colors">
@@ -277,7 +277,7 @@ export default function OnboardingPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.competitors.length === 0 && (
-                  <p className="text-sm text-zinc-500">No competitors added yet</p>
+                  <p className="text-sm text-zinc-500">Inga konkurrenter tillagda än</p>
                 )}
                 {data.competitors.map((c) => (
                   <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-sm text-blue-300 border border-blue-500/30">
@@ -292,8 +292,8 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold mb-1">GEO Queries</h2>
-                <p className="text-sm text-zinc-400">Add search phrases you want to monitor in AI assistants (e.g. ChatGPT, Claude, Perplexity).</p>
+                <h2 className="text-xl font-semibold mb-1">Sökfrågor till AI</h2>
+                <p className="text-sm text-zinc-400">Frågor ni vill bevaka i AI-assistenter (ChatGPT, Claude, Perplexity m.fl.).</p>
               </div>
               <div className="flex gap-2">
                 <input
@@ -301,7 +301,7 @@ export default function OnboardingPage() {
                   value={newGeoQuery}
                   onChange={(e) => setNewGeoQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addGeoQuery())}
-                  placeholder='e.g. "best CRM for startups"'
+                  placeholder='t.ex. "bästa frisören i Stockholm"'
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button onClick={addGeoQuery} className="rounded-lg bg-zinc-700 px-3 py-2 text-sm hover:bg-zinc-600 transition-colors">
@@ -310,7 +310,7 @@ export default function OnboardingPage() {
               </div>
               <div className="space-y-2">
                 {data.geo_queries.length === 0 && (
-                  <p className="text-sm text-zinc-500">No queries added yet. You can add them later in Settings.</p>
+                  <p className="text-sm text-zinc-500">Inga frågor tillagda än. Du kan lägga till dem senare i Inställningar.</p>
                 )}
                 {data.geo_queries.map((q) => (
                   <div key={q} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2">
@@ -325,12 +325,12 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold mb-1">Review Platforms</h2>
-                <p className="text-sm text-zinc-400">Add your review profile URLs so SAMA can monitor and respond to reviews. All optional.</p>
+                <h2 className="text-xl font-semibold mb-1">Recensioner</h2>
+                <p className="text-sm text-zinc-400">Länkar till era profilsidor på recensionssajter — SAMA bevakar och föreslår svar. Allt är valfritt.</p>
               </div>
-              <Field label="G2 Profile URL" value={data.review_g2_url} onChange={(v) => update("review_g2_url", v)} placeholder="https://www.g2.com/products/..." />
-              <Field label="Capterra Profile URL" value={data.review_capterra_url} onChange={(v) => update("review_capterra_url", v)} placeholder="https://www.capterra.com/p/..." />
-              <Field label="Trustpilot Profile URL" value={data.review_trustpilot_url} onChange={(v) => update("review_trustpilot_url", v)} placeholder="https://www.trustpilot.com/review/..." />
+              <Field label="G2-profil-URL" value={data.review_g2_url} onChange={(v) => update("review_g2_url", v)} placeholder="https://www.g2.com/products/..." />
+              <Field label="Capterra-profil-URL" value={data.review_capterra_url} onChange={(v) => update("review_capterra_url", v)} placeholder="https://www.capterra.com/p/..." />
+              <Field label="Trustpilot-profil-URL" value={data.review_trustpilot_url} onChange={(v) => update("review_trustpilot_url", v)} placeholder="https://www.trustpilot.com/review/..." />
             </div>
           )}
 
@@ -340,16 +340,16 @@ export default function OnboardingPage() {
                 <Rocket className="h-8 w-8 text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2">Ready to launch!</h2>
+                <h2 className="text-xl font-semibold mb-2">Klart att starta!</h2>
                 <p className="text-sm text-zinc-400 max-w-md mx-auto">
-                  SAMA will begin monitoring your brand across search engines, AI platforms, review sites, and social media.
+                  SAMA börjar nu bevaka ert varumärke i Google, AI-assistenter, recensionssajter och sociala medier.
                 </p>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-zinc-800/50 p-6 text-left max-w-sm mx-auto space-y-3">
-                <SummaryRow label="Brand" value={data.brand_name} />
-                <SummaryRow label="Domain" value={data.domain} />
-                <SummaryRow label="Competitors" value={data.competitors.length > 0 ? data.competitors.join(", ") : "None"} />
-                <SummaryRow label="GEO Queries" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} queries` : "None"} />
+                <SummaryRow label="Varumärke" value={data.brand_name} />
+                <SummaryRow label="Domän" value={data.domain} />
+                <SummaryRow label="Konkurrenter" value={data.competitors.length > 0 ? data.competitors.join(", ") : "Inga"} />
+                <SummaryRow label="Sökfrågor" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} st` : "Inga"} />
               </div>
             </div>
           )}
@@ -369,7 +369,7 @@ export default function OnboardingPage() {
             disabled={step === 0}
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> Tillbaka
           </button>
 
           {step < STEPS.length - 1 ? (
@@ -378,7 +378,7 @@ export default function OnboardingPage() {
               disabled={!canAdvance()}
               className="flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors"
             >
-              Next <ChevronRight className="h-4 w-4" />
+              Nästa <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
             <button
@@ -387,7 +387,7 @@ export default function OnboardingPage() {
               className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
             >
               {(saving || activatingAgents) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              {activatingAgents ? "Configuring your agents..." : saving ? "Saving..." : "Launch SAMA"}
+              {activatingAgents ? "Konfigurerar agenterna…" : saving ? "Sparar…" : "Starta SAMA"}
             </button>
           )}
         </div>

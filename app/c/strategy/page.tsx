@@ -49,15 +49,15 @@ interface Strategy {
 function verdictStyle(verdict?: Verdict): { label: string; bg: string; text: string; ring: string } {
   switch (verdict) {
     case "strong":
-      return { label: "Strong", bg: "bg-green-50", text: "text-green-700", ring: "ring-green-200" };
+      return { label: "Stark", bg: "bg-green-50", text: "text-green-700", ring: "ring-green-200" };
     case "improving":
-      return { label: "Improving", bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-200" };
+      return { label: "Förbättras", bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-200" };
     case "weak":
-      return { label: "Weak", bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200" };
+      return { label: "Svag", bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200" };
     case "critical":
-      return { label: "Critical", bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" };
+      return { label: "Kritisk", bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" };
     default:
-      return { label: verdict || "Unknown", bg: "bg-slate-100", text: "text-slate-700", ring: "ring-slate-200" };
+      return { label: verdict || "Okänd", bg: "bg-slate-100", text: "text-slate-700", ring: "ring-slate-200" };
   }
 }
 
@@ -79,8 +79,8 @@ function northStarText(ns: Strategy["north_star_metric"]): string {
   if (typeof ns === "string") return ns;
   const parts: string[] = [];
   if (ns.name) parts.push(ns.name);
-  if (ns.target) parts.push(`target: ${ns.target}`);
-  if (ns.current) parts.push(`current: ${ns.current}`);
+  if (ns.target) parts.push(`mål: ${ns.target}`);
+  if (ns.current) parts.push(`nu: ${ns.current}`);
   return parts.join(" · ");
 }
 
@@ -118,7 +118,7 @@ export default function StrategyPage() {
         setCurrent(null);
         setEmptyState(true);
       } else {
-        setError("Could not load the latest strategy.");
+        setError("Kunde inte hämta strategin.");
       }
     }
   };
@@ -157,7 +157,7 @@ export default function StrategyPage() {
         { horizon },
         { headers: { "X-Sama-Intent": "user-action" } },
       );
-      setInfo("Generating a new strategy. This usually takes a minute or two.");
+      setInfo("Genererar en ny strategi. Det tar oftast en minut eller två.");
       const previousAt = current?.generated_at ?? "";
       const deadline = Date.now() + 5 * 60 * 1000;
       while (Date.now() < deadline) {
@@ -179,7 +179,7 @@ export default function StrategyPage() {
       await loadHistory();
       setInfo("");
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Could not generate a new strategy.";
+      const msg = err instanceof ApiError ? err.message : "Kunde inte generera en ny strategi.";
       setError(msg);
     }
     setGenerating(false);
@@ -196,9 +196,9 @@ export default function StrategyPage() {
               <Compass className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Marketing Strategy</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Strategi</h1>
               <p className="text-sm text-slate-500">
-                Synthesized weekly across every enabled agent — diagnoses, priorities, and a 30/60/90 roadmap.
+                Vägval och plan — sammanfattat varje vecka från alla aktiva agenter, med diagnos, prioriteringar och 30/60/90-dagars-plan.
               </p>
             </div>
           </div>
@@ -210,9 +210,9 @@ export default function StrategyPage() {
               disabled={generating}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
             >
-              <option value="monthly">Monthly horizon</option>
-              <option value="quarterly">Quarterly horizon</option>
-              <option value="annual">Annual horizon</option>
+              <option value="monthly">Månads-horisont</option>
+              <option value="quarterly">Kvartal-horisont</option>
+              <option value="annual">År-horisont</option>
             </select>
             <button
               onClick={handleGenerate}
@@ -224,7 +224,7 @@ export default function StrategyPage() {
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {generating ? "Generating…" : "Generate now"}
+              {generating ? "Genererar…" : "Generera nu"}
             </button>
           </div>
         </div>
@@ -262,7 +262,7 @@ export default function StrategyPage() {
                   </span>
                 )}
                 {current.generated_at && (
-                  <span className="text-xs text-slate-400">Generated {formatDate(current.generated_at)}</span>
+                  <span className="text-xs text-slate-400">Skapad {formatDate(current.generated_at)}</span>
                 )}
               </div>
 
@@ -278,7 +278,7 @@ export default function StrategyPage() {
               {northStarText(current.north_star_metric) && (
                 <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800">
                   <Target className="h-4 w-4 flex-shrink-0" />
-                  <span className="font-medium">North star:</span>
+                  <span className="font-medium">Huvudmål:</span>
                   <span>{northStarText(current.north_star_metric)}</span>
                 </div>
               )}
@@ -288,7 +288,7 @@ export default function StrategyPage() {
             {current.domain_strategies && current.domain_strategies.length > 0 && (
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  Per-domain plan
+                  Plan per kanal
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {current.domain_strategies.map((d, idx) => (
@@ -298,13 +298,13 @@ export default function StrategyPage() {
                       </div>
                       {d.diagnosis && (
                         <p className="mt-2 text-sm text-slate-700">
-                          <span className="font-medium text-slate-900">Diagnosis: </span>
+                          <span className="font-medium text-slate-900">Diagnos: </span>
                           {d.diagnosis}
                         </p>
                       )}
                       {d.goal && (
                         <p className="mt-2 text-sm text-slate-700">
-                          <span className="font-medium text-slate-900">Goal: </span>
+                          <span className="font-medium text-slate-900">Mål: </span>
                           {d.goal}
                         </p>
                       )}
@@ -330,7 +330,7 @@ export default function StrategyPage() {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-blue-500" />
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                    Cross-channel priorities
+                    Prioriteringar över kanaler
                   </h3>
                 </div>
                 <ul className="mt-3 space-y-3">
@@ -361,7 +361,7 @@ export default function StrategyPage() {
             {current.roadmap && current.roadmap.length > 0 && (
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  Roadmap
+                  Plan framåt
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-3">
                   {current.roadmap.map((m, i) => (
@@ -393,7 +393,7 @@ export default function StrategyPage() {
               <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
                 <div className="flex items-center gap-2 text-amber-800">
                   <AlertTriangle className="h-4 w-4" />
-                  <h3 className="text-sm font-semibold uppercase tracking-wide">Risks</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide">Risker</h3>
                 </div>
                 <ul className="mt-2 space-y-1.5">
                   {current.risks.map((r, i) => (
@@ -415,7 +415,7 @@ export default function StrategyPage() {
                   <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-slate-400" />
                     <span className="text-sm font-semibold text-slate-700">
-                      Previous strategies ({history.length})
+                      Tidigare strategier ({history.length})
                     </span>
                   </div>
                   <ChevronRight
@@ -430,7 +430,7 @@ export default function StrategyPage() {
                         <li key={h.id ?? i} className="flex items-center justify-between gap-3 py-2.5">
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium text-slate-800">
-                              {h.headline || "Strategy"}
+                              {h.headline || "Strategi"}
                             </div>
                             <div className="text-xs text-slate-400">
                               {formatDate(h.generated_at)}
@@ -452,10 +452,10 @@ export default function StrategyPage() {
           <div className="mt-10 rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
             <Compass className="mx-auto h-8 w-8 text-slate-300" />
             <h2 className="mt-3 text-lg font-semibold text-slate-700">
-              {emptyState ? "No strategy yet" : "Strategy not available"}
+              {emptyState ? "Ingen strategi än" : "Strategin är inte tillgänglig"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              The Strategy Agent runs automatically each Sunday once enabled. You can also generate one manually now.
+              Strategi-agenten körs automatiskt varje söndag när den är aktiverad. Du kan också skapa en manuellt nu.
             </p>
             <button
               onClick={handleGenerate}
@@ -463,7 +463,7 @@ export default function StrategyPage() {
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {generating ? "Generating…" : "Generate first strategy"}
+              {generating ? "Genererar…" : "Skapa första strategin"}
             </button>
           </div>
         )}

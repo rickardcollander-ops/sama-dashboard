@@ -57,9 +57,9 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
             </span>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-blue-900">Get started with SAMA</h3>
+            <h3 className="text-sm font-semibold text-blue-900">Kom igång med SAMA</h3>
             <p className="text-xs text-blue-700">
-              {done} of {total} steps complete
+              {done} av {total} steg klara
             </p>
           </div>
         </div>
@@ -68,13 +68,13 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
             onClick={() => setCollapsed(!collapsed)}
             className="rounded-lg px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
           >
-            {collapsed ? "Show" : "Hide"}
+            {collapsed ? "Visa" : "Dölj"}
           </button>
           {onDismiss && (
             <button
               onClick={onDismiss}
               className="rounded-lg p-1.5 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
-              title="Dismiss"
+              title="Dölj"
             >
               <X className="h-4 w-4" />
             </button>
@@ -107,7 +107,7 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
                 </div>
                 {!item.done && (
                   <span className="flex items-center gap-1 text-xs font-medium text-blue-600">
-                    {item.cta || "Start"}
+                    {item.cta || "Starta"}
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 )}

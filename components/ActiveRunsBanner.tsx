@@ -39,13 +39,13 @@ export default function ActiveRunsBanner() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-900 truncate">
             {runningCount > 0
-              ? `${runningCount} agent${runningCount === 1 ? "" : "s"} running`
+              ? `${runningCount} ${runningCount === 1 ? "agent kör" : "agenter kör"}`
               : failedCount > 0
-              ? `${failedCount} agent${failedCount === 1 ? "" : "s"} failed`
-              : `${completedCount} agent${completedCount === 1 ? "" : "s"} completed`}
+              ? `${failedCount} ${failedCount === 1 ? "agent misslyckades" : "agenter misslyckades"}`
+              : `${completedCount} ${completedCount === 1 ? "agent klar" : "agenter klara"}`}
           </p>
           <p className="text-xs text-slate-500">
-            {runningCount > 0 ? "Safe to leave this page — polling continues." : "Click to view results."}
+            {runningCount > 0 ? "Du kan lämna sidan — bevakningen fortsätter." : "Klicka för att se resultat."}
           </p>
         </div>
         {expanded ? (
@@ -64,7 +64,7 @@ export default function ActiveRunsBanner() {
               onClick={clearCompleted}
               className="w-full border-t border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50"
             >
-              Dismiss all
+              Stäng alla
             </button>
           )}
         </div>
@@ -86,24 +86,24 @@ function RunRow({ run, onDismiss }: { run: ActiveRun; onDismiss: () => void }) {
           <p className="text-sm font-medium text-slate-900 truncate">{run.label}</p>
           {isRunning && (
             <p className="text-xs text-slate-500 mt-0.5">
-              {run.status === "pending" ? "Starting…" : `Running… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min remaining`}
+              {run.status === "pending" ? "Startar…" : `Kör… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min kvar`}
             </p>
           )}
           {isCompleted && (
             <p className="text-xs text-emerald-600 mt-0.5 truncate" title={run.summary || ""}>
-              {run.summary || "Completed"}
+              {run.summary || "Klar"}
             </p>
           )}
           {isFailed && (
             <p className="text-xs text-red-600 mt-0.5 truncate" title={run.error || ""}>
-              {run.error || "Failed"}
+              {run.error || "Misslyckades"}
             </p>
           )}
         </div>
         <button
           onClick={onDismiss}
           className="text-slate-400 hover:text-slate-600 flex-shrink-0"
-          aria-label={`Dismiss ${run.label}`}
+          aria-label={`Stäng ${run.label}`}
         >
           <X className="h-3.5 w-3.5" />
         </button>

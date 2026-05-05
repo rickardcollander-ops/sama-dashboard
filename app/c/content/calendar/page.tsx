@@ -61,14 +61,14 @@ export default function ContentCalendarPage() {
   useEffect(() => { load(); }, []);
 
   const remove = async (id: string) => {
-    if (!confirm("Cancel this scheduled publish?")) return;
+    if (!confirm("Avbryta planerad publicering?")) return;
     await fetch(`/api/integrations/scheduled?id=${id}`, { method: "DELETE" });
     load();
   };
 
   const destLabel = (id: string) => {
     const d = destinations.find((x) => x.id === id);
-    if (!d) return "Unknown";
+    if (!d) return "Okänd";
     return `${d.name} (${KIND_META[d.kind]?.label || d.kind})`;
   };
 
@@ -86,7 +86,7 @@ export default function ContentCalendarPage() {
   const itemsForDay = (d: Date) =>
     scheduled.filter((s) => isSameDay(new Date(s.scheduled_at), d));
 
-  const monthLabel = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = month.toLocaleDateString("sv-SE", { month: "long", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -96,10 +96,10 @@ export default function ContentCalendarPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Calendar className="h-7 w-7 text-blue-500" />
-              Content Calendar
+              Kalender
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Scheduled and published content across all your CMS destinations.
+              Planerade och publicerade inlägg över alla anslutna CMS.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export default function ContentCalendarPage() {
           <>
             <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
               <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-medium text-slate-500">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                {["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"].map((d) => (
                   <div key={d} className="px-2 py-2 text-center">{d}</div>
                 ))}
               </div>
@@ -162,7 +162,7 @@ export default function ContentCalendarPage() {
                                 {it.status === "published" ? <CheckCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
                                   it.status === "failed" ? <AlertCircle className="h-2.5 w-2.5 flex-shrink-0" /> :
                                   <Clock className="h-2.5 w-2.5 flex-shrink-0" />}
-                                <span className="truncate">{it.payload?.title || "Scheduled post"}</span>
+                                <span className="truncate">{it.payload?.title || "Planerad publicering"}</span>
                               </div>
                             ))}
                           </div>
@@ -175,13 +175,13 @@ export default function ContentCalendarPage() {
             </div>
 
             <div className="mt-8">
-              <h2 className="mb-3 text-sm font-semibold text-slate-900">Upcoming & recent</h2>
+              <h2 className="mb-3 text-sm font-semibold text-slate-900">Närmast och senast</h2>
               {scheduled.length === 0 ? (
                 <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
                   <Calendar className="mx-auto h-10 w-10 text-slate-300" />
-                  <p className="mt-3 text-sm text-slate-500">Nothing scheduled yet.</p>
+                  <p className="mt-3 text-sm text-slate-500">Inget planerat än.</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    From the Content tab, click Publish on a piece and choose &ldquo;Schedule for later&rdquo;.
+                    Klicka Publicera på ett content-utkast och välj &ldquo;Schemalägg&rdquo;.
                   </p>
                 </div>
               ) : (
@@ -191,7 +191,7 @@ export default function ContentCalendarPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-slate-900 truncate">
-                            {it.payload?.title || "Untitled"}
+                            {it.payload?.title || "Utan titel"}
                           </span>
                           <StatusBadge status={it.status} />
                         </div>
@@ -207,7 +207,7 @@ export default function ContentCalendarPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="rounded-lg p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
-                            title="View"
+                            title="Öppna"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </a>
@@ -216,7 +216,7 @@ export default function ContentCalendarPage() {
                           <button
                             onClick={() => remove(it.id)}
                             className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                            title="Cancel"
+                            title="Avbryt"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -241,9 +241,15 @@ function StatusBadge({ status }: { status: string }) {
     published: "bg-emerald-50 text-emerald-700",
     failed: "bg-red-50 text-red-700",
   };
+  const labels: Record<string, string> = {
+    scheduled: "planerad",
+    publishing: "publicerar",
+    published: "publicerad",
+    failed: "fel",
+  };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${styles[status] || "bg-slate-100 text-slate-600"}`}>
-      {status}
+      {labels[status] || status}
     </span>
   );
 }
