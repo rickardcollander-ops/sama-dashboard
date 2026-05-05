@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, Play, ArrowRight, AlertCircle, X, Sparkles,
-  PenTool, Share2, Megaphone, Clock, Check, Bot, Zap,
+  PenTool, Clock, Check, Bot, Zap, Compass, Calendar as CalendarIcon,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -453,9 +453,9 @@ export default function CustomerDashboard() {
             <h3 className="mb-4 font-semibold text-slate-900">Quick Actions</h3>
             <div className="space-y-2">
               {[
-                { href: "/c/social", icon: Share2, color: "text-indigo-600", label: "Create social post" },
-                { href: "/c/ads", icon: Megaphone, color: "text-orange-600", label: "Launch ad campaign" },
                 { href: "/c/content", icon: PenTool, color: "text-purple-600", label: "Generate article" },
+                { href: "/c/content/calendar", icon: CalendarIcon, color: "text-indigo-600", label: "Open content calendar" },
+                { href: "/c/strategy", icon: Compass, color: "text-emerald-600", label: "Review strategy" },
                 { href: "/c/settings", icon: Bot, color: "text-slate-600", label: "Agent settings" },
               ].map((link) => (
                 <Link key={link.href} href={link.href} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 transition-colors">
