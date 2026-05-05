@@ -34,7 +34,7 @@ const EXPENSIVE_PATTERNS: RegExp[] = [
   /\/recommendations(\b|\/|\?)/,
   /\/dashboard\/recommendations(\b|\/|\?)/,
   /\/automation\/(trigger|daily-workflow|run)/,
-  /\/ai-visibility\/(check|recommendations)/,
+  /\/ai-visibility\/(check|recommendations)(\b|\/|\?)/,
   /\/seo\/serp\/analyze/,
   /\/agents\/[^/]+\/trigger/,
   /\/run(\b|\/|\?)/,
