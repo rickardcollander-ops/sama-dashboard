@@ -265,12 +265,12 @@ export default function CustomerDashboard() {
 
   const checklistItems: ChecklistItem[] = useMemo(
     () => [
-      { id: "brand", label: "Add brand info", description: "Name, domain, and description", done: !!(settings.brand_name && settings.domain), href: "/c/settings", cta: "Configure" },
-      { id: "competitors", label: "Add competitors", description: "At least 2 competitors for comparison", done: (settings.competitors?.length ?? 0) >= 2, href: "/c/settings", cta: "Add" },
-      { id: "geo_queries", label: "Set up GEO queries", description: "Queries to monitor in AI assistants", done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/settings", cta: "Set up" },
-      { id: "first_check", label: "Run your first GEO check", description: "See how visible you are in AI", done: (geoSummary?.total_checks ?? 0) > 0, href: "/c/geo", cta: "Run" },
-      { id: "first_keyword", label: "Track your first keyword", description: "SEO monitoring", done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: "Add" },
-      { id: "first_content", label: "Generate your first content piece", description: "AI-generated article or post", done: (contentStats?.total ?? 0) > 0, href: "/c/content", cta: "Generate" },
+      { id: "brand", label: "Lägg till varumärkesinfo", description: "Namn, domän och beskrivning", done: !!(settings.brand_name && settings.domain), href: "/c/settings", cta: "Lägg till" },
+      { id: "competitors", label: "Lägg till konkurrenter", description: "Minst 2 konkurrenter för jämförelse", done: (settings.competitors?.length ?? 0) >= 2, href: "/c/settings", cta: "Lägg till" },
+      { id: "geo_queries", label: "Sätt upp sökfrågor", description: "Frågor att bevaka i AI-assistenter", done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/settings", cta: "Sätt upp" },
+      { id: "first_check", label: "Kör din första AI-kontroll", description: "Se hur synligt ditt varumärke är i AI", done: (geoSummary?.total_checks ?? 0) > 0, href: "/c/geo", cta: "Kör" },
+      { id: "first_keyword", label: "Spåra ditt första sökord", description: "Google-bevakning", done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: "Lägg till" },
+      { id: "first_content", label: "Skapa ditt första content", description: "AI-genererad artikel eller inlägg", done: (contentStats?.total ?? 0) > 0, href: "/c/content", cta: "Skapa" },
     ],
     [settings, geoSummary, seoStats, contentStats]
   );

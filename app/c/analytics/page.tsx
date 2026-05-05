@@ -165,10 +165,10 @@ export default function CustomerAnalyticsPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <TrendingUp className="h-7 w-7 text-emerald-500" />
-              Analytics
+              Trafik
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Cross-channel performance metrics and ROI tracking
+              Trafik och konvertering över alla kanaler
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -180,7 +180,7 @@ export default function CustomerAnalyticsPage() {
                 onChange={(e) => setCompare(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
-              Compare previous
+              Jämför med föregående
             </label>
             <button
               onClick={handleExportCsv}
@@ -188,7 +188,7 @@ export default function CustomerAnalyticsPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Export
+              Exportera
             </button>
             <button
               onClick={handleRefresh}
@@ -200,7 +200,7 @@ export default function CustomerAnalyticsPage() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {refreshing ? "Loading..." : "Refresh"}
+              {refreshing ? "Hämtar…" : "Uppdatera"}
             </button>
           </div>
         </div>
@@ -208,25 +208,25 @@ export default function CustomerAnalyticsPage() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <MetricCard
-            label="Total Clicks"
+            label="Klick"
             value={(totals.clicks ?? 0).toLocaleString()}
             icon={<MousePointerClick className="h-5 w-5 text-blue-500" />}
             delta={delta(totals.clicks, prev?.clicks)}
           />
           <MetricCard
-            label="Impressions"
+            label="Visningar"
             value={(totals.impressions ?? 0).toLocaleString()}
             icon={<Eye className="h-5 w-5 text-violet-500" />}
             delta={delta(totals.impressions, prev?.impressions)}
           />
           <MetricCard
-            label="Conversions"
+            label="Konverteringar"
             value={(totals.conversions ?? 0).toLocaleString()}
             icon={<Users className="h-5 w-5 text-emerald-500" />}
             delta={delta(totals.conversions, prev?.conversions)}
           />
           <MetricCard
-            label="Total Spend"
+            label="Spendering"
             value={`$${(totals.spend ?? 0).toLocaleString()}`}
             icon={<DollarSign className="h-5 w-5 text-amber-500" />}
             delta={delta(totals.spend, prev?.spend)}
@@ -266,7 +266,7 @@ export default function CustomerAnalyticsPage() {
             {/* Daily Trend */}
             {data.daily && data.daily.length > 0 && (
               <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900 mb-4">Daily Performance</h2>
+                <h2 className="font-semibold text-slate-900 mb-4">Dag för dag</h2>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data.daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -300,7 +300,7 @@ export default function CustomerAnalyticsPage() {
             {/* Channel Breakdown */}
             {data.channels && data.channels.length > 0 ? (
               <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900 mb-4">Channel Breakdown</h2>
+                <h2 className="font-semibold text-slate-900 mb-4">Per kanal</h2>
                 <div className="h-64 mb-6">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.channels} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -327,11 +327,11 @@ export default function CustomerAnalyticsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                        <th className="px-4 py-3 font-medium text-slate-500">Channel</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Clicks</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Impressions</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Conversions</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Spend</th>
+                        <th className="px-4 py-3 font-medium text-slate-500">Kanal</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Klick</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Visningar</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Konverteringar</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Spendering</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -351,9 +351,9 @@ export default function CustomerAnalyticsPage() {
             ) : (
               <div className="rounded-xl border bg-white p-16 shadow-sm text-center">
                 <BarChart2 className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">No analytics data yet.</p>
+                <p className="text-sm text-slate-500">Ingen trafikdata än.</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Data will appear here once SAMA agents have been running and collecting metrics.
+                  Data dyker upp här när SAMAs agenter har samlat in mätvärden.
                 </p>
               </div>
             )}

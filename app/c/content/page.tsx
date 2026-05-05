@@ -88,7 +88,7 @@ export default function CustomerContentPage() {
         prev.map((p) => (p.id === pieceId ? { ...p, status: "published" } : p))
       );
     } catch (err: any) {
-      setPublishError({ id: pieceId, message: err?.message || "Could not publish" });
+      setPublishError({ id: pieceId, message: err?.message || "Kunde inte publicera" });
     }
     setPublishingId(null);
   };
@@ -114,7 +114,7 @@ export default function CustomerContentPage() {
       if (IS_DEMO) {
         setPieces(demoContentPieces);
       } else {
-        setError("Could not load content. The content agent may not have generated anything yet.");
+        setError("Kunde inte hämta content. Content-agenten har kanske inte genererat något än.");
       }
     }
     setLoading(false);
@@ -130,7 +130,7 @@ export default function CustomerContentPage() {
       setTimeout(() => fetchContent(), 3000);
     } catch (err: any) {
       console.error("Failed to trigger content generation:", err);
-      setError(`Could not generate content: ${err?.message || err}`);
+      setError(`Kunde inte generera content: ${err?.message || err}`);
     }
     setGenerating(false);
   };
@@ -147,14 +147,14 @@ export default function CustomerContentPage() {
       });
       setModalContent(result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`);
     } catch (err: any) {
-      setError(`Could not generate: ${err?.message || err}`);
+      setError(`Kunde inte generera: ${err?.message || err}`);
       // Fallback placeholder
       const templates: Record<string, string> = {
-        linkedin: `Did you know that ${modalTopic}? Here are three insights that might change your perspective.\n\n1. First insight\n2. Second insight\n3. Third insight\n\nWhat do you think? Share your thoughts in the comments!`,
-        blogg: `# ${modalTopic}\n\nIn this article we explore ${modalTopic} and what it means for your business.\n\n## Background\n\nLorem ipsum...\n\n## Conclusion\n\nIn summary...`,
-        epost: `Subject: ${modalTopic}\n\nHi,\n\nI wanted to share something interesting about ${modalTopic}.\n\n[Main content]\n\nBest regards`,
+        linkedin: `Visste du att ${modalTopic}? Här är tre insikter som kan ändra ditt perspektiv.\n\n1. Första insikten\n2. Andra insikten\n3. Tredje insikten\n\nVad tycker du? Dela gärna i kommentarerna!`,
+        blogg: `# ${modalTopic}\n\nI den här artikeln tittar vi på ${modalTopic} och vad det betyder för din verksamhet.\n\n## Bakgrund\n\nLorem ipsum…\n\n## Slutsats\n\nSammanfattningsvis…`,
+        epost: `Ämne: ${modalTopic}\n\nHej,\n\nJag ville dela något intressant om ${modalTopic}.\n\n[Huvudinnehåll]\n\nMed vänliga hälsningar`,
       };
-      setModalContent(templates[modalType] || `Generated content about ${modalTopic}`);
+      setModalContent(templates[modalType] || `Genererat content om ${modalTopic}`);
     }
     setModalGenerating(false);
   };
@@ -212,9 +212,9 @@ export default function CustomerContentPage() {
   };
 
   const nextStatusLabel = (s: string) => {
-    if (s === "draft") return "Send to review";
-    if (s === "review") return "Approve";
-    if (s === "approved") return "Mark published";
+    if (s === "draft") return "Skicka till granskning";
+    if (s === "review") return "Godkänn";
+    if (s === "approved") return "Markera publicerad";
     return null;
   };
 
@@ -230,7 +230,7 @@ export default function CustomerContentPage() {
       await client.post(`/api/content/pieces/${pieceId}/status`, { status: newStatus });
     } catch (err: any) {
       console.error("Failed to update status:", err);
-      setError(`Could not update status: ${err?.message || err}`);
+      setError(`Kunde inte uppdatera status: ${err?.message || err}`);
       // Re-fetch to revert on error
       fetchContent();
     }
@@ -282,7 +282,7 @@ export default function CustomerContentPage() {
               Content
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              AI-generated blog posts, landing pages, and more
+              AI-genererat innehåll — blogginlägg, landningssidor och mer
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export default function CustomerContentPage() {
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
             >
               <Sparkles className="h-4 w-4" />
-              Generate New
+              Skapa nytt
             </button>
             <button
               onClick={generateContent}
@@ -303,7 +303,7 @@ export default function CustomerContentPage() {
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              {generating ? "Generating..." : "Auto-generate"}
+              {generating ? "Genererar…" : "Auto-generera"}
             </button>
           </div>
         </div>
@@ -313,21 +313,21 @@ export default function CustomerContentPage() {
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <FileText className="h-5 w-5 text-purple-500" />
-              <span className="text-sm text-slate-500">Total Pieces</span>
+              <span className="text-sm text-slate-500">Totalt antal</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{pieces.length}</span>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <CheckCircle className="h-5 w-5 text-emerald-500" />
-              <span className="text-sm text-slate-500">Published</span>
+              <span className="text-sm text-slate-500">Publicerat</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{publishedCount}</span>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <Hash className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-slate-500">Total Words</span>
+              <span className="text-sm text-slate-500">Totalt antal ord</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{(totalWords ?? 0).toLocaleString()}</span>
           </div>
@@ -378,12 +378,12 @@ export default function CustomerContentPage() {
         <div className="flex flex-wrap gap-2 mb-6">
           {(
             [
-              { key: "all", label: "All", count: pieces.length },
-              { key: "draft", label: "Drafts", count: draftCount },
-              { key: "review", label: "In review", count: reviewCount },
-              { key: "approved", label: "Approved", count: approvedCount },
-              { key: "published", label: "Published", count: publishedCount },
-              { key: "archived", label: "Archived", count: archivedCount },
+              { key: "all", label: "Alla", count: pieces.length },
+              { key: "draft", label: "Utkast", count: draftCount },
+              { key: "review", label: "Under granskning", count: reviewCount },
+              { key: "approved", label: "Godkända", count: approvedCount },
+              { key: "published", label: "Publicerade", count: publishedCount },
+              { key: "archived", label: "Arkiverade", count: archivedCount },
             ] as const
           ).map((f) => (
             <button
@@ -408,9 +408,9 @@ export default function CustomerContentPage() {
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border bg-white p-16 shadow-sm text-center">
             <PenTool className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">No content yet.</p>
+            <p className="text-sm text-slate-500">Inget content än.</p>
             <p className="text-xs text-slate-400 mt-1">
-              Click &quot;Generate Content&quot; to create your first piece.
+              Klicka på &quot;Skapa nytt&quot; för att skapa ditt första utkast.
             </p>
           </div>
         ) : (
@@ -434,7 +434,7 @@ export default function CustomerContentPage() {
                       {piece.word_count > 0 && (
                         <span className="flex items-center gap-1">
                           <Hash className="h-3 w-3" />
-                          {(piece.word_count ?? 0).toLocaleString()} words
+                          {(piece.word_count ?? 0).toLocaleString()} ord
                         </span>
                       )}
                       {piece.target_keyword && (
@@ -475,7 +475,7 @@ export default function CustomerContentPage() {
                         onClick={() => archivePiece(piece.id)}
                         disabled={updatingStatus === piece.id}
                         className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 transition-colors"
-                        title="Archive"
+                        title="Arkivera"
                       >
                         <Archive className="h-3.5 w-3.5" />
                       </button>
@@ -487,14 +487,14 @@ export default function CustomerContentPage() {
                         onClick={() => openCmsDialog(piece)}
                         disabled={loadingBodyId === piece.id}
                         className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                        title="Publish to WordPress, Webflow, Ghost, Notion or webhook"
+                        title="Publicera till WordPress, Webflow, Ghost, Notion eller webhook"
                       >
                         {loadingBodyId === piece.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Send className="h-3.5 w-3.5" />
                         )}
-                        Publish to CMS
+                        Publicera till CMS
                       </button>
                     )}
 
@@ -503,7 +503,7 @@ export default function CustomerContentPage() {
                       ghConnected ? (
                         publishingId === piece.id ? (
                           <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publishing...
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publicerar…
                           </span>
                         ) : publishResult?.id === piece.id ? (
                           <a
@@ -513,7 +513,7 @@ export default function CustomerContentPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
                           >
                             <CheckCircle className="h-3.5 w-3.5" />
-                            PR Created!
+                            PR skapad!
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
@@ -522,13 +522,13 @@ export default function CustomerContentPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Publish to GitHub
+                            Publicera via GitHub
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-slate-400" title="Connect GitHub in Settings to publish">
+                        <span className="text-xs text-slate-400" title="Anslut GitHub i Inställningar för att publicera">
                           <Code2 className="h-3.5 w-3.5 inline mr-1" />
-                          Connect GitHub
+                          Anslut GitHub
                         </span>
                       )
                     )}
@@ -563,13 +563,13 @@ export default function CustomerContentPage() {
                 <div className="flex items-center justify-between border-b px-6 py-4">
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-purple-500" />
-                    Generate New Content
+                    Skapa nytt content
                   </h3>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setModalFullscreen(!modalFullscreen)}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                      title={modalFullscreen ? "Minimize" : "Fullscreen"}
+                      title={modalFullscreen ? "Minimera" : "Helskärm"}
                     >
                       {modalFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                     </button>
@@ -584,7 +584,7 @@ export default function CustomerContentPage() {
                 <div className="p-6 space-y-5">
                   {/* Type selector */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
                     <div className="flex gap-2">
                       {(["linkedin", "blogg", "epost"] as const).map((t) => (
                         <button
@@ -596,7 +596,7 @@ export default function CustomerContentPage() {
                               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                           }`}
                         >
-                          {t === "linkedin" ? "LinkedIn" : t === "blogg" ? "Blog" : "Email"}
+                          {t === "linkedin" ? "LinkedIn" : t === "blogg" ? "Blogg" : "E-post"}
                         </button>
                       ))}
                     </div>
@@ -604,12 +604,12 @@ export default function CustomerContentPage() {
 
                   {/* Topic */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Topic</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ämne</label>
                     <input
                       type="text"
                       value={modalTopic}
                       onChange={(e) => setModalTopic(e.target.value)}
-                      placeholder="E.g. AI-driven marketing for B2B..."
+                      placeholder="T.ex. Hur restauranger kan synas i AI-sök…"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
@@ -625,14 +625,14 @@ export default function CustomerContentPage() {
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {modalGenerating ? "Generating..." : "Generate"}
+                    {modalGenerating ? "Genererar…" : "Generera"}
                   </button>
 
                   {/* Generated content */}
                   {modalContent && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Generated Content</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Genererat innehåll</label>
                         <textarea
                           value={modalContent}
                           onChange={(e) => setModalContent(e.target.value)}
@@ -650,7 +650,7 @@ export default function CustomerContentPage() {
                         ) : (
                           <Save className="h-4 w-4" />
                         )}
-                        Save as Draft
+                        Spara som utkast
                       </button>
                     </>
                   )}
@@ -669,27 +669,27 @@ function StatusBadge({ status }: { status: string }) {
     draft: {
       styles: "bg-slate-50 text-slate-700 border-slate-200",
       Icon: PenTool,
-      label: "draft",
+      label: "utkast",
     },
     review: {
       styles: "bg-amber-50 text-amber-700 border-amber-200",
       Icon: Eye,
-      label: "in review",
+      label: "under granskning",
     },
     approved: {
       styles: "bg-blue-50 text-blue-700 border-blue-200",
       Icon: CheckCircle,
-      label: "approved",
+      label: "godkänd",
     },
     published: {
       styles: "bg-emerald-50 text-emerald-700 border-emerald-200",
       Icon: CheckCircle,
-      label: "published",
+      label: "publicerad",
     },
     archived: {
       styles: "bg-slate-50 text-slate-500 border-slate-200",
       Icon: Archive,
-      label: "archived",
+      label: "arkiverad",
     },
   };
   const c = config[status] || config.draft;

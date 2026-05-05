@@ -28,12 +28,12 @@ function getAgentMeta(agent: string) {
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "just nu";
+  if (mins < 60) return `${mins}m sen`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours}h sen`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return `${days}d sen`;
   return new Date(iso).toLocaleDateString();
 }
 
@@ -86,13 +86,13 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-slate-500" />
-          <h3 className="font-semibold text-slate-900">Activity</h3>
+          <h3 className="font-semibold text-slate-900">Aktivitet</h3>
         </div>
         <button
           onClick={refresh}
           disabled={refreshing || loading}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          title="Refresh"
+          title="Uppdatera"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
         </button>
@@ -102,16 +102,16 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
         {loading ? (
           <div className="px-6 py-12 text-center text-sm text-slate-400">
             <RefreshCw className="mx-auto mb-2 h-5 w-5 animate-spin" />
-            Loading activity...
+            Hämtar aktivitet…
           </div>
         ) : events.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
               <Activity className="h-5 w-5 text-slate-400" />
             </div>
-            <p className="text-sm font-medium text-slate-600">No activity yet</p>
+            <p className="text-sm font-medium text-slate-600">Ingen aktivitet än</p>
             <p className="mt-1 text-xs text-slate-400">
-              Agent actions will appear here as they run.
+              Agenternas händelser dyker upp här när de kör.
             </p>
           </div>
         ) : (
