@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X, Bot,
-  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles, ShieldCheck, Code2, Calendar, Compass,
+  Search, FileText, Share2, TrendingUp, CreditCard, Megaphone, Sparkles, ShieldCheck, Code2, Calendar, Compass, Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
+import { isAdminEmail } from "@/lib/admin";
 import NotificationBell from "@/components/NotificationBell";
 
 interface NavItem {
@@ -55,6 +56,13 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/c/pricing", label: "Plan", icon: CreditCard },
 ];
 
+const ADMIN_NAV_ITEM: NavItem = {
+  id: "admin",
+  href: "/c/admin",
+  label: "Admin",
+  icon: Shield,
+};
+
 interface MenuItem {
   id: string;
   label: string;
@@ -73,6 +81,7 @@ export default function CustomerNav() {
   const { user, signOut } = useUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
+  const showAdmin = isAdminEmail(user?.email);
 
   useEffect(() => {
     if (!user) return;
@@ -155,6 +164,24 @@ export default function CustomerNav() {
                 </Link>
               );
             })}
+            {showAdmin && (
+              <Link
+                key={ADMIN_NAV_ITEM.href}
+                href={ADMIN_NAV_ITEM.href}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  pathname === ADMIN_NAV_ITEM.href
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <ADMIN_NAV_ITEM.icon
+                  className={`h-4 w-4 ${
+                    pathname === ADMIN_NAV_ITEM.href ? "text-blue-600" : "text-slate-400"
+                  }`}
+                />
+                {ADMIN_NAV_ITEM.label}
+              </Link>
+            )}
           </nav>
         </div>
 
@@ -218,6 +245,24 @@ export default function CustomerNav() {
                 </Link>
               );
             })}
+            {showAdmin && (
+              <Link
+                href={ADMIN_NAV_ITEM.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  pathname === ADMIN_NAV_ITEM.href
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <ADMIN_NAV_ITEM.icon
+                  className={`h-5 w-5 ${
+                    pathname === ADMIN_NAV_ITEM.href ? "text-blue-600" : "text-slate-400"
+                  }`}
+                />
+                {ADMIN_NAV_ITEM.label}
+              </Link>
+            )}
           </nav>
         </>
       )}
