@@ -71,7 +71,7 @@ const TOP_NAV: NavItem[] = [
     href: "/c/settings",
     label: "Inställningar",
     icon: Settings,
-    matchPrefixes: ["/c/settings", "/c/pricing"],
+    matchPrefixes: ["/c/settings"],
   },
 ];
 
@@ -90,7 +90,8 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   ],
   settings: [
     { href: "/c/settings", label: "Konto", exact: true },
-    { href: "/c/pricing", label: "Plan & fakturering" },
+    { href: "/c/settings/integrations", label: "Integrationer" },
+    { href: "/c/settings/billing", label: "Plan & fakturering" },
   ],
 };
 
