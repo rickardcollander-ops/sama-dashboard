@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { ApiError, tenantApi } from "@/lib/api";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import CustomerNav from "@/components/CustomerNav";
 import RoadmapTimeline from "@/components/strategy/RoadmapTimeline";
 import EditableSection from "@/components/strategy/EditableSection";
@@ -94,51 +95,28 @@ function northStarText(ns: Strategy["north_star_metric"]): string {
   return parts.join(" · ");
 }
 
-// Strategy generation routinely takes 60-90s on the backend. We use this
-// as the basis for the progress bar — capped at 95% so the bar never claims
-// completion before the run actually finishes.
-const EXPECTED_GENERATION_SECONDS = 90;
-
-interface AgentRunStatus {
-  id: string;
-  status: "running" | "completed" | "failed" | string;
-  summary?: string | null;
-  error?: string | null;
-  completed_at?: string | null;
-}
-
 export default function StrategyPage() {
   const { user } = useUser();
+  const { runs, triggerRun } = useActiveRuns();
   const [current, setCurrent] = useState<Strategy | null>(null);
   const [history, setHistory] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const [horizon, setHorizon] = useState<Horizon>("monthly");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [emptyState, setEmptyState] = useState(false);
-  const [genStartedAt, setGenStartedAt] = useState<number | null>(null);
-  const [progressPct, setProgressPct] = useState(0);
-
   const verdict = useMemo(() => verdictStyle(current?.verdict), [current?.verdict]);
 
-  // Drive the progress bar while a generation is in flight
-  useEffect(() => {
-    if (!generating || genStartedAt === null) {
-      setProgressPct(0);
-      return;
-    }
-    const tick = () => {
-      const elapsed = (Date.now() - genStartedAt) / 1000;
-      setProgressPct(
-        Math.min(95, Math.max(2, Math.round((elapsed / EXPECTED_GENERATION_SECONDS) * 100))),
-      );
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [generating, genStartedAt]);
+  const activeStrategyRun = runs.find(
+    (r) => r.agent === "strategy" && (r.status === "pending" || r.status === "running"),
+  );
+  const generating = !!activeStrategyRun;
+  const lastCompletedStrategyRunId = runs
+    .filter((r) => r.agent === "strategy" && r.status === "completed")
+    .sort((a, b) => (b.completed_at || 0) - (a.completed_at || 0))[0]?.id;
+  const lastFailedStrategyRun = runs
+    .filter((r) => r.agent === "strategy" && r.status === "failed")
+    .sort((a, b) => (b.completed_at || 0) - (a.completed_at || 0))[0];
 
   const loadCurrent = async () => {
     if (!user) return;
@@ -204,99 +182,26 @@ export default function StrategyPage() {
 
   const handleGenerate = async () => {
     if (!user) return;
-    setGenerating(true);
-    setGenStartedAt(Date.now());
     setError("");
-    setInfo("");
-    let timedOut = false;
-    try {
-      const resp = await tenantApi(user.id).post<{
-        run_id?: string;
-        status?: string;
-        strategy?: Strategy;
-        message?: string;
-      }>(
-        "/api/strategy/generate",
-        { horizon },
-        { headers: { "X-Sama-Intent": "user-action" } },
-      );
-
-      // Backwards compat: if the backend still returns the strategy
-      // synchronously, we're done.
-      if (resp?.strategy) {
-        setCurrent(resp.strategy);
-        setEmptyState(false);
-        await loadHistory();
-        return;
-      }
-
-      const runId = resp?.run_id;
-      const previousAt = current?.generated_at ?? "";
-      setInfo("Genererar en ny strategi. Tar normalt 1–2 minuter.");
-
-      const deadline = Date.now() + 5 * 60 * 1000;
-      let succeeded = false;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 4000));
-
-        // 1) Authoritative — check the agent_runs row
-        if (runId) {
-          try {
-            const run = await tenantApi(user.id).get<AgentRunStatus>(
-              `/api/tenant/agent-runs/${runId}`,
-            );
-            if (run.status === "failed") {
-              setError(run.error || run.summary || "Kunde inte generera strategi.");
-              break;
-            }
-            if (run.status === "completed") {
-              await loadCurrent();
-              succeeded = true;
-              break;
-            }
-            // still running — keep polling
-            continue;
-          } catch {
-            // fall through to checking /current as a fallback
-          }
-        }
-
-        // 2) Fallback — detect a fresh strategy directly
-        try {
-          const data = await tenantApi(user.id).get<Strategy | { strategy?: Strategy }>(
-            "/api/strategy/current",
-          );
-          const s = (data as { strategy?: Strategy })?.strategy ?? (data as Strategy);
-          if (s?.generated_at && s.generated_at !== previousAt) {
-            setCurrent(s);
-            setEmptyState(false);
-            succeeded = true;
-            break;
-          }
-        } catch {
-          // keep polling
-        }
-      }
-
-      if (!succeeded && Date.now() >= deadline) {
-        timedOut = true;
-      }
-      await loadHistory();
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Kunde inte generera en ny strategi.";
-      setError(msg);
-    } finally {
-      setInfo("");
-      setGenerating(false);
-      setGenStartedAt(null);
-      if (timedOut) {
-        setError((existing) =>
-          existing ||
-          "Strategin tog längre tid än väntat. Ladda om sidan om en stund — den kan ändå ha hunnit sparas.",
-        );
-      }
-    }
+    await triggerRun("strategy", "/api/strategy/generate", {
+      label: "Strategi-syntes",
+      body: { horizon },
+    });
   };
+
+  // Reload when a strategy run finishes — handles runs started in another
+  // tab too, since the banner is shared via localStorage.
+  useEffect(() => {
+    if (!lastCompletedStrategyRunId) return;
+    void loadCurrent();
+    void loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastCompletedStrategyRunId]);
+
+  useEffect(() => {
+    if (!lastFailedStrategyRun) return;
+    setError(lastFailedStrategyRun.error || "Kunde inte generera en ny strategi.");
+  }, [lastFailedStrategyRun]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -343,25 +248,8 @@ export default function StrategyPage() {
         </div>
 
         {generating && (
-          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="font-medium">
-                {info || "Genererar en ny strategi. Tar normalt 1–2 minuter."}
-              </span>
-              <span className="ml-auto tabular-nums text-xs text-blue-600">{progressPct}%</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-[width] duration-700 ease-out"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-        )}
-        {!generating && info && (
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
-            {info}
+            Genererar en ny strategi. Du kan lämna sidan — bevakningen visas i widgeten nere till höger.
           </div>
         )}
         {error && (
