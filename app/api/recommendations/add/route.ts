@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import {
+  getCurrentUser, loadSettings, saveSettings, MAX_GEO_QUERIES,
+} from "@/lib/integrations/store";
 
 export const runtime = "nodejs";
 
@@ -19,17 +21,24 @@ export async function POST(req: NextRequest) {
   const existingGeo = Array.isArray(settings.geo_queries)
     ? (settings.geo_queries as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
-  const existingLower = new Set(existingGeo.map((q) => q.toLowerCase()));
-  const merged = [...existingGeo];
+  // Defensive: trim any historical overflow back to the cap before merging.
+  const trimmedExisting = existingGeo.slice(0, MAX_GEO_QUERIES);
+  const existingLower = new Set(trimmedExisting.map((q) => q.toLowerCase()));
+  const merged = [...trimmedExisting];
   let geoAdded = 0;
+  let geoSkippedFull = 0;
   for (const q of geoQueries) {
-    if (!existingLower.has(q.toLowerCase())) {
-      merged.push(q);
-      existingLower.add(q.toLowerCase());
-      geoAdded += 1;
+    if (existingLower.has(q.toLowerCase())) continue;
+    if (merged.length >= MAX_GEO_QUERIES) {
+      geoSkippedFull += 1;
+      continue;
     }
+    merged.push(q);
+    existingLower.add(q.toLowerCase());
+    geoAdded += 1;
   }
-  if (geoAdded > 0) {
+  const geoChanged = geoAdded > 0 || merged.length !== existingGeo.length;
+  if (geoChanged) {
     await saveSettings(user.id, { ...settings, geo_queries: merged });
   }
 
@@ -38,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (keywords.length > 0) {
     // Persist locally to user_settings.tracked_keywords (source of truth so
     // the SEO page sees them even if the backend silently drops them).
-    const settingsAfterGeo = geoAdded > 0 ? { ...settings, geo_queries: merged } : settings;
+    const settingsAfterGeo = geoChanged ? { ...settings, geo_queries: merged } : settings;
     const existingTracked: string[] = Array.isArray(settingsAfterGeo.tracked_keywords)
       ? (settingsAfterGeo.tracked_keywords as unknown[]).filter(
           (v): v is string => typeof v === "string",
@@ -80,6 +89,9 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     geo_added: geoAdded,
+    geo_skipped_full: geoSkippedFull,
+    geo_max: MAX_GEO_QUERIES,
+    geo_queries: merged,
     keywords_added: keywordsAdded,
     keywords_skipped: keywordsSkipped,
   });

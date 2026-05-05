@@ -33,6 +33,10 @@ interface Props {
   /** Header title — defaults to "AI keyword & GEO recommendations". */
   title?: string;
   description?: string;
+  /** How many GEO queries the tenant is already tracking (for the cap). */
+  geoTrackedCount?: number;
+  /** Maximum GEO queries allowed under monitoring (server-enforced). */
+  geoMax?: number;
 }
 
 const SECTION_META: Record<
@@ -75,7 +79,10 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 export default function KeywordGeoRecommendations(props: Props) {
-  const { existingKeywords = [], gapSummary, onAdded, compact, title, description } = props;
+  const {
+    existingKeywords = [], gapSummary, onAdded, compact, title, description,
+    geoTrackedCount, geoMax,
+  } = props;
   const sections = props.sections || ["keywords", "geo_queries", "long_tail_phrases"];
 
   const [recs, setRecs] = useState<Recommendations | null>(null);
@@ -83,7 +90,12 @@ export default function KeywordGeoRecommendations(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState<{ geo: number; keywords: number; skipped: number } | null>(null);
+  const [added, setAdded] = useState<{ geo: number; keywords: number; skipped: number; geoSkippedFull: number } | null>(null);
+
+  const geoCapEnabled = typeof geoMax === "number" && typeof geoTrackedCount === "number";
+  const geoRemaining = geoCapEnabled ? Math.max(0, (geoMax as number) - (geoTrackedCount as number)) : Infinity;
+  const selectedGeoCount = Array.from(selected).filter((id) => id.startsWith("geo_queries::")).length;
+  const exceedsGeoCap = geoCapEnabled && selectedGeoCount > geoRemaining;
 
   const fetchRecs = async () => {
     setLoading(true);
@@ -159,6 +171,7 @@ export default function KeywordGeoRecommendations(props: Props) {
         geo: data.geo_added || 0,
         keywords: data.keywords_added || 0,
         skipped: data.keywords_skipped || 0,
+        geoSkippedFull: data.geo_skipped_full || 0,
       };
       setAdded(result);
       // Remove added items from the list
@@ -219,6 +232,9 @@ export default function KeywordGeoRecommendations(props: Props) {
           <CheckCircle className="h-4 w-4" />
           Added {added.keywords} keyword{added.keywords === 1 ? "" : "s"} and {added.geo} GEO quer{added.geo === 1 ? "y" : "ies"}.
           {added.skipped > 0 ? ` ${added.skipped} skipped.` : ""}
+          {added.geoSkippedFull > 0
+            ? ` ${added.geoSkippedFull} GEO quer${added.geoSkippedFull === 1 ? "y" : "ies"} skipped — tracking cap reached.`
+            : ""}
         </div>
       )}
 
@@ -305,9 +321,19 @@ export default function KeywordGeoRecommendations(props: Props) {
           </div>
 
           <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-            <p className="text-xs text-slate-500">
-              {selected.size === 0 ? "Select items to add" : `${selected.size} selected`}
-            </p>
+            <div className="text-xs text-slate-500 space-y-0.5">
+              <p>
+                {selected.size === 0 ? "Select items to add" : `${selected.size} selected`}
+              </p>
+              {geoCapEnabled && (
+                <p className={exceedsGeoCap ? "text-amber-700 font-medium" : "text-slate-400"}>
+                  GEO tracking: {geoTrackedCount}/{geoMax} used
+                  {selectedGeoCount > 0
+                    ? ` · ${selectedGeoCount} selected${exceedsGeoCap ? ` (only ${geoRemaining} will be added)` : ""}`
+                    : ""}
+                </p>
+              )}
+            </div>
             <button
               onClick={handleAdd}
               disabled={adding || selected.size === 0}

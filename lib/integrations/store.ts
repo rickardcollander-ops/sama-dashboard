@@ -4,6 +4,13 @@ import { CmsDestination, CmsKind } from "./cms/types";
 const PUBLISHING_KEY = "publishing_destinations";
 const SCHEDULE_KEY = "scheduled_publishes";
 
+/**
+ * Maximum number of GEO queries a tenant can have under monitoring at once.
+ * Each tracked query fans out across ChatGPT, Claude, Perplexity and Gemini
+ * on every check, so a low cap keeps run time and cost manageable.
+ */
+export const MAX_GEO_QUERIES = 5;
+
 export interface ScheduledPublish {
   id: string;
   piece_id: string;
