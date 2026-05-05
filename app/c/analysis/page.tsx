@@ -674,9 +674,11 @@ function SiteAuditHistory({
       {runs.length === 0 ? (
         <div className="rounded-xl border bg-white p-12 text-center text-slate-500">
           <HistoryIcon className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-          <p className="text-sm">No audits yet. Run your first one to see it here.</p>
+          <p className="text-sm">Inga revisioner än. Kör den första för att se den här.</p>
         </div>
       ) : (
+        <>
+        <AuditScoreTimeline runs={runs} />
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
@@ -734,7 +736,100 @@ function SiteAuditHistory({
             </tbody>
           </table>
         </div>
+        </>
       )}
+    </div>
+  );
+}
+
+// Sprint 3 (I5) — score-historik som linjegraf.
+function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
+  const points = runs
+    .filter((r) => r.status === "completed" && typeof r.overall_score === "number")
+    .map((r) => ({
+      ts: new Date(r.started_at).getTime(),
+      score: r.overall_score as number,
+      label: new Date(r.started_at).toLocaleDateString("sv-SE", {
+        day: "numeric",
+        month: "short",
+      }),
+    }))
+    .sort((a, b) => a.ts - b.ts);
+
+  if (points.length < 2) {
+    return null;
+  }
+
+  const W = 600;
+  const H = 120;
+  const PAD_X = 24;
+  const PAD_Y = 16;
+  const minScore = Math.min(...points.map((p) => p.score), 0);
+  const maxScore = Math.max(...points.map((p) => p.score), 100);
+  const span = Math.max(1, maxScore - minScore);
+
+  const xFor = (i: number) =>
+    PAD_X + (i * (W - 2 * PAD_X)) / Math.max(1, points.length - 1);
+  const yFor = (s: number) =>
+    H - PAD_Y - ((s - minScore) / span) * (H - 2 * PAD_Y);
+
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(p.score).toFixed(1)}`)
+    .join(" ");
+
+  const last = points[points.length - 1];
+  const first = points[0];
+  const delta = last.score - first.score;
+
+  return (
+    <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Score-historik</h3>
+          <p className="text-xs text-slate-500">
+            {points.length} kompletta revisioner — {first.label} → {last.label}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-2xl font-bold text-slate-900">{last.score}</span>
+          <span
+            className={`text-xs font-semibold ${
+              delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400"
+            }`}
+          >
+            {delta > 0 ? "+" : ""}
+            {delta} vs första
+          </span>
+        </div>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-32 w-full"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Audit-score över tid"
+      >
+        <line x1={PAD_X} x2={W - PAD_X} y1={yFor(80)} y2={yFor(80)} stroke="#e2e8f0" strokeDasharray="2 4" />
+        <line x1={PAD_X} x2={W - PAD_X} y1={yFor(60)} y2={yFor(60)} stroke="#e2e8f0" strokeDasharray="2 4" />
+        <path d={path} fill="none" stroke="#8b5cf6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={xFor(i)}
+            cy={yFor(p.score)}
+            r={3}
+            fill="#fff"
+            stroke="#8b5cf6"
+            strokeWidth={2}
+          >
+            <title>{`${p.label}: ${p.score}/100`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+        <span>{first.label}</span>
+        <span>{last.label}</span>
+      </div>
     </div>
   );
 }

@@ -5,12 +5,14 @@ import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Archive, ShieldCheck,
+  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import PublishDialog from "@/components/PublishDialog";
+import PiecePerformance from "@/components/content/PiecePerformance";
+import RefineDialog from "@/components/content/RefineDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
@@ -53,6 +55,8 @@ export default function CustomerContentPage() {
   const [cmsDialog, setCmsDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
+  const [refineId, setRefineId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) fetchContent();
@@ -521,6 +525,39 @@ export default function CustomerContentPage() {
                       </button>
                     )}
 
+                    {/* Refine with AI (C5) — for unpublished drafts */}
+                    {piece.status !== "published" && piece.status !== "archived" && (
+                      <button
+                        onClick={() => setRefineId(piece.id)}
+                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-purple-600 hover:bg-purple-50 transition-colors"
+                        title="Förbättra med AI"
+                      >
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    {/* Toggle performance (C6) — once content exists at all */}
+                    {(piece.status === "approved" || piece.status === "published") && (
+                      <button
+                        onClick={() =>
+                          setExpandedPerf((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(piece.id)) next.delete(piece.id);
+                            else next.add(piece.id);
+                            return next;
+                          })
+                        }
+                        className={`rounded-lg border p-1.5 transition-colors ${
+                          expandedPerf.has(piece.id)
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                        }`}
+                        title="Visa utfall"
+                      >
+                        <BarChart2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
                     {/* Archive */}
                     {piece.status !== "archived" && piece.status !== "published" && (
                       <button
@@ -589,9 +626,27 @@ export default function CustomerContentPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Performance expansion (C6) */}
+                {expandedPerf.has(piece.id) && user && (
+                  <div className="mt-4 border-t pt-4">
+                    <PiecePerformance tenantId={user.id} pieceId={piece.id} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
+        )}
+
+        {/* Refine dialog (C5) */}
+        {refineId && user && (
+          <RefineDialog
+            open
+            onClose={() => setRefineId(null)}
+            tenantId={user.id}
+            pieceId={refineId}
+            onSaved={() => fetchContent()}
+          />
         )}
 
         {/* CMS publish dialog */}
