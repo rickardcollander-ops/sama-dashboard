@@ -10,6 +10,7 @@ import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
@@ -117,6 +118,7 @@ const GAP_ICON: Record<GapCategory, typeof Trophy> = {
 export default function AnalysisPage() {
   const { user, loading: userLoading } = useUser();
   const { effectiveTenantId, activeSite } = useSite();
+  const { registerRun } = useActiveRuns();
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const [running, setRunning] = useState(false);
   const [visibilityRun, setVisibilityRun] = useState<AnalysisRun | null>(null);
@@ -279,7 +281,9 @@ export default function AnalysisPage() {
         fetch("/api/site-audit/run", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
-          body: JSON.stringify({ domain: brand.domain, max_pages: 15 }),
+          // 200 covers a typical SMB sitemap end-to-end; the backend caps
+          // sitemap discovery at SITEMAP_DISCOVERY_CAP and the API at 500.
+          body: JSON.stringify({ domain: brand.domain, max_pages: 200 }),
         }),
       ]);
 
@@ -305,9 +309,15 @@ export default function AnalysisPage() {
 
       if (auditRes.status === "fulfilled" && auditRes.value.ok) {
         const aData = await auditRes.value.json().catch(() => ({}));
-        if ((aData as { id?: string }).id) {
+        const auditId = (aData as { id?: string }).id;
+        if (auditId) {
+          // Register with the running-jobs widget so the user can navigate
+          // away and still see progress in the bottom-right corner.
+          registerRun("site_audit", auditId, {
+            label: brand.domain ? `Sajtanalys · ${brand.domain}` : "Sajtanalys",
+          });
           polls.push(
-            pollSiteAuditRun(effectiveTenantId, (aData as { id: string }).id).then((r) => {
+            pollSiteAuditRun(effectiveTenantId, auditId).then((r) => {
               if (r?.status === "completed") setAuditRun(r);
             })
           );

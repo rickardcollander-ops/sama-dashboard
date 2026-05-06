@@ -12,7 +12,7 @@ import {
 import { tenantApi } from "@/lib/api";
 import { useUser } from "@/lib/hooks/useUser";
 
-export type AgentKey = "ai_visibility" | "seo" | "analytics" | "ads" | "content" | "social" | "strategy";
+export type AgentKey = "ai_visibility" | "seo" | "analytics" | "ads" | "content" | "social" | "strategy" | "site_audit";
 
 export interface ActiveRun {
   id: string;
@@ -26,6 +26,11 @@ export interface ActiveRun {
   error?: string;
   completed_at?: number;
   dismissed?: boolean;
+  // Optional granular progress for agents that report it (currently
+  // site_audit). When present, the banner shows "X av Y sidor" and the
+  // progress bar uses the real ratio instead of a time-based estimate.
+  pages_done?: number;
+  pages_total?: number;
 }
 
 interface AgentRunRow {
@@ -38,6 +43,17 @@ interface AgentRunRow {
   error?: string | null;
 }
 
+interface SiteAuditRunRow {
+  id: string;
+  status: string;
+  pages_total?: number | null;
+  pages_done?: number | null;
+  pages_analyzed?: number | null;
+  overall_score?: number | null;
+  completed_at?: string | null;
+  error?: string | null;
+}
+
 const AGENT_NAME_ALIASES: Record<AgentKey, string[]> = {
   ai_visibility: ["ai_visibility", "ai-visibility", "aivisibility", "geo", "geo_visibility", "ai_check"],
   seo: ["seo", "search_console", "gsc", "seo_check", "keyword"],
@@ -46,6 +62,10 @@ const AGENT_NAME_ALIASES: Record<AgentKey, string[]> = {
   content: ["content", "content_generation", "article"],
   social: ["social", "social_post"],
   strategy: ["strategy", "marketing_strategy", "strategi"],
+  // Site audit doesn't write to agent_runs (it has its own table and is
+  // polled separately), so the alias list is unused — declared for type
+  // completeness only.
+  site_audit: ["site_audit", "site-audit"],
 };
 
 function matchesAgent(backendName: string, agent: AgentKey): boolean {
@@ -61,6 +81,9 @@ export const AGENT_DEFAULTS: Record<AgentKey, { label: string; expected_seconds:
   content: { label: "Content generation", expected_seconds: 90 },
   social: { label: "Social", expected_seconds: 45 },
   strategy: { label: "Strategi-syntes", expected_seconds: 90 },
+  // 200 pages × ~0.5 s/page (5-way concurrency) ≈ 60 s; bump headroom
+  // for slow servers and link checking.
+  site_audit: { label: "Sajtanalys", expected_seconds: 180 },
 };
 
 interface ActiveRunsContextValue {
@@ -70,6 +93,14 @@ interface ActiveRunsContextValue {
     endpoint: string,
     options?: { label?: string; body?: unknown },
   ) => Promise<string | undefined>;
+  // Attach the widget to a run that the caller already POSTed (e.g. when the
+  // page kicks off the audit alongside another request and just wants the
+  // widget to track it). Idempotent on run_id within an agent kind.
+  registerRun: (
+    agent: AgentKey,
+    runId: string,
+    options?: { label?: string },
+  ) => string | undefined;
   dismissRun: (id: string) => void;
   clearCompleted: () => void;
 }
@@ -185,6 +216,29 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
     [user, updateRun],
   );
 
+  const registerRun = useCallback<ActiveRunsContextValue["registerRun"]>(
+    (agent, runId, options) => {
+      if (!user) return undefined;
+      // De-dupe: if we're already tracking this backend run, don't add again.
+      const existing = runsRef.current.find((r) => r.run_id === runId && r.agent === agent);
+      if (existing) return existing.id;
+      const id = `${agent}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const defaults = AGENT_DEFAULTS[agent];
+      const newRun: ActiveRun = {
+        id,
+        agent,
+        label: options?.label || defaults.label,
+        triggered_at: Date.now(),
+        expected_seconds: defaults.expected_seconds,
+        status: "running",
+        run_id: runId,
+      };
+      setRuns((prev) => [...prev, newRun]);
+      return id;
+    },
+    [user],
+  );
+
   const dismissRun = useCallback((id: string) => {
     setRuns((prev) => prev.filter((r) => r.id !== id));
   }, []);
@@ -199,10 +253,65 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    const reconcile = (prev: ActiveRun[], backendRuns: AgentRunRow[] | null): ActiveRun[] => {
+    const reconcile = (
+      prev: ActiveRun[],
+      backendRuns: AgentRunRow[] | null,
+      siteAuditRuns: Map<string, SiteAuditRunRow>,
+    ): ActiveRun[] => {
       const reconciled = prev.map((local): ActiveRun => {
         if (local.status === "completed" || local.status === "failed") return local;
         const elapsed = Date.now() - local.triggered_at;
+
+        // Site audits have their own table + progress fields; reconcile
+        // against the per-run rows we fetched separately so the widget can
+        // show real "X av Y sidor" progress.
+        if (local.agent === "site_audit") {
+          if (!local.run_id) {
+            // Trigger response didn't include an id; the audit row exists
+            // server-side but we can't poll it. Fall through to time-out.
+            if (elapsed > TRACKING_TIMEOUT_MS) {
+              return {
+                ...local,
+                status: "completed",
+                summary: "Sajtanalysen startade — uppdatera sidan för att se resultatet.",
+                completed_at: Date.now(),
+              };
+            }
+            return local;
+          }
+          const row = siteAuditRuns.get(local.run_id);
+          if (!row) {
+            if (elapsed > TRACKING_TIMEOUT_MS) {
+              return {
+                ...local,
+                status: "completed",
+                summary: "Sajtanalysen startade — uppdatera sidan för att se resultatet.",
+                completed_at: Date.now(),
+              };
+            }
+            return local;
+          }
+          const next: ActiveRun = {
+            ...local,
+            pages_total: row.pages_total ?? local.pages_total,
+            pages_done: row.pages_done ?? local.pages_done,
+          };
+          if (row.status === "completed") {
+            next.status = "completed";
+            next.summary = row.pages_analyzed
+              ? `${row.pages_analyzed} sidor analyserade`
+              : "Sajtanalys klar";
+            next.completed_at = row.completed_at ? Date.parse(row.completed_at) : Date.now();
+          } else if (row.status === "failed") {
+            next.status = "failed";
+            next.error = row.error || "Sajtanalys misslyckades";
+            next.completed_at = row.completed_at ? Date.parse(row.completed_at) : Date.now();
+          } else {
+            next.status = "running";
+          }
+          return next;
+        }
+
         // If we can't reach the agent_runs endpoint at all, give up tracking
         // after the soft timeout — the agent itself may still be running on
         // backend, we just can't see it from here.
@@ -269,7 +378,13 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
       );
       if (active.length === 0 && !hasExpiredCompleted) return;
       let backendRuns: AgentRunRow[] | null = null;
-      if (active.length > 0) {
+      const siteAuditRuns = new Map<string, SiteAuditRunRow>();
+      const activeNonAudit = active.filter((r) => r.agent !== "site_audit");
+      const activeAuditIds = active
+        .filter((r) => r.agent === "site_audit" && r.run_id)
+        .map((r) => r.run_id as string);
+
+      if (activeNonAudit.length > 0) {
         try {
           const data = await tenantApi(user.id).get<{ runs?: AgentRunRow[] }>(
             `/api/tenant/agent-runs?limit=30`,
@@ -279,8 +394,25 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
           backendRuns = null;
         }
       }
+      if (activeAuditIds.length > 0) {
+        // Fetch each in-flight site_audit row in parallel. The audits
+        // endpoint is per-row (no list-by-ids variant), but realistically
+        // there's only ever one running at a time per tenant.
+        await Promise.all(
+          activeAuditIds.map(async (id) => {
+            try {
+              const row = await tenantApi(user.id).get<SiteAuditRunRow>(
+                `/api/site-audit/runs/${id}`,
+              );
+              if (row && row.id) siteAuditRuns.set(row.id, row);
+            } catch {
+              // transient; ignore
+            }
+          }),
+        );
+      }
       if (cancelled) return;
-      setRuns((prev) => reconcile(prev, backendRuns));
+      setRuns((prev) => reconcile(prev, backendRuns, siteAuditRuns));
     };
     tick();
     const interval = setInterval(tick, POLL_INTERVAL_MS);
@@ -291,8 +423,8 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
   }, [user]);
 
   const value = useMemo<ActiveRunsContextValue>(
-    () => ({ runs, triggerRun, dismissRun, clearCompleted }),
-    [runs, triggerRun, dismissRun, clearCompleted],
+    () => ({ runs, triggerRun, registerRun, dismissRun, clearCompleted }),
+    [runs, triggerRun, registerRun, dismissRun, clearCompleted],
   );
 
   return <ActiveRunsContext.Provider value={value}>{children}</ActiveRunsContext.Provider>;
@@ -306,12 +438,19 @@ export function useActiveRuns(): ActiveRunsContextValue {
 
 /**
  * Estimate completion percentage for a run that is currently running.
- * Based on elapsed time vs. expected duration; capped at 95% so the bar
- * never claims to be done before the agent actually finishes.
+ * Prefers a real pages_done/pages_total ratio (site_audit) when present;
+ * otherwise falls back to elapsed-time vs. expected duration. Capped at
+ * 95% so the bar never claims to be done before the agent actually
+ * finishes.
  */
 export function estimateProgress(run: ActiveRun): number {
   if (run.status === "completed") return 100;
   if (run.status === "failed") return 100;
+  if (run.pages_total && run.pages_total > 0) {
+    const done = run.pages_done ?? 0;
+    const pct = (done / run.pages_total) * 100;
+    return Math.min(95, Math.max(2, Math.round(pct)));
+  }
   const elapsedSeconds = (Date.now() - run.triggered_at) / 1000;
   const pct = (elapsedSeconds / run.expected_seconds) * 100;
   return Math.min(95, Math.max(2, Math.round(pct)));

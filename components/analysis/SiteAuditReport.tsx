@@ -365,7 +365,20 @@ function RecommendationsGrouped({ run }: { run: SiteAuditRun }) {
 
 function RecommendationRow({ rec }: { rec: SiteAuditRecommendation }) {
   const [open, setOpen] = useState(false);
-  const hasDetail = !!(rec.how_to_fix || (rec.affected_urls && rec.affected_urls.length > 0));
+  const hasExamples = !!(rec.examples && rec.examples.length > 0);
+  const hasDetail = !!(
+    rec.how_to_fix ||
+    hasExamples ||
+    (rec.affected_urls && rec.affected_urls.length > 0)
+  );
+  // Index examples by URL so we can show concrete values (e.g. "Hem — 3
+  // chars") next to each affected URL when both are present.
+  const detailByUrl = new Map<string, string>();
+  if (rec.examples) {
+    for (const ex of rec.examples) {
+      if (ex.url && ex.detail) detailByUrl.set(ex.url, ex.detail);
+    }
+  }
 
   return (
     <li className="px-4 py-3">
@@ -413,16 +426,24 @@ function RecommendationRow({ rec }: { rec: SiteAuditRecommendation }) {
             <div className="rounded-md bg-white border border-slate-200 px-3 py-2">
               <div className="font-semibold text-slate-700 mb-1">Affected URLs</div>
               <ul className="space-y-0.5">
-                {rec.affected_urls.slice(0, 8).map((u, i) => (
-                  <li key={i}>
-                    <a href={u} target="_blank" rel="noopener noreferrer"
-                       className="text-violet-700 hover:underline inline-flex items-center gap-1 truncate max-w-[420px]"
-                       title={u}>
-                      {u}
-                      <ExternalLink className="h-3 w-3 opacity-60 flex-shrink-0" />
-                    </a>
-                  </li>
-                ))}
+                {rec.affected_urls.slice(0, 8).map((u, i) => {
+                  const detail = detailByUrl.get(u);
+                  return (
+                    <li key={i} className="flex items-center gap-2">
+                      <a href={u} target="_blank" rel="noopener noreferrer"
+                         className="text-violet-700 hover:underline inline-flex items-center gap-1 truncate max-w-[300px]"
+                         title={u}>
+                        {u}
+                        <ExternalLink className="h-3 w-3 opacity-60 flex-shrink-0" />
+                      </a>
+                      {detail && (
+                        <span className="text-slate-500 truncate" title={detail}>
+                          — {detail}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
                 {rec.affected_urls.length > 8 && (
                   <li className="text-slate-400">+{rec.affected_urls.length - 8} more</li>
                 )}
