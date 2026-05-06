@@ -10,20 +10,22 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useLanguage } from "@/lib/hooks/useLanguage";
+import { LANGUAGES } from "@/lib/locales";
+import type { Translations } from "@/lib/locales";
 import { isAdminEmail } from "@/lib/admin";
 import NotificationBell from "@/components/NotificationBell";
 
 interface NavItem {
   id: SectionId;
   href: string;
-  label: string;
   icon: LucideIcon;
   matchPrefixes: string[];
 }
 
 interface SubNavItem {
   href: string;
-  label: string;
+  labelKey: keyof Translations["subNav"];
   exact?: boolean;
 }
 
@@ -33,42 +35,36 @@ const TOP_NAV: NavItem[] = [
   {
     id: "home",
     href: "/c/dashboard",
-    label: "Hem",
     icon: BarChart2,
     matchPrefixes: ["/c/dashboard"],
   },
   {
     id: "strategy",
     href: "/c/strategy",
-    label: "Strategi",
     icon: Compass,
     matchPrefixes: ["/c/strategy"],
   },
   {
     id: "insights",
     href: "/c/analysis",
-    label: "Insikter",
     icon: Sparkles,
     matchPrefixes: ["/c/analysis", "/c/seo", "/c/geo", "/c/analytics"],
   },
   {
     id: "content",
     href: "/c/content",
-    label: "Content",
     icon: FileText,
     matchPrefixes: ["/c/content"],
   },
   {
     id: "tech",
     href: "/c/tech",
-    label: "Tech",
     icon: Code2,
     matchPrefixes: ["/c/tech"],
   },
   {
     id: "settings",
     href: "/c/settings",
-    label: "Inställningar",
     icon: Settings,
     matchPrefixes: ["/c/settings"],
   },
@@ -77,7 +73,6 @@ const TOP_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem = {
   id: "admin",
   href: "/c/admin",
-  label: "Admin",
   icon: Shield,
   matchPrefixes: ["/c/admin"],
 };
@@ -87,20 +82,20 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   strategy: [],
   tech: [],
   insights: [
-    { href: "/c/analysis", label: "Översikt" },
-    { href: "/c/seo", label: "Google" },
-    { href: "/c/geo", label: "AI-assistenter" },
-    { href: "/c/analytics", label: "Trafik" },
+    { href: "/c/analysis", labelKey: "overview" },
+    { href: "/c/seo", labelKey: "google" },
+    { href: "/c/geo", labelKey: "aiAssistants" },
+    { href: "/c/analytics", labelKey: "traffic" },
   ],
   content: [
-    { href: "/c/content", label: "Översikt", exact: true },
-    { href: "/c/content/calendar", label: "Kalender" },
+    { href: "/c/content", labelKey: "overview", exact: true },
+    { href: "/c/content/calendar", labelKey: "calendar" },
   ],
   settings: [
-    { href: "/c/settings", label: "Konto", exact: true },
-    { href: "/c/settings/sites", label: "Sidor" },
-    { href: "/c/settings/integrations", label: "Integrationer" },
-    { href: "/c/settings/billing", label: "Plan & fakturering" },
+    { href: "/c/settings", labelKey: "account", exact: true },
+    { href: "/c/settings/sites", labelKey: "sites" },
+    { href: "/c/settings/integrations", labelKey: "integrations" },
+    { href: "/c/settings/billing", labelKey: "billing" },
   ],
   admin: [],
 };
@@ -119,14 +114,37 @@ function isSubItemActive(pathname: string, item: SubNavItem): boolean {
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
+function LanguageSelector() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <div className="flex gap-1 px-3 py-2">
+      {LANGUAGES.map((l) => (
+        <button
+          key={l.code}
+          onClick={() => setLanguage(l.code)}
+          title={l.label}
+          className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
+            language === l.code
+              ? "bg-blue-100 text-blue-700"
+              : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          }`}
+        >
+          {l.flag} {l.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SiteSwitcher() {
   const { sites, activeSite, setActiveSiteId } = useSite();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   if (sites.length <= 1) return null;
 
-  const label = activeSite?.site_name || activeSite?.settings?.brand_name as string || "Välj sida";
+  const label = activeSite?.site_name || activeSite?.settings?.brand_name as string || t.siteSwitcher.selectSite;
 
   return (
     <div className="relative px-3 pb-3" ref={ref}>
@@ -145,7 +163,7 @@ function SiteSwitcher() {
           <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
             {sites.map((site) => {
               const isActive = site.id === activeSite?.id;
-              const name = site.site_name || (site.settings?.brand_name as string) || "Namnlös sida";
+              const name = site.site_name || (site.settings?.brand_name as string) || t.siteSwitcher.unnamed;
               const domain = site.settings?.domain as string | undefined;
               return (
                 <button
@@ -166,7 +184,7 @@ function SiteSwitcher() {
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 px-4 py-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-50"
               >
-                Hantera sidor →
+                {t.siteSwitcher.manageSites}
               </Link>
             </div>
           </div>
@@ -188,6 +206,7 @@ function SidebarContent({
   onClose?: () => void;
 }) {
   const { user, signOut } = useUser();
+  const { t } = useLanguage();
 
   return (
     <div className="flex h-full flex-col">
@@ -224,7 +243,7 @@ function SidebarContent({
                 }`}
               >
                 <item.icon className={`h-4.5 w-4.5 flex-shrink-0 ${isActive ? "text-blue-600" : "text-slate-400"}`} style={{ width: "1.125rem", height: "1.125rem" }} />
-                <span className="flex-1">{item.label}</span>
+                <span className="flex-1">{t.nav[item.id]}</span>
                 {subItems.length > 0 && (
                   <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform ${isActive ? "rotate-90" : ""}`} />
                 )}
@@ -246,7 +265,7 @@ function SidebarContent({
                             : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                         }`}
                       >
-                        {sub.label}
+                        {t.subNav[sub.labelKey]}
                       </Link>
                     );
                   })}
@@ -256,6 +275,11 @@ function SidebarContent({
           );
         })}
       </nav>
+
+      {/* Language selector */}
+      <div className="border-t border-slate-100">
+        <LanguageSelector />
+      </div>
 
       {/* User + logout */}
       <div className="border-t border-slate-100 p-3 space-y-1">
@@ -267,7 +291,7 @@ function SidebarContent({
           className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
         >
           <LogOut className="h-4 w-4" />
-          Logga ut
+          {t.common.logout}
         </button>
       </div>
     </div>
@@ -277,6 +301,7 @@ function SidebarContent({
 export default function CustomerNav() {
   const pathname = usePathname();
   const { user } = useUser();
+  const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const showAdmin = isAdminEmail(user?.email);
@@ -296,7 +321,7 @@ export default function CustomerNav() {
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
-            aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
+            aria-label={mobileOpen ? t.common.closeMenu : t.common.openMenu}
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
