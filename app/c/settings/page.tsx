@@ -164,7 +164,7 @@ export default function CustomerSettingsPage() {
 
 function CustomerSettingsPageInner() {
   const { user } = useUser();
-  const { activeSite, reloadSites, tenantClient } = useSite();
+  const { activeSite, reloadSites, tenantClient, effectiveTenantId } = useSite();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -254,8 +254,8 @@ function CustomerSettingsPageInner() {
   }, [error]);
 
   useEffect(() => {
-    if (user) loadGoogleStatus();
-  }, [user]);
+    if (user && effectiveTenantId) loadGoogleStatus();
+  }, [user, effectiveTenantId]);
 
   useEffect(() => {
     if (user) loadAgentStatus();
@@ -458,7 +458,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     try {
       const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
-        `/api/auth/google/status?tenant_id=${user.id}`
+        `/api/auth/google/status?tenant_id=${effectiveTenantId}`
       );
       setGoogleStatus({
         search_console: !!data?.search_console?.connected,
@@ -479,7 +479,7 @@ function CustomerSettingsPageInner() {
   const connectGoogle = (service: string) => {
     if (!user) return;
     const returnUrl = `${window.location.origin}/c/settings`;
-    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${user.id}&return_url=${encodeURIComponent(returnUrl)}`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
   };
 
   const disconnectGoogle = async (service: string) => {
@@ -487,7 +487,7 @@ function CustomerSettingsPageInner() {
     setGoogleLoading(service);
     try {
       await api.delete(
-        `/api/auth/google/disconnect?service=${service}&tenant_id=${user.id}`
+        `/api/auth/google/disconnect?service=${service}&tenant_id=${effectiveTenantId}`
       );
       await loadGoogleStatus();
     } catch {
