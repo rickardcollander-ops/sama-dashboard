@@ -6,8 +6,10 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, CheckCircle2,
 } from "lucide-react";
 
+export type PrimaryGoalValue = "traffic" | "brand" | "leads" | "seo" | "social" | "custom";
+
 export interface StrategyGoals {
-  primary_goal: "traffic" | "brand" | "leads" | "seo" | "social" | "custom";
+  primary_goals: PrimaryGoalValue[];
   custom_goal_text: string;
   content_types: Array<"blog_post" | "linkedin" | "epost">;
   posts_per_week_blog: number;
@@ -52,7 +54,7 @@ function today() {
 }
 
 export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFindings, auditLoading, onSubmit }: Props) {
-  const [primaryGoal, setPrimaryGoal] = useState<StrategyGoals["primary_goal"]>(initialGoals?.primary_goal ?? "traffic");
+  const [primaryGoals, setPrimaryGoals] = useState<PrimaryGoalValue[]>(initialGoals?.primary_goals ?? ["traffic"]);
   const [customGoalText, setCustomGoalText] = useState(initialGoals?.custom_goal_text ?? "");
   const [contentTypes, setContentTypes] = useState<StrategyGoals["content_types"]>(
     initialGoals?.content_types ?? ["blog_post"]
@@ -75,13 +77,23 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
     setAssignedMembers((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
   };
 
+  const toggleGoal = (value: PrimaryGoalValue) => {
+    setPrimaryGoals((prev) => {
+      if (prev.includes(value)) {
+        return prev.length > 1 ? prev.filter((g) => g !== value) : prev;
+      }
+      if (prev.length >= 2) return [prev[1], value];
+      return [...prev, value];
+    });
+  };
+
   const criticalCount = auditFindings.filter((f) => f.severity === "critical").length;
   const warningCount = auditFindings.filter((f) => f.severity === "warning").length;
 
   const handleSubmit = () => {
-    if (contentTypes.length === 0) return;
+    if (primaryGoals.length === 0 || contentTypes.length === 0) return;
     onSubmit({
-      primary_goal: primaryGoal,
+      primary_goals: primaryGoals,
       custom_goal_text: customGoalText,
       content_types: contentTypes,
       posts_per_week_blog: contentTypes.includes("blog_post") ? postsPerWeekBlog : 0,
@@ -97,23 +109,28 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
     <div className="space-y-8">
       {/* Step 1: Primary goal */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Vad är ditt primära mål?</h2>
-        <p className="text-sm text-slate-500 mb-4">Strategin och planen anpassas utifrån ditt svar.</p>
+        <h2 className="text-base font-semibold text-slate-900 mb-1">Vad är dina mål?</h2>
+        <p className="text-sm text-slate-500 mb-4">Välj upp till 2 mål — strategin anpassas utifrån dessa.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {PRIMARY_GOALS.map(({ value, label, desc, icon: Icon }) => {
-            const selected = primaryGoal === value;
+            const selected = primaryGoals.includes(value);
             return (
               <button
                 key={value}
-                onClick={() => setPrimaryGoal(value)}
-                className={`flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all ${
+                onClick={() => toggleGoal(value)}
+                className={`relative flex flex-col gap-1 rounded-lg border-2 p-3 text-left transition-all ${
                   selected
                     ? "border-emerald-500 bg-emerald-50"
                     : "border-slate-200 bg-white hover:border-slate-300"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <Icon className={`h-4 w-4 ${selected ? "text-emerald-600" : "text-slate-400"}`} />
+                {selected && (
+                  <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                    {primaryGoals.indexOf(value) + 1}
+                  </span>
+                )}
+                <div className="flex items-center gap-2 pr-6">
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? "text-emerald-600" : "text-slate-400"}`} />
                   <span className={`text-sm font-medium ${selected ? "text-emerald-700" : "text-slate-700"}`}>{label}</span>
                 </div>
                 <p className="text-xs text-slate-500 leading-snug">{desc}</p>
@@ -121,7 +138,10 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
             );
           })}
         </div>
-        {primaryGoal === "custom" && (
+        {primaryGoals.length === 0 && (
+          <p className="mt-2 text-xs text-red-500">Välj minst ett mål.</p>
+        )}
+        {primaryGoals.includes("custom") && (
           <textarea
             value={customGoalText}
             onChange={(e) => setCustomGoalText(e.target.value)}
@@ -298,7 +318,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          disabled={contentTypes.length === 0}
+          disabled={primaryGoals.length === 0 || contentTypes.length === 0}
           className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
         >
           <Target className="h-4 w-4" />
