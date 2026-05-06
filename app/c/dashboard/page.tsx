@@ -21,7 +21,6 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
-import { tenantApi } from "@/lib/api";
 import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
@@ -306,8 +305,7 @@ export default function CustomerDashboard() {
     [settings, geoSummary, seoStats, contentStats, anyContentEver]
   );
 
-  // Statusrad — three KPIs at the top of the page. Each card gets a plain-
-  // language caption (H-2) and links to the page that owns the metric (K-11).
+  // Statusrad — three KPIs at the top of the page.
   const scoreboardStats: ScoreboardStat[] = useMemo(() => {
     const mentionPct = Math.round(mentionRate * 100);
     const avgPos = seoStats?.avgPosition ?? 0;
@@ -450,7 +448,6 @@ export default function CustomerDashboard() {
 
         {/* Trafikgrafer */}
         <div className="mt-8 space-y-4">
-          {/* Total trafik */}
           <TrafficGraph
             title="Total trafik"
             subtitle="Klick och visningar per dag (alla kanaler)"
@@ -464,7 +461,6 @@ export default function CustomerDashboard() {
             ]}
           />
 
-          {/* SEO – klick och exponeringar */}
           <TrafficGraph
             title="SEO – klick & exponeringar"
             subtitle="Klick och exponeringar per dag från Google Search Console"
@@ -489,7 +485,7 @@ export default function CustomerDashboard() {
           <AgentChips runs={runs} />
         </div>
 
-        {/* Senaste utfall — Sprint 3 (K-13) */}
+        {/* Senaste utfall */}
         {user && (
           <div className="mt-8">
             <RecentOutcomes tenantId={user.id} />
@@ -555,8 +551,8 @@ function TrafficGraph({
 }) {
   const hasData = data && data.length > 0;
 
-  const fmtDate = (v: string) => {
-    const d = new Date(v);
+  const fmtDate = (v: unknown): string => {
+    const d = new Date(String(v ?? ""));
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -601,7 +597,7 @@ function TrafficGraph({
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    labelFormatter={(label: unknown) => fmtDate(String(label))}
+                    labelFormatter={fmtDate}
                   />
                   <Legend
                     wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
