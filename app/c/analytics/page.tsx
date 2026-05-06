@@ -266,8 +266,11 @@ export default function CustomerAnalyticsPage() {
           </div>
         )}
 
-        {/* Google data diagnostics — surfaces why no GA4 data is flowing in */}
-        {user && !loading && !data.daily?.length && !data.channels?.length && (
+        {/* Google data diagnostics — surface why no GA4/GSC data is flowing
+            in. Show whenever totals are all zero (not just when the tables
+            are empty), so a stale row of zeros doesn't hide the diagnosis. */}
+        {user && !loading && totals.clicks === 0 && totals.impressions === 0 &&
+          totals.conversions === 0 && totals.spend === 0 && (
           <div className="mb-8">
             <GoogleDataDiagnostics
               service="analytics"
