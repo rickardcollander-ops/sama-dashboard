@@ -7,7 +7,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireAccount(req, { minRole: "admin" });
+  const guard = await requireAccount(req);
   if (!guard.ok) return guard.response;
   const { admin, accountId } = guard.ctx;
 
@@ -50,7 +50,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireAccount(req, { minRole: "admin" });
+  const guard = await requireAccount(req);
   if (!guard.ok) return guard.response;
   const { admin, accountId, user } = guard.ctx;
 

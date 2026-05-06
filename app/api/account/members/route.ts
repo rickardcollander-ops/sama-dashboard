@@ -92,13 +92,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAccount(req, { minRole: "admin" });
+  const guard = await requireAccount(req);
   if (!guard.ok) return guard.response;
   const { admin, accountId, user } = guard.ctx;
 
   const body = await req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const role = body.role === "admin" ? "admin" : "member";
+  // Every invited user gets full access — role distinction is currently
+  // only used to flag the account owner (who cannot be removed).
+  const role = "admin";
 
   if (!email || !email.includes("@")) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
