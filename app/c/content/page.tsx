@@ -208,12 +208,18 @@ function CustomerContentInner() {
       const client = tenantApi(user.id);
       // /api/content/generate only returns text — it does not persist a
       // piece. We chain a /pieces save so the new draft actually appears.
+      // The proxy guards /generate behind X-Sama-Intent (see app/api/sama)
+      // so we must mark this as a user action or it returns 423.
       const gen = await client.post<{
         title?: string;
         body?: string;
         content?: string;
         suggestions?: string[];
-      }>("/api/content/generate", { type: "linkedin_post" });
+      }>(
+        "/api/content/generate",
+        { type: "linkedin_post" },
+        { headers: { "X-Sama-Intent": "user-action" } },
+      );
       const body = gen.body || gen.content || "";
       if (!body) {
         // Backend returns 200 with empty body on Anthropic errors and puts
@@ -253,7 +259,11 @@ function CustomerContentInner() {
         body?: string;
         content?: string;
         suggestions?: string[];
-      }>("/api/content/generate", { type: modalType, topic: modalTopic });
+      }>(
+        "/api/content/generate",
+        { type: modalType, topic: modalTopic },
+        { headers: { "X-Sama-Intent": "user-action" } },
+      );
       const generated = result.body || result.content || "";
       if (!generated) {
         const detail = result.suggestions?.[0] || "AI:n returnerade inget innehåll.";
@@ -579,7 +589,13 @@ function CustomerContentInner() {
             importLabel="Importera till Content-agenten"
             fetchSuggestions={async () => {
               const client = tenantApi(user.id);
-              const res = await client.post<{ topics?: ContentTopicSuggestion[] }>("/api/content/suggest-topics", {});
+              // Proxy guards /suggest-* behind X-Sama-Intent — see
+              // app/api/sama/[...path]/route.ts.
+              const res = await client.post<{ topics?: ContentTopicSuggestion[] }>(
+                "/api/content/suggest-topics",
+                {},
+                { headers: { "X-Sama-Intent": "user-action" } },
+              );
               return res.topics || [];
             }}
             renderItem={(item) => (
@@ -630,7 +646,11 @@ function CustomerContentInner() {
                       title?: string;
                       body?: string;
                       suggestions?: string[];
-                    }>("/api/content/generate", { type: item.type, topic: item.topic });
+                    }>(
+                      "/api/content/generate",
+                      { type: item.type, topic: item.topic },
+                      { headers: { "X-Sama-Intent": "user-action" } },
+                    );
                     const body = gen.body || "";
                     if (!body) return;
                     await client.patch(`/api/content/pieces/${pieceId}`, {
