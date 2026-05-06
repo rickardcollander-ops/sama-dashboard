@@ -814,10 +814,10 @@ function SiteAuditTab({ audit }: { audit: SiteAudit }) {
           ))}
         </div>
         <div className="mt-4 grid gap-x-6 gap-y-1 text-xs text-slate-500 sm:grid-cols-2">
-          <span>robots.txt: {audit.robots_txt.present ? "present" : "missing"}</span>
-          <span>sitemap: {audit.sitemap.present ? `${audit.sitemap.url_count} URLs` : "missing"}</span>
-          <span>broken links: {audit.broken_links.broken_count} of {audit.broken_links.checked} checked</span>
-          <span>avg word count: {audit.scores.details.avg_word_count ?? "—"}</span>
+          <span>robots.txt: {audit.robots_txt?.present ? "present" : "missing"}</span>
+          <span>sitemap: {audit.sitemap?.present ? `${audit.sitemap.url_count} URLs` : "missing"}</span>
+          <span>broken links: {audit.broken_links?.broken_count ?? 0} of {audit.broken_links?.checked ?? 0} checked</span>
+          <span>avg word count: {audit.scores?.details?.avg_word_count ?? "—"}</span>
         </div>
       </section>
 
@@ -843,11 +843,11 @@ function SiteAuditTab({ audit }: { audit: SiteAudit }) {
         )}
       </section>
 
-      {audit.broken_links.broken.length > 0 && (
+      {(audit.broken_links?.broken?.length ?? 0) > 0 && (
         <section className="rounded-xl border bg-white p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Broken links</h3>
           <ul className="space-y-1 text-xs">
-            {audit.broken_links.broken.slice(0, 20).map((b) => (
+            {(audit.broken_links?.broken ?? []).slice(0, 20).map((b) => (
               <li key={b.url} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-1.5">
                 <span className="truncate text-slate-700" title={b.url}>{b.url}</span>
                 <span className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-red-700">{b.status}</span>
