@@ -35,6 +35,8 @@ interface SiteContextValue {
   setActiveSiteId: (id: string) => void;
   // Returns a tenant API client scoped to the active site (or view-as target).
   tenantClient: ReturnType<typeof tenantApi>;
+  // The resolved tenant ID used by tenantClient (activeSite.id or user.id fallback).
+  effectiveTenantId: string;
   // Admin view-as
   viewAs: ViewAs | null;
   setViewAs: (v: ViewAs) => void;
@@ -170,12 +172,13 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       loading,
       setActiveSiteId,
       tenantClient,
+      effectiveTenantId,
       viewAs,
       setViewAs,
       clearViewAs,
       reloadSites: loadSites,
     }),
-    [sites, activeSite, loading, setActiveSiteId, tenantClient, viewAs, setViewAs, clearViewAs, loadSites]
+    [sites, activeSite, loading, setActiveSiteId, tenantClient, effectiveTenantId, viewAs, setViewAs, clearViewAs, loadSites]
   );
 
   return (
