@@ -14,7 +14,7 @@ import CustomerNav from "@/components/CustomerNav";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { usePeriod } from "@/lib/hooks/usePeriod";
-import { tenantApi } from "@/lib/api";
+import { tenantApi, pollAgentRun } from "@/lib/api";
 import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import TrendBadge from "@/components/dashboard/TrendBadge";
@@ -87,7 +87,29 @@ export default function CustomerAnalyticsPage() {
   }, [error]);
 
   const handleRefresh = async () => {
+    if (!user) return;
     setRefreshing(true);
+    setError(null);
+    try {
+      // Trigger a fresh agent run instead of just re-reading the cache.
+      // The cache is populated by `analytics_agent.collect_daily_metrics`
+      // — re-fetching `/overview` without triggering the agent would just
+      // return the same numbers we already have on screen.
+      const client = tenantApi(user.id);
+      const resp = await client.post<{ run_id?: string; status?: string }>(
+        `/api/tenant/agents/analytics/trigger`,
+        undefined,
+        { headers: { "X-Sama-Intent": "user-action" } },
+      );
+      if (resp?.run_id && resp?.status === "running") {
+        const run = await pollAgentRun(user.id, resp.run_id);
+        if (run.status === "failed") {
+          setError(run.error || run.summary || "Sync failed");
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not refresh analytics");
+    }
     await fetchAnalytics();
     setRefreshing(false);
   };
