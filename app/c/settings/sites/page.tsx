@@ -9,7 +9,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function SitesSettingsPage() {
   const { user } = useUser();
-  const { sites, activeSite, setActiveSiteId, reloadSites } = useSite();
+  const { sites, activeSite, setActiveSiteId, reloadSites, effectiveOwnerId } = useSite();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -32,13 +32,14 @@ export default function SitesSettingsPage() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
     if (!user || !newName.trim() || !newDomain.trim()) return;
+    const ownerId = effectiveOwnerId || user.id;
     setAdding(true);
     setError("");
     try {
       const { error: insertError } = await getSupabaseBrowser()
         .from("user_sites")
         .insert({
-          user_id: user.id,
+          user_id: ownerId,
           site_name: newName.trim(),
           settings: { brand_name: newName.trim(), domain: newDomain.trim() },
         });
