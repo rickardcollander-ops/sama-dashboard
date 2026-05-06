@@ -130,6 +130,7 @@ export default function AnalysisPage() {
   useEffect(() => {
     setVisibilityRun(null);
     setAuditRun(null);
+    setUsedThisWeek(0);
     setInitialLoading(true);
   }, [effectiveTenantId]);
 
@@ -148,7 +149,7 @@ export default function AnalysisPage() {
         competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
       });
 
-      // Weekly usage (stored per user in user_settings)
+      // Weekly usage (stored per (user, tenant) inside user_settings)
       try {
         const supabase = getSupabase();
         const { data } = await supabase
@@ -157,7 +158,8 @@ export default function AnalysisPage() {
           .eq("user_id", user.id)
           .single();
         const us = (data?.settings || {}) as Record<string, unknown>;
-        const usage = us.analysis_weekly_usage as { week?: string; count?: number } | undefined;
+        const byTenant = (us.analysis_weekly_usage_by_tenant || {}) as Record<string, { week?: string; count?: number }>;
+        const usage = byTenant[effectiveTenantId];
         const currentWeek = getISOWeek();
         setUsedThisWeek(usage?.week === currentWeek ? (usage.count ?? 0) : 0);
       } catch {
@@ -209,7 +211,7 @@ export default function AnalysisPage() {
   }, [user, effectiveTenantId, activeSite]);
 
   const incrementWeeklyUsage = async () => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     const newCount = usedThisWeek + 1;
     setUsedThisWeek(newCount);
     try {
@@ -219,9 +221,14 @@ export default function AnalysisPage() {
         .select("settings")
         .eq("user_id", user.id)
         .single();
+      const existingSettings = (data?.settings ?? {}) as Record<string, unknown>;
+      const existingByTenant = (existingSettings.analysis_weekly_usage_by_tenant || {}) as Record<string, { week: string; count: number }>;
       const merged = {
-        ...(data?.settings ?? {}),
-        analysis_weekly_usage: { week: getISOWeek(), count: newCount },
+        ...existingSettings,
+        analysis_weekly_usage_by_tenant: {
+          ...existingByTenant,
+          [effectiveTenantId]: { week: getISOWeek(), count: newCount },
+        },
       };
       await supabase
         .from("user_settings")
