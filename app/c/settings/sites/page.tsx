@@ -71,11 +71,23 @@ export default function SitesSettingsPage() {
     if (!user || !editName.trim()) return;
     setBusy(site.id);
     try {
-      const { error: updateError } = await getSupabaseBrowser()
-        .from("user_sites")
-        .update({ site_name: editName.trim(), updated_at: new Date().toISOString() })
-        .eq("id", site.id);
-      if (updateError) throw new Error(updateError.message);
+      if (viewAs) {
+        const res = await fetch(`/api/admin/user-sites/${viewAs.userId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: site.id, site_name: editName.trim() }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+      } else {
+        const { error: updateError } = await getSupabaseBrowser()
+          .from("user_sites")
+          .update({ site_name: editName.trim(), updated_at: new Date().toISOString() })
+          .eq("id", site.id);
+        if (updateError) throw new Error(updateError.message);
+      }
       await reloadSites();
       setEditingId(null);
       flash("Namn sparat!");
@@ -95,11 +107,22 @@ export default function SitesSettingsPage() {
     setBusy(site.id);
     setError("");
     try {
-      const { error: deleteError } = await getSupabaseBrowser()
-        .from("user_sites")
-        .delete()
-        .eq("id", site.id);
-      if (deleteError) throw new Error(deleteError.message);
+      if (viewAs) {
+        const res = await fetch(
+          `/api/admin/user-sites/${viewAs.userId}?id=${encodeURIComponent(site.id)}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+      } else {
+        const { error: deleteError } = await getSupabaseBrowser()
+          .from("user_sites")
+          .delete()
+          .eq("id", site.id);
+        if (deleteError) throw new Error(deleteError.message);
+      }
       // Switch active if needed
       if (activeSite?.id === site.id) {
         const remaining = sites.filter((s) => s.id !== site.id);

@@ -151,7 +151,7 @@ export default function CustomerSettingsPage() {
 
 function CustomerSettingsPageInner() {
   const { user } = useUser();
-  const { activeSite, reloadSites, tenantClient, effectiveTenantId, effectiveOwnerId } = useSite();
+  const { activeSite, reloadSites, tenantClient, effectiveTenantId, effectiveOwnerId, viewAs } = useSite();
   const { t } = useLanguage();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -258,8 +258,22 @@ function CustomerSettingsPageInner() {
     try {
       const siteId = activeSite?.id ?? user.id;
       const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
-      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: settings.brand_name || activeSite?.site_name || "", settings: { ...settings, blog_url: blogUrl }, updated_at: new Date().toISOString() }, { onConflict: "id" });
-      if (upsertError) throw upsertError;
+      const nextSettings = { ...settings, blog_url: blogUrl };
+      const siteName = settings.brand_name || activeSite?.site_name || "";
+      if (viewAs) {
+        const res = await fetch(`/api/admin/user-sites/${viewAs.userId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: siteId, site_name: siteName, settings: nextSettings }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+      } else {
+        const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: siteName, settings: nextSettings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+        if (upsertError) throw upsertError;
+      }
       setSuccessMessage("Blog URL saved!");
     } catch { setError("Could not save blog URL"); }
   };
@@ -360,8 +374,21 @@ function CustomerSettingsPageInner() {
     try {
       const siteId = activeSite?.id ?? user.id;
       const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
-      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: settings.brand_name || activeSite?.site_name || "", settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
-      if (upsertError) throw upsertError;
+      const siteName = settings.brand_name || activeSite?.site_name || "";
+      if (viewAs) {
+        const res = await fetch(`/api/admin/user-sites/${viewAs.userId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: siteId, site_name: siteName, settings }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+      } else {
+        const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: siteName, settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+        if (upsertError) throw upsertError;
+      }
       await reloadSites();
       setSaved(true); setTimeout(() => setSaved(false), 5000);
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Could not save"); }
