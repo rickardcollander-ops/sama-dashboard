@@ -78,7 +78,7 @@ interface NewCustomerForm {
 
 interface NewCustomerModalProps {
   onClose: () => void;
-  onCreated: (email: string) => void;
+  onCreated: (email: string, invited: boolean) => void;
   onError: (msg: string) => void;
 }
 
@@ -124,7 +124,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
   };
 
   const handleSubmit = async () => {
-    if (!form.email.trim() || !form.domain) return;
+    if (!form.domain) return;
     setSubmitting(true);
     try {
       const settings = {
@@ -140,13 +140,14 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email.trim(), settings }),
+        body: JSON.stringify({ email: form.email.trim() || "", settings }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      onCreated(form.email.trim());
+      const result = await res.json().catch(() => ({}));
+      onCreated(form.email.trim() || form.domain, result.invited === true);
     } catch (e) {
       onError(e instanceof Error ? e.message : "Kunde inte skapa kunden");
     } finally {
@@ -213,7 +214,12 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
                 </button>
               </div>
 
-              <Field label="E-post *" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="kund@foretag.se" type="email" />
+              <div>
+                <Field label="E-post (valfritt)" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="kund@foretag.se" type="email" />
+                <p className="mt-1 text-xs text-slate-400">
+                  Lämna tomt för att skapa konto utan inbjudan — kunden kan lägga till inloggning senare.
+                </p>
+              </div>
               <Field label="Varumärkesnamn" value={form.brand_name} onChange={(v) => setForm((p) => ({ ...p, brand_name: v }))} placeholder="Acme AB" />
               <FieldTextarea label="Beskrivning" value={form.brand_description} onChange={(v) => setForm((p) => ({ ...p, brand_description: v }))} placeholder="Vad gör företaget?" />
 
@@ -281,11 +287,11 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
           ) : (
             <button
               onClick={() => void handleSubmit()}
-              disabled={!form.email.trim() || submitting}
+              disabled={submitting}
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {submitting ? "Skapar…" : "Skapa kund & skicka inbjudan"}
+              {submitting ? "Skapar…" : form.email.trim() ? "Skapa kund & skicka inbjudan" : "Skapa kund"}
             </button>
           )}
         </div>
@@ -465,9 +471,9 @@ export default function AdminPage() {
       {showNewCustomer && (
         <NewCustomerModal
           onClose={() => setShowNewCustomer(false)}
-          onCreated={(email) => {
+          onCreated={(label, invited) => {
             setShowNewCustomer(false);
-            setNotice(`Kund skapad och inbjudan skickad till ${email}`);
+            setNotice(invited ? `Kund skapad och inbjudan skickad till ${label}` : `Kund skapad för ${label}`);
             void load();
           }}
           onError={(msg) => {
