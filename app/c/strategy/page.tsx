@@ -129,7 +129,7 @@ const VERDICT_HINT: Record<string, string> = {
 
 export default function StrategyPage() {
   const { user } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const { runs, triggerRun } = useActiveRuns();
   const [current, setCurrent] = useState<Strategy | null>(null);
   const [history, setHistory] = useState<Strategy[]>([]);
@@ -315,7 +315,11 @@ export default function StrategyPage() {
   const handleApprove = async (items: ContentPlanItem[]) => {
     const res = await fetch("/api/strategy/bulk-create-content", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Pass the active site's tenant ID so pieces land in the right bucket
+        ...(effectiveTenantId ? { "X-Site-Id": effectiveTenantId } : {}),
+      },
       body: JSON.stringify({ items }),
     });
     const result = await res.json();

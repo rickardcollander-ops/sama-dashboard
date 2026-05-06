@@ -64,7 +64,7 @@ export default function CustomerContentPage() {
 
 function CustomerContentInner() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const searchParams = useSearchParams();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +98,8 @@ function CustomerContentInner() {
   const [refineId, setRefineId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) fetchContent();
-  }, [user]);
+    if (user && effectiveTenantId) fetchContent();
+  }, [user, effectiveTenantId]);
 
   // Sprint 2 (K-1 / K-4) — when arriving with ?gap=… or ?topic=…, open the
   // modal pre-filled with the brief from the originating surface. This is

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/integrations/store";
 import { appendScheduled, getDestinations } from "@/lib/integrations/store";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 const BACKEND =
   process.env.SAMA_API_URL ||
@@ -19,6 +20,26 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  // The frontend passes the active site's tenant ID via X-Site-Id so pieces
+  // land in the same bucket the content page will read from. Fall back to
+  // user.id for backwards-compat (single-site users where site id = user id).
+  const requestedSiteId = req.headers.get("x-site-id") || user.id;
+
+  // Verify the requested site belongs to this user before using it.
+  let tenantId = user.id;
+  if (requestedSiteId !== user.id) {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase
+      .from("user_sites")
+      .select("id")
+      .eq("id", requestedSiteId)
+      .eq("user_id", user.id)
+      .single();
+    if (data?.id) tenantId = data.id;
+  } else {
+    tenantId = requestedSiteId;
+  }
+
   const body = await req.json().catch(() => ({}));
   const items: BulkItem[] = Array.isArray(body.items) ? body.items : [];
   if (items.length === 0) {
@@ -36,12 +57,12 @@ export async function POST(req: NextRequest) {
     if (!item.title?.trim()) { failed++; continue; }
 
     try {
-      // Create draft piece on backend
+      // Create draft piece on backend using the verified tenant ID
       const pieceRes = await fetch(`${BACKEND}/api/content/pieces`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Tenant-ID": user.id,
+          "X-Tenant-ID": tenantId,
           "X-Sama-Intent": "user-action",
         },
         body: JSON.stringify({
