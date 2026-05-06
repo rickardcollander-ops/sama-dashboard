@@ -41,6 +41,8 @@ interface UserSettings {
   // Sprint 3 (SET-4) — used by the "Skicka via mail" publishing path.
   publish_email_recipient: string;
   publish_email_recipient_name: string;
+  // Team members for content assignment in strategy planning.
+  team_members: string[];
 }
 
 const BUSINESS_TYPES = [
@@ -86,6 +88,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   google_ads_account_id: "",
   publish_email_recipient: "",
   publish_email_recipient_name: "",
+  team_members: [],
 };
 
 const AVAILABLE_PLATFORMS = ["ChatGPT", "Perplexity", "Claude", "Google AIO", "Gemini", "Microsoft Copilot"];
@@ -169,6 +172,7 @@ function CustomerSettingsPageInner() {
   const [error, setError] = useState("");
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
+  const [newTeamMember, setNewTeamMember] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
   const [googleStatus, setGoogleStatus] = useState<GoogleServiceStatus>({
     search_console: false,
@@ -573,6 +577,18 @@ function CustomerSettingsPageInner() {
     setSettings((prev) => ({ ...prev, geo_queries: prev.geo_queries.filter((x) => x !== q) }));
   };
 
+  const addTeamMember = () => {
+    const m = newTeamMember.trim();
+    if (m && !(settings.team_members ?? []).includes(m)) {
+      setSettings((prev) => ({ ...prev, team_members: [...(prev.team_members ?? []), m] }));
+      setNewTeamMember("");
+    }
+  };
+
+  const removeTeamMember = (m: string) => {
+    setSettings((prev) => ({ ...prev, team_members: (prev.team_members ?? []).filter((x) => x !== m) }));
+  };
+
   const togglePlatform = (p: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -939,6 +955,32 @@ function CustomerSettingsPageInner() {
                 <span key={c} className="flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800 border border-orange-200">
                   {c}
                   <button onClick={() => removeCompetitor(c)} className="hover:text-red-600"><X className="h-3 w-3" /></button>
+                </span>
+              ))}
+            </div>
+          </Section>
+
+          {/* ── Team members ── */}
+          <Section icon={Users} title="Teammedlemmar" desc="Lägg till personer som ska tilldelas innehåll i 90-dagarsplanen">
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={newTeamMember}
+                onChange={(e) => setNewTeamMember(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTeamMember())}
+                placeholder="Namn på teammedlem…"
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button onClick={addTeamMember} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(settings.team_members ?? []).length === 0 && <p className="text-sm text-slate-400">Inga teammedlemmar tillagda</p>}
+              {(settings.team_members ?? []).map((m) => (
+                <span key={m} className="flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 border border-violet-200">
+                  {m}
+                  <button onClick={() => removeTeamMember(m)} className="hover:text-red-600"><X className="h-3 w-3" /></button>
                 </span>
               ))}
             </div>
