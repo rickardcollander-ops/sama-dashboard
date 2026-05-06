@@ -629,16 +629,14 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        {acc.has_settings && (
-                          <button
-                            onClick={() => handleViewAs(acc)}
-                            disabled={busy}
-                            title="Visa kundens dashboard"
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                          >
-                            <Eye className="h-3 w-3" /> Visa
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleViewAs(acc)}
+                          disabled={busy}
+                          title="Visa kundens dashboard"
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          <Eye className="h-3 w-3" /> Visa
+                        </button>
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
