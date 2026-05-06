@@ -275,7 +275,8 @@ export default function CustomerDashboard() {
     [settings, geoSummary, seoStats, contentStats]
   );
 
-  // Statusrad — three KPIs at the top of the page
+  // Statusrad — three KPIs at the top of the page. Each card gets a plain-
+  // language caption (H-2) and links to the page that owns the metric (K-11).
   const scoreboardStats: ScoreboardStat[] = useMemo(() => {
     const mentionPct = Math.round(mentionRate * 100);
     const avgPos = seoStats?.avgPosition ?? 0;
@@ -285,6 +286,8 @@ export default function CustomerDashboard() {
         key: "mention",
         label: "AI-omnämnandegrad",
         tooltip: "Hur ofta ditt varumärke nämns när AI-assistenter får relevanta frågor.",
+        caption: "Hur ofta ert varumärke nämns i AI-svar.",
+        href: "/c/analysis",
         value: geoSummary ? `${mentionPct}%` : "—",
         trend: <TrendBadge delta={mentionRateDelta} format="percent" />,
         hint: geoSummary?.last_check_at ? `Senast kollat ${fmtRelative(geoSummary.last_check_at)}` : "Ingen kontroll körd än",
@@ -293,6 +296,8 @@ export default function CustomerDashboard() {
         key: "google",
         label: "Google-synlighet",
         tooltip: "Genomsnittlig rankposition för dina spårade sökord.",
+        caption: "Snittposition i Google för era sökord — lägre är bättre.",
+        href: "/c/analysis",
         value: avgPos > 0 ? avgPos.toFixed(1) : "—",
         trend: <TrendBadge delta={seoStats?.positionDelta ?? null} format="rank" inverted />,
         hint: avgPos > 0 ? `${(seoStats?.totalKeywords ?? 0)} sökord spårade` : "Inga sökord ännu",
@@ -301,6 +306,8 @@ export default function CustomerDashboard() {
         key: "content",
         label: "Publicerat content",
         tooltip: `Antal publicerade artiklar/sidor under valt tidsspann (${period}).`,
+        caption: "Artiklar och sidor SAMA har publicerat åt er.",
+        href: "/c/content",
         value: published,
         trend: <TrendBadge delta={contentStats?.delta ?? null} format="percent" />,
         hint: contentStats?.drafts ? `${contentStats.drafts} utkast väntar` : undefined,
@@ -348,8 +355,8 @@ export default function CustomerDashboard() {
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
         <PageHeader
           title={settings.brand_name ? `Hej, ${settings.brand_name}` : "Hem"}
-          subtitle="Hur går det just nu?"
-          meta={`Uppdaterad ${fmtRelative(lastRefresh.toISOString())}`}
+          subtitle="Så går det med er synlighet och content just nu. Härifrån når du rätt verktyg snabbt."
+          meta={`Senast uppdaterad ${fmtRelative(lastRefresh.toISOString())}`}
           actions={
             <>
               <PeriodSelector value={period} onChange={setPeriod} />
@@ -359,16 +366,16 @@ export default function CustomerDashboard() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                Uppdatera
+                Uppdatera vy
               </button>
               <button
                 onClick={runAllChecks}
                 disabled={runAllActive || !hasSetup}
-                title={!hasSetup ? "Konfigurera ditt varumärke först" : "Triggar GEO-, SEO-, Analytics- och Ads-agenterna"}
+                title={!hasSetup ? "Konfigurera ditt varumärke först" : "Hämta senaste data — ungefär 30 sek"}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
               >
                 <Zap className="h-3.5 w-3.5" />
-                {runAllActive ? "Kör…" : "Kör alla agenter"}
+                {runAllActive ? "Hämtar…" : "Uppdatera nu"}
               </button>
             </>
           }
@@ -423,10 +430,10 @@ export default function CustomerDashboard() {
             <div className="space-y-2">
               {[
                 { href: "/c/content", icon: PenTool, color: "text-purple-600", label: "Skapa content" },
-                { href: "/c/content/calendar", icon: CalendarIcon, color: "text-indigo-600", label: "Öppna kalender" },
-                { href: "/c/strategy", icon: Compass, color: "text-emerald-600", label: "Granska strategi" },
-                { href: "/c/analysis", icon: Sparkles, color: "text-blue-600", label: "Se insikter" },
-                { href: "/c/settings", icon: Bot, color: "text-slate-600", label: "Inställningar" },
+                { href: "/c/content/calendar", icon: CalendarIcon, color: "text-indigo-600", label: "Se publiceringskalender" },
+                { href: "/c/strategy", icon: Compass, color: "text-emerald-600", label: "Visa er strategi" },
+                { href: "/c/analysis", icon: Sparkles, color: "text-blue-600", label: "Se er synlighet" },
+                { href: "/c/settings", icon: Bot, color: "text-slate-600", label: "Öppna inställningar" },
               ].map((link) => (
                 <Link key={link.href} href={link.href} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 transition-colors">
                   <link.icon className={`h-4 w-4 ${link.color}`} />

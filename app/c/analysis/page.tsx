@@ -357,10 +357,10 @@ function ModeSwitcher({
   mode, onChange,
 }: { mode: AnalysisMode; onChange: (m: AnalysisMode) => void }) {
   const options: { id: AnalysisMode; label: string; icon: typeof Search; hint: string }[] = [
-    { id: "visibility", label: "Visibility analysis", icon: Search,
-      hint: "Per-query SEO + AI mention rate" },
-    { id: "audit",      label: "Site audit",          icon: Globe,
-      hint: "Full domain crawl with score gauges" },
+    { id: "visibility", label: "Synlighetsanalys", icon: Search,
+      hint: "Mät hur ofta ni syns per fråga — i Google och hos AI-assistenter." },
+    { id: "audit",      label: "Sajtgenomgång",   icon: Globe,
+      hint: "Full genomsökning av domänen — teknik, innehåll och AI-läsbarhet." },
   ];
   return (
     <div className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -954,8 +954,8 @@ function Header({
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           {isAudit
-            ? "Heltäckande sajt-revision: teknik, sidinnehåll, AI-synlighet och länk-hälsa."
-            : "Samlad synlighetsrapport för Google och AI-assistenter — hitta gap, skapa content."}
+            ? "Sajtgenomgång — vad på sajten som hjälper eller hindrar er synlighet i Google och AI-svar."
+            : "Var ni syns idag — i Google och i AI-assistenter. Härifrån skapar ni content som täpper luckorna."}
         </p>
       </div>
       {!isAudit && (
@@ -999,23 +999,33 @@ function SetupStage(props: {
 
   return (
     <div className="space-y-6">
-      {/* Run a deeper analysis — primary CTA */}
+      {/* Run a deeper analysis — primary CTA. Sprint 1 (I-3): rewritten so
+          the user understands they're adding phrases/queries to monitor.
+          Button stays disabled until at least one query is present, with a
+          tooltip that explains why. */}
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Kör en djupare analys</h2>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Lägg till specifika fraser eller frågor att bevaka
+            </h2>
             <p className="text-xs text-slate-500">
               {canRun
                 ? `${queries.length} frågor × ${platforms.length} plattformar — startar en ny mätning som ger uppdaterade gap.`
-                : "Lägg in varumärkesnamn, domän och minst en fråga för att kunna köra."}
+                : "Lägg in varumärkesnamn, domän och minst en fråga nedan. När minst en fråga finns kan du köra en mätning."}
             </p>
           </div>
           <button
             onClick={onRun}
             disabled={!canRun}
+            title={
+              canRun
+                ? "Kör synlighetsmätning på era frågor"
+                : "Lägg till minst en fråga nedan för att kunna köra"
+            }
             className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
           >
-            <Play className="h-4 w-4" /> Kör analys
+            <Play className="h-4 w-4" /> Kör mätning
           </button>
         </div>
       </section>
@@ -1050,7 +1060,7 @@ function SetupStage(props: {
       </section>
 
       {/* Queries */}
-      <section>
+      <section id="queries">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-700">Frågor att analysera</h2>
           <button

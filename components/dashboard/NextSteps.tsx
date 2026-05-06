@@ -107,7 +107,9 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
       id: "no-content",
       title: "Inget content publicerat sista 30 dagarna",
       why: "Synligheten påverkas av aktivitet — börja med ett förslag baserat på din strategi.",
-      href: "/c/content",
+      // Sprint 2 (K-12) — deep link straight to the ideas panel so the
+      // next step lands in context, not just on the page.
+      href: "/c/content#ideas",
       cta: "Skapa content",
       icon: FileText,
       tone: "violet",

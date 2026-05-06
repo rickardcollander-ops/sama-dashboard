@@ -52,6 +52,8 @@ interface Strength {
 }
 
 interface Gap {
+  // Stable id used to round-trip the gap into Content (Sprint 2, K-1/K-2).
+  id: string;
   title: string;
   detail: string;
   topic?: string;
@@ -108,28 +110,36 @@ function buildGaps(geo: GeoSummary | null, seo: SeoStats | null): Gap[] {
   const out: Gap[] = [];
   if (geo && (geo.open_gaps ?? 0) > 0) {
     out.push({
+      id: "ai_open_gaps",
       title: `${geo.open_gaps} öppna AI-gap`,
       detail: "Frågor där konkurrenter nämns men inte ditt varumärke. Skapa content som täcker dem.",
+      topic: "Frågor där konkurrenter nämns men inte vi",
     });
   }
   if (geo && (geo.mention_rate ?? 0) < 0.3 && (geo.total_checks ?? 0) > 0) {
     const pct = Math.round((geo.mention_rate ?? 0) * 100);
     out.push({
+      id: "low_ai_mention",
       title: "Låg synlighet i AI-sök",
       detail: `Endast ${pct}% omnämnandegrad — branschspecifikt content kan lyfta siffran.`,
+      topic: "Branschspecifikt content som lyfter omnämnandegraden",
     });
   }
   const avgPos = seo?.avg_position ?? seo?.avgPosition ?? 0;
   if (avgPos > 0 && avgPos > 30) {
     out.push({
+      id: "low_seo_rank",
       title: "Sökord rankar utanför topp 30",
       detail: `Snittposition ${avgPos.toFixed(1)} — content som matchar sökintention behövs.`,
+      topic: "Sökord-content som matchar sökintention",
     });
   }
   if (geo?.top_competitors && geo.top_competitors.length > 0) {
     const dominant = geo.top_competitors[0];
     if (dominant.count >= 3) {
+      const slug = dominant.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
       out.push({
+        id: `competitor_${slug}`,
         title: `${dominant.name} dominerar i AI-svar`,
         detail: `Nämns ${dominant.count} gånger mer än ni. Värt att skriva content som svarar på samma frågor.`,
         topic: `Varför ${dominant.name} inte räcker — vår syn`,
@@ -138,6 +148,7 @@ function buildGaps(geo: GeoSummary | null, seo: SeoStats | null): Gap[] {
   }
   if (out.length === 0) {
     out.push({
+      id: "no_gaps",
       title: "Inga akuta gap upptäckta",
       detail: "Kör en ny AI-kontroll för att hitta nya förbättringsområden.",
     });
@@ -145,9 +156,37 @@ function buildGaps(geo: GeoSummary | null, seo: SeoStats | null): Gap[] {
   return out.slice(0, 3);
 }
 
+// Sprint 2 (K-10) — round-trip status for a gap. We treat any piece whose
+// source_gap_id matches as "addressing" the gap, and use the piece's status
+// to colour the badge: published = "Stängd", anything else = "Pågående".
+interface PieceLink {
+  id: string;
+  title: string;
+  status: string;
+  source_gap_id?: string | null;
+}
+
+interface GapOutcome {
+  state: "published" | "in_progress";
+  pieceTitle: string;
+  pieceId: string;
+}
+
+function pickGapOutcome(pieces: PieceLink[], gapId: string): GapOutcome | null {
+  const matches = pieces.filter((p) => p.source_gap_id === gapId);
+  if (matches.length === 0) return null;
+  const published = matches.find((p) => p.status === "published");
+  if (published) {
+    return { state: "published", pieceTitle: published.title, pieceId: published.id };
+  }
+  const first = matches[0];
+  return { state: "in_progress", pieceTitle: first.title, pieceId: first.id };
+}
+
 export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
   const [geo, setGeo] = useState<GeoSummary | null>(null);
   const [seo, setSeo] = useState<SeoStats | null>(null);
+  const [pieces, setPieces] = useState<PieceLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
@@ -157,13 +196,15 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       setLoading(true);
       setHasError(false);
       try {
-        const [g, s] = await Promise.allSettled([
+        const [g, s, p] = await Promise.allSettled([
           tenantApi(tenantId).get<GeoSummary>("/api/ai-visibility/summary?days=30"),
           tenantApi(tenantId).get<SeoStats>("/api/seo/stats?days=30"),
+          tenantApi(tenantId).get<{ pieces?: PieceLink[] }>("/api/content/pieces?limit=200"),
         ]);
         if (cancelled) return;
         if (g.status === "fulfilled" && g.value) setGeo(g.value);
         if (s.status === "fulfilled" && s.value) setSeo(s.value);
+        if (p.status === "fulfilled" && p.value?.pieces) setPieces(p.value.pieces);
         if (g.status === "rejected" && s.status === "rejected") setHasError(true);
       } catch {
         if (!cancelled) setHasError(true);
@@ -184,7 +225,9 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     );
   }
 
-  // No data at all yet — show a small empty state instead of empty cards
+  // Sprint 1 (I-4) — first-visit empty state. Tell the user exactly what
+  // SAMA needs (domain + a handful of phrases) instead of vague spinner /
+  // generic "no data" copy.
   const noData =
     !geo?.total_checks && !(seo?.total_keywords || seo?.totalKeywords) && !hasError;
   if (noData) {
@@ -195,23 +238,24 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
           <div>
             <h2 className="font-semibold text-slate-900">Ingen synlighetsdata än</h2>
             <p className="mt-1 text-sm text-slate-500">
-              När SAMA-agenterna har kört några kontroller dyker en sammanfattning upp här —
-              kombinerad synlighet, styrkor och gap.
+              Vi behöver veta er domän och 3–5 fraser ni vill ranka för. Lägg till
+              fraserna nedan så kör SAMA en första mätning — då dyker styrkor och
+              gap upp här.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
-                href="/c/geo"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
-              >
-                Kör AI-kontroll
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-              <Link
-                href="/c/seo"
+                href="/c/settings"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
-                Lägg till sökord
+                Kontrollera varumärke och domän
               </Link>
+              <a
+                href="#queries"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
+              >
+                Lägg till fraser
+                <ArrowRight className="h-3 w-3" />
+              </a>
             </div>
           </div>
         </div>
@@ -308,21 +352,40 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
             </div>
           ) : (
             <ul className="space-y-2">
-              {gaps.map((g, i) => {
-                const href = g.topic
-                  ? `/c/content?topic=${encodeURIComponent(g.topic)}`
-                  : "/c/content";
+              {gaps.map((g) => {
+                // Sprint 2 (K-1): always pass a stable gap id so Content can
+                // round-trip the piece back via source_gap_id.
+                const params = new URLSearchParams();
+                params.set("gap", g.id);
+                if (g.topic) params.set("topic", g.topic);
+                params.set("gap_title", g.title);
+                const href = `/c/content?${params.toString()}`;
+                const outcome = pickGapOutcome(pieces, g.id);
                 return (
-                  <li key={i} className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                  <li key={g.id} className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
                     <p className="text-sm font-semibold text-slate-900">{g.title}</p>
                     <p className="mt-0.5 text-sm text-slate-600">{g.detail}</p>
-                    <Link
-                      href={href}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
-                    >
-                      Skapa content för detta gap
-                      <ArrowRight className="h-3 w-3" />
-                    </Link>
+                    {outcome && (
+                      <div
+                        className={`mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          outcome.state === "published"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        {outcome.state === "published" ? "Stängd" : "Pågående"}
+                        <span className="opacity-70">— {outcome.pieceTitle}</span>
+                      </div>
+                    )}
+                    {g.id !== "no_gaps" && (
+                      <Link
+                        href={href}
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
+                      >
+                        Skapa artikel för detta
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    )}
                   </li>
                 );
               })}

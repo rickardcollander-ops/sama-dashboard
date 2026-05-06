@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2,
+  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Compass, Target,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -31,15 +32,42 @@ interface ContentPiece {
   word_count: number;
   target_keyword: string;
   created_at?: string;
+  // Sprint 2 (K-3 / K-6) — backreferences to the surface that motivated the
+  // piece, so the article card can show "Skapad från lucka …" / "Skapad
+  // utifrån strategi-topic …".
+  source_gap_id?: string | null;
+  source_gap_title?: string | null;
+  source_strategy_topic?: string | null;
 }
 
 export default function CustomerContentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+          <CustomerNav />
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          </div>
+        </div>
+      }
+    >
+      <CustomerContentInner />
+    </Suspense>
+  );
+}
+
+function CustomerContentInner() {
   const { user, loading: userLoading } = useUser();
+  const searchParams = useSearchParams();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "draft" | "review" | "approved" | "published" | "archived">("all");
+  // Sprint 1 (C-5) — collapsed status tabs to four logical buckets:
+  // "to_review" covers both draft and review (everything pre-approval),
+  // "scheduled" maps to approved, plus published and archived.
+  const [filter, setFilter] = useState<"to_review" | "scheduled" | "published" | "archived">("to_review");
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<"linkedin" | "blogg" | "epost">("linkedin");
@@ -48,6 +76,11 @@ export default function CustomerContentPage() {
   const [modalContent, setModalContent] = useState("");
   const [modalSaving, setModalSaving] = useState(false);
   const [modalFullscreen, setModalFullscreen] = useState(false);
+  // Sprint 2 (K-1 / K-4) — pre-fill state when arriving from a gap on
+  // Insikter or a topic on Strategi. We pass these through to the saved
+  // piece so the loop is round-trippable.
+  const [sourceGap, setSourceGap] = useState<{ id: string; title: string } | null>(null);
+  const [sourceStrategyTopic, setSourceStrategyTopic] = useState<string | null>(null);
   const [ghConnected, setGhConnected] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<{ id: string; pr_url: string } | null>(null);
@@ -61,6 +94,27 @@ export default function CustomerContentPage() {
   useEffect(() => {
     if (user) fetchContent();
   }, [user]);
+
+  // Sprint 2 (K-1 / K-4) — when arriving with ?gap=… or ?topic=…, open the
+  // modal pre-filled with the brief from the originating surface. This is
+  // what makes Insikter -> Content / Strategi -> Content one click.
+  useEffect(() => {
+    const gap = searchParams.get("gap");
+    const gapTitle = searchParams.get("gap_title");
+    const topic = searchParams.get("topic");
+    const strategyTopic = searchParams.get("strategy_topic");
+    if (gap && gapTitle) {
+      setSourceGap({ id: gap, title: gapTitle });
+    }
+    if (strategyTopic) {
+      setSourceStrategyTopic(strategyTopic);
+    }
+    if (gap || topic || strategyTopic) {
+      setShowModal(true);
+      setModalType("blogg");
+      setModalTopic(topic || gapTitle || strategyTopic || "");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user) checkGitHubStatus();
@@ -192,6 +246,12 @@ export default function CustomerContentPage() {
         type: modalType,
         content: modalContent,
         status: "draft",
+        // Sprint 2 (K-2 / K-5) — round-trip the originating surface so the
+        // piece can show its provenance and the gap/topic can know it's
+        // being addressed.
+        source_gap_id: sourceGap?.id ?? null,
+        source_gap_title: sourceGap?.title ?? null,
+        source_strategy_topic: sourceStrategyTopic ?? null,
       });
     } catch {
       // Optimistic
@@ -206,6 +266,9 @@ export default function CustomerContentPage() {
         word_count: modalContent.split(/\s+/).filter(Boolean).length,
         target_keyword: "",
         created_at: new Date().toISOString(),
+        source_gap_id: sourceGap?.id ?? null,
+        source_gap_title: sourceGap?.title ?? null,
+        source_strategy_topic: sourceStrategyTopic ?? null,
       },
       ...prev,
     ]);
@@ -213,10 +276,13 @@ export default function CustomerContentPage() {
     setShowModal(false);
     setModalTopic("");
     setModalContent("");
+    setSourceGap(null);
+    setSourceStrategyTopic(null);
   };
 
   const filtered = pieces.filter((p) => {
-    if (filter === "all") return true;
+    if (filter === "to_review") return p.status === "draft" || p.status === "review";
+    if (filter === "scheduled") return p.status === "approved";
     return p.status === filter;
   });
 
@@ -305,16 +371,17 @@ export default function CustomerContentPage() {
               Content
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              AI-genererat innehåll — blogginlägg, landningssidor och mer
+              Här skapas och publiceras era artiklar. Idéerna kommer från er strategi och era luckor från Insikter.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
+              title="Baserat på er strategi och era luckor i Insikter."
             >
               <Sparkles className="h-4 w-4" />
-              Skapa nytt
+              Få artikel-idéer
             </button>
             <button
               onClick={generateContent}
@@ -392,11 +459,13 @@ export default function CustomerContentPage() {
           </Link>
         )}
 
-        {/* AI Suggestions */}
+        {/* AI Suggestions — anchor `#ideas` so deep links from Hem / Next
+            Steps (K-12) land here. */}
+        <div id="ideas" />
         {user && (
           <SuggestionsPanel<ContentTopicSuggestion>
-            title="Content-förslag"
-            description="AI föreslår teman och format. Importera ett förslag så genererar Content-agenten ett utkast."
+            title="Få artikel-idéer"
+            description="Baserat på er strategi och era luckor i Insikter. Importera ett förslag så genererar Content-agenten ett utkast."
             accent="purple"
             importButtonLabel="Importera till Content"
             importLabel="Importera till Content-agenten"
@@ -430,14 +499,12 @@ export default function CustomerContentPage() {
           />
         )}
 
-        {/* Filters */}
+        {/* Filters — Sprint 1 (C-5): four logical buckets instead of six. */}
         <div className="flex flex-wrap gap-2 mb-6">
           {(
             [
-              { key: "all", label: "Alla", count: pieces.length },
-              { key: "draft", label: "Utkast", count: draftCount },
-              { key: "review", label: "Under granskning", count: reviewCount },
-              { key: "approved", label: "Godkända", count: approvedCount },
+              { key: "to_review", label: "Att granska", count: draftCount + reviewCount },
+              { key: "scheduled", label: "Schemalagda", count: approvedCount },
               { key: "published", label: "Publicerade", count: publishedCount },
               { key: "archived", label: "Arkiverade", count: archivedCount },
             ] as const
@@ -462,11 +529,17 @@ export default function CustomerContentPage() {
             <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border bg-white p-16 shadow-sm text-center">
+          <div className="rounded-xl border bg-white p-12 shadow-sm text-center">
             <PenTool className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">Inget content än.</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Klicka på &quot;Skapa nytt&quot; för att skapa ditt första utkast.
+            <p className="text-sm text-slate-700 max-w-md mx-auto">
+              Här hamnar artiklar SAMA föreslår och som ni godkänner.
+            </p>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Starta med att klicka <strong>Få artikel-idéer</strong> ovan, eller gå till{" "}
+              <Link href="/c/analysis" className="text-purple-700 underline">
+                Insikter
+              </Link>{" "}
+              och välj en lucka att fylla.
             </p>
           </div>
         ) : (
@@ -482,6 +555,31 @@ export default function CustomerContentPage() {
                       <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
                       <StatusBadge status={piece.status} />
                     </div>
+                    {/* Sprint 2 (K-3 / K-6) — provenance line. Tells the
+                        reader which surface motivated the article so the
+                        loop is visible. */}
+                    {(piece.source_gap_id || piece.source_strategy_topic) && (
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                        {piece.source_gap_id && (
+                          <Link
+                            href="/c/analysis"
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-800 hover:bg-amber-100"
+                          >
+                            <Target className="h-3 w-3" />
+                            Skapad från lucka{piece.source_gap_title ? `: ${piece.source_gap_title}` : ""} (Insikter)
+                          </Link>
+                        )}
+                        {piece.source_strategy_topic && (
+                          <Link
+                            href="/c/strategy"
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-800 hover:bg-emerald-100"
+                          >
+                            <Compass className="h-3 w-3" />
+                            Skapad utifrån strategi-topic: {piece.source_strategy_topic}
+                          </Link>
+                        )}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
@@ -664,7 +762,7 @@ export default function CustomerContentPage() {
         {/* Generate Modal */}
         {showModal && (
           <>
-            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); }} />
+            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); setSourceGap(null); setSourceStrategyTopic(null); }} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className={`w-full rounded-2xl border bg-white shadow-2xl overflow-y-auto transition-all ${modalFullscreen ? "max-w-6xl h-[90vh]" : "max-w-lg max-h-[90vh]"}`}>
                 <div className="flex items-center justify-between border-b px-6 py-4">
@@ -681,7 +779,7 @@ export default function CustomerContentPage() {
                       {modalFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                     </button>
                     <button
-                      onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); }}
+                      onClick={() => { setShowModal(false); setModalContent(""); setModalTopic(""); setModalFullscreen(false); setSourceGap(null); setSourceStrategyTopic(null); }}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                     >
                       <X className="h-5 w-5" />
@@ -689,6 +787,27 @@ export default function CustomerContentPage() {
                   </div>
                 </div>
                 <div className="p-6 space-y-5">
+                  {/* Sprint 2 (K-1 / K-4) — show the originating surface
+                      inside the modal so the user understands the brief. */}
+                  {(sourceGap || sourceStrategyTopic) && (
+                    <div
+                      className={`rounded-lg border p-3 text-xs ${
+                        sourceGap
+                          ? "border-amber-200 bg-amber-50 text-amber-900"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      }`}
+                    >
+                      {sourceGap ? (
+                        <>
+                          <strong>Skapas från lucka i Insikter:</strong> {sourceGap.title}
+                        </>
+                      ) : (
+                        <>
+                          <strong>Skapas utifrån strategi-topic:</strong> {sourceStrategyTopic}
+                        </>
+                      )}
+                    </div>
+                  )}
                   {/* Type selector */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>

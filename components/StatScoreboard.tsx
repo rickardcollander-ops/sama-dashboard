@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 // Sprint 1a (X5) — shared horizontal "scoreboard" row for top-of-page stats.
 //
@@ -15,11 +16,39 @@ export interface ScoreboardStat {
   hint?: ReactNode;
   // Optional short tooltip explaining the metric for non-experts.
   tooltip?: string;
+  // Plain-language one-liner shown directly under the value (Sprint 1, H-2)
+  // to anchor each metric for non-experts. Distinct from `hint` (date / count
+  // context that lives below it).
+  caption?: string;
+  // When set, the whole card becomes a link to the page that owns the metric
+  // (Sprint 2, K-11) so a number on Hem leads to its detail view.
+  href?: string;
 }
 
 interface StatScoreboardProps {
   stats: ScoreboardStat[];
   className?: string;
+}
+
+function StatBody({ stat }: { stat: ScoreboardStat }) {
+  return (
+    <>
+      <div
+        className="text-xs font-medium uppercase tracking-wide text-slate-500"
+        title={stat.tooltip}
+      >
+        {stat.label}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-2xl font-bold text-slate-900">{stat.value}</span>
+        {stat.trend && <span className="text-sm">{stat.trend}</span>}
+      </div>
+      {stat.caption && (
+        <div className="text-xs text-slate-500 leading-snug">{stat.caption}</div>
+      )}
+      {stat.hint && <div className="text-xs text-slate-400">{stat.hint}</div>}
+    </>
+  );
 }
 
 export default function StatScoreboard({ stats, className = "" }: StatScoreboardProps) {
@@ -30,24 +59,26 @@ export default function StatScoreboard({ stats, className = "" }: StatScoreboard
       className={`grid gap-px overflow-hidden rounded-xl border bg-slate-200 shadow-sm ${className}`}
       style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}
     >
-      {stats.map((s, idx) => (
-        <div
-          key={s.key ?? s.label ?? idx}
-          className="flex flex-col gap-1 bg-white px-4 py-4 sm:px-5"
-        >
-          <div
-            className="text-xs font-medium uppercase tracking-wide text-slate-500"
-            title={s.tooltip}
-          >
-            {s.label}
+      {stats.map((s, idx) => {
+        const baseClass = "flex flex-col gap-1 bg-white px-4 py-4 sm:px-5";
+        const key = s.key ?? s.label ?? idx;
+        if (s.href) {
+          return (
+            <Link
+              key={key}
+              href={s.href}
+              className={`${baseClass} transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-200`}
+            >
+              <StatBody stat={s} />
+            </Link>
+          );
+        }
+        return (
+          <div key={key} className={baseClass}>
+            <StatBody stat={s} />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900">{s.value}</span>
-            {s.trend && <span className="text-sm">{s.trend}</span>}
-          </div>
-          {s.hint && <div className="text-xs text-slate-400">{s.hint}</div>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

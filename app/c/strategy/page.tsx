@@ -95,6 +95,33 @@ function northStarText(ns: Strategy["north_star_metric"]): string {
   return parts.join(" · ");
 }
 
+// Sprint 1, S-2 — derive a 3-bullet TL;DR from whatever the strategy
+// already contains. We prefer cross-channel priorities (those are already
+// short titles); otherwise we fall back to the first key_action per domain.
+function buildTldr(strategy: Strategy): string[] {
+  const bullets: string[] = [];
+  for (const p of strategy.cross_channel_priorities ?? []) {
+    if (p.title) bullets.push(p.title);
+    if (bullets.length >= 3) break;
+  }
+  if (bullets.length < 3) {
+    for (const d of strategy.domain_strategies ?? []) {
+      const action = d.key_actions?.[0];
+      if (action) bullets.push(`${d.domain}: ${action}`);
+      if (bullets.length >= 3) break;
+    }
+  }
+  return bullets.slice(0, 3);
+}
+
+const VERDICT_HINT: Record<string, string> = {
+  critical:
+    "Kritisk — vi har för lite data för att ge säkra rekommendationer. Kör en första synlighetsanalys på Insikter.",
+  weak: "Svag — synligheten ligger lågt. Fokusera content på de gap som listas under Plan per kanal.",
+  improving: "Förbättras — riktningen är rätt. Fortsätt enligt prioriteringarna nedan.",
+  strong: "Stark — håll i nuvarande spår och bevaka nya gap löpande.",
+};
+
 export default function StrategyPage() {
   const { user } = useUser();
   const { runs, triggerRun } = useActiveRuns();
@@ -216,7 +243,7 @@ export default function StrategyPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Strategi</h1>
               <p className="text-sm text-slate-500">
-                Vägval och plan — sammanfattat varje vecka från alla aktiva agenter, med diagnos, prioriteringar och 30/60/90-dagars-plan.
+                Här är riktningen SAMA jobbar mot — vad ni vill bli kända för och hur. Den styr vad som skapas i Content.
               </p>
             </div>
           </div>
@@ -284,6 +311,40 @@ export default function StrategyPage() {
                 )}
               </div>
 
+              {/* S-3 — explain the verdict tag in plain language. */}
+              {current.verdict && VERDICT_HINT[current.verdict] && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {VERDICT_HINT[current.verdict]}
+                </p>
+              )}
+
+              {/* S-2 — TL;DR block: 3 short bullets above the deep read. */}
+              {(() => {
+                const tldr = buildTldr(current);
+                if (tldr.length === 0) return null;
+                return (
+                  <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 p-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      TL;DR
+                    </h3>
+                    <ul className="mt-2 space-y-1.5">
+                      {tldr.map((b, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-sm text-slate-700"
+                        >
+                          <span
+                            className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500"
+                            aria-hidden
+                          />
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {/* S2 stub — staleness indicator + Refine CTA */}
               {(() => {
                 const days = strategyAgeDays(current.generated_at);
@@ -343,42 +404,63 @@ export default function StrategyPage() {
               )}
             </section>
 
-            {/* Domain strategies */}
+            {/* Domain strategies — Sprint 2 (K-4): each kanal-block can hand
+                off into Content with the topic pre-selected so the strategy
+                can directly produce articles. */}
             {current.domain_strategies && current.domain_strategies.length > 0 && (
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
                   Plan per kanal
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {current.domain_strategies.map((d, idx) => (
-                    <div key={`${d.domain}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        {d.domain}
+                  {current.domain_strategies.map((d, idx) => {
+                    const topic = d.goal || d.diagnosis || `${d.domain}-strategi`;
+                    const params = new URLSearchParams();
+                    params.set("strategy_topic", topic);
+                    params.set("topic", topic);
+                    const contentHref = `/c/content?${params.toString()}`;
+                    return (
+                      <div key={`${d.domain}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            {d.domain}
+                          </div>
+                          {(d.domain || "").toLowerCase().includes("content") || d.key_actions?.length ? (
+                            <a
+                              href={contentHref}
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                              title="Öppna Content med detta topic förvalt"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Skapa content från detta
+                            </a>
+                          ) : null}
+                        </div>
+                        {d.diagnosis && (
+                          <p className="mt-2 text-sm text-slate-700">
+                            <span className="font-medium text-slate-900">Diagnos: </span>
+                            {d.diagnosis}
+                          </p>
+                        )}
+                        {d.goal && (
+                          <p className="mt-2 text-sm text-slate-700">
+                            <span className="font-medium text-slate-900">Mål: </span>
+                            {d.goal}
+                          </p>
+                        )}
+                        {d.key_actions && d.key_actions.length > 0 && (
+                          <ul className="mt-3 space-y-1.5">
+                            {d.key_actions.map((action, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                                <ChevronRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+                                <span>{action}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                      {d.diagnosis && (
-                        <p className="mt-2 text-sm text-slate-700">
-                          <span className="font-medium text-slate-900">Diagnos: </span>
-                          {d.diagnosis}
-                        </p>
-                      )}
-                      {d.goal && (
-                        <p className="mt-2 text-sm text-slate-700">
-                          <span className="font-medium text-slate-900">Mål: </span>
-                          {d.goal}
-                        </p>
-                      )}
-                      {d.key_actions && d.key_actions.length > 0 && (
-                        <ul className="mt-3 space-y-1.5">
-                          {d.key_actions.map((action, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                              <ChevronRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
-                              <span>{action}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}
