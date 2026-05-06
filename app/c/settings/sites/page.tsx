@@ -9,7 +9,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function SitesSettingsPage() {
   const { user } = useUser();
-  const { sites, activeSite, setActiveSiteId, reloadSites, effectiveOwnerId } = useSite();
+  const { sites, activeSite, setActiveSiteId, reloadSites, effectiveOwnerId, viewAs } = useSite();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -33,17 +33,29 @@ export default function SitesSettingsPage() {
     e.preventDefault();
     if (!user || !newName.trim() || !newDomain.trim()) return;
     const ownerId = effectiveOwnerId || user.id;
+    const siteName = newName.trim();
+    const settings = { brand_name: siteName, domain: newDomain.trim() };
     setAdding(true);
     setError("");
     try {
-      const { error: insertError } = await getSupabaseBrowser()
-        .from("user_sites")
-        .insert({
-          user_id: ownerId,
-          site_name: newName.trim(),
-          settings: { brand_name: newName.trim(), domain: newDomain.trim() },
+      // In admin view-as mode, RLS won't allow auth.uid() (admin) to insert with
+      // user_id = customer's id, so go through the admin API which bypasses RLS.
+      if (viewAs) {
+        const res = await fetch(`/api/admin/user-sites/${viewAs.userId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ site_name: siteName, settings }),
         });
-      if (insertError) throw new Error(insertError.message);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+      } else {
+        const { error: insertError } = await getSupabaseBrowser()
+          .from("user_sites")
+          .insert({ user_id: ownerId, site_name: siteName, settings });
+        if (insertError) throw new Error(insertError.message);
+      }
       await reloadSites();
       setShowAdd(false);
       setNewName("");
