@@ -84,6 +84,7 @@ export default function CustomerDashboard() {
   const [geoSummary, setGeoSummary] = useState<GeoSummary | null>(null);
   const [seoStats, setSeoStats] = useState<SeoStats | null>(null);
   const [contentStats, setContentStats] = useState<ContentStats | null>(null);
+  const [anyContentEver, setAnyContentEver] = useState(false);
   const [strategy, setStrategy] = useState<StrategySnapshot>({ has: false });
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -196,17 +197,13 @@ export default function CustomerDashboard() {
           delta: (data.delta_percent ?? data.delta) as number | undefined,
           updated_at: data.updated_at as string | undefined,
         });
-        return;
       }
     } catch {}
     try {
-      const pieces = await tenantApi(user!.id).get<Record<string, unknown>>("/api/content/pieces?limit=1");
+      const pieces = await tenantApi(user.id).get<Record<string, unknown>>("/api/content/pieces?limit=1");
       const list = pieces?.pieces as unknown[] | undefined;
-      setContentStats({
-        total: (pieces?.total ?? list?.length ?? 0) as number,
-        published: 0,
-        drafts: 0,
-      });
+      const allTimeTotal = (pieces?.total ?? list?.length ?? 0) as number;
+      setAnyContentEver(allTimeTotal > 0);
     } catch {}
   };
 
@@ -271,9 +268,9 @@ export default function CustomerDashboard() {
       { id: "geo_queries", label: "Sätt upp sökfrågor", description: "Frågor att bevaka i AI-assistenter", done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/settings", cta: "Sätt upp" },
       { id: "first_check", label: "Kör din första AI-kontroll", description: "Se hur synligt ditt varumärke är i AI", done: (geoSummary?.total_checks ?? 0) > 0, href: "/c/geo", cta: "Kör" },
       { id: "first_keyword", label: "Spåra ditt första sökord", description: "Google-bevakning", done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: "Lägg till" },
-      { id: "first_content", label: "Skapa ditt första content", description: "AI-genererad artikel eller inlägg", done: (contentStats?.total ?? 0) > 0, href: "/c/content", cta: "Skapa" },
+      { id: "first_content", label: "Skapa ditt första content", description: "AI-genererad artikel eller inlägg", done: anyContentEver, href: "/c/content", cta: "Skapa" },
     ],
-    [settings, geoSummary, seoStats, contentStats]
+    [settings, geoSummary, seoStats, contentStats, anyContentEver]
   );
 
   // Statusrad — three KPIs at the top of the page. Each card gets a plain-
