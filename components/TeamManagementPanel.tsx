@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   UserPlus, Loader2, AlertCircle, CheckCircle2, X, Mail,
-  Shield, Trash2, Crown, Clock,
+  Trash2, Crown, Clock,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -21,12 +21,6 @@ interface Member {
   last_sign_in_at: string | null;
 }
 
-const ROLE_LABEL: Record<Member["role"], string> = {
-  owner: "Ägare",
-  admin: "Administratör",
-  member: "Medlem",
-};
-
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -41,19 +35,15 @@ interface TeamManagementPanelProps {
 
 export default function TeamManagementPanel({ compact = false }: TeamManagementPanelProps) {
   const { user, loading: userLoading } = useUser();
-  const { activeAccountId, myRole } = useSite();
+  const { activeAccountId } = useSite();
   const [members, setMembers] = useState<Member[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [inviting, setInviting] = useState(false);
-
-  const canManage = myRole === "owner" || myRole === "admin";
 
   const flash = (msg: string) => {
     setNotice(msg);
@@ -103,7 +93,7 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
       const res = await fetch("/api/account/members", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ email, role: inviteRole }),
+        body: JSON.stringify({ email }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -113,32 +103,11 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
           : `${email} har lagts till — kunde logga in direkt`,
       );
       setInviteEmail("");
-      setInviteRole("member");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte bjuda in");
     } finally {
       setInviting(false);
-    }
-  };
-
-  const handleRoleChange = async (m: Member, role: "admin" | "member") => {
-    setPendingId(m.id);
-    setError("");
-    try {
-      const res = await fetch(`/api/account/members/${m.id}`, {
-        method: "PATCH",
-        headers: headers(),
-        body: JSON.stringify({ role }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-      setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, role } : x)));
-      flash(`Roll uppdaterad`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte uppdatera rollen");
-    } finally {
-      setPendingId(null);
     }
   };
 
@@ -188,84 +157,66 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
         </div>
       )}
 
-      {canManage ? (
-        <form
-          onSubmit={handleInvite}
-          className={
-            compact
-              ? "rounded-lg border border-slate-200 bg-slate-50 p-3"
-              : "rounded-xl border bg-white p-5 shadow-sm"
-          }
-        >
-          {!compact && (
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <UserPlus className="h-4 w-4 text-slate-400" /> Bjud in en medlem
-            </div>
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-600 mb-1">E-post</label>
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="kollega@foretag.se"
-                required
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div className="sm:w-40">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Roll</label>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="member">Medlem</option>
-                <option value="admin">Administratör</option>
-              </select>
-            </div>
-            <button
-              type="submit"
-              disabled={inviting || !inviteEmail.trim()}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              {inviting ? "Skickar…" : "Bjud in"}
-            </button>
+      <form
+        onSubmit={handleInvite}
+        className={
+          compact
+            ? "rounded-lg border border-slate-200 bg-slate-50 p-3"
+            : "rounded-xl border bg-white p-5 shadow-sm"
+        }
+      >
+        {!compact && (
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <UserPlus className="h-4 w-4 text-slate-400" /> Bjud in en medlem
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Administratörer kan bjuda in fler medlemmar och hantera teamet. Medlemmar får full
-            tillgång till data men kan inte ändra teamet.
-          </p>
-        </form>
-      ) : (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Endast administratörer kan bjuda in nya medlemmar.
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-slate-600 mb-1">E-post</label>
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="kollega@foretag.se"
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={inviting || !inviteEmail.trim()}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            {inviting ? "Skickar…" : "Bjud in"}
+          </button>
         </div>
-      )}
+        <p className="mt-2 text-xs text-slate-500">
+          Alla medlemmar har full tillgång till kontot — kan se data, ändra inställningar och bjuda in fler.
+        </p>
+      </form>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               <th className="px-3 py-2">Medlem</th>
-              <th className="px-3 py-2">Roll</th>
               <th className="px-3 py-2">Status</th>
-              {canManage && <th className="px-3 py-2 text-right">Åtgärder</th>}
+              <th className="px-3 py-2">Tillagd</th>
+              <th className="px-3 py-2 text-right">Åtgärder</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {fetching && members.length === 0 && (
               <tr>
-                <td colSpan={canManage ? 4 : 3} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
                   <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                 </td>
               </tr>
             )}
             {!fetching && members.length === 0 && (
               <tr>
-                <td colSpan={canManage ? 4 : 3} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
                   Inga medlemmar än.
                 </td>
               </tr>
@@ -278,10 +229,18 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
                 <tr key={m.id} className="hover:bg-slate-50/60">
                   <td className="px-3 py-2">
                     <div className="font-medium text-slate-900 flex items-center gap-2">
-                      {m.email || m.invited_email || "(okänd)"}
+                      {isOwner && (
+                        <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                      )}
+                      <span>{m.email || m.invited_email || "(okänd)"}</span>
                       {isSelf && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                           du
+                        </span>
+                      )}
+                      {isOwner && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                          ägare
                         </span>
                       )}
                     </div>
@@ -290,16 +249,6 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
                         Senast inloggad {fmtDate(m.last_sign_in_at)}
                       </div>
                     )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-700">
-                      {isOwner ? (
-                        <Crown className="h-3.5 w-3.5 text-amber-500" />
-                      ) : m.role === "admin" ? (
-                        <Shield className="h-3.5 w-3.5 text-blue-500" />
-                      ) : null}
-                      {ROLE_LABEL[m.role]}
-                    </span>
                   </td>
                   <td className="px-3 py-2">
                     {m.status === "active" ? (
@@ -312,36 +261,22 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
                       </span>
                     )}
                   </td>
-                  {canManage && (
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-2">
-                        {!isOwner && (
-                          <select
-                            value={m.role}
-                            onChange={(e) =>
-                              void handleRoleChange(m, e.target.value as "admin" | "member")
-                            }
-                            disabled={busy || isSelf}
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
-                          >
-                            <option value="member">Medlem</option>
-                            <option value="admin">Administratör</option>
-                          </select>
-                        )}
-                        {!isOwner && !isSelf && (
-                          <button
-                            onClick={() => void handleRemove(m)}
-                            disabled={busy}
-                            title="Ta bort medlem"
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                            Ta bort
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-3 py-2 text-slate-600">{fmtDate(m.created_at)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex justify-end gap-2">
+                      {!isOwner && !isSelf && (
+                        <button
+                          onClick={() => void handleRemove(m)}
+                          disabled={busy}
+                          title="Ta bort medlem"
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                          Ta bort
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
