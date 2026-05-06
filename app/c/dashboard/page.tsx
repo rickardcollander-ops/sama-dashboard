@@ -601,7 +601,7 @@ function TrafficGraph({
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    labelFormatter={fmtDate}
+                    labelFormatter={(label: unknown) => fmtDate(String(label))}
                   />
                   <Legend
                     wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
