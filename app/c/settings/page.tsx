@@ -27,6 +27,8 @@ interface UserSettings {
   language: string;
   content_language: string;
   brand_description: string;
+  // Sprint 3 (SET-2) — drives tone/structure of AI-generated content.
+  business_type: string;
   target_audience: string;
   unique_selling_points: string;
   tone_of_voice: string;
@@ -39,7 +41,19 @@ interface UserSettings {
   linkedin_ads_account_id: string;
   google_ads_token: string;
   google_ads_account_id: string;
+  // Sprint 3 (SET-4) — used by the "Skicka via mail" publishing path.
+  publish_email_recipient: string;
+  publish_email_recipient_name: string;
 }
+
+const BUSINESS_TYPES = [
+  { code: "ecommerce", label: "E-handel" },
+  { code: "local", label: "Lokal näring" },
+  { code: "services", label: "Tjänsteföretag" },
+  { code: "software", label: "Programvara / SaaS" },
+  { code: "media", label: "Media / publicist" },
+  { code: "other", label: "Annat" },
+];
 
 const CONTENT_LANGUAGES = [
   { code: "en", label: "English" },
@@ -64,6 +78,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   language: "sv",
   content_language: "en",
   brand_description: "",
+  business_type: "",
   target_audience: "",
   unique_selling_points: "",
   tone_of_voice: "professional",
@@ -76,6 +91,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   linkedin_ads_account_id: "",
   google_ads_token: "",
   google_ads_account_id: "",
+  publish_email_recipient: "",
+  publish_email_recipient_name: "",
 };
 
 const AVAILABLE_PLATFORMS = ["ChatGPT", "Perplexity", "Claude", "Google AIO", "Gemini", "Microsoft Copilot"];
@@ -918,6 +935,22 @@ function CustomerSettingsPageInner() {
                 <p className="text-xs text-slate-400 mt-1">Språket SAMA använder när content skapas för ert varumärke.</p>
               </div>
               <TextareaField label="Beskrivning" value={settings.brand_description} onChange={(v) => updateField("brand_description", v)} placeholder="Kort beskrivning av vad ni gör…" />
+              {/* Sprint 3 (SET-2) — verksamhetstyp styr tonalitet och
+                  struktur i AI-genererat content. */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Verksamhetstyp</label>
+                <select
+                  value={settings.business_type}
+                  onChange={(e) => updateField("business_type", e.target.value)}
+                  className="w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Välj typ…</option>
+                  {BUSINESS_TYPES.map((b) => (
+                    <option key={b.code} value={b.code}>{b.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Påverkar ton och struktur när SAMA skapar content.</p>
+              </div>
               <TextareaField label="Målgrupp" value={settings.target_audience} onChange={(v) => updateField("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag, restauranger…" />
               <TextareaField label="Det som gör er unika" value={settings.unique_selling_points} onChange={(v) => updateField("unique_selling_points", v)} placeholder="Personlig service, lokal närvaro, snabbast i området…" />
               <div>
@@ -1312,6 +1345,29 @@ function CustomerSettingsPageInner() {
                     Spara
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Sprint 3 (SET-4) — recipient for the "Skicka via mail"
+                publishing path. Used by Content's per-piece publish menu. */}
+            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+              <h4 className="text-sm font-medium text-slate-900 mb-1">Mail-mottagare för publicering</h4>
+              <p className="text-xs text-slate-500 mb-3">
+                Används av Content när ni klickar &quot;Skicka via mail&quot; — t.ex. för att skicka utkast till en redaktör som lägger upp i CMS:et själv.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InputField
+                  label="E-postadress"
+                  value={settings.publish_email_recipient}
+                  onChange={(v) => updateField("publish_email_recipient", v)}
+                  placeholder="redaktor@acme.se"
+                />
+                <InputField
+                  label="Namn (valfritt)"
+                  value={settings.publish_email_recipient_name}
+                  onChange={(v) => updateField("publish_email_recipient_name", v)}
+                  placeholder="Anna Andersson"
+                />
               </div>
             </div>
           </Section>
