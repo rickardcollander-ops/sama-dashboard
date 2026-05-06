@@ -78,11 +78,17 @@ interface ContentStats {
 
 export default function CustomerDashboard() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, activeSite } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const { t } = useLanguage();
   const router = useRouter();
-  const [settings, setSettings] = useState<CustomerSettings>({});
+  // Derived from the active site so the page header and checklist reflect
+  // the currently selected site, not a stale row from the legacy
+  // user_settings table.
+  const settings = useMemo<CustomerSettings>(
+    () => (activeSite?.settings as CustomerSettings) || {},
+    [activeSite],
+  );
   const [geoSummary, setGeoSummary] = useState<GeoSummary | null>(null);
   const [seoStats, setSeoStats] = useState<SeoStats | null>(null);
   const [contentStats, setContentStats] = useState<ContentStats | null>(null);
@@ -159,7 +165,6 @@ export default function CustomerDashboard() {
     setLoading(true);
     setError("");
     const results = await Promise.allSettled([
-      loadSettings(),
       loadGeoSummary(),
       loadSeoStats(),
       loadContentStats(),
@@ -179,13 +184,6 @@ export default function CustomerDashboard() {
       const data = await tenantClient.get<TrafficData>(`/api/analytics/overview?days=${days}`);
       if (data) setTrafficData(data);
     } catch { /* silent */ }
-  };
-
-  const loadSettings = async () => {
-    if (!user) return;
-    const sb = getSupabaseBrowser();
-    const { data } = await sb.from("user_settings").select("settings").eq("user_id", user.id).single();
-    if (data?.settings) setSettings(data.settings);
   };
 
   const loadGeoSummary = async () => {
