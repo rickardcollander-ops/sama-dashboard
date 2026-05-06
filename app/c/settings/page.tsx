@@ -107,6 +107,10 @@ const AGENT_INFO: Record<string, { label: string; icon: React.ElementType }> = {
   strategy: { label: "Strategy Agent", icon: Compass },
 };
 
+// Agents shown in settings UI — inactive ones are hidden until ready
+const ACTIVE_AGENTS = new Set(["seo", "content", "analytics", "geo"]);
+
+// Used as fallback when no configs exist yet
 const ALL_AGENT_DEFAULTS = [
   { name: "seo",       enabled: true,  schedule: "daily",  last_run: null },
   { name: "content",   enabled: true,  schedule: "weekly", last_run: null },
@@ -474,7 +478,7 @@ function CustomerSettingsPageInner() {
             ) : (
               <>
                 <div className="space-y-0 rounded-lg border border-slate-200 overflow-hidden">
-                  {(agents.length > 0 ? agents : ALL_AGENT_DEFAULTS).map((agent, idx) => {
+                  {(agents.length > 0 ? agents : ALL_AGENT_DEFAULTS).filter((a) => ACTIVE_AGENTS.has(a.name)).map((agent, idx) => {
                     const info = AGENT_INFO[agent.name] || { label: agent.name, icon: Bot };
                     const Icon = info.icon;
                     const isToggling = togglingAgent === agent.name;
