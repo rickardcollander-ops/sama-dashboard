@@ -37,6 +37,7 @@ interface DailyMetric {
 interface AnalyticsData {
   channels?: ChannelMetric[];
   daily?: DailyMetric[];
+  seo_daily?: DailyMetric[];
   totals?: {
     clicks: number;
     impressions: number;
@@ -303,6 +304,43 @@ export default function CustomerAnalyticsPage() {
                       />
                       <Line type="monotone" dataKey="clicks" stroke="#3b82f6" strokeWidth={2} dot={false} />
                       <Line type="monotone" dataKey="impressions" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* SEO daily (GSC) — clicks + impressions per day */}
+            {data.seo_daily && data.seo_daily.length > 0 && (
+              <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
+                <h2 className="font-semibold text-slate-900 mb-1">SEO – dag för dag</h2>
+                <p className="text-xs text-slate-500 mb-4">
+                  Klick och visningar per dag från Google Search Console.
+                </p>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data.seo_daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12, fill: "#94a3b8" }}
+                        tickFormatter={(v) => {
+                          const d = new Date(v);
+                          return `${d.getMonth() + 1}/${d.getDate()}`;
+                        }}
+                      />
+                      <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#1e293b",
+                          border: "none",
+                          borderRadius: "8px",
+                          color: "#f8fafc",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Line type="monotone" dataKey="clicks" name="Klick" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="impressions" name="Visningar" stroke="#8b5cf6" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
