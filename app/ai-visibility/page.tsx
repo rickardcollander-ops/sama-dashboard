@@ -7,9 +7,11 @@ import {
   MessageSquare, ShoppingCart, Wrench, BarChart2, Lightbulb, Eye,
   ArrowRight, Minus, Trash2
 } from "lucide-react";
+import { samaFetch } from "@/lib/api";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
+void SAMA_API_URL;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -174,21 +176,21 @@ export default function AIVisibilityPage() {
 
   const fetchSummary = async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/summary`);
+      const res = await samaFetch(`/api/ai-visibility/summary`);
       if (res.ok) setSummary(await res.json());
     } catch { /* silent */ }
   };
 
   const fetchChecks = async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=100`);
+      const res = await samaFetch(`/api/ai-visibility/checks?limit=100`);
       if (res.ok) { const d = await res.json(); setChecks(d.checks || []); }
     } catch { /* silent */ }
   };
 
   const fetchGaps = async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/gaps`);
+      const res = await samaFetch(`/api/ai-visibility/gaps`);
       if (res.ok) { const d = await res.json(); setGaps(d.gaps || []); }
     } catch { /* silent */ }
   };
@@ -217,7 +219,7 @@ export default function AIVisibilityPage() {
     const EXPECTED_TOTAL = 80; // 5 engines × 16 prompts
 
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/check`, { method: 'POST' });
+      const res = await samaFetch(`/api/ai-visibility/check`, { method: 'POST' });
       if (!res.ok) {
         setRunningCheck(false);
         setProgress(0);
@@ -228,7 +230,7 @@ export default function AIVisibilityPage() {
       // Poll for actual progress
       const pollInterval = setInterval(async () => {
         try {
-          const r = await fetch(`${SAMA_API_URL}/api/ai-visibility/checks?limit=200`);
+          const r = await samaFetch(`/api/ai-visibility/checks?limit=200`);
           if (r.ok) {
             const d = await r.json();
             const newChecks = d.checks || [];
@@ -280,7 +282,7 @@ export default function AIVisibilityPage() {
     setLoadingRecs(true);
     setActiveTab('strategy');
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/recommendations`, { method: 'POST' });
+      const res = await samaFetch(`/api/ai-visibility/recommendations`, { method: 'POST' });
       if (res.ok) { const d = await res.json(); setRecommendations(d.recommendations || []); }
     } catch { /* silent */ }
     finally { setLoadingRecs(false); }
@@ -290,7 +292,7 @@ export default function AIVisibilityPage() {
     setLoadingStrategy(true);
     setActiveTab('strategy');
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/ai-visibility/strategic-analysis`, { method: 'POST' });
+      const res = await samaFetch(`/api/ai-visibility/strategic-analysis`, { method: 'POST' });
       if (res.ok) {
         let data: StrategicAnalysis;
         try { data = await res.json(); } catch { return; }
@@ -302,7 +304,7 @@ export default function AIVisibilityPage() {
 
   const updateGapStatus = async (gapId: string, status: Gap['status']) => {
     try {
-      await fetch(`${SAMA_API_URL}/api/ai-visibility/gaps/update`, {
+      await samaFetch(`/api/ai-visibility/gaps/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gap_id: gapId, status }),
@@ -315,7 +317,7 @@ export default function AIVisibilityPage() {
     // Clear all data
     setClearing(true);
     try {
-      await fetch(`${SAMA_API_URL}/api/ai-visibility/clear`, { method: 'POST' });
+      await samaFetch(`/api/ai-visibility/clear`, { method: 'POST' });
       setSummary(null);
       setChecks([]);
       setGaps([]);

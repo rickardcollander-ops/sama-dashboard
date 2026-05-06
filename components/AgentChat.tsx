@@ -65,9 +65,10 @@ export default function AgentChat({ agentName, apiUrl, placeholder, examplePromp
 
     try {
       const history = chatHistory.map(m => ({ role: m.role, content: m.content }));
+      const { samaHeaders } = await import("@/lib/api");
       const response = await fetch(`${apiUrl}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         body: JSON.stringify({ message: userMessage, history }),
       });
 

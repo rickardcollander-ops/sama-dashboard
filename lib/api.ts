@@ -41,6 +41,51 @@ function resolveUrl(path: string): string {
  */
 export const SAMA_API_URL = BASE_URL;
 
+/**
+ * Reads the active account/site/view-as identifiers stashed by the
+ * customer-portal SiteProvider so admin pages outside the provider can
+ * still tag their requests. Falls back to no headers when nothing is set
+ * (in which case the proxy will resolve from the user's auth context).
+ */
+/**
+ * `fetch`-compatible wrapper that:
+ *   - prepends the proxy base URL (so callers can pass relative paths)
+ *   - merges `samaHeaders()` so account/site context tags every request
+ *
+ * Use from pages that live outside the customer-portal SiteProvider
+ * (e.g. admin /seo, /ai-visibility) where `tenantApi` isn't available.
+ */
+export function samaFetch(path: string, init?: RequestInit): Promise<Response> {
+  const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
+  const headers = new Headers(init?.headers);
+  for (const [k, v] of Object.entries(samaHeaders())) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
+  return fetch(url, { ...init, headers });
+}
+
+export function samaHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const out: Record<string, string> = {};
+  try {
+    const accountId = localStorage.getItem("sama_active_account_id");
+    const siteId = localStorage.getItem("sama_active_site_id");
+    const viewAsRaw = sessionStorage.getItem("sama_admin_view_as");
+    const viewAs = viewAsRaw ? (JSON.parse(viewAsRaw) as { tenantId?: string }) : null;
+    if (accountId) out["X-Sama-Account-Id"] = accountId;
+    if (viewAs?.tenantId) {
+      out["X-Sama-Site-Id"] = viewAs.tenantId;
+      out["X-Tenant-ID"] = viewAs.tenantId;
+    } else if (siteId) {
+      out["X-Sama-Site-Id"] = siteId;
+      out["X-Tenant-ID"] = siteId;
+    }
+  } catch {
+    /* ignore — storage access can throw in private mode */
+  }
+  return out;
+}
+
 interface FetchOptions extends RequestInit {
   retries?: number;
   retryDelay?: number;
@@ -145,10 +190,16 @@ export const api = {
 
 /**
  * Creates a tenant-scoped API client that automatically includes the
- * X-Tenant-ID header on every request.
+ * tenant/account/site headers on every request. The proxy resolves these
+ * server-side too, but sending them client-side avoids an extra DB lookup
+ * on the hot path.
  */
-export function tenantApi(tenantId: string) {
-  const tenantHeaders = { 'X-Tenant-ID': tenantId };
+export function tenantApi(tenantId: string, accountId?: string) {
+  const tenantHeaders: Record<string, string> = {
+    'X-Tenant-ID': tenantId,
+    'X-Sama-Site-Id': tenantId,
+  };
+  if (accountId) tenantHeaders['X-Sama-Account-Id'] = accountId;
   return {
     get: <T = any>(path: string, options?: FetchOptions): Promise<T> =>
       api.get<T>(path, {
