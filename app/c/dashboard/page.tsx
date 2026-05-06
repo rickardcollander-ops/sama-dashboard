@@ -78,7 +78,7 @@ interface ContentStats {
 
 export default function CustomerDashboard() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const { t } = useLanguage();
   const router = useRouter();
@@ -463,13 +463,13 @@ export default function CustomerDashboard() {
 
         {user && (
           <div className="mt-8">
-            <RecentOutcomes tenantId={user.id} />
+            <RecentOutcomes tenantId={effectiveTenantId} />
           </div>
         )}
 
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            {user && <ActivityFeed userId={user.id} />}
+            {user && <ActivityFeed tenantId={effectiveTenantId} />}
           </div>
           <div className="rounded-xl border bg-white p-6 shadow-sm">
             <h3 className="mb-4 font-semibold text-slate-900">{t.dashboard.quickLinks}</h3>
