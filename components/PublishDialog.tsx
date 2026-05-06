@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { KIND_META } from "@/lib/integrations/cms";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface Destination {
   id: string;
@@ -33,6 +34,9 @@ export default function PublishDialog(props: Props) {
     open, onClose, title, body, pieceId, defaultExcerpt, defaultTags,
     defaultMailRecipient,
   } = props;
+
+  const { effectiveTenantId } = useSite();
+  const tenantHeaders = (): HeadersInit => ({ "X-Tenant-ID": effectiveTenantId });
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,7 +66,7 @@ export default function PublishDialog(props: Props) {
     setLoading(true);
     setMailTo(defaultMailRecipient || "");
     setMailSubject(title || "");
-    fetch("/api/integrations/destinations")
+    fetch("/api/integrations/destinations", { headers: tenantHeaders() })
       .then((r) => r.json())
       .then((d) => {
         setDestinations(d.destinations || []);
@@ -72,7 +76,7 @@ export default function PublishDialog(props: Props) {
       })
       .catch(() => setDestinations([]))
       .finally(() => setLoading(false));
-  }, [open, title, defaultMailRecipient]);
+  }, [open, title, defaultMailRecipient, effectiveTenantId]);
 
   if (!open) return null;
 
@@ -97,7 +101,7 @@ export default function PublishDialog(props: Props) {
       }
       const res = await fetch("/api/integrations/publish", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify(payload),
       });
       const data = await res.json();

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { KIND_META, SUPPORTED_KINDS } from "@/lib/integrations/cms";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface Destination {
   id: string;
@@ -25,6 +26,7 @@ const SECRET_FIELDS = new Set([
 ]);
 
 export default function PublishingDestinations() {
+  const { effectiveTenantId } = useSite();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -37,12 +39,17 @@ export default function PublishingDestinations() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (effectiveTenantId) load();
+  }, [effectiveTenantId]);
+
+  const tenantHeaders = (): HeadersInit => ({ "X-Tenant-ID": effectiveTenantId });
 
   const load = async () => {
     setLoading(true);
+    setDestinations([]);
     try {
-      const res = await fetch("/api/integrations/destinations");
+      const res = await fetch("/api/integrations/destinations", { headers: tenantHeaders() });
       if (res.ok) {
         const data = await res.json();
         setDestinations(data.destinations || []);
@@ -100,7 +107,7 @@ export default function PublishingDestinations() {
     try {
       const res = await fetch("/api/integrations/destinations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify({
           id: editingId,
           kind: formKind,
@@ -121,7 +128,7 @@ export default function PublishingDestinations() {
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this destination?")) return;
     try {
-      await fetch(`/api/integrations/destinations?id=${id}`, { method: "DELETE" });
+      await fetch(`/api/integrations/destinations?id=${id}`, { method: "DELETE", headers: tenantHeaders() });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not delete");

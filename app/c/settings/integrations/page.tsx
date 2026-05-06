@@ -116,7 +116,9 @@ export default function IntegrationsPage() {
 
     (async () => {
       try {
-        const res = await fetch("/api/integrations/destinations");
+        const res = await fetch("/api/integrations/destinations", {
+          headers: { "X-Tenant-ID": effectiveTenantId },
+        });
         if (!res.ok) throw new Error("load");
         const data = await res.json();
         setCmsDestinations(data.destinations || []);

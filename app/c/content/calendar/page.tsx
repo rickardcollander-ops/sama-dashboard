@@ -8,6 +8,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { KIND_META } from "@/lib/integrations/cms";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface ScheduledItem {
   id: string;
@@ -37,17 +38,22 @@ function isSameDay(a: Date, b: Date) {
 }
 
 export default function ContentCalendarPage() {
+  const { effectiveTenantId } = useSite();
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
 
+  const tenantHeaders = (): HeadersInit => ({ "X-Tenant-ID": effectiveTenantId });
+
   const load = async () => {
     setLoading(true);
+    setScheduled([]);
+    setDestinations([]);
     try {
       const [s, d] = await Promise.all([
-        fetch("/api/integrations/scheduled").then((r) => r.json()),
-        fetch("/api/integrations/destinations").then((r) => r.json()),
+        fetch("/api/integrations/scheduled", { headers: tenantHeaders() }).then((r) => r.json()),
+        fetch("/api/integrations/destinations", { headers: tenantHeaders() }).then((r) => r.json()),
       ]);
       setScheduled(s.scheduled || []);
       setDestinations(d.destinations || []);
@@ -58,11 +64,13 @@ export default function ContentCalendarPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (effectiveTenantId) load();
+  }, [effectiveTenantId]);
 
   const remove = async (id: string) => {
     if (!confirm("Avbryta planerad publicering?")) return;
-    await fetch(`/api/integrations/scheduled?id=${id}`, { method: "DELETE" });
+    await fetch(`/api/integrations/scheduled?id=${id}`, { method: "DELETE", headers: tenantHeaders() });
     load();
   };
 
@@ -88,7 +96,7 @@ export default function ContentCalendarPage() {
     try {
       const res = await fetch("/api/integrations/scheduled", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify({ id, patch: { scheduled_at: iso } }),
       });
       if (!res.ok) throw new Error("patch failed");

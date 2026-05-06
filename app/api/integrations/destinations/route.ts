@@ -3,15 +3,17 @@ import {
   deleteDestination,
   getCurrentUser,
   getDestinations,
+  resolveSiteId,
   upsertDestination,
 } from "@/lib/integrations/store";
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { SUPPORTED_KINDS, getAdapter } from "@/lib/integrations/cms";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const destinations = await getDestinations(user.id);
+  const siteId = resolveSiteId(req, user.id);
+  const destinations = await getDestinations(siteId, user.id);
   const safe = destinations.map((d) => ({
     ...d,
     config: maskConfig(d.config),
@@ -22,6 +24,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const siteId = resolveSiteId(req, user.id);
   const body = await req.json().catch(() => ({}));
 
   const kind = body.kind as CmsKind;
@@ -46,17 +49,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const dest = await upsertDestination(user.id, { id: body.id, kind, name, config });
+  const dest = await upsertDestination(siteId, user.id, { id: body.id, kind, name, config });
   return NextResponse.json({ destination: { ...dest, config: maskConfig(dest.config) } });
 }
 
 export async function DELETE(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const siteId = resolveSiteId(req, user.id);
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await deleteDestination(user.id, id);
+  await deleteDestination(siteId, user.id, id);
   return NextResponse.json({ ok: true });
 }
 

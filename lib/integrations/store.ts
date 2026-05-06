@@ -57,27 +57,89 @@ export async function saveSettings(userId: string, settings: SettingsJson): Prom
   if (error) throw new Error(error.message);
 }
 
-export async function getDestinations(userId: string): Promise<CmsDestination[]> {
-  const settings = await loadSettings(userId);
-  const list = settings[PUBLISHING_KEY];
-  return Array.isArray(list) ? (list as CmsDestination[]) : [];
+// Site-scoped settings storage. Destinations and scheduled publishes live on
+// the workspace (user_sites) row, not on the per-user user_settings row, so
+// each workspace has its own list. RLS on user_sites already restricts access
+// to the owner and account members.
+export async function loadSiteSettings(siteId: string): Promise<SettingsJson> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("user_sites")
+    .select("settings")
+    .eq("id", siteId)
+    .single();
+  return (data?.settings as SettingsJson) || {};
 }
 
-export async function saveDestinations(userId: string, destinations: CmsDestination[]): Promise<void> {
-  const settings = await loadSettings(userId);
-  await saveSettings(userId, { ...settings, [PUBLISHING_KEY]: destinations });
+export async function saveSiteSettings(siteId: string, settings: SettingsJson): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("user_sites")
+    .update({ settings, updated_at: new Date().toISOString() })
+    .eq("id", siteId);
+  if (error) throw new Error(error.message);
+}
+
+// Resolve a workspace id from the X-Tenant-ID header. Falls back to userId
+// (which is also the primary site id by convention).
+export function resolveSiteId(req: { headers: Headers }, userId: string): string {
+  return req.headers.get("X-Tenant-ID") || userId;
+}
+
+// One-shot read fallback so we don't orphan destinations created before the
+// per-workspace migration. Only applies to the primary site (siteId === userId).
+async function readDestinationsWithLegacyFallback(
+  siteId: string,
+  userId: string,
+): Promise<CmsDestination[]> {
+  const siteSettings = await loadSiteSettings(siteId);
+  const list = siteSettings[PUBLISHING_KEY];
+  if (Array.isArray(list)) return list as CmsDestination[];
+
+  if (siteId === userId) {
+    const legacy = await loadSettings(userId);
+    const legacyList = legacy[PUBLISHING_KEY];
+    if (Array.isArray(legacyList)) return legacyList as CmsDestination[];
+  }
+  return [];
+}
+
+async function readScheduledWithLegacyFallback(
+  siteId: string,
+  userId: string,
+): Promise<ScheduledPublish[]> {
+  const siteSettings = await loadSiteSettings(siteId);
+  const list = siteSettings[SCHEDULE_KEY];
+  if (Array.isArray(list)) return list as ScheduledPublish[];
+
+  if (siteId === userId) {
+    const legacy = await loadSettings(userId);
+    const legacyList = legacy[SCHEDULE_KEY];
+    if (Array.isArray(legacyList)) return legacyList as ScheduledPublish[];
+  }
+  return [];
+}
+
+export async function getDestinations(siteId: string, userId: string): Promise<CmsDestination[]> {
+  return readDestinationsWithLegacyFallback(siteId, userId);
+}
+
+export async function saveDestinations(siteId: string, destinations: CmsDestination[]): Promise<void> {
+  const settings = await loadSiteSettings(siteId);
+  await saveSiteSettings(siteId, { ...settings, [PUBLISHING_KEY]: destinations });
 }
 
 export async function upsertDestination(
+  siteId: string,
   userId: string,
   draft: { id?: string; kind: CmsKind; name: string; config: Record<string, string> },
 ): Promise<CmsDestination> {
-  const list = await getDestinations(userId);
+  const list = await getDestinations(siteId, userId);
   if (draft.id) {
     const idx = list.findIndex((d) => d.id === draft.id);
     if (idx >= 0) {
       list[idx] = { ...list[idx], kind: draft.kind, name: draft.name, config: draft.config };
-      await saveDestinations(userId, list);
+      await saveDestinations(siteId, list);
       return list[idx];
     }
   }
@@ -89,52 +151,52 @@ export async function upsertDestination(
     created_at: new Date().toISOString(),
   };
   list.push(dest);
-  await saveDestinations(userId, list);
+  await saveDestinations(siteId, list);
   return dest;
 }
 
-export async function deleteDestination(userId: string, id: string): Promise<void> {
-  const list = await getDestinations(userId);
-  await saveDestinations(userId, list.filter((d) => d.id !== id));
+export async function deleteDestination(siteId: string, userId: string, id: string): Promise<void> {
+  const list = await getDestinations(siteId, userId);
+  await saveDestinations(siteId, list.filter((d) => d.id !== id));
 }
 
-export async function getScheduled(userId: string): Promise<ScheduledPublish[]> {
-  const settings = await loadSettings(userId);
-  const list = settings[SCHEDULE_KEY];
-  return Array.isArray(list) ? (list as ScheduledPublish[]) : [];
+export async function getScheduled(siteId: string, userId: string): Promise<ScheduledPublish[]> {
+  return readScheduledWithLegacyFallback(siteId, userId);
 }
 
-export async function saveScheduled(userId: string, scheduled: ScheduledPublish[]): Promise<void> {
-  const settings = await loadSettings(userId);
-  await saveSettings(userId, { ...settings, [SCHEDULE_KEY]: scheduled });
+export async function saveScheduled(siteId: string, scheduled: ScheduledPublish[]): Promise<void> {
+  const settings = await loadSiteSettings(siteId);
+  await saveSiteSettings(siteId, { ...settings, [SCHEDULE_KEY]: scheduled });
 }
 
 export async function appendScheduled(
+  siteId: string,
   userId: string,
   draft: Omit<ScheduledPublish, "id" | "status">,
 ): Promise<ScheduledPublish> {
-  const list = await getScheduled(userId);
+  const list = await getScheduled(siteId, userId);
   const item: ScheduledPublish = {
     id: `sched_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     status: "scheduled",
     ...draft,
   };
   list.push(item);
-  await saveScheduled(userId, list);
+  await saveScheduled(siteId, list);
   return item;
 }
 
 export async function updateScheduled(
+  siteId: string,
   userId: string,
   id: string,
   patch: Partial<ScheduledPublish>,
 ): Promise<void> {
-  const list = await getScheduled(userId);
+  const list = await getScheduled(siteId, userId);
   const next = list.map((s) => (s.id === id ? { ...s, ...patch } : s));
-  await saveScheduled(userId, next);
+  await saveScheduled(siteId, next);
 }
 
-export async function removeScheduled(userId: string, id: string): Promise<void> {
-  const list = await getScheduled(userId);
-  await saveScheduled(userId, list.filter((s) => s.id !== id));
+export async function removeScheduled(siteId: string, userId: string, id: string): Promise<void> {
+  const list = await getScheduled(siteId, userId);
+  await saveScheduled(siteId, list.filter((s) => s.id !== id));
 }

@@ -3,7 +3,8 @@ import {
   appendScheduled,
   getCurrentUser,
   getDestinations,
-  loadSettings,
+  loadSiteSettings,
+  resolveSiteId,
 } from "@/lib/integrations/store";
 import { getAdapter } from "@/lib/integrations/cms";
 import { excerptFromMarkdown, markdownToHtml, slugify } from "@/lib/integrations/cms/markdown";
@@ -13,6 +14,7 @@ import { PublishError, PublishInput } from "@/lib/integrations/cms/types";
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const siteId = resolveSiteId(req, user.id);
 
   const body = await req.json().catch(() => ({}));
   const destinationId = body.destination_id as string;
@@ -22,11 +24,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "destination_id required" }, { status: 400 });
   }
 
-  const destinations = await getDestinations(user.id);
+  const destinations = await getDestinations(siteId, user.id);
   const dest = destinations.find((d) => d.id === destinationId);
   if (!dest) return NextResponse.json({ error: "destination not found" }, { status: 404 });
 
-  const settings = await loadSettings(user.id);
+  const settings = await loadSiteSettings(siteId);
   const title = (body.title || "").toString().trim();
   const bodyMd = (body.body_markdown || body.body || "").toString();
   if (!title || !bodyMd) {
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (Number.isNaN(ts) || ts < Date.now() - 60_000) {
       return NextResponse.json({ error: "scheduled_at must be a future ISO timestamp" }, { status: 400 });
     }
-    const scheduled = await appendScheduled(user.id, {
+    const scheduled = await appendScheduled(siteId, user.id, {
       piece_id: pieceId || `local-${Date.now()}`,
       destination_id: destinationId,
       scheduled_at: new Date(ts).toISOString(),

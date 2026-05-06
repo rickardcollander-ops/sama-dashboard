@@ -197,11 +197,11 @@ function CustomerSettingsPageInner() {
   const googleConnected = searchParams.get("google_connected");
   const googleErrorParam = searchParams.get("google_error");
 
-  useEffect(() => { if (user) loadSettings(); }, [user]);
+  useEffect(() => { if (user) loadSettings(); }, [user, activeSite?.id]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(""), 8000); return () => clearTimeout(t); } }, [error]);
   useEffect(() => { if (user && effectiveTenantId) loadGoogleStatus(); }, [user, effectiveTenantId]);
-  useEffect(() => { if (user) loadAgentStatus(); }, [user]);
-  useEffect(() => { if (user) loadGitHubStatus(); }, [user]);
+  useEffect(() => { if (user) loadAgentStatus(); }, [user, effectiveTenantId]);
+  useEffect(() => { if (user) loadGitHubStatus(); }, [user, effectiveTenantId]);
 
   const loadGitHubStatus = async () => {
     if (!user) return;
@@ -340,15 +340,17 @@ function CustomerSettingsPageInner() {
 
   const loadSettings = async () => {
     if (!user) { setLoading(false); return; }
+    setLoading(true);
+    setSettings(DEFAULT_SETTINGS);
+    setBlogUrl("");
     try {
-      let raw: Record<string, unknown> | null = null;
-      if (activeSite?.settings && Object.keys(activeSite.settings).length > 0) {
-        raw = activeSite.settings;
-      } else {
-        const { data } = await getSupabaseBrowser().from("user_settings").select("settings").eq("user_id", user.id).single();
-        raw = data?.settings ?? null;
+      const raw = activeSite?.settings && Object.keys(activeSite.settings).length > 0
+        ? activeSite.settings
+        : null;
+      if (raw) {
+        setSettings({ ...DEFAULT_SETTINGS, ...(raw as Partial<UserSettings>) });
+        if (raw.blog_url) setBlogUrl(raw.blog_url as string);
       }
-      if (raw) { setSettings({ ...DEFAULT_SETTINGS, ...(raw as Partial<UserSettings>) }); if (raw.blog_url) setBlogUrl(raw.blog_url as string); }
     } catch { /* First time — defaults are fine. */ }
     setLoading(false);
   };
