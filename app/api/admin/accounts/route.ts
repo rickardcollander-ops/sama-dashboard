@@ -87,8 +87,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "email is required" }, { status: 400 });
   }
 
-  const origin = req.headers.get("origin") || new URL(req.url).origin;
-  const redirectTo = `${origin}/c/auth/reset-password`;
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    req.headers.get("origin") ||
+    new URL(req.url).origin;
+  const redirectTo = `${appUrl}/c/auth/reset-password`;
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo,
