@@ -42,7 +42,7 @@ function extractBasicMeta(html: string) {
   return { brandName, description, lang, bodyText };
 }
 
-async function callClaude(apiKey: string, domain: string, html: { brandName: string; description: string; lang: string; bodyText: string }) {
+async function callClaude(apiKey: string, domain: string, html: { brandName: string; description: string; lang: string; bodyText: string }, outputLang: string) {
   const system = `You are a brand analyst. Given a website's content, extract and infer brand information.
 Respond ONLY with a valid JSON object — no prose, no markdown fences.`;
 
@@ -55,6 +55,8 @@ Respond ONLY with a valid JSON object — no prose, no markdown fences.`;
 - tone_of_voice: one of: "professional", "casual", "technical", "friendly", "bold"
 - language: string (2-letter ISO code for the site's main language, e.g. "sv", "en")
 - competitors: array of 3-5 strings (likely competitor brand names or domains, based on the industry)
+
+IMPORTANT: Write all descriptive text fields (brand_description, target_audience, unique_selling_points) in the language with ISO code: ${outputLang}
 
 Website domain: ${domain}
 Brand name from HTML: ${html.brandName}
@@ -91,13 +93,16 @@ export async function POST(req: NextRequest) {
   const domain = (body?.domain ?? "").toString().trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
   if (!domain) return NextResponse.json({ error: "domain required" }, { status: 400 });
 
+  const preferredLang = SUPPORTED_LANGS.has(body?.content_language) ? body.content_language : "";
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
   try {
     const html = await fetchSiteHtml(domain);
     const meta = extractBasicMeta(html);
-    const raw = await callClaude(apiKey, domain, meta);
+    const outputLang = preferredLang || meta.lang;
+    const raw = await callClaude(apiKey, domain, meta, outputLang);
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No JSON in response");
     const result = JSON.parse(match[0]);
