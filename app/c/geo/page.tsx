@@ -14,7 +14,7 @@ import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
-import { tenantApi } from "@/lib/api";
+import { samaHeaders } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import { exportCsv } from "@/lib/csv";
@@ -94,7 +94,9 @@ export default function CustomerGeoPage() {
       const [summaryData, checksData, trackedRes] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),
         client.get(`/api/ai-visibility/checks?limit=50&days=${days}`).catch(() => []),
-        fetch("/api/recommendations/list").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/recommendations/list", { headers: samaHeaders() })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
       ]);
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
@@ -112,7 +114,7 @@ export default function CustomerGeoPage() {
     try {
       const res = await fetch("/api/recommendations/remove", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         body: JSON.stringify({ query }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -472,7 +474,7 @@ export default function CustomerGeoPage() {
                       onClick={() => removeTrackedQuery(q)}
                       disabled={removingQuery === q}
                       className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
-                      aria-label={`Remove "${q}"`}
+                      aria-label={`Remove \"${q}\"`}
                     >
                       {removingQuery === q ? (
                         <RefreshCw className="h-3 w-3 animate-spin" />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Sparkles, Loader2, Plus, CheckCircle, AlertCircle, X, Search, Bot, MessageSquare,
 } from "lucide-react";
+import { samaHeaders } from "@/lib/api";
 
 interface RecommendationItem {
   text: string;
@@ -108,6 +109,7 @@ export default function KeywordGeoRecommendations(props: Props) {
         headers: {
           "Content-Type": "application/json",
           "X-Sama-Intent": "user-action",
+          ...samaHeaders(),
         },
         body: JSON.stringify({
           existing_keywords: existingKeywords,
@@ -162,7 +164,7 @@ export default function KeywordGeoRecommendations(props: Props) {
     try {
       const res = await fetch("/api/recommendations/add", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         body: JSON.stringify({ keywords, geo_queries }),
       });
       const data = await res.json();
