@@ -5,9 +5,7 @@ import { Loader2, AlertCircle, CheckCircle2, Pause } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AGENT_LIST } from "@/lib/agents";
 import type { ActiveRun, AgentKey } from "@/lib/hooks/useActiveRuns";
-
-// Sprint 2 (H3) — replaces the 4 large agent cards with a compact row of
-// chips. Each chip shows: agent name + status, links to the agent's page.
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 type ChipStatus = "running" | "ok" | "error" | "idle";
 
@@ -29,44 +27,11 @@ const AGENT_ID_TO_KEY: Record<string, AgentKey | undefined> = {
 };
 
 const STATUS_TONE: Record<ChipStatus, { tone: string; icon: LucideIcon }> = {
-  running: {
-    tone: "bg-blue-50 text-blue-700 border-blue-200",
-    icon: Loader2,
-  },
-  ok: {
-    tone: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    icon: CheckCircle2,
-  },
-  error: {
-    tone: "bg-red-50 text-red-700 border-red-200",
-    icon: AlertCircle,
-  },
-  idle: {
-    tone: "bg-slate-50 text-slate-500 border-slate-200",
-    icon: Pause,
-  },
+  running: { tone: "bg-blue-50 text-blue-700 border-blue-200",     icon: Loader2 },
+  ok:      { tone: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  error:   { tone: "bg-red-50 text-red-700 border-red-200",         icon: AlertCircle },
+  idle:    { tone: "bg-slate-50 text-slate-500 border-slate-200",   icon: Pause },
 };
-
-// Sprint 1, H-6 — when a chip is idle, show what the agent does on its own
-// instead of a vague "Vilar". Keeps the chip useful even when nothing is
-// running right now.
-const IDLE_LABEL: Record<string, string> = {
-  geo: "Bevakar AI-svar varje vecka",
-  seo: "Spårar Google-rank dagligen",
-  content: "Föreslår artiklar varje måndag",
-  social: "Föreslår inlägg varje vecka",
-  ads: "Optimerar kampanjer dagligen",
-  analytics: "Sammanställer data varje dygn",
-  strategy: "Syntetiserar plan varje söndag",
-  tech: "Föreslår sajt-fixar vid behov",
-};
-
-function statusLabel(status: ChipStatus, agentId: string): string {
-  if (status === "running") return "Kör nu";
-  if (status === "ok") return "Aktiv";
-  if (status === "error") return "Fel";
-  return IDLE_LABEL[agentId] ?? "Vilar";
-}
 
 function pickStatus(runs: ActiveRun[], agentId: string): ChipStatus {
   const key = AGENT_ID_TO_KEY[agentId];
@@ -80,10 +45,29 @@ function pickStatus(runs: ActiveRun[], agentId: string): ChipStatus {
 }
 
 export default function AgentChips({ runs }: AgentChipsProps) {
+  const { t } = useLanguage();
+
+  function statusLabel(status: ChipStatus, agentId: string): string {
+    if (status === "running") return t.agentChips.running;
+    if (status === "ok") return t.agentChips.active;
+    if (status === "error") return t.agentChips.error;
+    const idleMap: Record<string, string> = {
+      geo:       t.agentChips.idle.geo,
+      seo:       t.agentChips.idle.seo,
+      content:   t.agentChips.idle.content,
+      social:    t.agentChips.idle.social,
+      ads:       t.agentChips.idle.ads,
+      analytics: t.agentChips.idle.analytics,
+      strategy:  t.agentChips.idle.strategy,
+      tech:      t.agentChips.idle.tech,
+    };
+    return idleMap[agentId] ?? t.agentChips.idle.default;
+  }
+
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Aktiva agenter
+        {t.agentChips.title}
       </h2>
       <div className="flex flex-wrap gap-2">
         {AGENT_LIST.filter((a) => ACTIVE_AGENT_IDS.has(a.id)).map((agent) => {

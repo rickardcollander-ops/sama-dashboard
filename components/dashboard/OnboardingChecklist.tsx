@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check, Circle, ArrowRight, X } from "lucide-react";
 import { useState } from "react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 export interface ChecklistItem {
   id: string;
@@ -19,6 +20,7 @@ interface OnboardingChecklistProps {
 }
 
 export default function OnboardingChecklist({ items, onDismiss }: OnboardingChecklistProps) {
+  const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
   const done = items.filter((i) => i.done).length;
   const total = items.length;
@@ -33,21 +35,9 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
         <div className="flex items-center gap-3">
           <div className="relative h-10 w-10">
             <svg className="h-10 w-10 -rotate-90" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="16" fill="none" stroke="#dbeafe" strokeWidth="4" />
               <circle
-                cx="20"
-                cy="20"
-                r="16"
-                fill="none"
-                stroke="#dbeafe"
-                strokeWidth="4"
-              />
-              <circle
-                cx="20"
-                cy="20"
-                r="16"
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth="4"
+                cx="20" cy="20" r="16" fill="none" stroke="#3b82f6" strokeWidth="4"
                 strokeDasharray={`${(percent / 100) * 100.53} 100.53`}
                 strokeLinecap="round"
               />
@@ -57,9 +47,9 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
             </span>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-blue-900">Kom igång med SAMA</h3>
+            <h3 className="text-sm font-semibold text-blue-900">{t.onboarding.title}</h3>
             <p className="text-xs text-blue-700">
-              {done} av {total} steg klara
+              {done} {t.onboarding.progress} {total} {t.onboarding.progressSteps}
             </p>
           </div>
         </div>
@@ -68,13 +58,13 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
             onClick={() => setCollapsed(!collapsed)}
             className="rounded-lg px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
           >
-            {collapsed ? "Visa" : "Dölj"}
+            {collapsed ? t.onboarding.show : t.onboarding.hide}
           </button>
           {onDismiss && (
             <button
               onClick={onDismiss}
               className="rounded-lg p-1.5 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
-              title="Dölj"
+              title={t.onboarding.hide}
             >
               <X className="h-4 w-4" />
             </button>
@@ -107,7 +97,7 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
                 </div>
                 {!item.done && (
                   <span className="flex items-center gap-1 text-xs font-medium text-blue-600">
-                    {item.cta || "Starta"}
+                    {item.cta || t.onboarding.start}
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 )}
