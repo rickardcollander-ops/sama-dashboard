@@ -9,6 +9,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
@@ -118,6 +119,7 @@ const GAP_ICON: Record<GapCategory, typeof Trophy> = {
 
 export default function AnalysisPage() {
   const { user, loading: userLoading } = useUser();
+  const { effectiveTenantId, activeSite } = useSite();
   const [brand, setBrand] = useState<BrandSettings | null>(null);
   const [running, setRunning] = useState(false);
   const [visibilityRun, setVisibilityRun] = useState<AnalysisRun | null>(null);
@@ -127,10 +129,29 @@ export default function AnalysisPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
+  // Clear results when workspace changes so old site's data isn't shown
+  useEffect(() => {
+    setVisibilityRun(null);
+    setAuditRun(null);
+    setInitialLoading(true);
+  }, [effectiveTenantId]);
+
   // Load brand settings + weekly usage + latest results
   useEffect(() => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     (async () => {
+      // Load brand settings from active site
+      const s = (activeSite?.settings || {}) as Record<string, unknown>;
+      setBrand({
+        brand_name: (s.brand_name as string) || "",
+        domain: (s.domain as string) || "",
+        brand_description: (s.brand_description as string) || "",
+        unique_selling_points: (s.unique_selling_points as string) || "",
+        target_audience: (s.target_audience as string) || "",
+        competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
+      });
+
+      // Weekly usage (stored per user in user_settings)
       try {
         const supabase = getSupabase();
         const { data } = await supabase
@@ -138,39 +159,25 @@ export default function AnalysisPage() {
           .select("settings")
           .eq("user_id", user.id)
           .single();
-        const s = (data?.settings || {}) as Record<string, unknown>;
-        setBrand({
-          brand_name: (s.brand_name as string) || "",
-          domain: (s.domain as string) || "",
-          brand_description: (s.brand_description as string) || "",
-          unique_selling_points: (s.unique_selling_points as string) || "",
-          target_audience: (s.target_audience as string) || "",
-          competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
-        });
-
-        // Weekly usage
-        const usage = s.analysis_weekly_usage as { week?: string; count?: number } | undefined;
+        const us = (data?.settings || {}) as Record<string, unknown>;
+        const usage = us.analysis_weekly_usage as { week?: string; count?: number } | undefined;
         const currentWeek = getISOWeek();
-        if (usage?.week === currentWeek) {
-          setUsedThisWeek(usage.count ?? 0);
-        } else {
-          setUsedThisWeek(0);
-        }
+        setUsedThisWeek(usage?.week === currentWeek ? (usage.count ?? 0) : 0);
       } catch {
-        setBrand({ brand_name: "", domain: "", brand_description: "", unique_selling_points: "", target_audience: "", competitors: [] });
+        setUsedThisWeek(0);
       }
 
       // Load latest analysis run
       try {
         const res = await fetch("/api/analysis/runs?limit=1", {
-          headers: { "X-Tenant-ID": user.id },
+          headers: { "X-Tenant-ID": effectiveTenantId },
         });
         if (res.ok) {
           const data = await res.json();
           const latest = data?.runs?.[0];
           if (latest?.id && latest.status === "completed") {
             const full = await fetch(`/api/analysis/runs/${latest.id}`, {
-              headers: { "X-Tenant-ID": user.id },
+              headers: { "X-Tenant-ID": effectiveTenantId },
             });
             if (full.ok) {
               const run = await full.json();
@@ -183,14 +190,14 @@ export default function AnalysisPage() {
       // Load latest site audit
       try {
         const res = await fetch("/api/site-audit/runs?limit=1", {
-          headers: { "X-Tenant-ID": user.id },
+          headers: { "X-Tenant-ID": effectiveTenantId },
         });
         if (res.ok) {
           const data = await res.json();
           const latest = data?.runs?.[0];
           if (latest?.id && latest.status === "completed") {
             const full = await fetch(`/api/site-audit/runs/${latest.id}`, {
-              headers: { "X-Tenant-ID": user.id },
+              headers: { "X-Tenant-ID": effectiveTenantId },
             });
             if (full.ok) {
               const run = await full.json();
@@ -202,7 +209,7 @@ export default function AnalysisPage() {
 
       setInitialLoading(false);
     })();
-  }, [user]);
+  }, [user, effectiveTenantId, activeSite]);
 
   const incrementWeeklyUsage = async () => {
     if (!user) return;
@@ -236,7 +243,7 @@ export default function AnalysisPage() {
       try {
         const qRes = await fetch("/api/analysis/generate-queries", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Tenant-ID": user?.id || "" },
+          headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
           body: JSON.stringify(brand),
         });
         if (qRes.ok) {
@@ -256,7 +263,7 @@ export default function AnalysisPage() {
       const [visRes, auditRes] = await Promise.allSettled([
         fetch("/api/analysis/run", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Tenant-ID": user?.id || "" },
+          headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
           body: JSON.stringify({
             brand_name: brand.brand_name,
             domain: brand.domain,
@@ -267,7 +274,7 @@ export default function AnalysisPage() {
         }),
         fetch("/api/site-audit/run", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Tenant-ID": user?.id || "" },
+          headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
           body: JSON.stringify({ domain: brand.domain, max_pages: 15 }),
         }),
       ]);
@@ -282,7 +289,7 @@ export default function AnalysisPage() {
           void persistAnalysisRun(vData as AnalysisRun);
         } else if ((vData as { id?: string }).id) {
           polls.push(
-            pollAnalysisRun(user?.id || "", (vData as { id: string }).id).then((r) => {
+            pollAnalysisRun(effectiveTenantId, (vData as { id: string }).id).then((r) => {
               if (r?.status === "completed") {
                 setVisibilityRun(r);
                 void persistAnalysisRun(r);
@@ -296,7 +303,7 @@ export default function AnalysisPage() {
         const aData = await auditRes.value.json().catch(() => ({}));
         if ((aData as { id?: string }).id) {
           polls.push(
-            pollSiteAuditRun(user?.id || "", (aData as { id: string }).id).then((r) => {
+            pollSiteAuditRun(effectiveTenantId, (aData as { id: string }).id).then((r) => {
               if (r?.status === "completed") setAuditRun(r);
             })
           );
@@ -410,15 +417,15 @@ export default function AnalysisPage() {
         {showHistory && (
           <div className="mb-8 space-y-6">
             <CombinedHistory
-              tenantId={user?.id || ""}
+              tenantId={effectiveTenantId}
               onOpenVisibility={(id) => {
-                fetch(`/api/analysis/runs/${id}`, { headers: { "X-Tenant-ID": user?.id || "" } })
+                fetch(`/api/analysis/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } })
                   .then((r) => r.json())
                   .then((d) => { if (d?.status === "completed") { setVisibilityRun(d); setShowHistory(false); } })
                   .catch(() => {});
               }}
               onOpenAudit={(id) => {
-                fetch(`/api/site-audit/runs/${id}`, { headers: { "X-Tenant-ID": user?.id || "" } })
+                fetch(`/api/site-audit/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } })
                   .then((r) => r.json())
                   .then((d) => { if (d?.status === "completed") { setAuditRun(d); setShowHistory(false); } })
                   .catch(() => {});
@@ -489,7 +496,7 @@ export default function AnalysisPage() {
         {/* ── Insikter overview (always visible) ── */}
         {user && !running && (
           <div className="mt-2">
-            <InsightsOverview tenantId={user.id} />
+            <InsightsOverview tenantId={effectiveTenantId} />
           </div>
         )}
       </div>
