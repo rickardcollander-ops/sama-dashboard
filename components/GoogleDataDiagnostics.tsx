@@ -73,6 +73,15 @@ export default function GoogleDataDiagnostics(props: Props) {
   // Email of the Google account currently linked for this service. Surfaced
   // so the user can quickly tell whether they connected the wrong account.
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
+  // Raw probe output from /api/analytics/probe — what each fetcher is
+  // returning right now. Lazy-loaded on demand so we don't add 5 upstream
+  // API calls to every page load.
+  const [probe, setProbe] = useState<{
+    tenant_config?: Record<string, unknown>;
+    channels?: Record<string, Record<string, unknown>>;
+  } | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tenantId) return;
@@ -137,6 +146,18 @@ export default function GoogleDataDiagnostics(props: Props) {
     if (typeof window === "undefined") return;
     const returnUrl = `${window.location.origin}/c/settings`;
     window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${tenantId}&return_url=${encodeURIComponent(returnUrl)}`;
+  };
+
+  const handleProbe = async () => {
+    setProbing(true);
+    setProbeError(null);
+    try {
+      const data = await tenantApi(tenantId).get<typeof probe>(`/api/analytics/probe`);
+      setProbe(data);
+    } catch (e) {
+      setProbeError(e instanceof Error ? e.message : "Probe failed");
+    }
+    setProbing(false);
   };
 
   const handleSyncNow = async () => {
@@ -526,6 +547,17 @@ export default function GoogleDataDiagnostics(props: Props) {
                 Import all GSC keywords
               </button>
             )}
+            {service === "analytics" && (
+              <button
+                onClick={handleProbe}
+                disabled={probing}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                title="Live probe — call every upstream API and show what it returns right now"
+              >
+                {probing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                Show what each source returns
+              </button>
+            )}
             <Link
               href={meta.settingsAnchor}
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
@@ -534,6 +566,75 @@ export default function GoogleDataDiagnostics(props: Props) {
               Settings
             </Link>
           </div>
+
+          {probeError && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+              <AlertCircle className="h-3.5 w-3.5" /> Probe failed: {probeError}
+            </div>
+          )}
+          {probe && (
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+              <p className="font-medium text-slate-700 mb-2">Live probe — what each source returned just now</p>
+              {probe.tenant_config && (
+                <div className="mb-3 grid gap-1 sm:grid-cols-2 text-[11px]">
+                  {Object.entries(probe.tenant_config).map(([k, v]) => (
+                    <div key={k} className="flex gap-1.5">
+                      <span className="text-slate-500">{k}:</span>
+                      <span className="font-mono text-slate-800 break-all">
+                        {v == null || v === "" ? "—" : String(v)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {probe.channels && (
+                <div className="space-y-1.5">
+                  {Object.entries(probe.channels).map(([ch, body]) => {
+                    const status = String((body as Record<string, unknown>).status ?? "unknown");
+                    const isOk = status === "ok";
+                    const message = (body as Record<string, unknown>).message
+                      ?? (body as Record<string, unknown>).error
+                      ?? "";
+                    const clicks = (body as Record<string, unknown>).total_clicks;
+                    const impressions = (body as Record<string, unknown>).total_impressions;
+                    const sessions = (body as Record<string, unknown>).total_sessions;
+                    const pageviews = (body as Record<string, unknown>).total_pageviews;
+                    return (
+                      <details key={ch} className="rounded border border-slate-200 bg-white">
+                        <summary className="cursor-pointer px-2 py-1.5 flex items-center gap-2 text-[11px]">
+                          <span className={`inline-flex rounded-full px-1.5 py-0.5 font-medium ${
+                            isOk ? "bg-emerald-50 text-emerald-700" :
+                            status === "no_data" ? "bg-amber-50 text-amber-700" :
+                            status === "not_configured" ? "bg-slate-100 text-slate-500" :
+                            "bg-red-50 text-red-700"
+                          }`}>{status}</span>
+                          <span className="font-mono text-slate-700">{ch}</span>
+                          {(clicks != null || impressions != null) && (
+                            <span className="text-slate-500">
+                              clicks={String(clicks ?? 0)} · impressions={String(impressions ?? 0)}
+                            </span>
+                          )}
+                          {(sessions != null || pageviews != null) && (
+                            <span className="text-slate-500">
+                              sessions={String(sessions ?? 0)} · pageviews={String(pageviews ?? 0)}
+                            </span>
+                          )}
+                          {message ? (
+                            <span className="ml-auto text-slate-500 truncate max-w-[260px]">
+                              {String(message).slice(0, 80)}
+                            </span>
+                          ) : null}
+                        </summary>
+                        <pre className="px-2 py-1.5 text-[10px] font-mono text-slate-600 bg-slate-50 border-t border-slate-200 overflow-x-auto">
+                          {JSON.stringify(body, null, 2)}
+                        </pre>
+                      </details>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {recentRuns.length > 0 && (
             <details className="mt-4 group">
