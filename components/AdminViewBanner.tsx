@@ -21,7 +21,7 @@ export default function AdminViewBanner() {
   };
 
   return (
-    <div className="sticky top-14 z-30 flex items-center justify-between gap-3 bg-amber-400 px-4 sm:px-6 py-2 text-sm font-medium text-amber-950">
+    <div className="sticky top-14 lg:top-0 z-30 flex items-center justify-between gap-3 bg-amber-400 px-4 sm:px-6 lg:pl-60 py-2 text-sm font-medium text-amber-950">
       <div className="flex items-center gap-2">
         <Eye className="h-4 w-4 flex-shrink-0" />
         <span>
