@@ -122,8 +122,10 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
       title: input.alertsCount === 1
         ? "1 varning behöver din uppmärksamhet"
         : `${input.alertsCount} varningar behöver din uppmärksamhet`,
-      why: "Klicka på klockan i menyn för att se vad som hänt.",
-      href: "#",
+      why: "Öppna systemstatus för att se vad som hänt.",
+      // Sprint 3 (H-3) — every Next Step now lands on a real page, no
+      // placeholder anchors.
+      href: "/system-health",
       cta: "Öppna varningar",
       icon: Sparkles,
       tone: "amber",

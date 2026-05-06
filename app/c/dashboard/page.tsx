@@ -21,6 +21,7 @@ import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import OnboardingChecklist, { type ChecklistItem } from "@/components/dashboard/OnboardingChecklist";
+import RecentOutcomes from "@/components/dashboard/RecentOutcomes";
 
 interface CustomerSettings {
   brand_name?: string;
@@ -419,6 +420,13 @@ export default function CustomerDashboard() {
         <div className="mt-8">
           <AgentChips runs={runs} />
         </div>
+
+        {/* Senaste utfall — Sprint 3 (K-13) */}
+        {user && (
+          <div className="mt-8">
+            <RecentOutcomes tenantId={user.id} />
+          </div>
+        )}
 
         {/* Activity feed + Quick links */}
         <div className="mt-8 grid gap-4 lg:grid-cols-3">

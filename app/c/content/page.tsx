@@ -330,6 +330,47 @@ function CustomerContentInner() {
     await updateStatus(pieceId, "archived");
   };
 
+  // Sprint 3 (C-6 / SET-4) — "Skicka via mail" handoff. Loads the piece
+  // body and opens a pre-filled mailto: targeting the recipient stored on
+  // settings. We fall back to a blank recipient so the user can still pick
+  // someone in their mail client.
+  const sendByMail = async (piece: ContentPiece) => {
+    if (!user) return;
+    setLoadingBodyId(piece.id);
+    let body = "";
+    let recipient = "";
+    let recipientName = "";
+    try {
+      const client = tenantApi(user.id);
+      const data = await client.get<{ piece?: { body?: string; content?: string; markdown?: string } }>(
+        `/api/content/pieces/${piece.id}`,
+      );
+      body = data.piece?.body || data.piece?.content || data.piece?.markdown || "";
+    } catch {
+      // fall through with empty body — user can paste it themselves
+    }
+    try {
+      const sb = (await import("@/lib/supabase-browser")).getSupabaseBrowser();
+      const { data } = await sb
+        .from("user_settings")
+        .select("settings")
+        .eq("user_id", user.id)
+        .single();
+      recipient = data?.settings?.publish_email_recipient || "";
+      recipientName = data?.settings?.publish_email_recipient_name || "";
+    } catch {
+      // settings not configured — open mailto with empty `to`
+    }
+    setLoadingBodyId(null);
+    const subject = recipientName
+      ? `Hej ${recipientName} — utkast: ${piece.title}`
+      : `Utkast: ${piece.title}`;
+    const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body || `Hej!\n\nHär kommer ett utkast: ${piece.title}`)}`;
+    window.location.href = mailto;
+  };
+
   const openCmsDialog = async (piece: ContentPiece) => {
     if (!user) return;
     setLoadingBodyId(piece.id);
@@ -668,21 +709,35 @@ function CustomerContentInner() {
                       </button>
                     )}
 
-                    {/* Publish to CMS */}
+                    {/* Sprint 3 (C-6) — explicit publishing actions on
+                        every piece: sajten + mail. "Spara som utkast" lever
+                        already in the create-modal so we don't repeat it
+                        here. */}
                     {(piece.status === "approved" || piece.status === "published") && (
-                      <button
-                        onClick={() => openCmsDialog(piece)}
-                        disabled={loadingBodyId === piece.id}
-                        className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                        title="Publicera till WordPress, Webflow, Ghost, Notion eller webhook"
-                      >
-                        {loadingBodyId === piece.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
+                      <>
+                        <button
+                          onClick={() => openCmsDialog(piece)}
+                          disabled={loadingBodyId === piece.id}
+                          className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                          title="Publicera till WordPress, Webflow, Ghost, Notion eller webhook"
+                        >
+                          {loadingBodyId === piece.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Send className="h-3.5 w-3.5" />
+                          )}
+                          Publicera till sajten
+                        </button>
+                        <button
+                          onClick={() => sendByMail(piece)}
+                          disabled={loadingBodyId === piece.id}
+                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                          title="Skicka via mail till mottagaren från Inställningar"
+                        >
                           <Send className="h-3.5 w-3.5" />
-                        )}
-                        Publicera till CMS
-                      </button>
+                          Skicka via mail
+                        </button>
+                      </>
                     )}
 
                     {/* Publish to GitHub (only for approved/published) */}

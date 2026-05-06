@@ -406,64 +406,109 @@ export default function StrategyPage() {
 
             {/* Domain strategies — Sprint 2 (K-4): each kanal-block can hand
                 off into Content with the topic pre-selected so the strategy
-                can directly produce articles. */}
-            {current.domain_strategies && current.domain_strategies.length > 0 && (
-              <section>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  Plan per kanal
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {current.domain_strategies.map((d, idx) => {
-                    const topic = d.goal || d.diagnosis || `${d.domain}-strategi`;
-                    const params = new URLSearchParams();
-                    params.set("strategy_topic", topic);
-                    params.set("topic", topic);
-                    const contentHref = `/c/content?${params.toString()}`;
-                    return (
-                      <div key={`${d.domain}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            {d.domain}
+                can directly produce articles. Sprint 3 (S-5 / S-6): paused
+                channels render dimmed with a "Snart kommer"-badge so the
+                user understands they exist but aren't producing data yet. */}
+            {(() => {
+              const paused = new Set(["social", "ads", "tech", "reviews"]);
+              const present = new Set(
+                (current.domain_strategies ?? []).map((d) => (d.domain || "").toLowerCase()),
+              );
+              const placeholders = Array.from(paused)
+                .filter((p) => !present.has(p))
+                .map((p) => ({ domain: p }));
+              const all: (DomainStrategy & { _paused?: boolean })[] = [
+                ...(current.domain_strategies ?? []),
+                ...placeholders.map((p) => ({ ...p, _paused: true })),
+              ];
+              if (all.length === 0) return null;
+              return (
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Plan per kanal
+                  </h3>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {all.map((d, idx) => {
+                      const isPaused = !!d._paused;
+                      const hasData = !!(d.diagnosis || d.goal || (d.key_actions && d.key_actions.length > 0));
+                      const topic = d.goal || d.diagnosis || `${d.domain}-strategi`;
+                      const params = new URLSearchParams();
+                      params.set("strategy_topic", topic);
+                      params.set("topic", topic);
+                      const contentHref = `/c/content?${params.toString()}`;
+                      return (
+                        <div
+                          key={`${d.domain}-${idx}`}
+                          className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${
+                            isPaused ? "opacity-60" : ""
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              {d.domain}
+                            </div>
+                            {isPaused ? (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                                Snart kommer
+                              </span>
+                            ) : hasData ? (
+                              <a
+                                href={contentHref}
+                                className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                                title="Öppna Content med detta topic förvalt"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                Skapa content från detta
+                              </a>
+                            ) : null}
                           </div>
-                          {(d.domain || "").toLowerCase().includes("content") || d.key_actions?.length ? (
-                            <a
-                              href={contentHref}
-                              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
-                              title="Öppna Content med detta topic förvalt"
-                            >
-                              <Sparkles className="h-3 w-3" />
-                              Skapa content från detta
-                            </a>
-                          ) : null}
+                          {!isPaused && !hasData && (
+                            <p className="mt-2 text-sm text-slate-500">
+                              Vi får data för den här kanalen när Insikter har kört en
+                              första mätning.{" "}
+                              <a
+                                href="/c/analysis"
+                                className="font-medium text-violet-700 underline hover:text-violet-900"
+                              >
+                                Gå till Insikter
+                              </a>
+                            </p>
+                          )}
+                          {isPaused && (
+                            <p className="mt-2 text-sm text-slate-500">
+                              Inte aktiv än — den här kanalen finns med i planen men
+                              kör inte några agenter just nu.
+                            </p>
+                          )}
+                          {d.diagnosis && (
+                            <p className="mt-2 text-sm text-slate-700">
+                              <span className="font-medium text-slate-900">Diagnos: </span>
+                              {d.diagnosis}
+                            </p>
+                          )}
+                          {d.goal && (
+                            <p className="mt-2 text-sm text-slate-700">
+                              <span className="font-medium text-slate-900">Mål: </span>
+                              {d.goal}
+                            </p>
+                          )}
+                          {d.key_actions && d.key_actions.length > 0 && (
+                            <ul className="mt-3 space-y-1.5">
+                              {d.key_actions.map((action, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                                  <ChevronRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+                                  <span>{action}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
-                        {d.diagnosis && (
-                          <p className="mt-2 text-sm text-slate-700">
-                            <span className="font-medium text-slate-900">Diagnos: </span>
-                            {d.diagnosis}
-                          </p>
-                        )}
-                        {d.goal && (
-                          <p className="mt-2 text-sm text-slate-700">
-                            <span className="font-medium text-slate-900">Mål: </span>
-                            {d.goal}
-                          </p>
-                        )}
-                        {d.key_actions && d.key_actions.length > 0 && (
-                          <ul className="mt-3 space-y-1.5">
-                            {d.key_actions.map((action, i) => (
-                              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                                <ChevronRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
-                                <span>{action}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* Cross-channel priorities */}
             {current.cross_channel_priorities && current.cross_channel_priorities.length > 0 && (
