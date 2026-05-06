@@ -151,7 +151,7 @@ export default function CustomerSettingsPage() {
 
 function CustomerSettingsPageInner() {
   const { user } = useUser();
-  const { activeSite, reloadSites, tenantClient, effectiveTenantId } = useSite();
+  const { activeSite, reloadSites, tenantClient, effectiveTenantId, effectiveOwnerId } = useSite();
   const { t } = useLanguage();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -257,7 +257,8 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     try {
       const siteId = activeSite?.id ?? user.id;
-      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: user.id, site_name: settings.brand_name || activeSite?.site_name || "", settings: { ...settings, blog_url: blogUrl }, updated_at: new Date().toISOString() }, { onConflict: "id" });
+      const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
+      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: settings.brand_name || activeSite?.site_name || "", settings: { ...settings, blog_url: blogUrl }, updated_at: new Date().toISOString() }, { onConflict: "id" });
       if (upsertError) throw upsertError;
       setSuccessMessage("Blog URL saved!");
     } catch { setError("Could not save blog URL"); }
@@ -358,7 +359,8 @@ function CustomerSettingsPageInner() {
     setSaving(true); setError(""); setSaved(false);
     try {
       const siteId = activeSite?.id ?? user.id;
-      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: user.id, site_name: settings.brand_name || activeSite?.site_name || "", settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+      const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
+      const { error: upsertError } = await getSupabaseBrowser().from("user_sites").upsert({ id: siteId, user_id: ownerId, site_name: settings.brand_name || activeSite?.site_name || "", settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
       if (upsertError) throw upsertError;
       await reloadSites();
       setSaved(true); setTimeout(() => setSaved(false), 5000);

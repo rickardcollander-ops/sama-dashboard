@@ -47,6 +47,9 @@ interface SiteContextValue {
   tenantClient: ReturnType<typeof tenantApi>;
   // The resolved tenant ID used by tenantClient (activeSite.id or user.id fallback).
   effectiveTenantId: string;
+  // The owner user_id whose sites we're viewing (account owner, view-as target, or self).
+  // Use this when inserting/updating rows scoped by user_id (e.g. user_sites).
+  effectiveOwnerId: string;
   // Admin view-as
   viewAs: ViewAs | null;
   setViewAs: (v: ViewAs) => void;
@@ -270,6 +273,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       setActiveSiteId,
       tenantClient,
       effectiveTenantId,
+      effectiveOwnerId,
       viewAs,
       setViewAs,
       clearViewAs,
@@ -282,7 +286,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       sites, activeSite, loading, setActiveSiteId, tenantClient, effectiveTenantId,
-      viewAs, setViewAs, clearViewAs, loadSites,
+      effectiveOwnerId, viewAs, setViewAs, clearViewAs, loadSites,
       accounts, activeAccountId, setActiveAccountId, myRole, loadAccounts,
     ]
   );
