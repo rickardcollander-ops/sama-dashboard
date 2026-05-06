@@ -152,14 +152,13 @@ export async function POST(req: NextRequest) {
   const arr = (k: string) =>
     Array.isArray(settings[k]) ? (settings[k] as unknown[]).filter((v): v is string => typeof v === "string") : [];
 
-  const apiKey = str("anthropic_api_key") || process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       {
-        error:
-          "No Anthropic API key configured. Add one in Settings → AI Platform Access (Advanced) or set ANTHROPIC_API_KEY.",
+        error: "AI service is not configured. Please contact support.",
       },
-      { status: 400 },
+      { status: 500 },
     );
   }
 
