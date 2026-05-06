@@ -266,21 +266,8 @@ export default function CustomerAnalyticsPage() {
           </div>
         )}
 
-        {/* Google data diagnostics — surface why no GA4/GSC data is flowing
-            in. Show whenever totals are all zero (not just when the tables
-            are empty), so a stale row of zeros doesn't hide the diagnosis. */}
-        {user && !loading && totals.clicks === 0 && totals.impressions === 0 &&
-          totals.conversions === 0 && totals.spend === 0 && (
-          <div className="mb-8">
-            <GoogleDataDiagnostics
-              service="analytics"
-              tenantId={user.id}
-              agentName="analytics"
-              trackedCount={(data.channels?.length || 0) + (data.daily?.length || 0)}
-              onSynced={fetchAnalytics}
-            />
-          </div>
-        )}
+        {/* Google data diagnostics block is rendered AFTER the charts now —
+            see further down. */}
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -383,6 +370,21 @@ export default function CustomerAnalyticsPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Google data diagnostics — kept always visible below the charts so
+            the user can verify what each upstream is returning, trigger a
+            sync, or jump to settings without scrolling away from the data. */}
+        {user && (
+          <div className="mt-8">
+            <GoogleDataDiagnostics
+              service="analytics"
+              tenantId={user.id}
+              agentName="analytics"
+              trackedCount={(data.channels?.length || 0) + (data.daily?.length || 0)}
+              onSynced={fetchAnalytics}
+            />
+          </div>
         )}
       </main>
     </div>
