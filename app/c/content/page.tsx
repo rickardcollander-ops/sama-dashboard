@@ -208,11 +208,20 @@ function CustomerContentInner() {
       const client = tenantApi(user.id);
       // /api/content/generate only returns text — it does not persist a
       // piece. We chain a /pieces save so the new draft actually appears.
-      const gen = await client.post<{ title?: string; body?: string; content?: string }>(
-        "/api/content/generate",
-        { type: "linkedin_post" },
-      );
+      const gen = await client.post<{
+        title?: string;
+        body?: string;
+        content?: string;
+        suggestions?: string[];
+      }>("/api/content/generate", { type: "linkedin_post" });
       const body = gen.body || gen.content || "";
+      if (!body) {
+        // Backend returns 200 with empty body on Anthropic errors and puts
+        // the real reason in suggestions[0]. Surface it instead of saving
+        // an empty piece.
+        const detail = gen.suggestions?.[0] || "Inget innehåll returnerades från AI:n.";
+        throw new Error(detail);
+      }
       const title = gen.title || "Nytt LinkedIn-utkast";
       await client.post("/api/content/pieces", {
         title,
@@ -235,24 +244,25 @@ function CustomerContentInner() {
     setModalContent("");
     try {
       const client = tenantApi(user.id);
-      // Backend returns { title, body, platform, suggestions }. Older code
-      // read `content` and always fell back to the placeholder template.
-      const result = await client.post<{ body?: string; content?: string }>(
-        "/api/content/generate",
-        { type: modalType, topic: modalTopic },
-      );
-      setModalContent(
-        result.body || result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`,
-      );
+      // Backend returns { title, body, platform, suggestions }. Empty body
+      // with a message in suggestions[0] = AI failure (key missing, parse
+      // error, rate limit). Surface that instead of showing a placeholder
+      // that looks like real content.
+      const result = await client.post<{
+        title?: string;
+        body?: string;
+        content?: string;
+        suggestions?: string[];
+      }>("/api/content/generate", { type: modalType, topic: modalTopic });
+      const generated = result.body || result.content || "";
+      if (!generated) {
+        const detail = result.suggestions?.[0] || "AI:n returnerade inget innehåll.";
+        setError(`Kunde inte generera: ${detail}`);
+      } else {
+        setModalContent(generated);
+      }
     } catch (err: any) {
       setError(`Kunde inte generera: ${err?.message || err}`);
-      // Fallback placeholder
-      const templates: Record<string, string> = {
-        linkedin: `Visste du att ${modalTopic}? Här är tre insikter som kan ändra ditt perspektiv.\n\n1. Första insikten\n2. Andra insikten\n3. Tredje insikten\n\nVad tycker du? Dela gärna i kommentarerna!`,
-        blogg: `# ${modalTopic}\n\nI den här artikeln tittar vi på ${modalTopic} och vad det betyder för din verksamhet.\n\n## Bakgrund\n\nLorem ipsum…\n\n## Slutsats\n\nSammanfattningsvis…`,
-        epost: `Ämne: ${modalTopic}\n\nHej,\n\nJag ville dela något intressant om ${modalTopic}.\n\n[Huvudinnehåll]\n\nMed vänliga hälsningar`,
-      };
-      setModalContent(templates[modalType] || `Genererat content om ${modalTopic}`);
     }
     setModalGenerating(false);
   };
@@ -590,23 +600,50 @@ function CustomerContentInner() {
             )}
             importItem={async (item) => {
               const client = tenantApi(user.id);
-              // Generate then persist — /generate alone returns text without
-              // saving, so without this chain the imported topic never
-              // showed up in the list.
-              const gen = await client.post<{ title?: string; body?: string }>(
-                "/api/content/generate",
-                { type: item.type, topic: item.topic },
-              );
-              const body = gen.body || "";
-              await client.post("/api/content/pieces", {
-                title: gen.title || item.topic,
+              // Save a stub draft *first* so the user sees the new piece
+              // immediately. Awaiting /generate (Anthropic, 10-30s) blocked
+              // the import dialog and made it look like nothing happened.
+              const saved = await client.post<{
+                success: boolean;
+                error?: string;
+                piece?: ContentPiece & { content_type?: string };
+              }>("/api/content/pieces", {
+                title: item.topic,
                 content_type: item.type,
-                content: body,
+                content: `# ${item.topic}\n\n_Innehållet genereras av Content-agenten — använd "Förbättra med AI" för att bearbeta utkastet._`,
                 status: "draft",
-                word_count: body.split(/\s+/).filter(Boolean).length,
               });
-              await fetchContent();
-              return `"${item.topic}" sparades som utkast.`;
+              if (saved && saved.success === false) {
+                throw new Error(saved.error || "Kunde inte spara utkast");
+              }
+              if (saved.piece) {
+                setPieces((prev) => [saved.piece as ContentPiece, ...prev]);
+              }
+              // Background fill-in: generate the body and PATCH the piece
+              // when it returns. If generation fails, the stub still exists
+              // and the user can refine it manually.
+              const pieceId = saved.piece?.id;
+              if (pieceId) {
+                (async () => {
+                  try {
+                    const gen = await client.post<{
+                      title?: string;
+                      body?: string;
+                      suggestions?: string[];
+                    }>("/api/content/generate", { type: item.type, topic: item.topic });
+                    const body = gen.body || "";
+                    if (!body) return;
+                    await client.patch(`/api/content/pieces/${pieceId}`, {
+                      content: body,
+                      word_count: body.split(/\s+/).filter(Boolean).length,
+                    });
+                    fetchContent();
+                  } catch {
+                    /* silent — stub remains, user can edit/refine */
+                  }
+                })();
+              }
+              return `"${item.topic}" sparades som utkast — innehållet fylls på i bakgrunden.`;
             }}
           />
         )}
