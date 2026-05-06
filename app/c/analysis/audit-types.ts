@@ -96,6 +96,17 @@ export interface SiteAuditBrokenLink {
   found_on: string[];
 }
 
+/**
+ * Per-URL detail for a finding (e.g. the actual title and its character
+ * count, or how many of a page's images are missing alt text). The
+ * dashboard renders these next to each affected URL so the user sees the
+ * concrete value, not just the URL list.
+ */
+export interface SiteAuditFindingExample {
+  url: string;
+  detail: string;
+}
+
 export interface SiteAuditFinding {
   category: AuditCategory;
   severity: AuditSeverity;
@@ -104,6 +115,8 @@ export interface SiteAuditFinding {
   affected_pages: number;
   /** Sample of URLs this finding applies to (capped). */
   affected_urls?: string[];
+  /** Per-URL concrete values (e.g. measured length, count). */
+  examples?: SiteAuditFindingExample[];
   /** Concrete fix instructions, often containing code snippets. */
   how_to_fix?: string | null;
   /** Estimated traffic / visibility impact. */
@@ -122,6 +135,8 @@ export interface SiteAuditRecommendation {
   affected_count: number;
   /** Sample of URLs this recommendation applies to (capped). */
   affected_urls?: string[];
+  /** Per-URL concrete values (e.g. measured length, count). */
+  examples?: SiteAuditFindingExample[];
   /** Concrete fix instructions, often containing code snippets. */
   how_to_fix?: string | null;
   /** Estimated traffic / visibility impact. */

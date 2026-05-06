@@ -78,6 +78,8 @@ function RunRow({ run, onDismiss }: { run: ActiveRun; onDismiss: () => void }) {
   const isRunning = run.status === "running" || run.status === "pending";
   const isFailed = run.status === "failed";
   const isCompleted = run.status === "completed";
+  const hasPageProgress =
+    typeof run.pages_total === "number" && run.pages_total > 0;
 
   return (
     <div className="px-4 py-3 border-t border-slate-50 first:border-t-0">
@@ -86,7 +88,11 @@ function RunRow({ run, onDismiss }: { run: ActiveRun; onDismiss: () => void }) {
           <p className="text-sm font-medium text-slate-900 truncate">{run.label}</p>
           {isRunning && (
             <p className="text-xs text-slate-500 mt-0.5">
-              {run.status === "pending" ? "Startar…" : `Kör… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min kvar`}
+              {run.status === "pending"
+                ? "Startar…"
+                : hasPageProgress
+                ? `Analyserar ${run.pages_done ?? 0} av ${run.pages_total} sidor`
+                : `Kör… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min kvar`}
             </p>
           )}
           {isCompleted && (
