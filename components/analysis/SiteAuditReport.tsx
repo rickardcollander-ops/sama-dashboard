@@ -3,16 +3,24 @@
 import { useMemo, useState } from "react";
 import {
   AlertCircle, AlertTriangle, CheckCircle2, Info, ExternalLink,
-  Globe, FileWarning, ChevronRight, Lightbulb, Activity, Zap,
+  Globe, FileWarning, Lightbulb, Activity, Zap,
+  Search as SearchIcon, Rocket, Hammer, Eye, Target,
 } from "lucide-react";
 import Gauge from "./Gauge";
 import {
   AuditCategory,
   AuditPriority,
   AuditSeverity,
+  KEYWORD_INTENT_META,
+  KeywordIntent,
+  KeywordOpportunities,
+  KeywordOpportunity,
+  RECOMMENDATION_GROUP_META,
+  RecommendationGroup,
   SCORE_CATEGORY_META,
   SiteAuditFinding,
   SiteAuditPage,
+  SiteAuditRecommendation,
   SiteAuditRun,
 } from "@/app/c/analysis/audit-types";
 
@@ -37,19 +45,27 @@ const PRIORITY_TONE: Record<AuditPriority, string> = {
   low:    "bg-slate-100 text-slate-600",
 };
 
+type AuditTab = "overview" | "findings" | "keywords" | "pages" | "links";
+
 export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
-  const [tab, setTab] = useState<"overview" | "findings" | "pages" | "links">("overview");
+  const [tab, setTab] = useState<AuditTab>("overview");
 
   const unreachable = run.summary.reachable === false
     || (typeof run.summary.pages_loaded === "number"
         && run.summary.pages_loaded === 0
         && run.summary.pages_analyzed > 0);
 
-  const tabs: { id: typeof tab; label: string; count?: number }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "findings", label: "Findings", count: run.findings.length },
-    { id: "pages", label: "Pages", count: run.summary.pages_analyzed },
-    { id: "links", label: "Broken links", count: run.broken_links.length },
+  const kw = run.keyword_opportunities || null;
+  const kwCount = kw ? kw.opportunities.length : 0;
+
+  const tabs: { id: AuditTab; label: string; count?: number; show: boolean }[] = [
+    { id: "overview",  label: "Overview",      show: true },
+    { id: "findings",  label: "Findings",      count: run.findings.length, show: true },
+    // Only show the keywords tab when the agent produced data — otherwise it
+    // would render an empty section that signals nothing useful to the user.
+    { id: "keywords",  label: "Keywords",      count: kwCount, show: !!kw && kwCount > 0 },
+    { id: "pages",     label: "Pages",         count: run.summary.pages_analyzed, show: true },
+    { id: "links",     label: "Broken links",  count: run.broken_links.length, show: true },
   ];
 
   return (
@@ -59,7 +75,7 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
       {unreachable && <UnreachableBanner run={run} />}
 
       <div className="flex gap-1 border-b border-slate-200">
-        {tabs.map((t) => (
+        {tabs.filter((t) => t.show).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -80,6 +96,7 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
 
       {tab === "overview" && <OverviewTab run={run} unreachable={unreachable} />}
       {tab === "findings" && <FindingsTab findings={run.findings} />}
+      {tab === "keywords" && kw && <KeywordsTab data={kw} />}
       {tab === "pages" && <PagesTab pages={run.pages} />}
       {tab === "links" && <BrokenLinksTab broken={run.broken_links} />}
     </div>
@@ -258,42 +275,163 @@ function OverviewTab({ run, unreachable }: { run: SiteAuditRun; unreachable?: bo
         />
       </section>
 
-      {/* Top recommendations */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <Lightbulb className="h-4 w-4 text-violet-600" />
-          <h3 className="text-sm font-semibold text-slate-700">Top recommendations</h3>
-        </div>
-        {run.recommendations.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            No actionable issues detected on the audited pages. Nice work.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {run.recommendations.map((rec, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-3"
-              >
-                <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PRIORITY_TONE[rec.priority]}`}>
-                  {rec.priority}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900">{rec.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{rec.description}</p>
-                </div>
-                {rec.affected_count > 0 && (
-                  <span className="text-xs text-slate-400 whitespace-nowrap">
-                    {rec.affected_count} affected
-                  </span>
-                )}
-                <ChevronRight className="h-4 w-4 text-slate-300 mt-0.5" />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Recommendations grouped by execution profile */}
+      <RecommendationsGrouped run={run} />
     </div>
+  );
+}
+
+/* ── Grouped recommendations (Quick wins / Strategic / Technical debt / Monitoring) ─── */
+
+const GROUP_ORDER: RecommendationGroup[] = ["quick_win", "strategic", "technical_debt", "monitoring"];
+const GROUP_ICON: Record<RecommendationGroup, typeof Rocket> = {
+  quick_win:      Rocket,
+  strategic:      Target,
+  technical_debt: Hammer,
+  monitoring:     Eye,
+};
+const IMPACT_TONE: Record<string, string> = {
+  high:   "bg-emerald-100 text-emerald-700",
+  medium: "bg-amber-100 text-amber-700",
+  low:    "bg-slate-100 text-slate-600",
+};
+
+function RecommendationsGrouped({ run }: { run: SiteAuditRun }) {
+  // If the backend didn't supply grouped recs (older agent versions), derive
+  // the buckets client-side from the flat recommendations[] using each
+  // recommendation's `group` field; default to technical_debt.
+  const grouped = useMemo(() => {
+    if (run.recommendation_groups) return run.recommendation_groups;
+    const out: Partial<Record<RecommendationGroup, SiteAuditRecommendation[]>> = {};
+    for (const r of run.recommendations || []) {
+      const g = (r.group || "technical_debt") as RecommendationGroup;
+      (out[g] ||= []).push(r);
+    }
+    return out;
+  }, [run]);
+
+  const totalActionable = (run.recommendations || []).filter(
+    (r) => (r.group || "technical_debt") !== "monitoring"
+  ).length;
+
+  if (totalActionable === 0) {
+    return (
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <Lightbulb className="h-4 w-4 text-violet-600" />
+          <h3 className="text-sm font-semibold text-slate-700">Recommendations</h3>
+        </div>
+        <p className="text-sm text-slate-400">
+          No actionable issues detected on the audited pages. Nice work.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+      <div className="flex items-center gap-2">
+        <Lightbulb className="h-4 w-4 text-violet-600" />
+        <h3 className="text-sm font-semibold text-slate-700">Recommendations</h3>
+        <span className="ml-1 text-xs text-slate-400">{totalActionable} total</span>
+      </div>
+
+      {GROUP_ORDER.map((g) => {
+        const items = grouped[g] || [];
+        if (items.length === 0) return null;
+        const Icon = GROUP_ICON[g];
+        const meta = RECOMMENDATION_GROUP_META[g];
+        return (
+          <div key={g} className="rounded-lg border border-slate-100 bg-slate-50/40">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-white rounded-t-lg">
+              <Icon className="h-4 w-4 text-violet-600" />
+              <h4 className="text-sm font-semibold text-slate-800">{meta.label}</h4>
+              <span className="text-xs text-slate-400">· {meta.description}</span>
+              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                {items.length}
+              </span>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {items.map((rec, i) => (
+                <RecommendationRow key={i} rec={rec} />
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function RecommendationRow({ rec }: { rec: SiteAuditRecommendation }) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = !!(rec.how_to_fix || (rec.affected_urls && rec.affected_urls.length > 0));
+
+  return (
+    <li className="px-4 py-3">
+      <div className="flex items-start gap-3">
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PRIORITY_TONE[rec.priority]}`}>
+          {rec.priority}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900">{rec.title}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{rec.description}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+            {rec.impact && (
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${IMPACT_TONE[rec.impact] || ""}`}>
+                Impact: {rec.impact}
+              </span>
+            )}
+            {rec.effort && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                Effort: {rec.effort}
+              </span>
+            )}
+            {rec.affected_count > 0 && (
+              <span className="text-slate-400">{rec.affected_count} affected</span>
+            )}
+          </div>
+        </div>
+        {hasDetail && (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="text-xs text-violet-600 hover:text-violet-800 font-medium whitespace-nowrap"
+          >
+            {open ? "Hide" : "How to fix"}
+          </button>
+        )}
+      </div>
+      {open && hasDetail && (
+        <div className="mt-3 ml-8 space-y-2 text-xs">
+          {rec.how_to_fix && (
+            <div className="rounded-md bg-white border border-slate-200 px-3 py-2">
+              <div className="font-semibold text-slate-700 mb-1">Fix</div>
+              <p className="text-slate-600 leading-relaxed whitespace-pre-line">{rec.how_to_fix}</p>
+            </div>
+          )}
+          {rec.affected_urls && rec.affected_urls.length > 0 && (
+            <div className="rounded-md bg-white border border-slate-200 px-3 py-2">
+              <div className="font-semibold text-slate-700 mb-1">Affected URLs</div>
+              <ul className="space-y-0.5">
+                {rec.affected_urls.slice(0, 8).map((u, i) => (
+                  <li key={i}>
+                    <a href={u} target="_blank" rel="noopener noreferrer"
+                       className="text-violet-700 hover:underline inline-flex items-center gap-1 truncate max-w-[420px]"
+                       title={u}>
+                      {u}
+                      <ExternalLink className="h-3 w-3 opacity-60 flex-shrink-0" />
+                    </a>
+                  </li>
+                ))}
+                {rec.affected_urls.length > 8 && (
+                  <li className="text-slate-400">+{rec.affected_urls.length - 8} more</li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -553,5 +691,212 @@ function BrokenLinksTab({ broken }: { broken: SiteAuditRun["broken_links"] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ── Keywords tab ─────────────────────────────────────────────────────────── */
+
+const INTENT_BADGE: Record<KeywordIntent, string> = {
+  informational: "bg-blue-100 text-blue-700",
+  commercial:    "bg-violet-100 text-violet-700",
+  transactional: "bg-emerald-100 text-emerald-700",
+  navigational:  "bg-slate-100 text-slate-600",
+};
+
+const DIFFICULTY_BADGE: Record<string, string> = {
+  low:    "bg-emerald-100 text-emerald-700",
+  medium: "bg-amber-100 text-amber-700",
+  high:   "bg-rose-100 text-rose-700",
+};
+
+function KeywordsTab({ data }: { data: KeywordOpportunities }) {
+  const [intentFilter, setIntentFilter] = useState<"all" | KeywordIntent>("all");
+  const filtered = useMemo(
+    () => data.opportunities.filter((o) => intentFilter === "all" || o.intent === intentFilter),
+    [data.opportunities, intentFilter],
+  );
+  const intents: ("all" | KeywordIntent)[] = ["all", "informational", "commercial", "transactional", "navigational"];
+
+  return (
+    <div className="space-y-6">
+      {/* Header explaining what this tab is */}
+      <section className="rounded-xl border bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <SearchIcon className="h-4 w-4 text-violet-700" />
+          <h3 className="text-sm font-semibold text-slate-800">Keyword opportunities</h3>
+        </div>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Phrases the audit pulled out of your site, suggested keywords to grow organic + AI traffic,
+          and topic clusters you can build pillar content around. Treat this as a starting point —
+          tweak based on your business priorities.
+        </p>
+      </section>
+
+      {/* Current targeting + related searches in a 2-column layout */}
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">What you already target</h4>
+          {data.current_keywords.length === 0 ? (
+            <p className="text-xs text-slate-400">
+              We couldn&rsquo;t extract clear topic signals from the audited pages.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {data.current_keywords.slice(0, 10).map((k) => (
+                <li key={k.phrase} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium text-slate-800 truncate" title={k.phrase}>{k.phrase}</span>
+                  <span className="text-slate-400 whitespace-nowrap">
+                    {k.page_count} {k.page_count === 1 ? "page" : "pages"} · score {k.score}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">
+            Related searches{data.primary_seed && ` for "${data.primary_seed}"`}
+          </h4>
+          {data.related_searches.length === 0 ? (
+            <p className="text-xs text-slate-400">
+              No related-search data — connect ValueSERP to enable Google&rsquo;s &ldquo;people also ask&rdquo;
+              and &ldquo;related searches&rdquo; signals.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {data.related_searches.map((q) => (
+                <li key={q} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-700">
+                  {q}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Suggested opportunities */}
+      <section className="rounded-xl border bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
+          <h4 className="text-sm font-semibold text-slate-700">
+            Suggested keywords ({filtered.length})
+          </h4>
+          <div className="ml-auto flex flex-wrap gap-1">
+            {intents.map((i) => (
+              <button
+                key={i}
+                onClick={() => setIntentFilter(i)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  intentFilter === i
+                    ? "bg-violet-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {i === "all" ? "All" : KEYWORD_INTENT_META[i].label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-slate-400">
+            No opportunities for this intent — try another filter.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {filtered.map((o, i) => <OpportunityRow key={i} opp={o} />)}
+          </ul>
+        )}
+      </section>
+
+      {/* Topic clusters */}
+      {data.clusters.length > 0 && (
+        <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-3">Topic clusters</h4>
+          <p className="text-xs text-slate-500 mb-4">
+            Group these keywords behind a pillar page that links to supporting articles.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {data.clusters.map((c, i) => (
+              <div key={i} className="rounded-lg border border-slate-100 bg-slate-50/40 p-3">
+                <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Pillar</div>
+                <div className="text-sm font-semibold text-slate-900">{c.pillar}</div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {c.supporting.map((s) => (
+                    <span key={s} className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] text-slate-700">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Competitor gaps */}
+      {data.competitor_gap.length > 0 && (
+        <section className="rounded-xl border bg-amber-50/60 border-amber-200 p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-amber-900 mb-2">Competitors ranking on your topics</h4>
+          <ul className="space-y-2">
+            {data.competitor_gap.map((g, i) => (
+              <li key={i} className="text-xs">
+                <div className="font-semibold text-slate-900">{g.keyword}</div>
+                <div className="text-slate-600 mt-0.5">{g.note}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {g.competitors_in_top10.map((c) => (
+                    <span key={c} className="rounded-full bg-white border border-amber-200 px-2 py-0.5 text-[11px] text-amber-800">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function OpportunityRow({ opp }: { opp: KeywordOpportunity }) {
+  return (
+    <li className="px-5 py-3">
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="flex-1 min-w-[220px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-900">{opp.keyword}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${INTENT_BADGE[opp.intent] || INTENT_BADGE.informational}`}>
+              {KEYWORD_INTENT_META[opp.intent]?.label || opp.intent}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${DIFFICULTY_BADGE[opp.difficulty] || DIFFICULTY_BADGE.medium}`}>
+              {opp.difficulty}
+            </span>
+            {opp.is_long_tail && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                long-tail
+              </span>
+            )}
+          </div>
+          {opp.reasoning && (
+            <p className="mt-1 text-xs text-slate-500 leading-relaxed">{opp.reasoning}</p>
+          )}
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            {opp.target_status === "existing_page" && opp.target_url ? (
+              <>
+                Target:{" "}
+                <a href={opp.target_url} target="_blank" rel="noopener noreferrer"
+                   className="text-violet-700 hover:underline inline-flex items-center gap-1">
+                  {pathOf(opp.target_url)}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>{" "}
+                — {opp.target_note}
+              </>
+            ) : (
+              <span className="text-amber-700">{opp.target_note}</span>
+            )}
+          </p>
+        </div>
+      </div>
+    </li>
   );
 }

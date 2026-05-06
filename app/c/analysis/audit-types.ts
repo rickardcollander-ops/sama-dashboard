@@ -9,6 +9,12 @@
 export type AuditSeverity = "critical" | "warning" | "info" | "success";
 export type AuditCategory = "technical" | "on_page" | "geo" | "links" | "performance";
 export type AuditPriority = "high" | "medium" | "low";
+/** Buckets recommendations get grouped into in the dashboard. */
+export type RecommendationGroup = "quick_win" | "strategic" | "technical_debt" | "monitoring";
+export type KeywordIntent = "informational" | "commercial" | "transactional" | "navigational";
+export type KeywordDifficulty = "low" | "medium" | "high";
+/** "low" / "medium" / "high" for the impact/effort fields on a recommendation. */
+export type ImpactEffort = "low" | "medium" | "high";
 
 export interface SiteAuditScores {
   overall: number;
@@ -62,14 +68,25 @@ export interface SiteAuditPage {
   word_count: number;
   images_total: number;
   images_missing_alt: number;
+  /** Images without explicit width+height — cause CLS. */
+  images_missing_dimensions?: number;
+  /** Images below the fold without `loading="lazy"`. */
+  images_missing_lazy?: number;
   canonical: string | null;
   has_schema: boolean;
   schema_types: string[];
   has_open_graph: boolean;
   has_viewport: boolean;
   has_lang: boolean;
+  /** True if the page declares any <link rel="alternate" hreflang>. */
+  has_hreflang?: boolean;
   internal_links: number;
   external_links: number;
+  /** Heading texts captured for the keyword opportunity layer. */
+  h1_text?: string | null;
+  h2_texts?: string[];
+  /** Presence map for the security headers we surface. */
+  security_headers?: Record<string, boolean>;
   issues: string[];
 }
 
@@ -85,6 +102,16 @@ export interface SiteAuditFinding {
   title: string;
   description: string;
   affected_pages: number;
+  /** Sample of URLs this finding applies to (capped). */
+  affected_urls?: string[];
+  /** Concrete fix instructions, often containing code snippets. */
+  how_to_fix?: string | null;
+  /** Estimated traffic / visibility impact. */
+  impact?: ImpactEffort | null;
+  /** Estimated implementation effort. */
+  effort?: ImpactEffort | null;
+  /** Bucket the dashboard groups recommendations under. */
+  group?: RecommendationGroup | null;
 }
 
 export interface SiteAuditRecommendation {
@@ -93,6 +120,64 @@ export interface SiteAuditRecommendation {
   title: string;
   description: string;
   affected_count: number;
+  /** Sample of URLs this recommendation applies to (capped). */
+  affected_urls?: string[];
+  /** Concrete fix instructions, often containing code snippets. */
+  how_to_fix?: string | null;
+  /** Estimated traffic / visibility impact. */
+  impact?: ImpactEffort | null;
+  /** Estimated implementation effort. */
+  effort?: ImpactEffort | null;
+  /** Bucket the dashboard groups recommendations under. */
+  group?: RecommendationGroup | null;
+}
+
+/* ── Keyword opportunities ───────────────────────────────────────────────── */
+
+export interface KeywordCurrent {
+  /** The phrase the site is already targeting (lowercased). */
+  phrase: string;
+  /** Internal weight from the extractor — higher = stronger signal. */
+  score: number;
+  /** A small sample of pages targeting this phrase. */
+  pages: string[];
+  /** Total number of pages targeting this phrase. */
+  page_count: number;
+}
+
+export interface KeywordOpportunity {
+  keyword: string;
+  intent: KeywordIntent;
+  difficulty: KeywordDifficulty;
+  reasoning: string;
+  is_long_tail: boolean;
+  /** URL of the existing page best suited to target this keyword, if any. */
+  target_url: string | null;
+  target_status: "existing_page" | "new_page_needed";
+  target_note: string;
+}
+
+export interface KeywordCluster {
+  pillar: string;
+  head_term: string;
+  supporting: string[];
+  size: number;
+}
+
+export interface KeywordCompetitorGap {
+  keyword: string;
+  competitors_in_top10: string[];
+  note: string;
+}
+
+export interface KeywordOpportunities {
+  current_keywords: KeywordCurrent[];
+  opportunities: KeywordOpportunity[];
+  clusters: KeywordCluster[];
+  competitor_gap: KeywordCompetitorGap[];
+  /** Related searches + People-Also-Ask from ValueSERP for the top seed term. */
+  related_searches: string[];
+  primary_seed: string;
 }
 
 export interface SiteAuditRun {
@@ -106,9 +191,39 @@ export interface SiteAuditRun {
   broken_links: SiteAuditBrokenLink[];
   findings: SiteAuditFinding[];
   recommendations: SiteAuditRecommendation[];
+  /** Recommendations bucketed by execution profile — quick wins first. */
+  recommendation_groups?: Partial<Record<RecommendationGroup, SiteAuditRecommendation[]>>;
+  /** Keyword extraction + suggestions to grow organic + AI traffic. */
+  keyword_opportunities?: KeywordOpportunities | null;
   created_at?: string;
   error?: string;
 }
+
+export const RECOMMENDATION_GROUP_META: Record<RecommendationGroup, { label: string; description: string }> = {
+  quick_win: {
+    label: "Quick wins",
+    description: "Low-effort fixes with measurable impact — start here.",
+  },
+  strategic: {
+    label: "Strategic",
+    description: "Higher effort but compounding return — plan into the next sprint.",
+  },
+  technical_debt: {
+    label: "Technical debt",
+    description: "Infrastructure or hygiene work that prevents future regressions.",
+  },
+  monitoring: {
+    label: "Monitoring",
+    description: "Healthy signals to keep an eye on so they don't regress.",
+  },
+};
+
+export const KEYWORD_INTENT_META: Record<KeywordIntent, { label: string; tone: "blue" | "violet" | "emerald" | "slate" }> = {
+  informational: { label: "Info",          tone: "blue" },
+  commercial:    { label: "Commercial",    tone: "violet" },
+  transactional: { label: "Transactional", tone: "emerald" },
+  navigational:  { label: "Navigational",  tone: "slate" },
+};
 
 export interface SiteAuditRunSummary {
   id: string;
