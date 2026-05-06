@@ -226,33 +226,38 @@ export default function PublishingDestinations() {
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="e.g. Main blog"
+                autoComplete="off"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {fields.map((f) => (
-              <div key={f.key} className={f.type === "url" || f.label.length > 25 ? "sm:col-span-2" : ""}>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  {f.label}{f.required ? " *" : ""}
-                </label>
-                <input
-                  type={f.type === "password" || SECRET_FIELDS.has(f.key) ? "password" : "text"}
-                  value={formConfig[f.key] || ""}
-                  onChange={(e) => updateField(f.key, e.target.value)}
-                  placeholder={f.placeholder}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            ))}
+            {fields.map((f) => {
+              const isSecret = f.type === "password" || SECRET_FIELDS.has(f.key);
+              return (
+                <div key={f.key} className={f.type === "url" || f.label.length > 25 ? "sm:col-span-2" : ""}>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    {f.label}{f.required ? " *" : ""}
+                  </label>
+                  <input
+                    type={isSecret ? "password" : "text"}
+                    value={formConfig[f.key] || ""}
+                    onChange={(e) => updateField(f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    autoComplete={isSecret ? "new-password" : "off"}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              );
+            })}
           </div>
 
           {testResult && (
             <div className={`flex items-center gap-2 rounded-lg border p-2 text-xs ${
               testResult.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700"
             }`}>
-              {testResult.ok ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+              {testResult.ok ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}}
               {testResult.ok ? "Connection OK" : testResult.message || "Connection failed"}
             </div>
           )}
