@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { api } from "@/lib/api";
 
 type Status = "connected" | "not_connected" | "error" | "loading";
@@ -80,6 +81,7 @@ function StatusChip({ status }: { status: Status }) {
 
 export default function IntegrationsPage() {
   const { user } = useUser();
+  const { effectiveTenantId } = useSite();
   const [googleStatus, setGoogleStatus] = useState<Record<GoogleService["key"], Status>>({
     search_console: "loading",
     analytics: "loading",
@@ -90,11 +92,11 @@ export default function IntegrationsPage() {
   const [cmsError, setCmsError] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     (async () => {
       try {
         const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
-          `/api/auth/google/status?tenant_id=${user.id}`,
+          `/api/auth/google/status?tenant_id=${effectiveTenantId}`,
         );
         setGoogleStatus({
           search_console: data?.search_console?.connected ? "connected" : "not_connected",
@@ -123,12 +125,12 @@ export default function IntegrationsPage() {
         setCmsDestinations([]);
       }
     })();
-  }, [user]);
+  }, [user, effectiveTenantId]);
 
   const connectGoogle = (service: string) => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     const returnUrl = `${window.location.origin}/c/settings/integrations`;
-    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${user.id}&return_url=${encodeURIComponent(returnUrl)}`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
   };
 
   return (

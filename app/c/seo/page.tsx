@@ -35,7 +35,7 @@ interface Keyword {
 
 export default function CustomerSeoPage() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -56,11 +56,11 @@ export default function CustomerSeoPage() {
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
 
   useEffect(() => {
-    if (user) {
+    if (user && effectiveTenantId) {
       fetchKeywords();
       loadBrandContext();
     }
-  }, [user]);
+  }, [user, effectiveTenantId]);
 
   useEffect(() => {
     if (error) {
@@ -79,7 +79,7 @@ export default function CustomerSeoPage() {
     // Check GSC connection — mirror settings page (backend reads tenant_id from query)
     try {
       const status = await api.get<Record<string, { connected?: boolean }>>(
-        `/api/auth/google/status?tenant_id=${user.id}`
+        `/api/auth/google/status?tenant_id=${effectiveTenantId}`
       );
       setGscConnected(!!status?.search_console?.connected);
     } catch {
@@ -428,7 +428,7 @@ export default function CustomerSeoPage() {
           <div className="mb-8">
             <GoogleDataDiagnostics
               service="search_console"
-              tenantId={user.id}
+              tenantId={effectiveTenantId}
               agentName="seo"
               trackedCount={keywords.length}
               onSynced={fetchKeywords}
