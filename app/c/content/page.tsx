@@ -6,7 +6,7 @@ import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Compass, Target,
+  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Target,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -741,13 +741,9 @@ function CustomerContentInner() {
                           </Link>
                         )}
                         {piece.source_strategy_topic && (
-                          <Link
-                            href="/c/strategy"
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-800 hover:bg-emerald-100"
-                          >
-                            <Compass className="h-3 w-3" />
-                            Skapad utifrån strategi-topic: {piece.source_strategy_topic}
-                          </Link>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            Topic: {piece.source_strategy_topic}
+                          </span>
                         )}
                       </div>
                     )}

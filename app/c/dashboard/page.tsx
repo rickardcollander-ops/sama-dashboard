@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, ArrowRight, AlertCircle, X,
-  PenTool, Check, Bot, Zap, Compass, Calendar as CalendarIcon, Sparkles,
+  PenTool, Check, Bot, Zap, Code2, Calendar as CalendarIcon, Sparkles,
   ChevronDown, ChevronUp, TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
@@ -75,11 +75,6 @@ interface ContentStats {
   updated_at?: string;
 }
 
-interface StrategySnapshot {
-  generated_at?: string;
-  has: boolean;
-}
-
 function fmtRelative(iso?: string): string {
   if (!iso) return "aldrig";
   const diff = Date.now() - new Date(iso).getTime();
@@ -103,7 +98,6 @@ export default function CustomerDashboard() {
   const [seoStats, setSeoStats] = useState<SeoStats | null>(null);
   const [contentStats, setContentStats] = useState<ContentStats | null>(null);
   const [anyContentEver, setAnyContentEver] = useState(false);
-  const [strategy, setStrategy] = useState<StrategySnapshot>({ has: false });
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -167,7 +161,6 @@ export default function CustomerDashboard() {
       loadGeoSummary(),
       loadSeoStats(),
       loadContentStats(),
-      loadStrategy(),
       loadPendingApprovals(),
       loadTrafficData(),
     ]);
@@ -237,21 +230,6 @@ export default function CustomerDashboard() {
       const allTimeTotal = (pieces?.total ?? list?.length ?? 0) as number;
       setAnyContentEver(allTimeTotal > 0);
     } catch {}
-  };
-
-  const loadStrategy = async () => {
-    if (!user) return;
-    try {
-      const data = await tenantClient.get<Record<string, unknown>>("/api/strategy/current");
-      const s = (data?.strategy ?? data) as Record<string, unknown> | undefined;
-      if (s && (s.headline || s.executive_summary || s.id)) {
-        setStrategy({ has: true, generated_at: s.generated_at as string | undefined });
-      } else {
-        setStrategy({ has: false });
-      }
-    } catch {
-      setStrategy({ has: false });
-    }
   };
 
   const loadPendingApprovals = async () => {
@@ -354,10 +332,8 @@ export default function CustomerDashboard() {
   const nextStepsInput = {
     pendingApprovals,
     mentionRateDelta,
-    strategyGeneratedAt: strategy.generated_at ?? null,
     publishedLast30d: contentStats?.published ?? contentStats?.total ?? 0,
     alertsCount: 0,
-    hasStrategy: strategy.has,
   };
   const stepCount = buildNextSteps(nextStepsInput).length;
 
@@ -503,7 +479,7 @@ export default function CustomerDashboard() {
               {[
                 { href: "/c/content", icon: PenTool, color: "text-purple-600", label: "Skapa content" },
                 { href: "/c/content/calendar", icon: CalendarIcon, color: "text-indigo-600", label: "Se publiceringskalender" },
-                { href: "/c/strategy", icon: Compass, color: "text-emerald-600", label: "Visa er strategi" },
+                { href: "/c/tech", icon: Code2, color: "text-slate-700", label: "Tekniska åtgärder" },
                 { href: "/c/analysis", icon: Sparkles, color: "text-blue-600", label: "Se er synlighet" },
                 { href: "/c/settings", icon: Bot, color: "text-slate-600", label: "Öppna inställningar" },
               ].map((link) => (

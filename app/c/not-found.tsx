@@ -1,12 +1,12 @@
 import Link from "next/link";
 import {
-  Activity, ArrowRight, BarChart2, Compass, FileText,
+  Activity, ArrowRight, BarChart2, Code2, FileText,
   Settings, Sparkles,
 } from "lucide-react";
 
 const SUGGESTIONS = [
   { href: "/c/dashboard", label: "Hem", description: "Status och nästa steg", icon: BarChart2 },
-  { href: "/c/strategy", label: "Strategi", description: "Riktning och plan", icon: Compass },
+  { href: "/c/tech", label: "Tech", description: "Tekniska åtgärder och förbättringar", icon: Code2 },
   { href: "/c/analysis", label: "Insikter", description: "Synlighet i Google och AI-assistenter", icon: Sparkles },
   { href: "/c/content", label: "Content", description: "Skapa, planera, publicera", icon: FileText },
   { href: "/c/settings", label: "Inställningar", description: "Konto, varumärke, integrationer", icon: Settings },
