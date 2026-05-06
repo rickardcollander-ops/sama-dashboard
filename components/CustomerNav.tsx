@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
+  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -87,6 +88,7 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   settings: [
     { href: "/c/settings", labelKey: "account", exact: true },
     { href: "/c/settings/sites", labelKey: "sites" },
+    { href: "/c/settings/team", labelKey: "team" },
     { href: "/c/settings/integrations", labelKey: "integrations" },
     { href: "/c/settings/billing", labelKey: "billing" },
   ],
@@ -125,6 +127,73 @@ function LanguageSelector() {
           {l.flag} {l.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function AccountSwitcher() {
+  const { accounts, activeAccountId, setActiveAccountId, myRole } = useSite();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  if (accounts.length <= 1) return null;
+
+  const active = accounts.find((a) => a.account_id === activeAccountId);
+  const label =
+    active?.brand_name ||
+    active?.domain ||
+    active?.owner_email ||
+    "Välj konto";
+
+  return (
+    <div className="relative px-3 pb-2" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+      >
+        <Users className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        <span className="truncate flex-1 text-left">{label}</span>
+        {myRole && myRole !== "owner" && (
+          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500 uppercase">
+            {myRole}
+          </span>
+        )}
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
+            {accounts.map((acc) => {
+              const isActive = acc.account_id === activeAccountId;
+              const accLabel =
+                acc.brand_name || acc.domain || acc.owner_email || acc.account_id;
+              return (
+                <button
+                  key={acc.account_id}
+                  onClick={() => { setActiveAccountId(acc.account_id); setOpen(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                    isActive ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium truncate flex-1">{accLabel}</span>
+                    {acc.role !== "owner" && (
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500 uppercase flex-shrink-0">
+                        {acc.role}
+                      </span>
+                    )}
+                  </div>
+                  {acc.domain && acc.brand_name && (
+                    <div className="text-xs text-slate-400 truncate">{acc.domain}</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -214,8 +283,9 @@ function SidebarContent({
         </div>
       </div>
 
-      {/* Site switcher */}
+      {/* Account + site switchers */}
       <div className="pt-3">
+        <AccountSwitcher />
         <SiteSwitcher />
       </div>
 
