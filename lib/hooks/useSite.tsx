@@ -73,6 +73,28 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setLoading(true);
+
+    // When in view-as mode, load the viewed tenant's sites via admin API.
+    // Direct Supabase query would only return admin's own sites (RLS scoped to auth.uid()).
+    if (viewAs) {
+      try {
+        const res = await fetch(`/api/admin/user-sites/${viewAs.userId}`);
+        if (res.ok) {
+          const body = await res.json() as { sites: UserSite[] };
+          const loaded = body.sites ?? [];
+          setSites(loaded);
+          setActiveSiteIdState(loaded[0]?.id ?? null);
+        } else {
+          setSites([]);
+        }
+      } catch (e) {
+        console.error("[useSite] failed to load view-as sites:", e);
+        setSites([]);
+      }
+      setLoading(false);
+      return;
+    }
+
     const supabase = getSupabaseBrowser();
 
     let { data, error } = await supabase
@@ -125,7 +147,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     setActiveSiteIdState(valid ? stored : (loaded[0]?.id ?? null));
 
     setLoading(false);
-  }, [user]);
+  }, [user, viewAs]);
 
   useEffect(() => {
     void loadSites();
