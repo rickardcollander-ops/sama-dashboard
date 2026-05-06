@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
-  FileText, Code2, Sparkles, Shield, ChevronDown, Globe, ChevronRight,
+  FileText, Compass, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -27,7 +27,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-type SectionId = "home" | "insights" | "content" | "tech" | "settings" | "admin";
+type SectionId = "home" | "strategy" | "insights" | "content" | "tech" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -36,6 +36,13 @@ const TOP_NAV: NavItem[] = [
     label: "Hem",
     icon: BarChart2,
     matchPrefixes: ["/c/dashboard"],
+  },
+  {
+    id: "strategy",
+    href: "/c/strategy",
+    label: "Strategi",
+    icon: Compass,
+    matchPrefixes: ["/c/strategy"],
   },
   {
     id: "insights",
@@ -77,6 +84,7 @@ const ADMIN_NAV: NavItem = {
 
 const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   home: [],
+  strategy: [],
   tech: [],
   insights: [
     { href: "/c/analysis", label: "Översikt" },
@@ -215,16 +223,14 @@ function SidebarContent({
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <item.icon
-                  className={`flex-shrink-0 ${isActive ? "text-blue-600" : "text-slate-400"}`}
-                  style={{ width: "1.125rem", height: "1.125rem" }}
-                />
+                <item.icon className={`h-4.5 w-4.5 flex-shrink-0 ${isActive ? "text-blue-600" : "text-slate-400"}`} style={{ width: "1.125rem", height: "1.125rem" }} />
                 <span className="flex-1">{item.label}</span>
                 {subItems.length > 0 && (
                   <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform ${isActive ? "rotate-90" : ""}`} />
                 )}
               </Link>
 
+              {/* Sub-items for active section */}
               {isActive && subItems.length > 0 && (
                 <div className="ml-9 mt-0.5 mb-1 space-y-0.5">
                   {subItems.map((sub) => {
