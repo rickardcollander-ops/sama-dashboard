@@ -15,7 +15,7 @@ export default function CustomerLayout({
 }) {
   return (
     <Providers>
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen flex-col lg:pl-56">
         <div className="flex-1">{children}</div>
         <Footer />
         <CookieConsent />
