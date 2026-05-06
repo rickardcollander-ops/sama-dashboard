@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser, MAX_GEO_QUERIES } from "@/lib/integrations/store";
+import type { SettingsJson } from "@/lib/integrations/store";
 import {
-  getCurrentUser, loadSettings, saveSettings, MAX_GEO_QUERIES,
-} from "@/lib/integrations/store";
+  getSiteSettingsAccess,
+  resolveSiteId,
+  type SiteSettingsAccess,
+} from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -17,7 +21,18 @@ export async function POST(req: NextRequest) {
     ? body.keywords.filter((q: unknown): q is string => typeof q === "string" && q.trim().length > 0)
     : [];
 
-  const settings = await loadSettings(user.id);
+  const siteId = resolveSiteId(req, user.id);
+  let access: SiteSettingsAccess;
+  try {
+    access = await getSiteSettingsAccess(user, siteId);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Could not load tenant settings" },
+      { status: 500 },
+    );
+  }
+  let settings: SettingsJson = access.settings;
+
   const existingGeo = Array.isArray(settings.geo_queries)
     ? (settings.geo_queries as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
@@ -39,17 +54,18 @@ export async function POST(req: NextRequest) {
   }
   const geoChanged = geoAdded > 0 || merged.length !== existingGeo.length;
   if (geoChanged) {
-    await saveSettings(user.id, { ...settings, geo_queries: merged });
+    settings = { ...settings, geo_queries: merged };
+    await access.save(settings);
   }
 
   let keywordsAdded = 0;
   let keywordsSkipped = 0;
   if (keywords.length > 0) {
-    // Persist locally to user_settings.tracked_keywords (source of truth so
-    // the SEO page sees them even if the backend silently drops them).
-    const settingsAfterGeo = geoChanged ? { ...settings, geo_queries: merged } : settings;
-    const existingTracked: string[] = Array.isArray(settingsAfterGeo.tracked_keywords)
-      ? (settingsAfterGeo.tracked_keywords as unknown[]).filter(
+    // Persist locally to user_sites.settings.tracked_keywords (source of
+    // truth so the SEO page sees them even if the backend silently drops
+    // them).
+    const existingTracked: string[] = Array.isArray(settings.tracked_keywords)
+      ? (settings.tracked_keywords as unknown[]).filter(
           (v): v is string => typeof v === "string",
         )
       : [];
@@ -65,10 +81,12 @@ export async function POST(req: NextRequest) {
       }
     }
     if (keywordsAdded > 0) {
-      await saveSettings(user.id, { ...settingsAfterGeo, tracked_keywords: trackedMerged });
+      settings = { ...settings, tracked_keywords: trackedMerged };
+      await access.save(settings);
     }
 
     // Best-effort: forward to backend so the SEO agent picks them up too.
+    // Use the resolved siteId so admin view-as targets the right tenant.
     const backend = process.env.NEXT_PUBLIC_SAMA_API_URL || "https://web-production-5324a.up.railway.app";
     for (const kw of keywords) {
       try {
@@ -76,7 +94,7 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Tenant-ID": user.id,
+            "X-Tenant-ID": siteId,
           },
           body: JSON.stringify({ keyword: kw }),
           signal: AbortSignal.timeout(15_000),

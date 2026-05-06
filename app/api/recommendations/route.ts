@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser } from "@/lib/integrations/store";
+import { getSiteSettingsAccess, resolveSiteId } from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -147,7 +148,21 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const settings = await loadSettings(user.id);
+
+  // Brand context lives on the active site row, not on the caller's user
+  // row — admin view-as sends a different X-Sama-Site-Id than user.id and
+  // we must honour it or the LLM gets the wrong tenant's brand.
+  const siteId = resolveSiteId(req, user.id);
+  let settings: Record<string, unknown> = {};
+  try {
+    settings = (await getSiteSettingsAccess(user, siteId)).settings;
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Could not load tenant settings" },
+      { status: 500 },
+    );
+  }
+
   const str = (k: string) => (typeof settings[k] === "string" ? (settings[k] as string) : "");
   const arr = (k: string) =>
     Array.isArray(settings[k]) ? (settings[k] as unknown[]).filter((v): v is string => typeof v === "string") : [];

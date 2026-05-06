@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import { getCurrentUser } from "@/lib/integrations/store";
+import {
+  getSiteSettingsAccess,
+  resolveSiteId,
+  type SiteSettingsAccess,
+} from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -11,7 +16,18 @@ export async function POST(req: NextRequest) {
   const query = typeof body.query === "string" ? body.query.trim() : "";
   if (!query) return NextResponse.json({ error: "query required" }, { status: 400 });
 
-  const settings = await loadSettings(user.id);
+  const siteId = resolveSiteId(req, user.id);
+  let access: SiteSettingsAccess;
+  try {
+    access = await getSiteSettingsAccess(user, siteId);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Could not load tenant settings" },
+      { status: 500 },
+    );
+  }
+  const settings = access.settings;
+
   const existing = Array.isArray(settings.geo_queries)
     ? (settings.geo_queries as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
@@ -21,7 +37,7 @@ export async function POST(req: NextRequest) {
   const removed = existing.length - next.length;
 
   if (removed > 0) {
-    await saveSettings(user.id, { ...settings, geo_queries: next });
+    await access.save({ ...settings, geo_queries: next });
   }
 
   return NextResponse.json({ removed, geo_queries: next });
