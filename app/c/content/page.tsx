@@ -27,7 +27,11 @@ interface ContentTopicSuggestion {
 interface ContentPiece {
   id: string;
   title: string;
-  type: string;
+  type?: string;
+  // Backend column name (`content_pieces.content_type`). Older code wrote
+  // `type` optimistically; we now read both so the type pill renders
+  // correctly regardless of source.
+  content_type?: string;
   status: string;
   word_count: number;
   target_keyword: string;
@@ -202,9 +206,22 @@ function CustomerContentInner() {
     setGenerating(true);
     try {
       const client = tenantApi(user.id);
-      await client.post("/api/content/generate", { type: "linkedin_post" });
-      // Refresh after a delay to let generation start
-      setTimeout(() => fetchContent(), 3000);
+      // /api/content/generate only returns text — it does not persist a
+      // piece. We chain a /pieces save so the new draft actually appears.
+      const gen = await client.post<{ title?: string; body?: string; content?: string }>(
+        "/api/content/generate",
+        { type: "linkedin_post" },
+      );
+      const body = gen.body || gen.content || "";
+      const title = gen.title || "Nytt LinkedIn-utkast";
+      await client.post("/api/content/pieces", {
+        title,
+        content_type: "linkedin_post",
+        content: body,
+        status: "draft",
+        word_count: body.split(/\s+/).filter(Boolean).length,
+      });
+      await fetchContent();
     } catch (err: any) {
       console.error("Failed to trigger content generation:", err);
       setError(`Kunde inte generera content: ${err?.message || err}`);
@@ -218,11 +235,15 @@ function CustomerContentInner() {
     setModalContent("");
     try {
       const client = tenantApi(user.id);
-      const result = await client.post<{ content?: string }>("/api/content/generate", {
-        type: modalType,
-        topic: modalTopic,
-      });
-      setModalContent(result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`);
+      // Backend returns { title, body, platform, suggestions }. Older code
+      // read `content` and always fell back to the placeholder template.
+      const result = await client.post<{ body?: string; content?: string }>(
+        "/api/content/generate",
+        { type: modalType, topic: modalTopic },
+      );
+      setModalContent(
+        result.body || result.content || `# ${modalTopic}\n\nGenererat innehåll för ${modalType}...`,
+      );
     } catch (err: any) {
       setError(`Kunde inte generera: ${err?.message || err}`);
       // Fallback placeholder
@@ -239,13 +260,18 @@ function CustomerContentInner() {
   const saveModalDraft = async () => {
     if (!user || !modalContent) return;
     setModalSaving(true);
+    // Backend column is `content_type` — the previous "type" field was
+    // silently dropped, so every saved piece defaulted to blog_article.
+    const dbType =
+      modalType === "blogg" ? "blog_post" : modalType === "epost" ? "email" : "linkedin_post";
     try {
       const client = tenantApi(user.id);
       await client.post("/api/content/pieces", {
         title: modalTopic,
-        type: modalType,
+        content_type: dbType,
         content: modalContent,
         status: "draft",
+        word_count: modalContent.split(/\s+/).filter(Boolean).length,
         // Sprint 2 (K-2 / K-5) — round-trip the originating surface so the
         // piece can show its provenance and the gap/topic can know it's
         // being addressed.
@@ -261,7 +287,8 @@ function CustomerContentInner() {
       {
         id: `local-${Date.now()}`,
         title: modalTopic,
-        type: modalType === "blogg" ? "blog_post" : modalType === "epost" ? "email" : "linkedin_post",
+        content_type: dbType,
+        type: dbType,
         status: "draft",
         word_count: modalContent.split(/\s+/).filter(Boolean).length,
         target_keyword: "",
@@ -278,6 +305,10 @@ function CustomerContentInner() {
     setModalContent("");
     setSourceGap(null);
     setSourceStrategyTopic(null);
+    // Pull the canonical row from the server so the local-* placeholder is
+    // replaced with a real piece (otherwise PATCH calls on the placeholder
+    // would 404).
+    fetchContent();
   };
 
   const filtered = pieces.filter((p) => {
@@ -316,7 +347,12 @@ function CustomerContentInner() {
     );
     try {
       const client = tenantApi(user.id);
-      await client.post(`/api/content/pieces/${pieceId}/status`, { status: newStatus });
+      // Backend exposes a generic PATCH /pieces/{id}; there's no /status
+      // sub-resource. Local-only optimistic IDs (e.g. `local-…`) skip the
+      // round-trip since they don't exist on the server yet.
+      if (!pieceId.startsWith("local-")) {
+        await client.patch(`/api/content/pieces/${pieceId}`, { status: newStatus });
+      }
     } catch (err: any) {
       console.error("Failed to update status:", err);
       setError(`Kunde inte uppdatera status: ${err?.message || err}`);
@@ -368,7 +404,15 @@ function CustomerContentInner() {
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(
       subject,
     )}&body=${encodeURIComponent(body || `Hej!\n\nHär kommer ett utkast: ${piece.title}`)}`;
-    window.location.href = mailto;
+    // Trigger the mailto handoff via a transient anchor so the dashboard
+    // tab keeps its state instead of navigating away.
+    const a = document.createElement("a");
+    a.href = mailto;
+    a.rel = "noopener";
+    a.target = "_self";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const openCmsDialog = async (piece: ContentPiece) => {
@@ -419,7 +463,19 @@ function CustomerContentInner() {
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
-              title="Baserat på er strategi och era luckor i Insikter."
+              title="Skriv eget ämne och låt SAMA generera ett utkast."
+            >
+              <Plus className="h-4 w-4" />
+              Skapa nytt content
+            </button>
+            <button
+              onClick={() => {
+                document
+                  .getElementById("ideas")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="flex items-center gap-2 rounded-lg bg-white border border-purple-200 px-4 py-2.5 text-sm font-medium text-purple-700 hover:bg-purple-50 shadow-sm transition-colors"
+              title="Visa AI-förslag baserat på er strategi och era luckor i Insikter."
             >
               <Sparkles className="h-4 w-4" />
               Få artikel-idéer
@@ -428,11 +484,12 @@ function CustomerContentInner() {
               onClick={generateContent}
               disabled={generating}
               className="flex items-center gap-2 rounded-lg bg-slate-100 border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:text-slate-400 shadow-sm transition-colors"
+              title="Skapar ett LinkedIn-utkast direkt från er profil."
             >
               {generating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Plus className="h-4 w-4" />
+                <Wand2 className="h-4 w-4" />
               )}
               {generating ? "Genererar…" : "Auto-generera"}
             </button>
@@ -533,9 +590,23 @@ function CustomerContentInner() {
             )}
             importItem={async (item) => {
               const client = tenantApi(user.id);
-              await client.post("/api/content/generate", { type: item.type, topic: item.topic });
-              setTimeout(() => fetchContent(), 1500);
-              return `"${item.topic}" skickades till Content-agenten — ett utkast skapas snart.`;
+              // Generate then persist — /generate alone returns text without
+              // saving, so without this chain the imported topic never
+              // showed up in the list.
+              const gen = await client.post<{ title?: string; body?: string }>(
+                "/api/content/generate",
+                { type: item.type, topic: item.topic },
+              );
+              const body = gen.body || "";
+              await client.post("/api/content/pieces", {
+                title: gen.title || item.topic,
+                content_type: item.type,
+                content: body,
+                status: "draft",
+                word_count: body.split(/\s+/).filter(Boolean).length,
+              });
+              await fetchContent();
+              return `"${item.topic}" sparades som utkast.`;
             }}
           />
         )}
@@ -624,7 +695,7 @@ function CustomerContentInner() {
                     <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
-                        {formatTypeLabel(piece.type)}
+                        {formatTypeLabel(piece.content_type || piece.type)}
                       </span>
                       {piece.word_count > 0 && (
                         <span className="flex items-center gap-1">
