@@ -416,11 +416,24 @@ export default function StrategyPage() {
         )}
 
         {bulkResult && step === "done" && (
-          <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            <CheckCircle className="mr-2 inline h-4 w-4" />
-            {bulkResult.created} inlägg skapades som utkast i Content och lades in i Kalendern.
-            {bulkResult.failed > 0 && ` (${bulkResult.failed} misslyckades.)`}
-            {" "}<a href="/c/content/calendar" className="font-semibold underline hover:text-emerald-700">Öppna Kalender →</a>
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <div>
+                <p>
+                  {bulkResult.created} inlägg skapades som utkast
+                  {bulkResult.failed > 0 && ` (${bulkResult.failed} misslyckades)`}.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  <a href="/c/content" className="font-semibold underline hover:text-emerald-700">
+                    Öppna Content → (fliken "Att granska")
+                  </a>
+                  <a href="/c/content/calendar" className="font-semibold underline hover:text-emerald-700">
+                    Öppna Kalender →
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
