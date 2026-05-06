@@ -1,28 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Compass, FileText, ShieldCheck, Sparkles, TrendingDown } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, Sparkles, TrendingDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-
-// Sprint 2 (H2) — "Nästa steg" / What should I do next?
-//
-// V1 is *purely rule-based* on data we already have. No AI inference. Each
-// step has a `why` sentence anchored on a concrete datapoint. Show top 3.
-//
-// Priority order (highest first):
-//   1. Pending approvals waiting on the user (most urgent — blocks publishing)
-//   2. Mention-rate dropped meaningfully period-over-period
-//   3. Strategy is stale (>30 days since generation)
-//   4. No content published recently (>14 days) and we have a strategy
-//   5. Critical alerts unread
 
 export interface NextStepsInput {
   pendingApprovals: number;
   mentionRateDelta: number | null;
-  strategyGeneratedAt?: string | null;
   publishedLast30d: number;
   alertsCount: number;
-  hasStrategy: boolean;
 }
 
 interface NextStep {
@@ -41,13 +27,6 @@ const TONE_CLASSES: Record<NextStep["tone"], { bg: string; icon: string; cta: st
   violet:  { bg: "bg-violet-50 border-violet-200",   icon: "text-violet-600",     cta: "text-violet-700 hover:text-violet-900" },
   emerald: { bg: "bg-emerald-50 border-emerald-200", icon: "text-emerald-600",    cta: "text-emerald-700 hover:text-emerald-900" },
 };
-
-function daysSince(iso?: string | null): number | null {
-  if (!iso) return null;
-  const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return null;
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
-}
 
 export function buildNextSteps(input: NextStepsInput): NextStep[] {
   const steps: NextStep[] = [];
@@ -79,36 +58,11 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
     });
   }
 
-  const strategyAge = daysSince(input.strategyGeneratedAt);
-  if (!input.hasStrategy) {
-    steps.push({
-      id: "no-strategy",
-      title: "Sätt en strategi",
-      why: "Utan strategi blir content-förslag generiska.",
-      href: "/c/strategy",
-      cta: "Skapa",
-      icon: Compass,
-      tone: "emerald",
-    });
-  } else if (strategyAge !== null && strategyAge > 30) {
-    steps.push({
-      id: "stale-strategy",
-      title: "Strategin är gammal",
-      why: `Senast uppdaterad för ${strategyAge} dagar sen — utfallet kan ha hunnit ändras.`,
-      href: "/c/strategy",
-      cta: "Förfina",
-      icon: Compass,
-      tone: "emerald",
-    });
-  }
-
-  if (input.hasStrategy && input.publishedLast30d === 0) {
+  if (input.publishedLast30d === 0) {
     steps.push({
       id: "no-content",
       title: "Inget content publicerat sista 30 dagarna",
-      why: "Synligheten påverkas av aktivitet — börja med ett förslag baserat på din strategi.",
-      // Sprint 2 (K-12) — deep link straight to the ideas panel so the
-      // next step lands in context, not just on the page.
+      why: "Synligheten påverkas av aktivitet — börja med ett nytt inlägg.",
       href: "/c/content#ideas",
       cta: "Skapa content",
       icon: FileText,
@@ -123,8 +77,6 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
         ? "1 varning behöver din uppmärksamhet"
         : `${input.alertsCount} varningar behöver din uppmärksamhet`,
       why: "Öppna systemstatus för att se vad som hänt.",
-      // Sprint 3 (H-3) — every Next Step now lands on a real page, no
-      // placeholder anchors.
       href: "/system-health",
       cta: "Öppna varningar",
       icon: Sparkles,
