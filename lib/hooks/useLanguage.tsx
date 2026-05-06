@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { translations, type Language, type Translations } from "@/lib/locales";
 
 interface LanguageContextType {
@@ -13,15 +13,14 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 
 const STORAGE_KEY = "sama_language";
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("sv");
+function getInitialLanguage(): Language {
+  if (typeof window === "undefined") return "sv";
+  const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
+  return stored && stored in translations ? stored : "sv";
+}
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-    if (stored && stored in translations) {
-      setLanguageState(stored);
-    }
-  }, []);
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(getInitialLanguage);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
