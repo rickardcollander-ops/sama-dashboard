@@ -83,21 +83,37 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim() : "";
-  if (!email) {
-    return NextResponse.json({ error: "email is required" }, { status: 400 });
+
+  let userId: string;
+  let invited = false;
+
+  if (email) {
+    const origin = req.headers.get("origin") || new URL(req.url).origin;
+    const redirectTo = `${origin}/c/auth/reset-password`;
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    userId = data.user.id;
+    invited = true;
+  } else {
+    // No email supplied — generate an internal placeholder so the auth row exists
+    // but no invite is sent. Admin can add real credentials later.
+    const domain =
+      typeof body.settings?.domain === "string"
+        ? body.settings.domain.replace(/[^a-z0-9.-]/gi, "").toLowerCase()
+        : "unknown";
+    const placeholder = `${domain}-${Date.now()}@accounts.internal`;
+    const { data, error } = await admin.auth.admin.createUser({
+      email: placeholder,
+      email_confirm: true,
+    });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    userId = data.user.id;
   }
 
-  const origin = req.headers.get("origin") || new URL(req.url).origin;
-  const redirectTo = `${origin}/c/auth/reset-password`;
-
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo,
-  });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-
-  const userId = data.user.id;
   let settings_created = false;
 
   if (body.settings && typeof body.settings === "object") {
@@ -109,5 +125,5 @@ export async function POST(req: NextRequest) {
     if (!siteError) settings_created = true;
   }
 
-  return NextResponse.json({ user: data.user, settings_created });
+  return NextResponse.json({ userId, invited, settings_created });
 }
