@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "items array required" }, { status: 400 });
   }
 
-  const destinations = await getDestinations(user.id);
+  const destinations = await getDestinations(tenantId, user.id);
   const defaultDestination = destinations[0];
 
   let created = 0;
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         const scheduledAt = new Date(item.scheduled_date);
         scheduledAt.setHours(9, 0, 0, 0);
         if (scheduledAt.getTime() > Date.now() - 86400_000) {
-          await appendScheduled(user.id, {
+          await appendScheduled(tenantId, user.id, {
             piece_id: pieceId || `strategy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             destination_id: defaultDestination?.id ?? "",
             scheduled_at: scheduledAt.toISOString(),
