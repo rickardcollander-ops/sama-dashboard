@@ -39,10 +39,10 @@ function severityIcon(severity?: string) {
 }
 
 interface ActivityFeedProps {
-  userId: string;
+  tenantId: string;
 }
 
-export default function ActivityFeed({ userId }: ActivityFeedProps) {
+export default function ActivityFeed({ tenantId }: ActivityFeedProps) {
   const { t } = useLanguage();
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,14 +61,14 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
   }
 
   useEffect(() => {
-    if (userId) load();
+    if (tenantId) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [tenantId]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const client = tenantApi(userId);
+      const client = tenantApi(tenantId);
       const data = await client.get<{ events?: ActivityEvent[] }>("/api/activity?limit=15");
       setEvents(data?.events || []);
     } catch {
