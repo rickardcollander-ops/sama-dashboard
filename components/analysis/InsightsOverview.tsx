@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, CheckCircle2, AlertCircle, Sparkles, Loader2, Info,
+  ArrowRight, CheckCircle2, AlertCircle, Loader2, Info,
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
@@ -225,42 +225,10 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     );
   }
 
-  // Sprint 1 (I-4) — first-visit empty state. Tell the user exactly what
-  // SAMA needs (domain + a handful of phrases) instead of vague spinner /
-  // generic "no data" copy.
   const noData =
     !geo?.total_checks && !(seo?.total_keywords || seo?.totalKeywords) && !hasError;
   if (noData) {
-    return (
-      <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-3">
-          <Sparkles className="h-5 w-5 text-violet-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <h2 className="font-semibold text-slate-900">Ingen synlighetsdata än</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Vi behöver veta er domän och 3–5 fraser ni vill ranka för. Lägg till
-              fraserna nedan så kör SAMA en första mätning — då dyker styrkor och
-              gap upp här.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/c/settings"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Kontrollera varumärke och domän
-              </Link>
-              <a
-                href="#queries"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
-              >
-                Lägg till fraser
-                <ArrowRight className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const mentionRate = geo?.mention_rate ?? 0;
@@ -423,4 +391,3 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     </div>
   );
 }
-
