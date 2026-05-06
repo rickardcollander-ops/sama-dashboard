@@ -257,7 +257,7 @@ export default function PublishingDestinations() {
             <div className={`flex items-center gap-2 rounded-lg border p-2 text-xs ${
               testResult.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700"
             }`}>
-              {testResult.ok ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}}
+              {testResult.ok ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
               {testResult.ok ? "Connection OK" : testResult.message || "Connection failed"}
             </div>
           )}
