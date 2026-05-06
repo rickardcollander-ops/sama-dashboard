@@ -15,6 +15,7 @@ import PublishDialog from "@/components/PublishDialog";
 import PiecePerformance from "@/components/content/PiecePerformance";
 import RefineDialog from "@/components/content/RefineDialog";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
 
@@ -63,6 +64,7 @@ export default function CustomerContentPage() {
 
 function CustomerContentInner() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const searchParams = useSearchParams();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +146,7 @@ function CustomerContentInner() {
   const checkGitHubStatus = async () => {
     if (!user) return;
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ connected: boolean }>("/api/integrations/github/status");
       setGhConnected(data.connected);
     } catch {
@@ -158,7 +160,7 @@ function CustomerContentInner() {
     setPublishResult(null);
     setPublishError(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ pr_url: string; branch: string; file_path: string }>(
         "/api/integrations/github/publish",
         { content_id: pieceId }
@@ -186,7 +188,7 @@ function CustomerContentInner() {
     setLoading(true);
     setError(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
       const pcs = data.pieces || [];
       setPieces(pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : []);
@@ -205,7 +207,7 @@ function CustomerContentInner() {
     if (!user) return;
     setGenerating(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       // /api/content/generate only returns text — it does not persist a
       // piece. We chain a /pieces save so the new draft actually appears.
       // The proxy guards /generate behind X-Sama-Intent (see app/api/sama)
@@ -249,7 +251,7 @@ function CustomerContentInner() {
     setModalGenerating(true);
     setModalContent("");
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       // Backend returns { title, body, platform, suggestions }. Empty body
       // with a message in suggestions[0] = AI failure (key missing, parse
       // error, rate limit). Surface that instead of showing a placeholder
@@ -285,7 +287,7 @@ function CustomerContentInner() {
     const dbType =
       modalType === "blogg" ? "blog_post" : modalType === "epost" ? "email" : "linkedin_post";
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/content/pieces", {
         title: modalTopic,
         content_type: dbType,
@@ -366,7 +368,7 @@ function CustomerContentInner() {
       prev.map((p) => (p.id === pieceId ? { ...p, status: newStatus } : p))
     );
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       // Backend exposes a generic PATCH /pieces/{id}; there's no /status
       // sub-resource. Local-only optimistic IDs (e.g. `local-…`) skip the
       // round-trip since they don't exist on the server yet.
@@ -397,7 +399,7 @@ function CustomerContentInner() {
     let recipient = "";
     let recipientName = "";
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ piece?: { body?: string; content?: string; markdown?: string } }>(
         `/api/content/pieces/${piece.id}`,
       );
@@ -440,7 +442,7 @@ function CustomerContentInner() {
     setLoadingBodyId(piece.id);
     let body = "";
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ piece?: { body?: string; content?: string; markdown?: string } }>(
         `/api/content/pieces/${piece.id}`,
       );
@@ -588,7 +590,7 @@ function CustomerContentInner() {
             importButtonLabel="Importera till Content"
             importLabel="Importera till Content-agenten"
             fetchSuggestions={async () => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               // Proxy guards /suggest-* behind X-Sama-Intent — see
               // app/api/sama/[...path]/route.ts.
               const res = await client.post<{ topics?: ContentTopicSuggestion[] }>(
@@ -615,7 +617,7 @@ function CustomerContentInner() {
               </div>
             )}
             importItem={async (item) => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               // Save a stub draft *first* so the user sees the new piece
               // immediately. Awaiting /generate (Anthropic, 10-30s) blocked
               // the import dialog and made it look like nothing happened.

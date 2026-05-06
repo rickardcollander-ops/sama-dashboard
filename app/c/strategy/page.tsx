@@ -7,7 +7,8 @@ import {
   Settings,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
-import { ApiError, tenantApi } from "@/lib/api";
+import { useSite } from "@/lib/hooks/useSite";
+import { ApiError } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import CustomerNav from "@/components/CustomerNav";
@@ -128,6 +129,7 @@ const VERDICT_HINT: Record<string, string> = {
 
 export default function StrategyPage() {
   const { user } = useUser();
+  const { tenantClient } = useSite();
   const { runs, triggerRun } = useActiveRuns();
   const [current, setCurrent] = useState<Strategy | null>(null);
   const [history, setHistory] = useState<Strategy[]>([]);
@@ -160,7 +162,9 @@ export default function StrategyPage() {
     if (!user) return;
     setError("");
     try {
-      const data = await tenantApi(user.id).get<Strategy | { strategy?: Strategy }>("/api/strategy/current");
+      const data = await tenantClient.get<Strategy | { strategy?: Strategy }>(
+        "/api/strategy/current",
+      );
       const s = (data as { strategy?: Strategy })?.strategy ?? (data as Strategy);
       if (s && (s.headline || s.executive_summary || s.id)) {
         setCurrent(s);
@@ -177,7 +181,9 @@ export default function StrategyPage() {
   const loadHistory = async () => {
     if (!user) return;
     try {
-      const data = await tenantApi(user.id).get<{ strategies?: Strategy[] } | Strategy[]>("/api/strategy/history");
+      const data = await tenantClient.get<{ strategies?: Strategy[] } | Strategy[]>(
+        "/api/strategy/history",
+      );
       const list = Array.isArray(data) ? data : data?.strategies ?? [];
       setHistory(list);
     } catch {
@@ -207,8 +213,8 @@ export default function StrategyPage() {
     if (!user) return;
     setAuditLoading(true);
     try {
-      const data = await tenantApi(user.id).get<{ run?: { findings?: AuditFinding[] }; findings?: AuditFinding[] }>(
-        "/api/site-audit/latest"
+      const data = await tenantClient.get<{ run?: { findings?: AuditFinding[] }; findings?: AuditFinding[] }>(
+        "/api/site-audit/latest",
       );
       const findings = data?.run?.findings ?? data?.findings ?? [];
       setAuditFindings(
@@ -245,7 +251,10 @@ export default function StrategyPage() {
 
   const saveStrategyPatch = async (patch: Partial<Strategy>) => {
     if (!user) return;
-    const data = await tenantApi(user.id).patch<{ strategy?: Strategy }>("/api/strategy/current", patch);
+    const data = await tenantClient.patch<{ strategy?: Strategy }>(
+      "/api/strategy/current",
+      patch,
+    );
     if (data?.strategy) {
       setCurrent(data.strategy);
     } else {

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 
 import { api, tenantApi, pollAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
@@ -163,6 +164,7 @@ export default function CustomerSettingsPage() {
 
 function CustomerSettingsPageInner() {
   const { user } = useUser();
+  const { activeSite, reloadSites, tenantClient } = useSite();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -267,7 +269,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setGhLoading(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<GitHubStatus>("/api/integrations/github/status");
       setGhStatus(data);
       if (data.connected) {
@@ -285,7 +287,7 @@ function CustomerSettingsPageInner() {
     setGhConnecting(true);
     setGhError("");
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/integrations/github/connect", {
         github_token: ghToken,
       });
@@ -313,7 +315,7 @@ function CustomerSettingsPageInner() {
     const owner = parts[0];
     const name = parts[1];
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/integrations/github/connect", {
         github_token: ghToken,
         repo_owner: owner,
@@ -336,7 +338,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setGhConnecting(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/integrations/github/disconnect", {});
       setGhStatus({ connected: false });
       setGhTokenValidated(false);
@@ -351,15 +353,17 @@ function CustomerSettingsPageInner() {
   const handleSaveBlogUrl = async () => {
     if (!user) return;
     try {
-      const currentSettings = { ...settings } as any;
-      currentSettings.blog_url = blogUrl;
+      const siteId = activeSite?.id ?? user.id;
+      const updatedSettings = { ...settings, blog_url: blogUrl };
       const { error: upsertError } = await getSupabaseBrowser()
-        .from("user_settings")
+        .from("user_sites")
         .upsert({
+          id: siteId,
           user_id: user.id,
-          settings: currentSettings,
+          site_name: settings.brand_name || activeSite?.site_name || "",
+          settings: updatedSettings,
           updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" });
+        }, { onConflict: "id" });
       if (upsertError) throw upsertError;
       setSuccessMessage("Blog URL saved!");
     } catch {
@@ -371,7 +375,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setAgentsLoading(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const [statusData, runsData] = await Promise.all([
         client.get<{ agents: AgentConfig[] }>("/api/tenant/agent-status"),
         client.get<{ runs: AgentRun[] }>("/api/tenant/agent-runs?limit=10"),
@@ -390,7 +394,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setTogglingAgent(agentName);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post(`/api/tenant/agents/${agentName}/toggle`, { enabled });
       setAgents((prev) =>
         prev.map((a) => (a.name === agentName ? { ...a, enabled } : a))
@@ -405,11 +409,7 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setTriggeringAgent(agentName);
     try {
-      const client = tenantApi(user.id);
-      // Trigger is fire-and-forget on the backend: returns run_id while the
-      // cycle continues in a background task. We refresh the runs list
-      // immediately so the user sees the "Running" row, then poll until it
-      // settles to refresh again with the final status.
+      const client = tenantClient;
       const resp = await client.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/${agentName}/trigger`,
         undefined,
@@ -418,8 +418,8 @@ function CustomerSettingsPageInner() {
       await loadAgentStatus();
 
       if (resp?.run_id && resp?.status === "running") {
-        // Poll in background — don't block the spinner on it.
-        pollAgentRun(user.id, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
+        const tenantId = activeSite?.id ?? user.id;
+        pollAgentRun(tenantId, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
       }
     } catch {
       setError(`Could not run the ${agentName} agent`);
@@ -432,7 +432,7 @@ function CustomerSettingsPageInner() {
     setActivating(true);
     setActivationResult(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ keywords_added: number; content_created: number }>("/api/tenant/activate");
       setActivationResult(result);
       await loadAgentStatus();
@@ -499,17 +499,24 @@ function CustomerSettingsPageInner() {
   const loadSettings = async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data } = await getSupabaseBrowser()
-        .from("user_settings")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-      if (data?.settings) {
-        setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
-        if (data.settings.blog_url) setBlogUrl(data.settings.blog_url);
+      // Prefer active site from user_sites; fall back to legacy user_settings.
+      let raw: Record<string, unknown> | null = null;
+      if (activeSite?.settings && Object.keys(activeSite.settings).length > 0) {
+        raw = activeSite.settings;
+      } else {
+        const { data } = await getSupabaseBrowser()
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", user.id)
+          .single();
+        raw = data?.settings ?? null;
+      }
+      if (raw) {
+        setSettings({ ...DEFAULT_SETTINGS, ...(raw as Partial<UserSettings>) });
+        if (raw.blog_url) setBlogUrl(raw.blog_url as string);
       }
     } catch {
-      // First time
+      // First time — defaults are fine.
     }
     setLoading(false);
   };
@@ -521,15 +528,19 @@ function CustomerSettingsPageInner() {
     setSaved(false);
 
     try {
+      const siteId = activeSite?.id ?? user.id;
       const { error: upsertError } = await getSupabaseBrowser()
-        .from("user_settings")
+        .from("user_sites")
         .upsert({
+          id: siteId,
           user_id: user.id,
+          site_name: settings.brand_name || activeSite?.site_name || "",
           settings,
           updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" });
+        }, { onConflict: "id" });
 
       if (upsertError) throw upsertError;
+      await reloadSites();
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
     } catch (err: unknown) {

@@ -13,6 +13,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi, pollAgentRun } from "@/lib/api";
 import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
@@ -54,6 +55,7 @@ interface AnalyticsData {
 
 export default function CustomerAnalyticsPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
@@ -96,7 +98,7 @@ export default function CustomerAnalyticsPage() {
       // The cache is populated by `analytics_agent.collect_daily_metrics`
       // — re-fetching `/overview` without triggering the agent would just
       // return the same numbers we already have on screen.
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const resp = await client.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/analytics/trigger`,
         undefined,
@@ -120,7 +122,7 @@ export default function CustomerAnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const params = new URLSearchParams({ days: String(days) });
       if (compare) params.set("compare", "1");
       const result = await client.get<AnalyticsData>(`/api/analytics/overview?${params.toString()}`);

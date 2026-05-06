@@ -13,6 +13,7 @@ import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard
 import NextSteps, { buildNextSteps } from "@/components/dashboard/NextSteps";
 import AgentChips from "@/components/dashboard/AgentChips";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { tenantApi } from "@/lib/api";
@@ -78,6 +79,7 @@ function fmtRelative(iso?: string): string {
 
 export default function CustomerDashboard() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const router = useRouter();
   const [settings, setSettings] = useState<CustomerSettings>({});
@@ -165,13 +167,13 @@ export default function CustomerDashboard() {
 
   const loadGeoSummary = async () => {
     if (!user) return;
-    const data = await tenantApi(user.id).get<GeoSummary>(`/api/ai-visibility/summary?days=${days}`);
+    const data = await tenantClient.get<GeoSummary>(`/api/ai-visibility/summary?days=${days}`);
     if (data) setGeoSummary(data);
   };
 
   const loadSeoStats = async () => {
     if (!user) return;
-    const data = await tenantApi(user.id).get<Record<string, unknown>>(`/api/seo/stats?days=${days}`);
+    const data = await tenantClient.get<Record<string, unknown>>(`/api/seo/stats?days=${days}`);
     if (data) {
       setSeoStats({
         totalKeywords: (data.total_keywords ?? data.totalKeywords ?? 0) as number,
@@ -187,7 +189,7 @@ export default function CustomerDashboard() {
   const loadContentStats = async () => {
     if (!user) return;
     try {
-      const data = await tenantApi(user.id).get<Record<string, unknown>>(`/api/content/stats?days=${days}`);
+      const data = await tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`);
       if (data) {
         const pieces = data.pieces as unknown[] | undefined;
         setContentStats({
@@ -200,7 +202,7 @@ export default function CustomerDashboard() {
       }
     } catch {}
     try {
-      const pieces = await tenantApi(user.id).get<Record<string, unknown>>("/api/content/pieces?limit=1");
+      const pieces = await tenantClient.get<Record<string, unknown>>("/api/content/pieces?limit=1");
       const list = pieces?.pieces as unknown[] | undefined;
       const allTimeTotal = (pieces?.total ?? list?.length ?? 0) as number;
       setAnyContentEver(allTimeTotal > 0);
@@ -210,7 +212,7 @@ export default function CustomerDashboard() {
   const loadStrategy = async () => {
     if (!user) return;
     try {
-      const data = await tenantApi(user.id).get<Record<string, unknown>>("/api/strategy/current");
+      const data = await tenantClient.get<Record<string, unknown>>("/api/strategy/current");
       const s = (data?.strategy ?? data) as Record<string, unknown> | undefined;
       if (s && (s.headline || s.executive_summary || s.id)) {
         setStrategy({ has: true, generated_at: s.generated_at as string | undefined });

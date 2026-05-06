@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { tenantApi } from "@/lib/api";
 
 interface TechSuggestion {
@@ -31,6 +32,7 @@ interface GitHubStatus {
 
 export default function TechAgentPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
 
   const [ghStatus, setGhStatus] = useState<GitHubStatus | null>(null);
   const [suggestions, setSuggestions] = useState<TechSuggestion[]>([]);
@@ -56,7 +58,7 @@ export default function TechAgentPage() {
   const loadGhStatus = async () => {
     if (!user) return;
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<GitHubStatus>("/api/integrations/github/status");
       setGhStatus(data);
     } catch {
@@ -69,7 +71,7 @@ export default function TechAgentPage() {
     setLoadingSuggest(true);
     setError(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const res = await client.post<{ suggestions?: TechSuggestion[]; github_connected?: boolean }>(
         "/api/tech/suggest", {}
       );
@@ -88,7 +90,7 @@ export default function TechAgentPage() {
     setExecuting(true);
     setExecuteError(null);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const res = await client.post<ExecuteResult>("/api/tech/execute", {
         title: pending.title,
         description: pending.description,

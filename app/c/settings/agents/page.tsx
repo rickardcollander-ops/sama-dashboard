@@ -7,6 +7,7 @@ import {
   Globe, Loader2, Megaphone, Play, Search, Star, Users, Zap,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { pollAgentRun, tenantApi } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
@@ -47,6 +48,7 @@ function scheduleLabel(schedule: string): string {
 
 export default function AgentsSettingsPage() {
   const { user } = useUser();
+  const { tenantClient } = useSite();
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export default function AgentsSettingsPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ agents: AgentConfig[] }>("/api/tenant/agent-status");
       const fetched = data.agents || [];
       // Merge backend list with defaults so any newly registered agent
@@ -82,7 +84,7 @@ export default function AgentsSettingsPage() {
     setToggling(name);
     setError("");
     try {
-      await tenantApi(user.id).post(`/api/tenant/agents/${name}/toggle`, { enabled });
+      await tenantClient.post(`/api/tenant/agents/${name}/toggle`, { enabled });
       setAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled } : a)));
     } catch {
       setError(`Could not toggle ${name}`);
@@ -95,7 +97,7 @@ export default function AgentsSettingsPage() {
     setTriggering(name);
     setError("");
     try {
-      const resp = await tenantApi(user.id).post<{ run_id?: string; status?: string }>(
+      const resp = await tenantClient.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/${name}/trigger`,
         undefined,
         { headers: { "X-Sama-Intent": "user-action" } },

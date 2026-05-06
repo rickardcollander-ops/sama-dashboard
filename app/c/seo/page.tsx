@@ -13,6 +13,7 @@ import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { api, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -34,6 +35,7 @@ interface Keyword {
 
 export default function CustomerSeoPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -110,7 +112,7 @@ export default function CustomerSeoPage() {
     if (!user) return;
     setChecking(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/seo/keywords/track");
       setTimeout(() => fetchKeywords(), 2000);
     } catch (err: any) {
@@ -174,7 +176,7 @@ export default function CustomerSeoPage() {
     if (!user) return;
     setSuggestingKeywords(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ keywords?: string[] }>("/api/seo/suggest-keywords", {
         brand_name: brandContext.brand_name || "",
         domain: brandContext.domain || "",
