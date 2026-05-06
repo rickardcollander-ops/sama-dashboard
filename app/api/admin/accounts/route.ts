@@ -96,5 +96,18 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ user: data.user });
+
+  const userId = data.user.id;
+  let settings_created = false;
+
+  if (body.settings && typeof body.settings === "object") {
+    const settings = body.settings as Record<string, unknown>;
+    const siteName = typeof settings.brand_name === "string" ? settings.brand_name : email;
+    const { error: siteError } = await admin
+      .from("user_sites")
+      .insert({ id: userId, user_id: userId, site_name: siteName, settings });
+    if (!siteError) settings_created = true;
+  }
+
+  return NextResponse.json({ user: data.user, settings_created });
 }

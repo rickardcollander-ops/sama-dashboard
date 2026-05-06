@@ -4,32 +4,22 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Globe, Star, Rocket, ChevronRight, ChevronLeft,
-  Plus, X, Loader2, CheckCircle, Search,
+  Plus, X, Loader2, CheckCircle, Search, Target, Users,
+  FileText, Linkedin, Mail,
 } from "lucide-react";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { useSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
 import { tenantApi } from "@/lib/api";
 
 const STEPS = [
-  { label: "Varumärke", icon: Building2 },
+  { label: "Varumärke",    icon: Building2 },
+  { label: "Er profil",    icon: Star },
   { label: "Konkurrenter", icon: Globe },
-  { label: "Sökfrågor", icon: Search },
-  { label: "Recensioner", icon: Star },
-  { label: "Klart", icon: Rocket },
+  { label: "AI-bevakning", icon: Search },
+  { label: "Strategi",     icon: Target },
+  { label: "Team",         icon: Users },
+  { label: "Klart",        icon: Rocket },
 ];
-
-interface OnboardingData {
-  brand_name: string;
-  domain: string;
-  brand_description: string;
-  target_audience: string;
-  content_language: string;
-  competitors: string[];
-  geo_queries: string[];
-  review_g2_url: string;
-  review_capterra_url: string;
-  review_trustpilot_url: string;
-}
 
 const CONTENT_LANGUAGES = [
   { code: "en", label: "Engelska" },
@@ -43,70 +33,155 @@ const CONTENT_LANGUAGES = [
   { code: "nl", label: "Nederländska" },
 ];
 
+const BUSINESS_TYPES = [
+  { code: "", label: "Välj typ…" },
+  { code: "ecommerce", label: "E-handel" },
+  { code: "local", label: "Lokal näring" },
+  { code: "services", label: "Tjänsteföretag" },
+  { code: "software", label: "Programvara / SaaS" },
+  { code: "media", label: "Media / publicist" },
+  { code: "other", label: "Annat" },
+];
+
+const TONE_OPTIONS = [
+  { code: "professional", label: "Professionell" },
+  { code: "friendly",     label: "Vänlig & personlig" },
+  { code: "authoritative",label: "Auktoritativ / expert" },
+  { code: "playful",      label: "Lekfull & kreativ" },
+  { code: "neutral",      label: "Neutral / informativ" },
+];
+
+const PRIMARY_GOALS = [
+  { value: "traffic", label: "Öka trafik",       desc: "Fler besökare via SEO & content" },
+  { value: "leads",   label: "Generera leads",    desc: "Fler förfrågningar & konverteringar" },
+  { value: "brand",   label: "Bygga varumärke",   desc: "Stärk kännedom och trovärdighet" },
+  { value: "seo",     label: "Förbättra SEO",     desc: "Bättre positioner i Google" },
+  { value: "social",  label: "Sociala medier",    desc: "Bygga följarskap och engagemang" },
+  { value: "custom",  label: "Eget mål",          desc: "Beskriv ditt specifika mål" },
+] as const;
+
+type PrimaryGoal = typeof PRIMARY_GOALS[number]["value"];
+type ContentType = "blog_post" | "linkedin" | "epost";
+
+const CONTENT_TYPES: { type: ContentType; label: string; icon: typeof FileText }[] = [
+  { type: "blog_post", label: "Blogginlägg",         icon: FileText },
+  { type: "linkedin",  label: "LinkedIn-inlägg",      icon: Linkedin },
+  { type: "epost",     label: "E-post / nyhetsbrev",  icon: Mail },
+];
+
+interface OnboardingData {
+  brand_name: string;
+  domain: string;
+  brand_description: string;
+  target_audience: string;
+  content_language: string;
+  business_type: string;
+  unique_selling_points: string;
+  tone_of_voice: string;
+  competitors: string[];
+  geo_queries: string[];
+  team_members: string[];
+  primary_goal: PrimaryGoal;
+  content_types: ContentType[];
+  posts_per_week_blog: number;
+  posts_per_week_linkedin: number;
+  newsletters_per_month: number;
+}
+
 const INITIAL: OnboardingData = {
-  brand_name: "",
-  domain: "",
-  brand_description: "",
-  target_audience: "",
-  content_language: "en",
-  competitors: [],
-  geo_queries: [],
-  review_g2_url: "",
-  review_capterra_url: "",
-  review_trustpilot_url: "",
+  brand_name: "", domain: "", brand_description: "", target_audience: "",
+  content_language: "en", business_type: "",
+  unique_selling_points: "", tone_of_voice: "professional",
+  competitors: [], geo_queries: [], team_members: [],
+  primary_goal: "traffic", content_types: ["blog_post"],
+  posts_per_week_blog: 1, posts_per_week_linkedin: 3, newsletters_per_month: 1,
 };
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
+  const { activeSite, reloadSites } = useSite();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>(INITIAL);
   const [saving, setSaving] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newGeoQuery, setNewGeoQuery] = useState("");
+  const [newMember, setNewMember] = useState("");
   const [activatingAgents, setActivatingAgents] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userLoading && !user) {
-      router.push("/c/login");
-    }
+    if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
 
-  const update = (field: keyof OnboardingData, value: string) => {
+  const update = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) =>
     setData((prev) => ({ ...prev, [field]: value }));
+
+  const handleDomainBlur = async () => {
+    const domain = data.domain.trim();
+    const valid = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain);
+    if (!valid || prefilling) return;
+    setPrefilling(true);
+    try {
+      const res = await fetch("/api/onboarding/prefill-domain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      const prefill = await res.json().catch(() => ({}));
+      setData((prev) => ({
+        ...prev,
+        brand_name: prev.brand_name || prefill.brand_name || "",
+        brand_description: prev.brand_description || prefill.brand_description || "",
+        content_language: (prev.content_language && prev.content_language !== "en")
+          ? prev.content_language
+          : (prefill.content_language || "en"),
+        geo_queries: prev.geo_queries.length > 0
+          ? prev.geo_queries
+          : (prefill.suggested_queries ?? []),
+      }));
+    } catch { /* silent */ } finally {
+      setPrefilling(false);
+    }
   };
 
   const addCompetitor = () => {
     const c = newCompetitor.trim();
     if (c && !data.competitors.includes(c)) {
-      setData((prev) => ({ ...prev, competitors: [...prev.competitors, c] }));
+      update("competitors", [...data.competitors, c]);
       setNewCompetitor("");
     }
-  };
-
-  const removeCompetitor = (c: string) => {
-    setData((prev) => ({ ...prev, competitors: prev.competitors.filter((x) => x !== c) }));
   };
 
   const addGeoQuery = () => {
     const q = newGeoQuery.trim();
     if (q && !data.geo_queries.includes(q)) {
-      setData((prev) => ({ ...prev, geo_queries: [...prev.geo_queries, q] }));
+      update("geo_queries", [...data.geo_queries, q]);
       setNewGeoQuery("");
     }
   };
 
-  const removeGeoQuery = (q: string) => {
-    setData((prev) => ({ ...prev, geo_queries: prev.geo_queries.filter((x) => x !== q) }));
+  const addMember = () => {
+    const m = newMember.trim();
+    if (m && !data.team_members.includes(m)) {
+      update("team_members", [...data.team_members, m]);
+      setNewMember("");
+    }
   };
+
+  const toggleContentType = (t: ContentType) =>
+    update("content_types", data.content_types.includes(t)
+      ? data.content_types.filter((x) => x !== t)
+      : [...data.content_types, t]);
 
   const canAdvance = () => {
     if (step === 0) {
       const domainOk = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim());
       return data.brand_name.trim().length > 0 && domainOk;
     }
-    if (step === 1) return data.competitors.length >= 1;
+    if (step === 2) return data.competitors.length >= 1;
+    if (step === 4) return data.content_types.length >= 1;
     return true;
   };
 
@@ -117,8 +192,8 @@ export default function OnboardingPage() {
         return "Ange en giltig domän (t.ex. exempel.se)";
       return null;
     }
-    if (step === 1 && data.competitors.length < 1)
-      return "Lägg till minst en konkurrent så SAMA kan jämföra";
+    if (step === 2 && data.competitors.length < 1) return "Lägg till minst en konkurrent";
+    if (step === 4 && data.content_types.length < 1) return "Välj minst en innehållstyp";
     return null;
   };
 
@@ -126,6 +201,8 @@ export default function OnboardingPage() {
     if (!user) return;
     setSaveError(null);
     setSaving(true);
+    const { getSupabaseBrowser } = await import("@/lib/supabase-browser");
+    const supabase = getSupabaseBrowser();
     try {
       const settings = {
         brand_name: data.brand_name,
@@ -133,48 +210,51 @@ export default function OnboardingPage() {
         brand_description: data.brand_description,
         target_audience: data.target_audience,
         content_language: data.content_language,
+        business_type: data.business_type,
+        unique_selling_points: data.unique_selling_points,
+        tone_of_voice: data.tone_of_voice,
         competitors: data.competitors,
-        review_g2_url: data.review_g2_url,
-        review_capterra_url: data.review_capterra_url,
-        review_trustpilot_url: data.review_trustpilot_url,
         geo_queries: data.geo_queries,
         geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
+        team_members: data.team_members,
+        strategy_goals: {
+          primary_goal: data.primary_goal,
+          content_types: data.content_types,
+          posts_per_week_blog: data.content_types.includes("blog_post") ? data.posts_per_week_blog : 0,
+          posts_per_week_linkedin: data.content_types.includes("linkedin") ? data.posts_per_week_linkedin : 0,
+          newsletters_per_month: data.content_types.includes("epost") ? data.newsletters_per_month : 0,
+        },
       };
 
-      // Save to user_sites (first site uses id = user.id for backend compat).
-      const { error: upsertError } = await getSupabaseBrowser()
-        .from("user_sites")
-        .upsert(
-          {
-            id: user.id,
-            user_id: user.id,
-            site_name: data.brand_name,
-            settings,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
-
-      if (upsertError) {
-        throw new Error(upsertError.message);
+      if (activeSite) {
+        const { error } = await supabase
+          .from("user_sites")
+          .update({ settings, site_name: data.brand_name, updated_at: new Date().toISOString() })
+          .eq("id", activeSite.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase
+          .from("user_sites")
+          .upsert(
+            { id: user.id, user_id: user.id, site_name: data.brand_name, settings, updated_at: new Date().toISOString() },
+            { onConflict: "id" }
+          );
+        if (error) throw new Error(error.message);
       }
 
-      // Trigger initial agent activation
+      await reloadSites();
+
       setActivatingAgents(true);
       try {
-        const client = tenantApi(user.id);
-        await client.post("/api/tenant/activate");
-      } catch (activateErr) {
-        console.error("Agent activation failed (non-blocking):", activateErr);
+        const siteId = activeSite?.id ?? user.id;
+        await tenantApi(siteId).post("/api/tenant/activate");
+      } catch { /* non-blocking */ } finally {
+        setActivatingAgents(false);
       }
-      setActivatingAgents(false);
 
       router.push("/c/dashboard");
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Kunde inte spara dina uppgifter";
-      console.error("Failed to save onboarding data:", err);
-      setSaveError(message);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Kunde inte spara dina uppgifter");
     } finally {
       setSaving(false);
       setActivatingAgents(false);
@@ -202,34 +282,26 @@ export default function OnboardingPage() {
             <X className="h-5 w-5" />
           </button>
           <h1 className="text-3xl font-bold">Konfigurera SAMA</h1>
-          <p className="mt-2 text-zinc-400">
-            Sätt upp dina marknads-AI-agenter på några minuter
-          </p>
+          <p className="mt-2 text-zinc-400">Sätt upp dina marknads-AI-agenter på några minuter</p>
         </div>
 
         {/* Progress */}
-        <div className="flex items-center justify-center gap-2 mb-10">
+        <div className="flex items-center justify-center gap-1.5 mb-10 flex-wrap">
           {STEPS.map((s, i) => (
-            <div key={s.label} className="flex items-center gap-2">
+            <div key={s.label} className="flex items-center gap-1.5">
               <button
                 onClick={() => i < step && setStep(i)}
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  i === step
-                    ? "bg-blue-500 text-white"
-                    : i < step
-                    ? "bg-emerald-500/20 text-emerald-400"
-                    : "bg-zinc-800 text-zinc-500"
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  i === step ? "bg-blue-500 text-white"
+                  : i < step ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-zinc-800 text-zinc-500"
                 }`}
               >
-                {i < step ? (
-                  <CheckCircle className="h-3.5 w-3.5" />
-                ) : (
-                  <s.icon className="h-3.5 w-3.5" />
-                )}
+                {i < step ? <CheckCircle className="h-3.5 w-3.5" /> : <s.icon className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={`h-px w-6 ${i < step ? "bg-emerald-500" : "bg-zinc-800"}`} />
+                <div className={`h-px w-4 ${i < step ? "bg-emerald-500" : "bg-zinc-800"}`} />
               )}
             </div>
           ))}
@@ -237,38 +309,92 @@ export default function OnboardingPage() {
 
         {/* Step content */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
+
           {step === 0 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
+              <StepHeader title="Varumärke" desc="Ange domänen först — SAMA hämtar varumärkesinfo automatiskt." />
               <div>
-                <h2 className="text-xl font-semibold mb-1">Varumärke</h2>
-                <p className="text-sm text-zinc-400">Berätta om er verksamhet så SAMA kan representera er på rätt sätt.</p>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Domän *</label>
+                <input
+                  type="text"
+                  value={data.domain}
+                  onChange={(e) => update("domain", e.target.value)}
+                  onBlur={() => void handleDomainBlur()}
+                  placeholder="acme.se"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
-              <Field label="Varumärkesnamn *" value={data.brand_name} onChange={(v) => update("brand_name", v)} placeholder="Acme AB" />
-              <Field label="Domän *" value={data.domain} onChange={(v) => update("domain", v)} placeholder="acme.se" />
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  Varumärkesnamn *
+                  {prefilling && <Loader2 className="inline ml-2 h-3 w-3 animate-spin text-zinc-400" />}
+                </label>
+                <input
+                  type="text"
+                  value={data.brand_name}
+                  onChange={(e) => update("brand_name", e.target.value)}
+                  placeholder="Acme AB"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Typ av verksamhet</label>
+                <select
+                  value={data.business_type}
+                  onChange={(e) => update("business_type", e.target.value)}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                >
+                  {BUSINESS_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                </select>
+              </div>
               <FieldTextarea label="Beskrivning" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="Vad gör ert företag?" />
-              <FieldTextarea label="Målgrupp" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag, restauranger..." />
+              <FieldTextarea label="Målgrupp" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag…" />
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">Språk för content</label>
                 <select
                   value={data.content_language}
                   onChange={(e) => update("content_language", e.target.value)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                 >
-                  {CONTENT_LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code}>{lang.label}</option>
-                  ))}
+                  {CONTENT_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
                 </select>
-                <p className="text-xs text-zinc-500 mt-1">Språket SAMA använder när content skapas för ert varumärke.</p>
               </div>
             </div>
           )}
 
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
+              <StepHeader title="Er profil" desc="Vad gör er unika och hur vill ni kommunicera?" />
+              <FieldTextarea
+                label="Det som gör er unika (USP)"
+                value={data.unique_selling_points}
+                onChange={(v) => update("unique_selling_points", v)}
+                placeholder="Personlig service, snabbast i branschen, 30 års erfarenhet…"
+              />
               <div>
-                <h2 className="text-xl font-semibold mb-1">Konkurrenter</h2>
-                <p className="text-sm text-zinc-400">Lägg till 3–5 konkurrenter via domän. SAMA jämför er mot dem.</p>
+                <label className="block text-sm font-medium text-zinc-300 mb-2">Ton i kommunikationen</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t.code}
+                      onClick={() => update("tone_of_voice", t.code)}
+                      className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors ${
+                        data.tone_of_voice === t.code
+                          ? "border-blue-500 bg-blue-500/20 text-blue-300"
+                          : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-600"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-5">
+              <StepHeader title="Konkurrenter" desc="Lägg till 3–5 konkurrenter via domän. SAMA jämför er mot dem." />
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -278,70 +404,142 @@ export default function OnboardingPage() {
                   placeholder="konkurrent.se"
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <button onClick={addCompetitor} className="rounded-lg bg-zinc-700 px-3 py-2 text-sm hover:bg-zinc-600 transition-colors">
+                <button onClick={addCompetitor} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {data.competitors.length === 0 && (
-                  <p className="text-sm text-zinc-500">Inga konkurrenter tillagda än</p>
-                )}
-                {data.competitors.map((c) => (
-                  <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-sm text-blue-300 border border-blue-500/30">
-                    {c}
-                    <button onClick={() => removeCompetitor(c)} className="hover:text-red-400"><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
+                {data.competitors.length === 0
+                  ? <p className="text-sm text-zinc-500">Inga konkurrenter tillagda än</p>
+                  : data.competitors.map((c) => (
+                    <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-sm text-blue-300 border border-blue-500/30">
+                      {c}
+                      <button onClick={() => update("competitors", data.competitors.filter((x) => x !== c))} className="hover:text-red-400"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
               </div>
             </div>
           )}
 
-          {step === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold mb-1">Sökfrågor till AI</h2>
-                <p className="text-sm text-zinc-400">Frågor ni vill bevaka i AI-assistenter (ChatGPT, Claude, Perplexity m.fl.).</p>
-              </div>
+          {step === 3 && (
+            <div className="space-y-5">
+              <StepHeader title="AI-bevakningsfrågor" desc="Frågor ni vill bevaka i ChatGPT, Claude, Perplexity m.fl. Föreslagna frågor är auto-hämtade från er domän." />
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newGeoQuery}
                   onChange={(e) => setNewGeoQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addGeoQuery())}
-                  placeholder='t.ex. "bästa frisören i Stockholm"'
+                  placeholder='"bästa frisören i Stockholm"'
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <button onClick={addGeoQuery} className="rounded-lg bg-zinc-700 px-3 py-2 text-sm hover:bg-zinc-600 transition-colors">
+                <button onClick={addGeoQuery} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="space-y-2">
-                {data.geo_queries.length === 0 && (
-                  <p className="text-sm text-zinc-500">Inga frågor tillagda än. Du kan lägga till dem senare i Inställningar.</p>
-                )}
-                {data.geo_queries.map((q) => (
-                  <div key={q} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2">
-                    <span className="text-sm text-zinc-300">&ldquo;{q}&rdquo;</span>
-                    <button onClick={() => removeGeoQuery(q)} className="text-zinc-500 hover:text-red-400"><X className="h-3 w-3" /></button>
-                  </div>
-                ))}
+                {data.geo_queries.length === 0
+                  ? <p className="text-sm text-zinc-500">Inga frågor tillagda. Du kan lägga till dem senare.</p>
+                  : data.geo_queries.map((q) => (
+                    <div key={q} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2">
+                      <span className="text-sm text-zinc-300">&ldquo;{q}&rdquo;</span>
+                      <button onClick={() => update("geo_queries", data.geo_queries.filter((x) => x !== q))} className="text-zinc-500 hover:text-red-400"><X className="h-3 w-3" /></button>
+                    </div>
+                  ))}
               </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold mb-1">Recensioner</h2>
-                <p className="text-sm text-zinc-400">Länkar till era profilsidor på recensionssajter — SAMA bevakar och föreslår svar. Allt är valfritt.</p>
-              </div>
-              <Field label="G2-profil-URL" value={data.review_g2_url} onChange={(v) => update("review_g2_url", v)} placeholder="https://www.g2.com/products/..." />
-              <Field label="Capterra-profil-URL" value={data.review_capterra_url} onChange={(v) => update("review_capterra_url", v)} placeholder="https://www.capterra.com/p/..." />
-              <Field label="Trustpilot-profil-URL" value={data.review_trustpilot_url} onChange={(v) => update("review_trustpilot_url", v)} placeholder="https://www.trustpilot.com/review/..." />
             </div>
           )}
 
           {step === 4 && (
+            <div className="space-y-6">
+              <StepHeader title="Strategimål" desc="Vad är ert primära mål och vilket innehåll ska SAMA hjälpa er skapa?" />
+              <div>
+                <p className="text-sm font-medium text-zinc-300 mb-3">Primärt mål</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PRIMARY_GOALS.map(({ value, label, desc }) => (
+                    <button
+                      key={value}
+                      onClick={() => update("primary_goal", value)}
+                      className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                        data.primary_goal === value
+                          ? "border-emerald-500 bg-emerald-500/20"
+                          : "border-zinc-700 bg-zinc-800 hover:border-zinc-600"
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${data.primary_goal === value ? "text-emerald-300" : "text-zinc-200"}`}>{label}</div>
+                      <div className="text-xs text-zinc-500 mt-0.5">{desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-300 mb-3">Vilket innehåll ska skapas?</p>
+                <div className="space-y-2">
+                  {CONTENT_TYPES.map(({ type, label, icon: Icon }) => {
+                    const selected = data.content_types.includes(type);
+                    return (
+                      <div key={type} className={`rounded-lg border transition-colors ${selected ? "border-blue-500/50 bg-blue-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                        <button onClick={() => toggleContentType(type)} className="flex w-full items-center gap-3 px-4 py-3">
+                          <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? "text-blue-400" : "text-zinc-500"}`} />
+                          <span className={`text-sm font-medium ${selected ? "text-blue-300" : "text-zinc-300"}`}>{label}</span>
+                          <div className={`ml-auto h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? "border-blue-500 bg-blue-500" : "border-zinc-600"}`}>
+                            {selected && <CheckCircle className="h-3 w-3 text-white" />}
+                          </div>
+                        </button>
+                        {selected && (
+                          <div className="border-t border-zinc-700 px-4 pb-3 pt-2">
+                            {type === "blog_post" && (
+                              <FreqRow label="Blogginlägg per vecka" value={data.posts_per_week_blog} min={1} max={7} onChange={(v) => update("posts_per_week_blog", v)} />
+                            )}
+                            {type === "linkedin" && (
+                              <FreqRow label="LinkedIn-inlägg per vecka" value={data.posts_per_week_linkedin} min={1} max={7} onChange={(v) => update("posts_per_week_linkedin", v)} />
+                            )}
+                            {type === "epost" && (
+                              <FreqRow label="Nyhetsbrev per månad" value={data.newsletters_per_month} min={1} max={8} onChange={(v) => update("newsletters_per_month", v)} />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {data.content_types.length === 0 && (
+                  <p className="mt-2 text-xs text-red-400">Välj minst en innehållstyp.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="space-y-5">
+              <StepHeader title="Teammedlemmar" desc="Valfritt — lägg till namn på de som ska skapa innehåll. SAMA kan tilldela dem uppgifter i strategiplanen." />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMember}
+                  onChange={(e) => setNewMember(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMember())}
+                  placeholder="Anna Svensson"
+                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button onClick={addMember} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {data.team_members.length === 0
+                  ? <p className="text-sm text-zinc-500">Inga teammedlemmar tillagda — du kan hoppa över detta.</p>
+                  : data.team_members.map((m) => (
+                    <span key={m} className="flex items-center gap-1.5 rounded-full bg-violet-500/20 px-3 py-1 text-sm text-violet-300 border border-violet-500/30">
+                      {m}
+                      <button onClick={() => update("team_members", data.team_members.filter((x) => x !== m))} className="hover:text-red-400"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {step === 6 && (
             <div className="space-y-6 text-center py-6">
               <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
                 <Rocket className="h-8 w-8 text-emerald-400" />
@@ -349,27 +547,30 @@ export default function OnboardingPage() {
               <div>
                 <h2 className="text-xl font-semibold mb-2">Klart att starta!</h2>
                 <p className="text-sm text-zinc-400 max-w-md mx-auto">
-                  SAMA börjar nu bevaka ert varumärke i Google, AI-assistenter, recensionssajter och sociala medier.
+                  SAMA börjar nu bevaka ert varumärke i Google, AI-assistenter och sociala medier.
                 </p>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-zinc-800/50 p-6 text-left max-w-sm mx-auto space-y-3">
                 <SummaryRow label="Varumärke" value={data.brand_name} />
                 <SummaryRow label="Domän" value={data.domain} />
+                <SummaryRow label="Typ" value={BUSINESS_TYPES.find((t) => t.code === data.business_type)?.label ?? "—"} />
+                <SummaryRow label="Ton" value={TONE_OPTIONS.find((t) => t.code === data.tone_of_voice)?.label ?? "—"} />
                 <SummaryRow label="Konkurrenter" value={data.competitors.length > 0 ? data.competitors.join(", ") : "Inga"} />
-                <SummaryRow label="Sökfrågor" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} st` : "Inga"} />
+                <SummaryRow label="AI-frågor" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} st` : "Inga"} />
+                <SummaryRow label="Mål" value={PRIMARY_GOALS.find((g) => g.value === data.primary_goal)?.label ?? "—"} />
+                <SummaryRow label="Content" value={data.content_types.map((t) => CONTENT_TYPES.find((c) => c.type === t)?.label ?? t).join(", ") || "—"} />
+                {data.team_members.length > 0 && <SummaryRow label="Team" value={data.team_members.join(", ")} />}
               </div>
             </div>
           )}
         </div>
 
-        {/* Validation / save error */}
         {(validationHint() || saveError) && (
           <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
             {saveError ?? validationHint()}
           </div>
         )}
 
-        {/* Navigation */}
         <div className="flex items-center justify-between mt-6">
           <button
             onClick={() => setStep((s) => s - 1)}
@@ -389,7 +590,7 @@ export default function OnboardingPage() {
             </button>
           ) : (
             <button
-              onClick={handleFinish}
+              onClick={() => void handleFinish()}
               disabled={saving || activatingAgents}
               className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
             >
@@ -403,19 +604,11 @@ export default function OnboardingPage() {
   );
 }
 
-function Field({ label, value, onChange, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
-}) {
+function StepHeader({ title, desc }: { title: string; desc: string }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-1">{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-      />
+      <h2 className="text-xl font-semibold mb-1">{title}</h2>
+      <p className="text-sm text-zinc-400">{desc}</p>
     </div>
   );
 }
@@ -433,6 +626,21 @@ function FieldTextarea({ label, value, onChange, placeholder }: {
         rows={3}
         className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
       />
+    </div>
+  );
+}
+
+function FreqRow({ label, value, min, max, onChange }: {
+  label: string; value: number; min: number; max: number; onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between text-sm text-zinc-300">
+      <span>{label}</span>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onChange(Math.max(min, value - 1))} className="h-6 w-6 rounded border border-zinc-600 bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center">−</button>
+        <span className="w-5 text-center font-semibold">{value}</span>
+        <button onClick={() => onChange(Math.min(max, value + 1))} className="h-6 w-6 rounded border border-zinc-600 bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center">+</button>
+      </div>
     </div>
   );
 }

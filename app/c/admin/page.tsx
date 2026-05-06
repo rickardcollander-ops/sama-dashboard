@@ -3,16 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Shield,
-  Trash2,
-  Mail,
-  RefreshCw,
-  UserPlus,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  X,
-  Eye,
+  Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
+  CheckCircle2, Loader2, X, Eye, Globe, ChevronRight,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -29,6 +21,28 @@ interface Account {
   domain: string | null;
   has_settings: boolean;
 }
+
+const BUSINESS_TYPES = [
+  { code: "", label: "Välj typ…" },
+  { code: "ecommerce", label: "E-handel" },
+  { code: "local", label: "Lokal näring" },
+  { code: "services", label: "Tjänsteföretag" },
+  { code: "software", label: "Programvara / SaaS" },
+  { code: "media", label: "Media / publicist" },
+  { code: "other", label: "Annat" },
+];
+
+const CONTENT_LANGUAGES = [
+  { code: "sv", label: "Svenska" },
+  { code: "en", label: "Engelska" },
+  { code: "de", label: "Tyska" },
+  { code: "fr", label: "Franska" },
+  { code: "es", label: "Spanska" },
+  { code: "no", label: "Norska" },
+  { code: "da", label: "Danska" },
+  { code: "fi", label: "Finska" },
+  { code: "nl", label: "Nederländska" },
+];
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -50,6 +64,272 @@ function fmtRelative(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
+// ── Ny kund-modal ──────────────────────────────────────────────────────────────
+
+interface NewCustomerForm {
+  domain: string;
+  email: string;
+  brand_name: string;
+  brand_description: string;
+  content_language: string;
+  business_type: string;
+  geo_queries: string[];
+}
+
+interface NewCustomerModalProps {
+  onClose: () => void;
+  onCreated: (email: string) => void;
+  onError: (msg: string) => void;
+}
+
+function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [domainInput, setDomainInput] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<NewCustomerForm>({
+    domain: "", email: "", brand_name: "", brand_description: "",
+    content_language: "sv", business_type: "", geo_queries: [],
+  });
+  const [selectedQueries, setSelectedQueries] = useState<string[]>([]);
+  const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+
+  const handleAnalyze = async () => {
+    const raw = domainInput.trim();
+    if (!raw) return;
+    const domain = raw.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/onboarding/prefill-domain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setSuggestedQueries(data.suggested_queries ?? []);
+      setSelectedQueries(data.suggested_queries ?? []);
+      setForm((prev) => ({
+        ...prev,
+        domain,
+        brand_name: data.brand_name || domain.split(".")[0],
+        brand_description: data.brand_description || "",
+        content_language: data.content_language || "sv",
+      }));
+    } catch {
+      setForm((prev) => ({ ...prev, domain }));
+    } finally {
+      setAnalyzing(false);
+      setStep(2);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!form.email.trim() || !form.domain) return;
+    setSubmitting(true);
+    try {
+      const settings = {
+        brand_name: form.brand_name,
+        domain: form.domain,
+        brand_description: form.brand_description,
+        content_language: form.content_language,
+        business_type: form.business_type,
+        geo_queries: selectedQueries,
+        geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
+        competitors: [],
+      };
+      const res = await fetch("/api/admin/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email.trim(), settings }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      onCreated(form.email.trim());
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Kunde inte skapa kunden");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleQuery = (q: string) =>
+    setSelectedQueries((prev) => prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-base font-semibold text-slate-900">
+            {step === 1 ? "Ny kund — Domänanalys" : "Ny kund — Granska & bjud in"}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {step === 1 && (
+            <>
+              <p className="text-sm text-slate-500">
+                Ange kundens domän så hämtar SAMA varumärke, beskrivning och föreslagna GEO-frågor automatiskt.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={domainInput}
+                  onChange={(e) => setDomainInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !analyzing && void handleAnalyze()}
+                  placeholder="exempel.se"
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={() => void handleAnalyze()}
+                  disabled={!domainInput.trim() || analyzing}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                  {analyzing ? "Analyserar…" : "Analysera"}
+                </button>
+              </div>
+              {analyzing && (
+                <p className="text-xs text-slate-400">Hämtar info från {domainInput.trim()}…</p>
+              )}
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                <span className="font-medium">Domän:</span> {form.domain}
+                <button
+                  onClick={() => setStep(1)}
+                  className="ml-3 text-xs text-blue-600 hover:underline"
+                >
+                  Ändra
+                </button>
+              </div>
+
+              <Field label="E-post *" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="kund@foretag.se" type="email" />
+              <Field label="Varumärkesnamn" value={form.brand_name} onChange={(v) => setForm((p) => ({ ...p, brand_name: v }))} placeholder="Acme AB" />
+              <FieldTextarea label="Beskrivning" value={form.brand_description} onChange={(v) => setForm((p) => ({ ...p, brand_description: v }))} placeholder="Vad gör företaget?" />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Typ av verksamhet</label>
+                  <select
+                    value={form.business_type}
+                    onChange={(e) => setForm((p) => ({ ...p, business_type: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  >
+                    {BUSINESS_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Språk</label>
+                  <select
+                    value={form.content_language}
+                    onChange={(e) => setForm((p) => ({ ...p, content_language: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  >
+                    {CONTENT_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {suggestedQueries.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-2">
+                    Föreslagna AI-bevakningsfrågor — välj de som ska inkluderas
+                  </label>
+                  <div className="space-y-1.5">
+                    {suggestedQueries.map((q) => (
+                      <label key={q} className="flex items-start gap-2 cursor-pointer rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 hover:bg-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={selectedQueries.includes(q)}
+                          onChange={() => toggleQuery(q)}
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-blue-600"
+                        />
+                        <span className="text-xs text-slate-700">{q}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
+          <button onClick={onClose} className="text-sm text-slate-500 hover:text-slate-700">
+            Avbryt
+          </button>
+          {step === 1 ? (
+            <button
+              onClick={() => void handleAnalyze()}
+              disabled={!domainInput.trim() || analyzing}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+              Nästa
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={!form.email.trim() || submitting}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              {submitting ? "Skapar…" : "Skapa kund & skicka inbjudan"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    </div>
+  );
+}
+
+function FieldTextarea({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={2}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    </div>
+  );
+}
+
+// ── Admin page ─────────────────────────────────────────────────────────────────
+
 export default function AdminPage() {
   const { user, loading } = useUser();
   const router = useRouter();
@@ -62,9 +342,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -86,14 +364,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      router.push("/c/login");
-      return;
-    }
-    if (!isAdmin) {
-      router.push("/c/dashboard");
-      return;
-    }
+    if (!user) { router.push("/c/login"); return; }
+    if (!isAdmin) { router.push("/c/dashboard"); return; }
     void load();
   }, [user, loading, isAdmin, router, load]);
 
@@ -102,31 +374,6 @@ export default function AdminPage() {
     const t = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(t);
   }, [notice]);
-
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail.trim()) return;
-    setInviting(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      setNotice(`Invitation sent to ${inviteEmail.trim()}`);
-      setInviteEmail("");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not invite user");
-    } finally {
-      setInviting(false);
-    }
-  };
 
   const handleDelete = async (acc: Account) => {
     if (!confirm(`Delete account ${acc.email ?? acc.id}? This cannot be undone.`)) return;
@@ -148,12 +395,7 @@ export default function AdminPage() {
   };
 
   const handleViewAs = (acc: Account) => {
-    setViewAs({
-      userId: acc.id,
-      tenantId: acc.id,
-      brandName: acc.brand_name ?? "",
-      domain: acc.domain ?? "",
-    });
+    setViewAs({ userId: acc.id, tenantId: acc.id, brandName: acc.brand_name ?? "", domain: acc.domain ?? "" });
     router.push("/c/dashboard");
   };
 
@@ -161,9 +403,7 @@ export default function AdminPage() {
     setPendingId(acc.id);
     setError("");
     try {
-      const res = await fetch(`/api/admin/accounts/${acc.id}/reset-password`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/admin/accounts/${acc.id}/reset-password`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -222,6 +462,20 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
+      {showNewCustomer && (
+        <NewCustomerModal
+          onClose={() => setShowNewCustomer(false)}
+          onCreated={(email) => {
+            setShowNewCustomer(false);
+            setNotice(`Kund skapad och inbjudan skickad till ${email}`);
+            void load();
+          }}
+          onError={(msg) => {
+            setShowNewCustomer(false);
+            setError(msg);
+          }}
+        />
+      )}
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -233,14 +487,23 @@ export default function AdminPage() {
               Manage SAMA accounts. Signed in as {user?.email}.
             </p>
           </div>
-          <button
-            onClick={() => void load()}
-            disabled={fetching}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => void load()}
+              disabled={fetching}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <button
+              onClick={() => setShowNewCustomer(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              <UserPlus className="h-4 w-4" />
+              Ny kund
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -274,45 +537,13 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Invite */}
-        <form
-          onSubmit={handleInvite}
-          className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border bg-white p-5 shadow-sm"
-        >
-          <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Invite a new user
-            </label>
-            <input
-              type="email"
-              required
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="name@company.com"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={inviting || !inviteEmail.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {inviting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="h-4 w-4" />
-            )}
-            Send invite
-          </button>
-        </form>
-
         {/* Search */}
         <div className="mb-3">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by email, brand or domain…"
+            placeholder="Sök på e-post, varumärke eller domän…"
             className="w-full sm:w-80 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -322,12 +553,12 @@ export default function AdminPage() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Brand</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3">Last sign-in</th>
+                <th className="px-4 py-3">Användare</th>
+                <th className="px-4 py-3">Varumärke</th>
+                <th className="px-4 py-3">Skapad</th>
+                <th className="px-4 py-3">Senaste inloggning</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-right">Åtgärder</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -341,7 +572,7 @@ export default function AdminPage() {
               {!fetching && filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                    No accounts match your search.
+                    Inga konton matchar sökningen.
                   </td>
                 </tr>
               )}
@@ -365,12 +596,10 @@ export default function AdminPage() {
                       {acc.brand_name ? (
                         <div>
                           <div className="font-medium text-slate-900">{acc.brand_name}</div>
-                          {acc.domain && (
-                            <div className="text-xs text-slate-400">{acc.domain}</div>
-                          )}
+                          {acc.domain && <div className="text-xs text-slate-400">{acc.domain}</div>}
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">No onboarding</span>
+                        <span className="text-xs text-slate-400">Ingen onboarding</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
@@ -379,18 +608,16 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{fmtDate(acc.last_sign_in_at)}</div>
-                      <div className="text-xs text-slate-400">
-                        {fmtRelative(acc.last_sign_in_at)}
-                      </div>
+                      <div className="text-xs text-slate-400">{fmtRelative(acc.last_sign_in_at)}</div>
                     </td>
                     <td className="px-4 py-3">
                       {acc.email_confirmed_at ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          <CheckCircle2 className="h-3 w-3" /> Confirmed
+                          <CheckCircle2 className="h-3 w-3" /> Bekräftad
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          Pending
+                          Väntar
                         </span>
                       )}
                     </td>
@@ -403,38 +630,25 @@ export default function AdminPage() {
                             title="Visa kundens dashboard"
                             className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                           >
-                            <Eye className="h-3 w-3" />
-                            Visa
+                            <Eye className="h-3 w-3" /> Visa
                           </button>
                         )}
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
-                          title="Send password reset email"
+                          title="Skicka lösenordsåterställning"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                         >
-                          {busy ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Mail className="h-3 w-3" />
-                          )}
+                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
                           Reset
                         </button>
                         <button
                           onClick={() => void handleDelete(acc)}
                           disabled={busy || isSelf}
-                          title={
-                            isSelf
-                              ? "Cannot delete your own admin account"
-                              : "Delete account"
-                          }
+                          title={isSelf ? "Cannot delete your own admin account" : "Delete account"}
                           className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
                         >
-                          {busy ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
+                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                           Delete
                         </button>
                       </div>
@@ -447,9 +661,9 @@ export default function AdminPage() {
         </div>
 
         <p className="mt-4 text-xs text-slate-400">
-          Account data comes from Supabase Auth and the user_settings table.
-          Deletes use the Supabase admin API and remove the auth user plus
-          their linked rows via ON DELETE CASCADE.
+          Kontodata hämtas från Supabase Auth och user_sites-tabellen.
+          Borttagning sker via Supabase admin-API och tar bort auth-användaren
+          samt alla kopplade rader via ON DELETE CASCADE.
         </p>
       </main>
     </div>
