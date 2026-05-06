@@ -11,7 +11,6 @@ export const translations = {
   sv: {
     nav: {
       home: "Hem",
-      strategy: "Strategi",
       insights: "Insikter",
       content: "Content",
       tech: "Tech",
@@ -44,7 +43,6 @@ export const translations = {
   no: {
     nav: {
       home: "Hjem",
-      strategy: "Strategi",
       insights: "Innsikter",
       content: "Innhold",
       tech: "Tech",
@@ -77,7 +75,6 @@ export const translations = {
   da: {
     nav: {
       home: "Hjem",
-      strategy: "Strategi",
       insights: "Indsigter",
       content: "Indhold",
       tech: "Tech",
@@ -110,7 +107,6 @@ export const translations = {
   en: {
     nav: {
       home: "Home",
-      strategy: "Strategy",
       insights: "Insights",
       content: "Content",
       tech: "Tech",
