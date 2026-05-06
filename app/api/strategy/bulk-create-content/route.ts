@@ -62,15 +62,14 @@ export async function POST(req: NextRequest) {
         if (pieceId) pieceIds.push(pieceId);
       }
 
-      // Schedule in calendar if destination exists and date is set
-      if (defaultDestination && item.scheduled_date) {
+      // Schedule in calendar if date is set — destination is optional for planning entries
+      if (item.scheduled_date) {
         const scheduledAt = new Date(item.scheduled_date);
-        // Set a reasonable time (9 AM)
         scheduledAt.setHours(9, 0, 0, 0);
         if (scheduledAt.getTime() > Date.now() - 86400_000) {
           await appendScheduled(user.id, {
             piece_id: pieceId || `strategy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            destination_id: defaultDestination.id,
+            destination_id: defaultDestination?.id ?? "",
             scheduled_at: scheduledAt.toISOString(),
             payload: {
               title: item.title,

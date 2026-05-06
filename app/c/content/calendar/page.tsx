@@ -104,8 +104,9 @@ export default function ContentCalendarPage() {
   };
 
   const destLabel = (id: string) => {
+    if (!id) return "Planerad (inget CMS)";
     const d = destinations.find((x) => x.id === id);
-    if (!d) return "Okänd";
+    if (!d) return "Planerad (inget CMS)";
     return `${d.name} (${KIND_META[d.kind]?.label || d.kind})`;
   };
 
