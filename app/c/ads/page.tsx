@@ -12,6 +12,7 @@ import CustomerNav from "@/components/CustomerNav";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoAdCreatives } from "@/lib/demo-data";
 
@@ -74,6 +75,7 @@ const CTA_OPTIONS: CTA[] = ["Learn More", "Contact Us", "Book Demo", "Download"]
 
 export default function CustomerAdsPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -144,7 +146,7 @@ export default function CustomerAdsPage() {
     if (!user || !brandContext.competitors?.length) return;
     setAnalyzingCompetitors(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.post("/api/ads/competitor-analysis", {
         competitors: brandContext.competitors,
         platform,
@@ -164,7 +166,7 @@ export default function CustomerAdsPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ connected?: boolean }>("/api/ads/status");
       setConnected(!!data.connected);
     } catch {
@@ -176,7 +178,7 @@ export default function CustomerAdsPage() {
   const loadDrafts = async () => {
     if (!user) return;
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const data = await client.get<{ creatives?: AdCreative[] }>("/api/ads/creatives");
       setDrafts(data.creatives || []);
     } catch (err: any) {
@@ -193,7 +195,7 @@ export default function CustomerAdsPage() {
     setGenerating(true);
     setError("");
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ headline?: string; body?: string }>("/api/ads/generate-copy", {
         platform,
         format,
@@ -232,7 +234,7 @@ export default function CustomerAdsPage() {
     setSavingDraft(true);
     setError("");
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ creative?: AdCreative }>("/api/ads/creatives", {
         platform,
         format,
@@ -291,7 +293,7 @@ export default function CustomerAdsPage() {
     const id = pendingDeleteId;
     setDrafts((prev) => prev.filter((d) => d.id !== id));
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.delete(`/api/ads/creatives/${id}`);
     } catch {
       // Already removed from UI
@@ -330,7 +332,7 @@ export default function CustomerAdsPage() {
         reader.readAsDataURL(screenshotFile);
       });
 
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<AnalysisResult>("/api/ads/analyze-screenshot", {
         image_base64: base64,
         platform: analysisPlatform,
@@ -410,7 +412,7 @@ export default function CustomerAdsPage() {
             importButtonLabel="Importera till Ads"
             importLabel="Importera till Ads-agenten"
             fetchSuggestions={async () => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               const res = await client.post<{ suggestions?: AdSuggestion[] }>("/api/ads/suggest-campaigns", {});
               return res.suggestions || [];
             }}
@@ -427,7 +429,7 @@ export default function CustomerAdsPage() {
               </div>
             )}
             importItem={async (item) => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               await client.post("/api/ads/creatives", {
                 platform: item.platform,
                 goal: item.goal,

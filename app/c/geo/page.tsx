@@ -12,6 +12,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { tenantApi } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -47,6 +48,7 @@ interface AICheck {
 
 export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
@@ -87,7 +89,7 @@ export default function CustomerGeoPage() {
     if (!user) return;
     if (!silent) setLoading(true);
     setError("");
-    const client = tenantApi(user.id);
+    const client = tenantClient;
     try {
       const [summaryData, checksData, trackedRes] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),

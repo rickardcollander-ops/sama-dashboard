@@ -141,11 +141,18 @@ export default function OnboardingPage() {
         geo_platforms: ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
       };
 
+      // Save to user_sites (first site uses id = user.id for backend compat).
       const { error: upsertError } = await getSupabaseBrowser()
-        .from("user_settings")
+        .from("user_sites")
         .upsert(
-          { user_id: user.id, settings, updated_at: new Date().toISOString() },
-          { onConflict: "user_id" }
+          {
+            id: user.id,
+            user_id: user.id,
+            site_name: data.brand_name,
+            settings,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
         );
 
       if (upsertError) {

@@ -9,6 +9,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSocialPosts } from "@/lib/demo-data";
 
@@ -47,6 +48,7 @@ const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = {
 
 export default function CustomerSocialPage() {
   const { user, loading: userLoading } = useUser();
+  const { tenantClient } = useSite();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [stats, setStats] = useState<SocialStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ export default function CustomerSocialPage() {
     if (!user) return;
     setLoading(true);
     setError(null);
-    const client = tenantApi(user.id);
+    const client = tenantClient;
     try {
       const [postsData, statsData] = await Promise.allSettled([
         client.get<{ posts?: SocialPost[] }>("/api/social/posts"),
@@ -104,7 +106,7 @@ export default function CustomerSocialPage() {
     if (!user) return;
     setGenerating(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       const result = await client.post<{ body?: string; title?: string }>("/api/content/generate", {
         type: "linkedin_post",
         topic: "",
@@ -123,7 +125,7 @@ export default function CustomerSocialPage() {
     if (!user || !createText.trim()) return;
     setSavingDraft(true);
     try {
-      const client = tenantApi(user.id);
+      const client = tenantClient;
       await client.post("/api/social/posts", {
         platform: createPlatform,
         content: createText,
@@ -245,7 +247,7 @@ export default function CustomerSocialPage() {
             importButtonLabel="Importera till Social"
             importLabel="Importera till Social-agenten"
             fetchSuggestions={async () => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               const res = await client.post<{ suggestions?: SocialSuggestion[] }>("/api/social/suggest-posts", {});
               return res.suggestions || [];
             }}
@@ -259,7 +261,7 @@ export default function CustomerSocialPage() {
               </div>
             )}
             importItem={async (item) => {
-              const client = tenantApi(user.id);
+              const client = tenantClient;
               await client.post("/api/social/posts", {
                 platform: item.platform,
                 content: item.content,

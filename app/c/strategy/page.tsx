@@ -6,6 +6,7 @@ import {
   Compass, History, Loader2, RefreshCw, Sparkles, Target, TrendingUp,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { ApiError, tenantApi } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import CustomerNav from "@/components/CustomerNav";
@@ -124,6 +125,7 @@ const VERDICT_HINT: Record<string, string> = {
 
 export default function StrategyPage() {
   const { user } = useUser();
+  const { tenantClient } = useSite();
   const { runs, triggerRun } = useActiveRuns();
   const [current, setCurrent] = useState<Strategy | null>(null);
   const [history, setHistory] = useState<Strategy[]>([]);
@@ -149,7 +151,7 @@ export default function StrategyPage() {
     if (!user) return;
     setError("");
     try {
-      const data = await tenantApi(user.id).get<Strategy | { strategy?: Strategy }>(
+      const data = await tenantClient.get<Strategy | { strategy?: Strategy }>(
         "/api/strategy/current",
       );
       const s = (data as { strategy?: Strategy })?.strategy ?? (data as Strategy);
@@ -173,7 +175,7 @@ export default function StrategyPage() {
   const loadHistory = async () => {
     if (!user) return;
     try {
-      const data = await tenantApi(user.id).get<{ strategies?: Strategy[] } | Strategy[]>(
+      const data = await tenantClient.get<{ strategies?: Strategy[] } | Strategy[]>(
         "/api/strategy/history",
       );
       const list = Array.isArray(data) ? data : data?.strategies ?? [];
@@ -195,7 +197,7 @@ export default function StrategyPage() {
 
   const saveStrategyPatch = async (patch: Partial<Strategy>) => {
     if (!user) return;
-    const data = await tenantApi(user.id).patch<{ strategy?: Strategy }>(
+    const data = await tenantClient.patch<{ strategy?: Strategy }>(
       "/api/strategy/current",
       patch,
     );
