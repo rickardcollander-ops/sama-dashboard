@@ -6,7 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
@@ -553,6 +553,42 @@ function CustomerSettingsPageInner() {
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
+  const [aiFilling, setAiFilling] = useState(false);
+  const [aiFillError, setAiFillError] = useState("");
+
+  const handleAiFill = async () => {
+    const domain = settings.domain.trim();
+    if (!domain) return;
+    setAiFilling(true);
+    setAiFillError("");
+    try {
+      const res = await fetch("/api/settings/ai-brand-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setSettings((prev) => ({
+        ...prev,
+        brand_name: data.brand_name || prev.brand_name,
+        brand_description: data.brand_description || prev.brand_description,
+        business_type: data.business_type || prev.business_type,
+        target_audience: data.target_audience || prev.target_audience,
+        unique_selling_points: data.unique_selling_points || prev.unique_selling_points,
+        tone_of_voice: data.tone_of_voice || prev.tone_of_voice,
+        language: data.language || prev.language,
+        competitors: data.competitors?.length ? data.competitors : prev.competitors,
+      }));
+    } catch (e) {
+      setAiFillError(e instanceof Error ? e.message : "Kunde inte hämta AI-data");
+    }
+    setAiFilling(false);
+  };
+
   const addCompetitor = () => {
     const c = newCompetitor.trim();
     if (c && !settings.competitors.includes(c)) {
@@ -884,6 +920,25 @@ function CustomerSettingsPageInner() {
               <InputField label="Land" value={settings.country} onChange={(v) => updateField("country", v)} placeholder="SE" />
               <InputField label="Språk" value={settings.language} onChange={(v) => updateField("language", v)} placeholder="sv" />
             </div>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleAiFill}
+                disabled={aiFilling || !settings.domain.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                title={!settings.domain.trim() ? "Fyll i en domän först" : "Fyll i alla fält med AI"}
+              >
+                {aiFilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {aiFilling ? "Analyserar…" : "Fyll i med AI"}
+              </button>
+              <p className="text-xs text-slate-400">Analyserar domänen och föreslår varumärkesinfo automatiskt</p>
+            </div>
+            {aiFillError && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {aiFillError}
+              </div>
+            )}
             <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Språk för content</label>
