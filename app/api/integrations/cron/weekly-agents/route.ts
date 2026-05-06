@@ -18,7 +18,6 @@ const WEEKLY_TRIGGERS: AgentTrigger[] = [
   { agent: "ai_visibility", endpoint: "/api/ai-visibility/check" },
   { agent: "seo", endpoint: "/api/seo/keywords/track" },
   { agent: "analytics", endpoint: "/api/tenant/agents/analytics/trigger" },
-  { agent: "ads", endpoint: "/api/tenant/agents/ads/trigger" },
 ];
 
 /**

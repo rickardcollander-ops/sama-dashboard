@@ -15,17 +15,16 @@ interface AgentChipsProps {
   runs: ActiveRun[];
 }
 
+// Agents currently active in the product
+const ACTIVE_AGENT_IDS = new Set(["geo", "seo", "content", "analytics", "tech"]);
+
 // AGENTS use display ids (geo, strategy, ...); useActiveRuns uses backend
 // AgentKeys (ai_visibility, ...). Map between them.
 const AGENT_ID_TO_KEY: Record<string, AgentKey | undefined> = {
   geo: "ai_visibility",
   seo: "seo",
   content: "content",
-  social: "social",
-  ads: "ads",
   analytics: "analytics",
-  // strategy + tech don't run as background agents
-  strategy: undefined,
   tech: undefined,
 };
 
@@ -87,7 +86,7 @@ export default function AgentChips({ runs }: AgentChipsProps) {
         Aktiva agenter
       </h2>
       <div className="flex flex-wrap gap-2">
-        {AGENT_LIST.map((agent) => {
+        {AGENT_LIST.filter((a) => ACTIVE_AGENT_IDS.has(a.id)).map((agent) => {
           const status = pickStatus(runs, agent.id);
           const meta = STATUS_TONE[status];
           const Icon = meta.icon;
