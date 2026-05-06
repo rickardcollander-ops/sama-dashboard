@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, ArrowRight, AlertCircle, X,
   PenTool, Check, Bot, Zap, Compass, Calendar as CalendarIcon, Sparkles,
+  ChevronDown, ChevronUp, TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, Legend,
+} from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import PageHeader from "@/components/PageHeader";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
@@ -31,6 +36,18 @@ interface CustomerSettings {
   geo_queries?: string[];
   geo_platforms?: string[];
   competitors?: string[];
+  project_start_date?: string;
+}
+
+interface DailyMetric {
+  date: string;
+  clicks: number;
+  impressions: number;
+}
+
+interface TrafficData {
+  daily?: DailyMetric[];
+  seo_daily?: DailyMetric[];
 }
 
 interface GeoSummary {
@@ -94,6 +111,9 @@ export default function CustomerDashboard() {
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [trafficData, setTrafficData] = useState<TrafficData>({});
+  const [showTotalTraffic, setShowTotalTraffic] = useState(true);
+  const [showSeoTraffic, setShowSeoTraffic] = useState(true);
   const { runs, triggerRun } = useActiveRuns();
   const runAllActive = runs.some(
     (r) => r.status === "running" || r.status === "pending",
@@ -150,12 +170,23 @@ export default function CustomerDashboard() {
       loadContentStats(),
       loadStrategy(),
       loadPendingApprovals(),
+      loadTrafficData(),
     ]);
     if (results.every((r) => r.status === "rejected")) {
       setError("Kunde inte hämta data. Försök igen.");
     }
     setLastRefresh(new Date());
     setLoading(false);
+  };
+
+  const loadTrafficData = async () => {
+    if (!user) return;
+    try {
+      const data = await tenantClient.get<TrafficData>(`/api/analytics/overview?days=${days}`);
+      if (data) setTrafficData(data);
+    } catch {
+      /* silent — traffic graphs are optional on the homepage */
+    }
   };
 
   const loadSettings = async () => {
@@ -315,6 +346,13 @@ export default function CustomerDashboard() {
     ];
   }, [geoSummary, seoStats, contentStats, mentionRate, mentionRateDelta, period]);
 
+  // Use an explicit project start date from settings, or fall back to user's created_at
+  const projectStartDate: string | null = useMemo(() => {
+    if (settings.project_start_date) return settings.project_start_date;
+    if (user?.created_at) return user.created_at.slice(0, 10);
+    return null;
+  }, [settings.project_start_date, user?.created_at]);
+
   const nextStepsInput = {
     pendingApprovals,
     mentionRateDelta,
@@ -410,6 +448,37 @@ export default function CustomerDashboard() {
         {/* Statusrad */}
         <StatScoreboard stats={scoreboardStats} />
 
+        {/* Trafikgrafer */}
+        <div className="mt-8 space-y-4">
+          {/* Total trafik */}
+          <TrafficGraph
+            title="Total trafik"
+            subtitle="Klick och visningar per dag (alla kanaler)"
+            data={trafficData.daily}
+            projectStartDate={projectStartDate}
+            visible={showTotalTraffic}
+            onToggle={() => setShowTotalTraffic((v: boolean) => !v)}
+            lines={[
+              { key: "clicks", label: "Klick", color: "#3b82f6" },
+              { key: "impressions", label: "Visningar", color: "#8b5cf6" },
+            ]}
+          />
+
+          {/* SEO – klick och exponeringar */}
+          <TrafficGraph
+            title="SEO – klick & exponeringar"
+            subtitle="Klick och exponeringar per dag från Google Search Console"
+            data={trafficData.seo_daily}
+            projectStartDate={projectStartDate}
+            visible={showSeoTraffic}
+            onToggle={() => setShowSeoTraffic((v: boolean) => !v)}
+            lines={[
+              { key: "clicks", label: "Klick", color: "#10b981" },
+              { key: "impressions", label: "Exponeringar", color: "#f59e0b" },
+            ]}
+          />
+        </div>
+
         {/* Nästa steg */}
         <div className="mt-8">
           <NextSteps input={nextStepsInput} />
@@ -457,6 +526,127 @@ export default function CustomerDashboard() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+interface TrafficGraphLine {
+  key: string;
+  label: string;
+  color: string;
+}
+
+function TrafficGraph({
+  title,
+  subtitle,
+  data,
+  projectStartDate,
+  visible,
+  onToggle,
+  lines,
+}: {
+  title: string;
+  subtitle: string;
+  data?: { date: string; clicks: number; impressions: number }[];
+  projectStartDate: string | null;
+  visible: boolean;
+  onToggle: () => void;
+  lines: TrafficGraphLine[];
+}) {
+  const hasData = data && data.length > 0;
+
+  const fmtDate = (v: string) => {
+    const d = new Date(v);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  return (
+    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <TrendingUp className="h-4 w-4 text-slate-400" />
+          <div className="text-left">
+            <div className="font-semibold text-slate-900 text-sm">{title}</div>
+            <div className="text-xs text-slate-500">{subtitle}</div>
+          </div>
+        </div>
+        {visible ? (
+          <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+        )}
+      </button>
+
+      {visible && (
+        <div className="px-6 pb-6">
+          {hasData ? (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    tickFormatter={fmtDate}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} width={40} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1e293b",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#f8fafc",
+                      fontSize: "12px",
+                    }}
+                    labelFormatter={fmtDate}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                  />
+                  {lines.map((l) => (
+                    <Line
+                      key={l.key}
+                      type="monotone"
+                      dataKey={l.key}
+                      name={l.label}
+                      stroke={l.color}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  ))}
+                  {projectStartDate && (
+                    <ReferenceLine
+                      x={projectStartDate}
+                      stroke="#f59e0b"
+                      strokeDasharray="4 4"
+                      strokeWidth={2}
+                      label={{
+                        value: "Start",
+                        position: "insideTopRight",
+                        fontSize: 11,
+                        fill: "#f59e0b",
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <TrendingUp className="h-8 w-8 text-slate-200 mb-2" />
+              <p className="text-sm text-slate-400">Ingen data ännu.</p>
+              <p className="text-xs text-slate-300 mt-1">
+                Data syns här när agenter har samlat in mätvärden.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
