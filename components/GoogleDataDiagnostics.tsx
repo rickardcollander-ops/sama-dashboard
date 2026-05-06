@@ -345,10 +345,19 @@ export default function GoogleDataDiagnostics(props: Props) {
         cta: { label: "Open Settings", href: meta.settingsAnchor, external: false },
       };
     }
+    // Even on the happy path, surface the agent's own summary if it
+    // signals partial failure. The user otherwise has no way to see
+    // that 4/5 channels failed without expanding the runs table.
+    const summary = lastSuccessful.summary || "";
+    const hasPartialFailure = /failed|error/i.test(summary);
     return {
-      tone: "emerald" as const,
-      title: `${meta.label} is syncing normally`,
-      body: `Last successful sync: ${formatTime(lastSuccessful.completed_at || lastSuccessful.started_at)}.`,
+      tone: hasPartialFailure ? "amber" as const : "emerald" as const,
+      title: hasPartialFailure
+        ? `${meta.label} synced — but with errors`
+        : `${meta.label} is syncing normally`,
+      body: summary
+        ? `Agent reported: "${summary}". Last successful sync: ${formatTime(lastSuccessful.completed_at || lastSuccessful.started_at)}.`
+        : `Last successful sync: ${formatTime(lastSuccessful.completed_at || lastSuccessful.started_at)}.`,
       cta: null,
     };
   })();
