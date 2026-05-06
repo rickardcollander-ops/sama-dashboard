@@ -17,10 +17,6 @@ import PublishingDestinations from "@/components/PublishingDestinations";
 import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
 
 interface UserSettings {
-  openai_api_key: string;
-  anthropic_api_key: string;
-  perplexity_api_key: string;
-  google_api_key: string;
   brand_name: string;
   domain: string;
   country: string;
@@ -68,10 +64,6 @@ const CONTENT_LANGUAGES = [
 ];
 
 const DEFAULT_SETTINGS: UserSettings = {
-  openai_api_key: "",
-  anthropic_api_key: "",
-  perplexity_api_key: "",
-  google_api_key: "",
   brand_name: "",
   domain: "",
   country: "SE",
@@ -173,11 +165,9 @@ function CustomerSettingsPageInner() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [newQuery, setNewQuery] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
-  const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   const [googleStatus, setGoogleStatus] = useState<GoogleServiceStatus>({
     search_console: false,
     analytics: false,
@@ -581,10 +571,6 @@ function CustomerSettingsPageInner() {
     }));
   };
 
-  const toggleShowKey = (key: string) => {
-    setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -861,55 +847,6 @@ function CustomerSettingsPageInner() {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAdvancedKeys((v) => !v)}
-              className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-            >
-              {showAdvancedKeys ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {showAdvancedKeys ? "Dölj" : "Visa"} avancerat: egna API-nycklar
-            </button>
-            {showAdvancedKeys && (
-              <div className="mt-4 space-y-4">
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Valfritt. Använd egna leverantörsnycklar för att förbigå SAMAs hanterade kvot
-                  (Enterprise / utveckling). Lämna tomt för att använda SAMAs hanterade åtkomst.
-                </p>
-                {([
-                  { key: "openai", field: "openai_api_key" as const, label: "OpenAI API-nyckel", placeholder: "sk-..." },
-                  { key: "anthropic", field: "anthropic_api_key" as const, label: "Anthropic API-nyckel", placeholder: "sk-ant-..." },
-                  { key: "perplexity", field: "perplexity_api_key" as const, label: "Perplexity API-nyckel", placeholder: "pplx-..." },
-                  { key: "google", field: "google_api_key" as const, label: "SerpAPI-nyckel", placeholder: "..." },
-                ]).map(({ key, field, label, placeholder }) => (
-                  <div key={key}>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input
-                          type={showKeys[key] ? "text" : "password"}
-                          value={settings[field]}
-                          onChange={(e) => updateField(field, e.target.value)}
-                          placeholder={placeholder}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => toggleShowKey(key)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        >
-                          {showKeys[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                      {settings[field] && (
-                        <span className="flex items-center rounded-lg bg-green-100 px-2 text-xs font-medium text-green-700 border border-green-200">
-                          <CheckCircle className="h-3 w-3 mr-1" /> Egen nyckel aktiv
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </Section>
 
           {/* ── Brand ── */}
