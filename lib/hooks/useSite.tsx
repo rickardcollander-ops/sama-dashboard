@@ -256,8 +256,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   const effectiveTenantId = viewAs?.tenantId ?? activeSite?.id ?? effectiveOwnerId;
 
   const tenantClient = useMemo(
-    () => tenantApi(effectiveTenantId),
-    [effectiveTenantId]
+    () => tenantApi(effectiveTenantId, viewAs?.tenantId ?? activeAccountId ?? undefined),
+    [effectiveTenantId, viewAs, activeAccountId]
   );
 
   const myRole = useMemo<AccountRole | null>(() => {

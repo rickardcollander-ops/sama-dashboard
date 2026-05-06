@@ -9,6 +9,7 @@ import {
 import AgentChat from "@/components/AgentChat";
 import { useToast } from "@/components/Toast";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
+import { samaFetch } from "@/lib/api";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
@@ -222,7 +223,7 @@ export default function SEOPage() {
   const fetchKeywords = useCallback(async () => {
     setLoadingKw(true);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`);
+      const res = await samaFetch(`/api/seo/keywords`);
       if (!res.ok) return;
       const data = await res.json();
       const kws: Keyword[] = (data.keywords || []).map((k: any) => ({
@@ -257,7 +258,7 @@ export default function SEOPage() {
 
   const fetchActions = useCallback(async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/actions?limit=100`);
+      const res = await samaFetch(`/api/seo/actions?limit=100`);
       if (!res.ok) return;
       const data = await res.json();
       const all: Action[] = data.actions || [];
@@ -279,7 +280,7 @@ export default function SEOPage() {
   const fetchVitals = useCallback(async () => {
     setLoadingVitals(true);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/vitals`);
+      const res = await samaFetch(`/api/seo/vitals`);
       if (res.ok) {
         const data = await res.json();
         setVitals(data.vitals);
@@ -293,7 +294,7 @@ export default function SEOPage() {
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/audits?limit=10`);
+      const res = await samaFetch(`/api/seo/audits?limit=10`);
       if (res.ok) {
         const data = await res.json();
         setAuditHistory(data.audits || []);
@@ -315,7 +316,7 @@ export default function SEOPage() {
 
   const loadStrategy = useCallback(async () => {
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy`);
+      const res = await samaFetch(`/api/seo/strategy`);
       const data = await res.json();
       if (data.success && data.strategy) applyStrategyData(data);
     } catch {
@@ -342,7 +343,7 @@ export default function SEOPage() {
     if (!kw || trackedKws.has(kw)) return;
     setTrackingKw(kw);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
+      const res = await samaFetch(`/api/seo/keywords/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: kw, intent, priority })
@@ -366,7 +367,7 @@ export default function SEOPage() {
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/reset?include_keywords=${includeKeywords}`, {
+      const res = await samaFetch(`/api/seo/reset?include_keywords=${includeKeywords}`, {
         method: 'POST',
       });
 
@@ -411,7 +412,7 @@ export default function SEOPage() {
   const deleteKeyword = async (keyword: string) => {
     setDeletingKw(keyword);
     try {
-      await fetch(`${SAMA_API_URL}/api/seo/keywords/${encodeURIComponent(keyword)}`, { method: 'DELETE' });
+      await samaFetch(`/api/seo/keywords/${encodeURIComponent(keyword)}`, { method: 'DELETE' });
       await fetchKeywords();
     } catch {
       toast.error("Failed to delete keyword");
@@ -423,8 +424,8 @@ export default function SEOPage() {
   const fetchStrategy = async (force = false) => {
     setStrategyLoading(true);
     try {
-      const url = `${SAMA_API_URL}/api/seo/strategy${force ? '?force=true' : ''}`;
-      const res = await fetch(url, { method: 'POST' });
+      const url = `/api/seo/strategy${force ? '?force=true' : ''}`;
+      const res = await samaFetch(url, { method: 'POST' });
       const data = await res.json();
       if (data.success) applyStrategyData(data);
       else setErrorMsg(data.detail || 'Strategy generation failed');
@@ -440,7 +441,7 @@ export default function SEOPage() {
     // Optimistic update
     setStrategyTasks(prev => prev.map(t => t.id === taskId ? { ...t, done, done_at: done ? new Date().toISOString() : null } : t));
     try {
-      await fetch(`${SAMA_API_URL}/api/seo/strategy/tasks/${taskId}`, {
+      await samaFetch(`/api/seo/strategy/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done })
@@ -456,7 +457,7 @@ export default function SEOPage() {
     // Optimistic removal
     setActions(prev => prev.filter(a => a.id !== actionId));
     try {
-      await fetch(`${SAMA_API_URL}/api/seo/actions/${actionId}`, { method: 'DELETE' });
+      await samaFetch(`/api/seo/actions/${actionId}`, { method: 'DELETE' });
     } catch {
       console.error('Failed to delete action');
     }
@@ -468,7 +469,7 @@ export default function SEOPage() {
     // Optimistic removal
     setStrategyTasks(prev => prev.filter(t => t.id !== taskId));
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/strategy/tasks/${taskId}`, { method: 'DELETE' });
+      const res = await samaFetch(`/api/seo/strategy/tasks/${taskId}`, { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json();
         if (data.tasks) setStrategyTasks(data.tasks);
@@ -483,7 +484,7 @@ export default function SEOPage() {
     setInitializing(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/initialize`, { method: 'POST' });
+      const res = await samaFetch(`/api/seo/initialize`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         await fetchKeywords();
@@ -502,7 +503,7 @@ export default function SEOPage() {
     setSyncingGsc(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/sync-gsc`, { method: 'POST' });
+      const res = await samaFetch(`/api/seo/keywords/sync-gsc`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         toast.success(`GSC sync: ${data.inserted} new keywords, ${data.updated} updated (${data.total_gsc} total in GSC)`);
@@ -526,7 +527,7 @@ export default function SEOPage() {
   const executeAction = async (action: Action) => {
     setExecuting(action.id);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/seo/execute`, {
+      const res = await samaFetch(`/api/seo/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(action),
@@ -554,8 +555,8 @@ export default function SEOPage() {
     setSerpError(null);
     setSerpResult(null);
     try {
-      const res = await fetch(
-        `${SAMA_API_URL}/api/seo/serp/analyze?keyword=${encodeURIComponent(serpKeyword)}&num_results=5`,
+      const res = await samaFetch(
+        `/api/seo/serp/analyze?keyword=${encodeURIComponent(serpKeyword)}&num_results=5`,
         { method: 'POST' }
       );
       const data = await res.json();

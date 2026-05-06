@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,18 @@ const BACKEND =
   process.env.SAMA_API_URL ||
   process.env.NEXT_PUBLIC_SAMA_API_URL ||
   "https://web-production-5324a.up.railway.app";
+
+/**
+ * Headers a client could try to spoof. Stripped from the incoming request
+ * before we re-inject server-resolved values, so a logged-in user can't
+ * pretend to be a different account.
+ */
+const TENANT_HEADERS_TO_STRIP = [
+  "x-sama-account-id",
+  "x-sama-site-id",
+  "x-sama-site-domain",
+  "x-tenant-id",
+];
 
 /**
  * Emergency kill switch. Set BACKEND_PAUSED=1 in env to make the proxy
@@ -68,7 +81,9 @@ const HOP_BY_HOP = new Set([
 function copyRequestHeaders(src: Headers): Headers {
   const out = new Headers();
   src.forEach((value, key) => {
-    if (HOP_BY_HOP.has(key.toLowerCase())) return;
+    const lower = key.toLowerCase();
+    if (HOP_BY_HOP.has(lower)) return;
+    if (TENANT_HEADERS_TO_STRIP.includes(lower)) return;
     out.set(key, value);
   });
   return out;
@@ -122,6 +137,116 @@ async function getUserId(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/* ── Tenant context resolution ─────────────────────────────────────────── */
+
+interface TenantContext {
+  accountId: string | null;
+  siteId: string | null;
+  siteDomain: string | null;
+}
+
+interface CachedContext extends TenantContext {
+  expires: number;
+}
+
+const CONTEXT_TTL_MS = 30_000;
+const contextCache = new Map<string, CachedContext>();
+
+/**
+ * Resolve the active account_id, site_id and site domain for an upstream
+ * request, using:
+ *   1) the client-supplied `x-sama-account-id` / `x-sama-site-id` headers
+ *      (validated against `account_members` and `user_sites`), or
+ *   2) sensible fallbacks (the user's own account; the first user_sites row).
+ *
+ * Returns nulls when no Supabase user is present (e.g. admin pages that
+ * still use the MISSION_SECRET cookie). In that case the caller decides
+ * whether to forward whatever the client sent.
+ */
+async function resolveTenantContext(
+  req: NextRequest,
+  userId: string | null,
+): Promise<TenantContext> {
+  if (!userId) {
+    return {
+      accountId: req.headers.get("x-sama-account-id"),
+      siteId:
+        req.headers.get("x-sama-site-id") || req.headers.get("x-tenant-id"),
+      siteDomain: req.headers.get("x-sama-site-domain"),
+    };
+  }
+
+  const requestedAccount = req.headers.get("x-sama-account-id") || userId;
+  const requestedSite =
+    req.headers.get("x-sama-site-id") ||
+    req.headers.get("x-tenant-id") ||
+    "";
+
+  const cacheKey = `${userId}|${requestedAccount}|${requestedSite}`;
+  const now = Date.now();
+  const cached = contextCache.get(cacheKey);
+  if (cached && cached.expires > now) {
+    return {
+      accountId: cached.accountId,
+      siteId: cached.siteId,
+      siteDomain: cached.siteDomain,
+    };
+  }
+
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return { accountId: requestedAccount, siteId: requestedSite || null, siteDomain: null };
+  }
+
+  let accountId: string | null = null;
+  if (requestedAccount === userId) {
+    accountId = userId;
+  } else {
+    const { data: membership } = await admin
+      .from("account_members")
+      .select("role")
+      .eq("account_id", requestedAccount)
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+    accountId = membership ? requestedAccount : userId;
+  }
+
+  let siteRow: { id: string; settings: Record<string, unknown> | null } | null = null;
+  if (requestedSite) {
+    const { data } = await admin
+      .from("user_sites")
+      .select("id, settings, user_id")
+      .eq("id", requestedSite)
+      .eq("user_id", accountId)
+      .maybeSingle();
+    if (data) siteRow = { id: data.id, settings: data.settings };
+  }
+  if (!siteRow) {
+    const { data } = await admin
+      .from("user_sites")
+      .select("id, settings")
+      .eq("user_id", accountId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (data) siteRow = { id: data.id, settings: data.settings };
+  }
+
+  const siteId = siteRow?.id ?? null;
+  const settings = (siteRow?.settings ?? {}) as Record<string, unknown>;
+  const siteDomain =
+    typeof settings.domain === "string"
+      ? (settings.domain as string)
+      : typeof settings.site_url === "string"
+        ? (settings.site_url as string)
+        : null;
+
+  const ctx: TenantContext = { accountId, siteId, siteDomain };
+  contextCache.set(cacheKey, { ...ctx, expires: now + CONTEXT_TTL_MS });
+  return ctx;
 }
 
 async function handle(
@@ -189,9 +314,25 @@ async function handle(
     );
   }
 
+  const headers = copyRequestHeaders(req.headers);
+  const tenant = await resolveTenantContext(req, userId);
+  if (tenant.accountId) {
+    headers.set("X-Sama-Account-Id", tenant.accountId);
+  }
+  if (tenant.siteId) {
+    headers.set("X-Sama-Site-Id", tenant.siteId);
+    // Backward-compat: existing backend code reads X-Tenant-ID. Keep it in
+    // sync with the resolved site so the new headers are additive, not
+    // breaking.
+    headers.set("X-Tenant-ID", tenant.siteId);
+  }
+  if (tenant.siteDomain) {
+    headers.set("X-Sama-Site-Domain", tenant.siteDomain);
+  }
+
   const init: RequestInit = {
     method: req.method,
-    headers: copyRequestHeaders(req.headers),
+    headers,
     redirect: "manual",
   };
 
