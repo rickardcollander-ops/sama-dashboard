@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Code2, Loader2, Sparkles, AlertCircle, X, CheckCircle, ExternalLink,
-  Github, ArrowRight, Settings,
+  Github, ArrowRight, Settings, AlertTriangle, Info, Wrench,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -30,6 +30,13 @@ interface GitHubStatus {
   branch?: string;
 }
 
+interface AuditFinding {
+  title: string;
+  severity: "critical" | "warning" | "info";
+  category?: string;
+  description?: string;
+}
+
 export default function TechAgentPage() {
   const { user, loading: userLoading } = useUser();
   const { tenantClient } = useSite();
@@ -39,13 +46,19 @@ export default function TechAgentPage() {
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [auditFindings, setAuditFindings] = useState<AuditFinding[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
   const [pending, setPending] = useState<TechSuggestion | null>(null);
   const [executing, setExecuting] = useState(false);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [results, setResults] = useState<ExecuteResult[]>([]);
 
   useEffect(() => {
-    if (user) loadGhStatus();
+    if (user) {
+      loadGhStatus();
+      loadAuditFindings();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -58,12 +71,26 @@ export default function TechAgentPage() {
   const loadGhStatus = async () => {
     if (!user) return;
     try {
-      const client = tenantClient;
-      const data = await client.get<GitHubStatus>("/api/integrations/github/status");
+      const data = await tenantClient.get<GitHubStatus>("/api/integrations/github/status");
       setGhStatus(data);
     } catch {
       setGhStatus({ connected: false });
     }
+  };
+
+  const loadAuditFindings = async () => {
+    if (!user) return;
+    setLoadingAudit(true);
+    try {
+      const data = await tenantClient.get<{ run?: { findings?: AuditFinding[] }; findings?: AuditFinding[] }>(
+        "/api/site-audit/latest"
+      );
+      const findings = data?.run?.findings || data?.findings || [];
+      setAuditFindings(findings);
+    } catch {
+      // No audit data available yet
+    }
+    setLoadingAudit(false);
   };
 
   const loadSuggestions = async () => {
@@ -71,8 +98,7 @@ export default function TechAgentPage() {
     setLoadingSuggest(true);
     setError(null);
     try {
-      const client = tenantClient;
-      const res = await client.post<{ suggestions?: TechSuggestion[]; github_connected?: boolean }>(
+      const res = await tenantClient.post<{ suggestions?: TechSuggestion[]; github_connected?: boolean }>(
         "/api/tech/suggest", {}
       );
       setSuggestions(res.suggestions || []);
@@ -90,8 +116,7 @@ export default function TechAgentPage() {
     setExecuting(true);
     setExecuteError(null);
     try {
-      const client = tenantClient;
-      const res = await client.post<ExecuteResult>("/api/tech/execute", {
+      const res = await tenantClient.post<ExecuteResult>("/api/tech/execute", {
         title: pending.title,
         description: pending.description,
         file_hint: pending.file_hint,
@@ -105,6 +130,28 @@ export default function TechAgentPage() {
     }
     setExecuting(false);
   };
+
+  const sendFindingToAgent = (finding: AuditFinding) => {
+    setPending({
+      title: finding.title,
+      description: finding.description || finding.title,
+    });
+  };
+
+  const severityIcon = (severity: AuditFinding["severity"]) => {
+    if (severity === "critical") return <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />;
+    if (severity === "warning") return <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />;
+    return <Info className="h-4 w-4 text-blue-400 flex-shrink-0" />;
+  };
+
+  const severityLabel = (severity: AuditFinding["severity"]) => {
+    if (severity === "critical") return "Kritisk";
+    if (severity === "warning") return "Varning";
+    return "Info";
+  };
+
+  const criticalFindings = auditFindings.filter((f) => f.severity === "critical");
+  const otherFindings = auditFindings.filter((f) => f.severity !== "critical");
 
   if (userLoading) {
     return (
@@ -127,10 +174,10 @@ export default function TechAgentPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Code2 className="h-7 w-7 text-slate-700" />
-              Tech-agent
+              Tech
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Föreslår tekniska förbättringar för din webbplats och öppnar dem som Pull Requests i ditt GitHub-repo.
+              Tekniska fynd från analyser och AI-förslag som kan åtgärdas direkt via Pull Requests.
             </p>
           </div>
           <button
@@ -184,6 +231,94 @@ export default function TechAgentPage() {
           </div>
         )}
 
+        {/* Audit findings from Insikter */}
+        {loadingAudit ? (
+          <div className="mb-8 flex items-center gap-2 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Hämtar fynd från senaste analys...
+          </div>
+        ) : auditFindings.length > 0 ? (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-slate-500" />
+                Fynd från senaste analys
+              </h2>
+              <Link href="/c/analysis" className="text-xs text-blue-600 hover:underline">
+                Visa i Insikter →
+              </Link>
+            </div>
+
+            {criticalFindings.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {criticalFindings.map((finding, idx) => (
+                  <div key={idx} className="rounded-xl border border-red-100 bg-red-50 p-4 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      {severityIcon(finding.severity)}
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-red-600 uppercase mr-2">{severityLabel(finding.severity)}</span>
+                        {finding.category && (
+                          <span className="text-xs text-red-400 mr-2">{finding.category}</span>
+                        )}
+                        <p className="text-sm font-medium text-slate-900 mt-0.5">{finding.title}</p>
+                        {finding.description && (
+                          <p className="text-xs text-slate-500 mt-0.5">{finding.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    {ghStatus?.connected && (
+                      <button
+                        onClick={() => sendFindingToAgent(finding)}
+                        className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                      >
+                        Åtgärda med PR
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {otherFindings.length > 0 && (
+              <div className="space-y-2">
+                {otherFindings.map((finding, idx) => (
+                  <div key={idx} className="rounded-xl border bg-white p-4 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      {severityIcon(finding.severity)}
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-slate-500 uppercase mr-2">{severityLabel(finding.severity)}</span>
+                        {finding.category && (
+                          <span className="text-xs text-slate-400 mr-2">{finding.category}</span>
+                        )}
+                        <p className="text-sm font-medium text-slate-900 mt-0.5">{finding.title}</p>
+                        {finding.description && (
+                          <p className="text-xs text-slate-500 mt-0.5">{finding.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    {ghStatus?.connected && (
+                      <button
+                        onClick={() => sendFindingToAgent(finding)}
+                        className="flex-shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors"
+                      >
+                        Åtgärda med PR
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mb-8 rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center">
+            <Wrench className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+            <p className="text-sm text-slate-500">Inga fynd från analyser ännu.</p>
+            <Link href="/c/analysis" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+              Kör en analys i Insikter →
+            </Link>
+          </div>
+        )}
+
         {/* Recent PRs */}
         {results.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
@@ -209,42 +344,40 @@ export default function TechAgentPage() {
           </div>
         )}
 
-        {/* Suggestions list */}
-        {suggestions.length === 0 && !loadingSuggest ? (
-          <div className="rounded-xl border bg-white p-16 shadow-sm text-center">
-            <Code2 className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">Inga förslag än.</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Klicka på &quot;Föreslå förbättringar&quot; så analyserar agenten din webbplats och föreslår SEO-, prestanda- och tillgänglighetsfixar.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {suggestions.map((s, idx) => (
-              <div key={idx} className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold uppercase text-slate-700">
-                        {s.change_type === "create" ? "Skapa fil" : "Redigera"}
-                      </span>
-                      {s.file_hint && (
-                        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{s.file_hint}</code>
-                      )}
+        {/* AI Suggestions */}
+        {suggestions.length > 0 && (
+          <div>
+            <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-slate-500" />
+              AI-förslag
+            </h2>
+            <div className="space-y-3">
+              {suggestions.map((s, idx) => (
+                <div key={idx} className="rounded-xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold uppercase text-slate-700">
+                          {s.change_type === "create" ? "Skapa fil" : "Redigera"}
+                        </span>
+                        {s.file_hint && (
+                          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{s.file_hint}</code>
+                        )}
+                      </div>
+                      <p className="font-semibold text-slate-900">{s.title}</p>
+                      <p className="text-sm text-slate-600 mt-1">{s.description}</p>
                     </div>
-                    <p className="font-semibold text-slate-900">{s.title}</p>
-                    <p className="text-sm text-slate-600 mt-1">{s.description}</p>
+                    <button
+                      onClick={() => setPending(s)}
+                      disabled={!ghStatus?.connected}
+                      className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                    >
+                      Skapa PR
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setPending(s)}
-                    disabled={!ghStatus?.connected}
-                    className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                  >
-                    Importera & skapa PR
-                  </button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
@@ -260,7 +393,7 @@ export default function TechAgentPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Code2 className="h-5 w-5 text-slate-700" />
-                    Importera till Tech-agenten
+                    Skapa Pull Request
                   </h3>
                   <button
                     onClick={() => !executing && setPending(null)}
@@ -281,7 +414,7 @@ export default function TechAgentPage() {
                 <p className="text-sm text-slate-600 mb-4">
                   Vill du att Tech-agenten genererar ändringen och öppnar en Pull Request mot{" "}
                   <span className="font-mono">{ghStatus?.branch || "main"}</span>?
-                  Inget kommer att merges automatiskt — du granskar och godkänner i GitHub.
+                  Inget merges automatiskt — du granskar och godkänner i GitHub.
                 </p>
 
                 {executeError && (

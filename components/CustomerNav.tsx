@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
-  FileText, Compass, Sparkles, Shield, ChevronDown, Globe,
+  FileText, Code2, Sparkles, Shield, ChevronDown, Globe,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -27,7 +27,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-type SectionId = "home" | "strategy" | "insights" | "content" | "settings" | "admin";
+type SectionId = "home" | "tech" | "insights" | "content" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -38,11 +38,11 @@ const TOP_NAV: NavItem[] = [
     matchPrefixes: ["/c/dashboard"],
   },
   {
-    id: "strategy",
-    href: "/c/strategy",
-    label: "Strategi",
-    icon: Compass,
-    matchPrefixes: ["/c/strategy"],
+    id: "tech",
+    href: "/c/tech",
+    label: "Tech",
+    icon: Code2,
+    matchPrefixes: ["/c/tech"],
   },
   {
     id: "insights",
@@ -77,7 +77,7 @@ const ADMIN_NAV: NavItem = {
 
 const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   home: [],
-  strategy: [],
+  tech: [],
   insights: [
     { href: "/c/analysis", label: "Översikt" },
     { href: "/c/seo", label: "Google" },
