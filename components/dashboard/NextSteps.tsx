@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, FileText, ShieldCheck, Sparkles, TrendingDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
+import type { Translations } from "@/lib/locales";
 
 export interface NextStepsInput {
   pendingApprovals: number;
@@ -28,18 +30,18 @@ const TONE_CLASSES: Record<NextStep["tone"], { bg: string; icon: string; cta: st
   emerald: { bg: "bg-emerald-50 border-emerald-200", icon: "text-emerald-600",    cta: "text-emerald-700 hover:text-emerald-900" },
 };
 
-export function buildNextSteps(input: NextStepsInput): NextStep[] {
+export function buildNextSteps(input: NextStepsInput, t: Translations): NextStep[] {
   const steps: NextStep[] = [];
 
   if (input.pendingApprovals > 0) {
     steps.push({
       id: "pending-drafts",
       title: input.pendingApprovals === 1
-        ? "1 utkast väntar på dig"
-        : `${input.pendingApprovals} utkast väntar på dig`,
-      why: "Tills du godkänner kan vi inte publicera.",
+        ? t.nextSteps.draftWaiting
+        : `${input.pendingApprovals} ${t.nextSteps.draftsWaiting}`,
+      why: t.nextSteps.draftWhy,
       href: "/c/approvals",
-      cta: "Granska",
+      cta: t.nextSteps.review,
       icon: ShieldCheck,
       tone: "blue",
     });
@@ -49,10 +51,10 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
     const drop = Math.round(Math.abs(input.mentionRateDelta) * 100);
     steps.push({
       id: "mention-drop",
-      title: "Synligheten i AI-assistenter har sjunkit",
-      why: `Omnämnandegrad är ${drop} procentenheter lägre än förra perioden.`,
+      title: t.nextSteps.mentionDrop,
+      why: `${drop} ${t.nextSteps.mentionDropWhy}`,
       href: "/c/geo",
-      cta: "Se varför",
+      cta: t.nextSteps.seeWhy,
       icon: TrendingDown,
       tone: "amber",
     });
@@ -61,10 +63,10 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
   if (input.publishedLast30d === 0) {
     steps.push({
       id: "no-content",
-      title: "Inget content publicerat sista 30 dagarna",
-      why: "Synligheten påverkas av aktivitet — börja med ett nytt inlägg.",
+      title: t.nextSteps.noContent,
+      why: t.nextSteps.noContentWhy,
       href: "/c/content#ideas",
-      cta: "Skapa content",
+      cta: t.nextSteps.createContent,
       icon: FileText,
       tone: "violet",
     });
@@ -74,11 +76,11 @@ export function buildNextSteps(input: NextStepsInput): NextStep[] {
     steps.push({
       id: "alerts",
       title: input.alertsCount === 1
-        ? "1 varning behöver din uppmärksamhet"
-        : `${input.alertsCount} varningar behöver din uppmärksamhet`,
-      why: "Öppna systemstatus för att se vad som hänt.",
+        ? t.nextSteps.alert
+        : `${input.alertsCount} ${t.nextSteps.alerts}`,
+      why: t.nextSteps.alertWhy,
       href: "/system-health",
-      cta: "Öppna varningar",
+      cta: t.nextSteps.openAlerts,
       icon: Sparkles,
       tone: "amber",
     });
@@ -92,15 +94,17 @@ interface NextStepsProps {
 }
 
 export default function NextSteps({ input }: NextStepsProps) {
-  const steps = buildNextSteps(input);
+  const { t } = useLanguage();
+  const steps = buildNextSteps(input, t);
+
   if (steps.length === 0) {
     return (
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Nästa steg
+          {t.nextSteps.title}
         </h2>
         <p className="mt-2 text-sm text-slate-700">
-          Inget kräver din uppmärksamhet just nu — agenterna jobbar i bakgrunden.
+          {t.nextSteps.allGood}
         </p>
       </section>
     );
@@ -109,7 +113,7 @@ export default function NextSteps({ input }: NextStepsProps) {
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Nästa steg
+        {t.nextSteps.title}
       </h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {steps.map((s) => {

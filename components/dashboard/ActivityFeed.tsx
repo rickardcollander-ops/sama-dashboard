@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
 import { AGENTS } from "@/lib/agents";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 export interface ActivityEvent {
   id: string;
@@ -25,18 +26,6 @@ function getAgentMeta(agent: string) {
   return SYSTEM_META;
 }
 
-function fmtRelative(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just nu";
-  if (mins < 60) return `${mins}m sen`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h sen`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d sen`;
-  return new Date(iso).toLocaleDateString();
-}
-
 function severityIcon(severity?: string) {
   switch (severity) {
     case "success":
@@ -54,9 +43,22 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ userId }: ActivityFeedProps) {
+  const { t } = useLanguage();
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  function fmtRelative(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return t.time.justNow;
+    if (mins < 60) return `${mins}${t.time.minutesSuffix}`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}${t.time.hoursSuffix}`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}${t.time.daysSuffix}`;
+    return new Date(iso).toLocaleDateString();
+  }
 
   useEffect(() => {
     if (userId) load();
@@ -86,13 +88,13 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-slate-500" />
-          <h3 className="font-semibold text-slate-900">Aktivitet</h3>
+          <h3 className="font-semibold text-slate-900">{t.activity.title}</h3>
         </div>
         <button
           onClick={refresh}
           disabled={refreshing || loading}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          title="Uppdatera"
+          title={t.activity.refresh}
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
         </button>
@@ -102,17 +104,15 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
         {loading ? (
           <div className="px-6 py-12 text-center text-sm text-slate-400">
             <RefreshCw className="mx-auto mb-2 h-5 w-5 animate-spin" />
-            Hämtar aktivitet…
+            {t.activity.loading}
           </div>
         ) : events.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
               <Activity className="h-5 w-5 text-slate-400" />
             </div>
-            <p className="text-sm font-medium text-slate-600">Ingen aktivitet än</p>
-            <p className="mt-1 text-xs text-slate-400">
-              Agenternas händelser dyker upp här när de kör.
-            </p>
+            <p className="text-sm font-medium text-slate-600">{t.activity.empty}</p>
+            <p className="mt-1 text-xs text-slate-400">{t.activity.emptyDesc}</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -139,9 +139,7 @@ export default function ActivityFeed({ userId }: ActivityFeedProps) {
               return (
                 <li key={e.id}>
                   {e.link ? (
-                    <a href={e.link} className="block">
-                      {body}
-                    </a>
+                    <a href={e.link} className="block">{body}</a>
                   ) : (
                     body
                   )}

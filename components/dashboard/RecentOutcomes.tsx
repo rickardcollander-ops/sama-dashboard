@@ -4,14 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BarChart2, FileText } from "lucide-react";
 import { tenantApi } from "@/lib/api";
-
-// Sprint 3 (K-13) — "Senaste utfall" on Hem.
-//
-// Lists up to three most-recently published content pieces with the source
-// surface that motivated each one (gap title or strategy topic). Click
-// jumps to Content. We deliberately don't try to render full impact
-// numbers here — that lives on the article view via PiecePerformance —
-// but the link gives the user a fast path into it.
+import { useLanguage } from "@/lib/hooks/useLanguage";
+import type { Language } from "@/lib/locales";
 
 interface PieceRow {
   id: string;
@@ -31,20 +25,28 @@ interface RecentOutcomesProps {
   tenantId: string;
 }
 
-function fmtRelative(iso?: string | null): string {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${Math.max(1, mins)}m sen`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h sen`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d sen`;
-  return new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
-}
+const LOCALE_MAP: Record<Language, string> = {
+  sv: "sv-SE",
+  no: "nb-NO",
+  da: "da-DK",
+  en: "en-GB",
+};
 
 export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
+  const { t, language } = useLanguage();
   const [pieces, setPieces] = useState<PieceRow[] | null>(null);
+
+  function fmtRelative(iso?: string | null): string {
+    if (!iso) return "";
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${Math.max(1, mins)}${t.time.minutesSuffix}`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}${t.time.hoursSuffix}`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}${t.time.daysSuffix}`;
+    return new Date(iso).toLocaleDateString(LOCALE_MAP[language], { day: "numeric", month: "short" });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -67,9 +69,7 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
         if (!cancelled) setPieces([]);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [tenantId]);
 
   if (pieces === null || pieces.length === 0) return null;
@@ -77,7 +77,7 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Senaste utfall
+        {t.recentOutcomes.title}
       </h2>
       <ul className="space-y-2">
         {pieces.map((p) => {
@@ -93,13 +93,13 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-900">{p.title}</p>
                   <p className="text-xs text-slate-500">
-                    Publicerad {fmtRelative(p.published_at || p.created_at)}
-                    {motivation ? ` · skapad utifrån "${motivation}"` : ""}
+                    {t.recentOutcomes.published} {fmtRelative(p.published_at || p.created_at)}
+                    {motivation ? ` · ${t.recentOutcomes.createdFrom} "${motivation}"` : ""}
                   </p>
                   {(impressions > 0 || clicks > 0) && (
                     <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
                       <BarChart2 className="h-3 w-3" />
-                      {impressions.toLocaleString()} visningar · {clicks.toLocaleString()} klick (30d)
+                      {impressions.toLocaleString()} {t.recentOutcomes.impressions} · {clicks.toLocaleString()} {t.recentOutcomes.clicks} (30d)
                     </p>
                   )}
                 </div>
@@ -107,7 +107,7 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
                   href="/c/content"
                   className="ml-2 inline-flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900"
                 >
-                  Se utfall
+                  {t.recentOutcomes.seeResults}
                   <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
