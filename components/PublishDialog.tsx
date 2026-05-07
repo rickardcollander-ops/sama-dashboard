@@ -8,6 +8,7 @@ import {
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { KIND_META } from "@/lib/integrations/cms";
 import { useLanguage } from "@/lib/hooks/useLanguage";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface Destination {
   id: string;
@@ -35,6 +36,8 @@ export default function PublishDialog(props: Props) {
     defaultMailRecipient,
   } = props;
   const { t } = useLanguage();
+  const { effectiveTenantId } = useSite();
+  const tenantHeaders = (): HeadersInit => ({ "X-Tenant-ID": effectiveTenantId });
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,7 +66,7 @@ export default function PublishDialog(props: Props) {
     setMailTo(defaultMailRecipient || "");
     setMailSubject(title || "");
     setMailNote(t.publishDialog.mailNote);
-    fetch("/api/integrations/destinations")
+    fetch("/api/integrations/destinations", { headers: tenantHeaders() })
       .then((r) => r.json())
       .then((d) => {
         setDestinations(d.destinations || []);
@@ -73,7 +76,8 @@ export default function PublishDialog(props: Props) {
       })
       .catch(() => setDestinations([]))
       .finally(() => setLoading(false));
-  }, [open, title, defaultMailRecipient, t.publishDialog.mailNote]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, title, defaultMailRecipient, effectiveTenantId]);
 
   if (!open) return null;
 
@@ -98,7 +102,7 @@ export default function PublishDialog(props: Props) {
       }
       const res = await fetch("/api/integrations/publish", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify(payload),
       });
       const data = await res.json();

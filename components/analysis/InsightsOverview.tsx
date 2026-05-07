@@ -55,7 +55,6 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
-// Sprint 2 (K-10) — round-trip status for a gap.
 interface PieceLink {
   id: string;
   title: string;
