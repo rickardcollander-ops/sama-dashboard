@@ -35,7 +35,7 @@ Rules:
   sees the brand in the prompt, the result is biased and worthless. Phrase geo_queries from the
   perspective of a buyer who has NOT yet heard of the brand (category-level questions, problem
   statements, "best X for Y" comparisons against competitors, etc.).
-- Output STRICT JSON, no prose, matching the requested schema.`;
+- Always respond by calling the submit_recommendations tool — never as plain text.`;
 
 function buildUserPrompt(input: {
   brand_name: string;
@@ -69,15 +69,82 @@ ${input.existing_geo_queries.slice(0, 40).map((q) => `- ${q}`).join("\n") || "(n
 Reminder: geo_queries MUST NOT contain "${input.brand_name || ""}" or "${input.domain || ""}" — these queries are sent to AI assistants to measure unbiased visibility, so they have to read like a buyer who has never heard of the brand.
 
 ${input.gap_summary ? `Recent analysis gaps:\n${input.gap_summary}\n` : ""}
-Return JSON:
-{
-  "keywords": [{"text": string, "reason": string, "intent": "informational|commercial|transactional|navigational", "type": "head|long_tail|question|comparison", "priority": "high|medium|low"}, ...${input.count_keywords} items],
-  "geo_queries": [{"text": string, "reason": string, "intent": "informational|commercial|transactional|navigational", "priority": "high|medium|low"}, ...${input.count_geo} items],
-  "long_tail_phrases": [{"text": string, "reason": string, "intent": "informational|commercial|transactional|navigational", "priority": "high|medium|low"}, ...${input.count_long_tail} items]
-}`;
+Produce roughly ${input.count_keywords} keywords, ${input.count_geo} GEO queries, and ${input.count_long_tail} long-tail phrases. Submit by calling the submit_recommendations tool.`;
 }
 
-async function callAnthropic(apiKey: string, system: string, user: string): Promise<string> {
+// Tool schema mirrors the Recommendations interface. Using tool_choice
+// pins the response to a tool_use block, so we get structured JSON
+// instead of a free-form text answer that may include prose, markdown
+// fences, or get truncated mid-object.
+const RECOMMENDATIONS_TOOL = {
+  name: "submit_recommendations",
+  description:
+    "Return the keyword, GEO query and long-tail recommendations. Always call this exactly once.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      keywords: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            reason: { type: "string" },
+            intent: {
+              type: "string",
+              enum: ["informational", "commercial", "transactional", "navigational"],
+            },
+            type: {
+              type: "string",
+              enum: ["head", "long_tail", "question", "comparison"],
+            },
+            priority: { type: "string", enum: ["high", "medium", "low"] },
+          },
+          required: ["text", "reason"],
+        },
+      },
+      geo_queries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            reason: { type: "string" },
+            intent: {
+              type: "string",
+              enum: ["informational", "commercial", "transactional", "navigational"],
+            },
+            priority: { type: "string", enum: ["high", "medium", "low"] },
+          },
+          required: ["text", "reason"],
+        },
+      },
+      long_tail_phrases: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            reason: { type: "string" },
+            intent: {
+              type: "string",
+              enum: ["informational", "commercial", "transactional", "navigational"],
+            },
+            priority: { type: "string", enum: ["high", "medium", "low"] },
+          },
+          required: ["text", "reason"],
+        },
+      },
+    },
+    required: ["keywords", "geo_queries", "long_tail_phrases"],
+  },
+};
+
+async function callAnthropic(
+  apiKey: string,
+  system: string,
+  user: string,
+): Promise<Recommendations | null> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -87,9 +154,15 @@ async function callAnthropic(apiKey: string, system: string, user: string): Prom
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 2000,
+      // Bumped from 2000 — at ~8 keywords + 8 GEO queries + 6 long-tail
+      // each carrying a one-sentence reason, the JSON was getting
+      // truncated mid-object on Sonnet, which is what surfaced as the
+      // "Could not parse model response" 502.
+      max_tokens: 4000,
       system,
       messages: [{ role: "user", content: user }],
+      tools: [RECOMMENDATIONS_TOOL],
+      tool_choice: { type: "tool", name: RECOMMENDATIONS_TOOL.name },
     }),
   });
   if (!res.ok) {
@@ -97,8 +170,35 @@ async function callAnthropic(apiKey: string, system: string, user: string): Prom
     throw new Error(`Anthropic ${res.status}: ${text.slice(0, 200)}`);
   }
   const data = await res.json();
-  const content = data.content?.[0]?.text || "";
-  return content;
+
+  // Preferred path: tool_use block with structured input.
+  const blocks = Array.isArray(data.content) ? data.content : [];
+  const toolUse = blocks.find(
+    (b: { type?: string; name?: string }) =>
+      b?.type === "tool_use" && b?.name === RECOMMENDATIONS_TOOL.name,
+  ) as { input?: unknown } | undefined;
+  if (toolUse?.input && typeof toolUse.input === "object") {
+    return normalize(toolUse.input as Record<string, unknown>);
+  }
+
+  // Fallback: model ignored tool_choice and replied with text. Try to
+  // extract JSON anyway so a single misbehaving response doesn't 502.
+  const textBlock = blocks.find(
+    (b: { type?: string; text?: string }) => b?.type === "text" && typeof b?.text === "string",
+  ) as { text?: string } | undefined;
+  return safeParseText(textBlock?.text || "");
+}
+
+function normalize(parsed: Record<string, unknown>): Recommendations {
+  return {
+    keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as RecommendationItem[]) : [],
+    geo_queries: Array.isArray(parsed.geo_queries)
+      ? (parsed.geo_queries as RecommendationItem[])
+      : [],
+    long_tail_phrases: Array.isArray(parsed.long_tail_phrases)
+      ? (parsed.long_tail_phrases as RecommendationItem[])
+      : [],
+  };
 }
 
 function brandIdentityTokens(brandName: string, domain: string): string[] {
@@ -119,16 +219,23 @@ function brandIdentityTokens(brandName: string, domain: string): string[] {
   return Array.from(tokens);
 }
 
-function safeParse(text: string): Recommendations | null {
-  const match = text.match(/\{[\s\S]*\}/);
+function safeParseText(text: string): Recommendations | null {
+  if (!text) return null;
+  // Strip ```json ... ``` or ``` ... ``` fences, then try to JSON.parse
+  // the inside. Falls back to the first {...} block if the model
+  // sandwiched JSON between prose.
+  let cleaned = text.trim();
+  const fence = cleaned.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  if (fence) cleaned = fence[1].trim();
+  try {
+    return normalize(JSON.parse(cleaned));
+  } catch {
+    /* fall through */
+  }
+  const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
-    const parsed = JSON.parse(match[0]);
-    return {
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-      geo_queries: Array.isArray(parsed.geo_queries) ? parsed.geo_queries : [],
-      long_tail_phrases: Array.isArray(parsed.long_tail_phrases) ? parsed.long_tail_phrases : [],
-    };
+    return normalize(JSON.parse(match[0]));
   } catch {
     return null;
   }
@@ -225,10 +332,12 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const raw = await callAnthropic(apiKey, SYSTEM_PROMPT, prompt);
-    const parsed = safeParse(raw);
+    const parsed = await callAnthropic(apiKey, SYSTEM_PROMPT, prompt);
     if (!parsed) {
-      return NextResponse.json({ error: "Could not parse model response", raw }, { status: 502 });
+      return NextResponse.json(
+        { error: "Could not parse model response" },
+        { status: 502 },
+      );
     }
 
     const existingLower = new Set([
