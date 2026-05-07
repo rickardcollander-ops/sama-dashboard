@@ -65,7 +65,11 @@ export async function POST(
   return NextResponse.json({ site: data });
 }
 
-// Update an existing site belonging to userId. Body: { id, site_name?, settings? }.
+// Save a site belonging to userId. Body: { id, site_name?, settings? }.
+// Upserts by id so admins can save for users whose site row hasn't been
+// created yet — mirrors the upsert the regular settings page uses for the
+// user's own account. Refuses to clobber a row that already belongs to a
+// different user_id.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -89,15 +93,34 @@ export async function PATCH(
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (typeof body.site_name === "string") patch.site_name = body.site_name;
-  if (body.settings && typeof body.settings === "object") patch.settings = body.settings;
+  const { data: existing, error: lookupError } = await admin
+    .from("user_sites")
+    .select("id, user_id")
+    .eq("id", body.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    return NextResponse.json({ error: lookupError.message }, { status: 500 });
+  }
+
+  if (existing && existing.user_id !== userId) {
+    return NextResponse.json(
+      { error: "Site belongs to a different user" },
+      { status: 403 },
+    );
+  }
+
+  const row: Record<string, unknown> = {
+    id: body.id,
+    user_id: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof body.site_name === "string") row.site_name = body.site_name;
+  if (body.settings && typeof body.settings === "object") row.settings = body.settings;
 
   const { data, error } = await admin
     .from("user_sites")
-    .update(patch)
-    .eq("id", body.id)
-    .eq("user_id", userId)
+    .upsert(row, { onConflict: "id" })
     .select()
     .single();
 

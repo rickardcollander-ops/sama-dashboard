@@ -256,7 +256,10 @@ function CustomerSettingsPageInner() {
   const handleSaveBlogUrl = async () => {
     if (!user) return;
     try {
-      const siteId = activeSite?.id ?? user.id;
+      // In view-as, `user` is the admin — falling back to admin's id would
+      // collide with the admin's own site row. Use the viewed user's id so
+      // the upsert creates/finds the customer's first site.
+      const siteId = activeSite?.id ?? (viewAs ? viewAs.userId : user.id);
       const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
       const nextSettings = { ...settings, blog_url: blogUrl };
       const siteName = settings.brand_name || activeSite?.site_name || "";
@@ -374,7 +377,10 @@ function CustomerSettingsPageInner() {
     if (!user) return;
     setSaving(true); setError(""); setSaved(false);
     try {
-      const siteId = activeSite?.id ?? user.id;
+      // In view-as, `user` is the admin — falling back to admin's id would
+      // collide with the admin's own site row. Use the viewed user's id so
+      // the upsert creates/finds the customer's first site.
+      const siteId = activeSite?.id ?? (viewAs ? viewAs.userId : user.id);
       const ownerId = activeSite?.user_id ?? effectiveOwnerId ?? user.id;
       const siteName = settings.brand_name || activeSite?.site_name || "";
       if (viewAs) {
