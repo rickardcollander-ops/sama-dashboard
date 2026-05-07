@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Clock, FileText, MessageSquare, Mail, BarChart3,
   Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb,
 } from "lucide-react";
+import CustomerNav from "@/components/CustomerNav";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : "/api/sama";
@@ -368,7 +369,8 @@ export default function ContentCalendarPage() {
   const todayKey = ymdKey(today);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+      <CustomerNav />
       <main className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
