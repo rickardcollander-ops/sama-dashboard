@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { CmsKind } from "@/lib/integrations/cms/types";
 import { KIND_META } from "@/lib/integrations/cms";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 interface Destination {
   id: string;
@@ -33,6 +34,7 @@ export default function PublishDialog(props: Props) {
     open, onClose, title, body, pieceId, defaultExcerpt, defaultTags,
     defaultMailRecipient,
   } = props;
+  const { t } = useLanguage();
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,9 +53,7 @@ export default function PublishDialog(props: Props) {
   // Mail state
   const [mailTo, setMailTo] = useState(defaultMailRecipient || "");
   const [mailSubject, setMailSubject] = useState(title || "");
-  const [mailNote, setMailNote] = useState(
-    "Hej,\n\nDetta utkast är godkänt och redo att publiceras. Bifogat finns innehållet i sin helhet.\n\nTack på förhand.",
-  );
+  const [mailNote, setMailNote] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +62,7 @@ export default function PublishDialog(props: Props) {
     setLoading(true);
     setMailTo(defaultMailRecipient || "");
     setMailSubject(title || "");
+    setMailNote(t.publishDialog.mailNote);
     fetch("/api/integrations/destinations")
       .then((r) => r.json())
       .then((d) => {
@@ -72,7 +73,7 @@ export default function PublishDialog(props: Props) {
       })
       .catch(() => setDestinations([]))
       .finally(() => setLoading(false));
-  }, [open, title, defaultMailRecipient]);
+  }, [open, title, defaultMailRecipient, t.publishDialog.mailNote]);
 
   if (!open) return null;
 
@@ -82,7 +83,7 @@ export default function PublishDialog(props: Props) {
     try {
       const tags = tagInput
         .split(",")
-        .map((t) => t.trim())
+        .map((tag) => tag.trim())
         .filter(Boolean);
       const payload: Record<string, unknown> = {
         destination_id: destinationId,
@@ -101,14 +102,14 @@ export default function PublishDialog(props: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Publicering misslyckades");
+      if (!res.ok) throw new Error(data.error || t.publishDialog.publishFailed);
       if (data.scheduled) {
         setResult({ scheduled: true });
       } else {
         setResult({ url: data.result?.url });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Publicering misslyckades");
+      setError(e instanceof Error ? e.message : t.publishDialog.publishFailed);
     }
     setPublishing(false);
   };
@@ -119,7 +120,7 @@ export default function PublishDialog(props: Props) {
   const handlePublishMail = () => {
     setError(null);
     if (!mailTo.trim()) {
-      setError("Ange minst en mottagare.");
+      setError(t.publishDialog.mailRecipientRequired);
       return;
     }
     const intro = mailNote.trim();
@@ -134,7 +135,7 @@ export default function PublishDialog(props: Props) {
       const fallback =
         `mailto:${encodeURIComponent(mailTo.trim())}` +
         `?subject=${encodeURIComponent(mailSubject)}` +
-        `&body=${encodeURIComponent(`${intro}\n\nInnehållet är för stort för att skickas via mailto. Öppna utkastet i SAMA och kopiera in det.`)}`;
+        `&body=${encodeURIComponent(`${intro}\n\n${t.publishDialog.mailTooLarge}`)}`;
       window.location.href = fallback;
     } else {
       window.location.href = url;
@@ -152,12 +153,12 @@ export default function PublishDialog(props: Props) {
           <div className="flex items-center justify-between border-b px-6 py-4">
             <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <Send className="h-5 w-5 text-blue-500" />
-              Publicera
+              {t.publishDialog.title}
             </h3>
             <button
               onClick={onClose}
               className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              aria-label="Stäng"
+              aria-label={t.publishDialog.closeAria}
             >
               <X className="h-5 w-5" />
             </button>
@@ -174,10 +175,10 @@ export default function PublishDialog(props: Props) {
               }`}
             >
               <Send className="inline h-3.5 w-3.5 mr-1.5" />
-              Direkt till CMS
+              {t.publishDialog.tabCms}
               {noCms && (
                 <span className="ml-2 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
-                  ej anslutet
+                  {t.publishDialog.notConnected}
                 </span>
               )}
             </button>
@@ -190,7 +191,7 @@ export default function PublishDialog(props: Props) {
               }`}
             >
               <Mail className="inline h-3.5 w-3.5 mr-1.5" />
-              Skicka via mail
+              {t.publishDialog.tabMail}
             </button>
           </div>
 
@@ -254,6 +255,7 @@ function CmsForm(props: {
   result: { url?: string; scheduled?: boolean; mailed?: boolean } | null;
   onPublish: () => void;
 }) {
+  const { t } = useLanguage();
   const {
     destinations, destinationId, setDestinationId,
     excerpt, setExcerpt, tagInput, setTagInput,
@@ -264,12 +266,13 @@ function CmsForm(props: {
   if (destinations.length === 0) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-        Inget CMS anslutet ännu. Öppna{" "}
+        {t.publishDialog.noCmsMsg}{" "}
         <Link className="font-medium underline" href="/c/settings/integrations">
-          Integrationer
+          {t.publishDialog.noCmsIntegrations}
         </Link>{" "}
-        för att lägga till WordPress, Webflow, Ghost eller en webhook — eller välj fliken{" "}
-        <strong>Skicka via mail</strong> ovan för att skicka utkastet till någon som publicerar.
+        {t.publishDialog.noCmsSuffix}{" "}
+        <strong>{t.publishDialog.noCmsMailTab}</strong>{" "}
+        {t.publishDialog.noCmsFinal}
       </div>
     );
   }
@@ -277,7 +280,7 @@ function CmsForm(props: {
   return (
     <>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Destination</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.destination}</label>
         <select
           value={destinationId}
           onChange={(e) => setDestinationId(e.target.value)}
@@ -292,7 +295,7 @@ function CmsForm(props: {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Ingress</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.excerpt}</label>
         <textarea
           value={excerpt}
           onChange={(e) => setExcerpt(e.target.value)}
@@ -302,7 +305,7 @@ function CmsForm(props: {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Taggar (komma-separerade)</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.tags}</label>
         <input
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
@@ -319,7 +322,7 @@ function CmsForm(props: {
             onChange={(e) => setScheduleEnabled(e.target.checked)}
           />
           <Calendar className="h-4 w-4 text-slate-500" />
-          Schemalägg
+          {t.publishDialog.schedule}
         </label>
         {scheduleEnabled && (
           <input
@@ -338,20 +341,20 @@ function CmsForm(props: {
       )}
       {result?.scheduled && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          <CheckCircle className="h-4 w-4" /> Schemalagt — publiceras vid vald tid.
+          <CheckCircle className="h-4 w-4" /> {t.publishDialog.scheduledMsg}
         </div>
       )}
       {result?.url && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
           <CheckCircle className="h-4 w-4" />
-          Publicerat!
+          {t.publishDialog.published}
           <a
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
             className="ml-auto inline-flex items-center gap-1 underline"
           >
-            Öppna <ExternalLink className="h-3 w-3" />
+            {t.publishDialog.open} <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       )}
@@ -363,7 +366,7 @@ function CmsForm(props: {
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
         >
           {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {scheduleEnabled ? "Schemalägg" : "Publicera nu"}
+          {scheduleEnabled ? t.publishDialog.scheduleBtn : t.publishDialog.publishNow}
         </button>
       )}
     </>
@@ -381,17 +384,17 @@ function MailForm(props: {
   result: { url?: string; scheduled?: boolean; mailed?: boolean } | null;
   onSend: () => void;
 }) {
+  const { t } = useLanguage();
   const { mailTo, setMailTo, mailSubject, setMailSubject, mailNote, setMailNote, error, result, onSend } = props;
 
   return (
     <>
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
-        Skickar utkastet till mottagaren via ditt mail-program. Innehållet klistras in
-        nedanför ditt följebrev så att hen kan publicera direkt.
+        {t.publishDialog.mailDesc}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Till</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.to}</label>
         <input
           type="email"
           value={mailTo}
@@ -400,12 +403,12 @@ function MailForm(props: {
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <p className="mt-1 text-[11px] text-slate-400">
-          Standardmottagare kan sparas under Inställningar → Konto.
+          {t.publishDialog.mailRecipientHint}
         </p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Ämnesrad</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.subject}</label>
         <input
           value={mailSubject}
           onChange={(e) => setMailSubject(e.target.value)}
@@ -414,7 +417,7 @@ function MailForm(props: {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Följebrev</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{t.publishDialog.coverLetter}</label>
         <textarea
           value={mailNote}
           onChange={(e) => setMailNote(e.target.value)}
@@ -431,7 +434,7 @@ function MailForm(props: {
 
       {result?.mailed && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          <CheckCircle className="h-4 w-4" /> Mail-program öppnat — granska och skicka iväg från ditt vanliga klient.
+          <CheckCircle className="h-4 w-4" /> {t.publishDialog.mailedMsg}
         </div>
       )}
 
@@ -441,7 +444,7 @@ function MailForm(props: {
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
       >
         <Mail className="h-4 w-4" />
-        Öppna i mail
+        {t.publishDialog.openMail}
       </button>
     </>
   );
