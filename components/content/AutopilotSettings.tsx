@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plane, Save, Clock, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { Plane, Save, Clock, ChevronDown, ChevronUp, Info, AlertCircle } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 
 interface AutopilotConfig {
@@ -32,24 +32,32 @@ interface Props {
  * Loads/saves ``user_settings.settings.content_autopilot`` via the existing
  * /api/settings endpoints. The agent's scheduler picks this up weekly to
  * run analyze → generate ideas → draft top-N → queue for approval (or
- * auto-publish if explicitly enabled). Default is fully off so existing
- * behaviour is unchanged for tenants that don't opt in.
+ * auto-publish if explicitly enabled).
+ *
+ * Always renders, even when the dashboard isn't authenticated against
+ * Supabase — falls back to user_id='default' so the admin/dev shell can
+ * still configure the home brand's autopilot. When auth is configured,
+ * we use the logged-in user's id.
  */
 export default function AutopilotSettings({ apiUrl }: Props) {
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, isSupabaseConfigured } = useUser();
+  const userId = user?.id || "default";
+  const isAnonymous = !user;
+
   const [cfg, setCfg] = useState<AutopilotConfig>(DEFAULT);
   const [saved, setSaved] = useState<AutopilotConfig>(DEFAULT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
 
+  // Wait for the auth check to settle before fetching, but always render.
   useEffect(() => {
     if (userLoading) return;
-    if (!user) { setLoading(false); return; }
     (async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/settings/${user.id}`);
+        const res = await fetch(`${apiUrl}/api/settings/${userId}`);
         if (res.ok) {
           const data = await res.json();
           const ap = (data.settings || {}).content_autopilot;
@@ -65,27 +73,29 @@ export default function AutopilotSettings({ apiUrl }: Props) {
         setLoading(false);
       }
     })();
-  }, [user, userLoading, apiUrl]);
+  }, [userId, userLoading, apiUrl]);
 
   const dirty = JSON.stringify(cfg) !== JSON.stringify(saved);
 
   const handleSave = async () => {
-    if (!user) return;
     setSaving(true);
     setError(null);
+    setOkMsg(null);
     try {
       // Read-modify-write so we don't clobber the rest of the user_settings.
-      const get = await fetch(`${apiUrl}/api/settings/${user.id}`);
+      const get = await fetch(`${apiUrl}/api/settings/${userId}`);
       const existing = get.ok ? (await get.json()).settings || {} : {};
       const merged = { ...existing, content_autopilot: cfg };
       const res = await fetch(`${apiUrl}/api/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, settings: merged }),
+        body: JSON.stringify({ user_id: userId, settings: merged }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Save failed");
       setSaved(cfg);
+      setOkMsg("Settings saved");
+      setTimeout(() => setOkMsg(null), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -93,8 +103,17 @@ export default function AutopilotSettings({ apiUrl }: Props) {
     }
   };
 
-  if (userLoading || loading) return null;
-  if (!user) return null;
+  // While the auth check is in flight, render a placeholder so the slot
+  // doesn't shift later. Avoid blank-rendering the panel.
+  if (userLoading || loading) {
+    return (
+      <div className="mb-4 rounded-lg border bg-white shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3 text-sm text-slate-400">
+          <Plane className="h-4 w-4" /> Loading auto-pilot settings...
+        </div>
+      </div>
+    );
+  }
 
   const modeLabel =
     !cfg.enabled ? "Off" :
@@ -130,16 +149,25 @@ export default function AutopilotSettings({ apiUrl }: Props) {
 
       {expanded && (
         <div className="space-y-4 border-t border-slate-100 px-5 py-4">
+          {isAnonymous && isSupabaseConfigured && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex gap-2">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Not signed in — settings will save under <code className="font-mono">default</code>.
+                Sign in via /c/login to scope auto-pilot to your tenant.
+              </span>
+            </div>
+          )}
+
           <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 flex gap-2">
             <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
             <span>
-              Auto-pilot runs <span className="font-medium">{cfg.cadence}</span>: it analyses your content, fills the plan with new ideas,
+              Auto-pilot runs <span className="font-medium">{cfg.cadence}</span>: analyses content, fills the plan with new ideas,
               drafts the top {cfg.auto_draft_top_n}, and {cfg.auto_publish ? "publishes drafts that score ≥ " + cfg.min_score_for_publish : "queues them for your approval"}.
-              You can keep clicking Analyze and Generate manually too — the cron is just a safety net.
+              You can also schedule specific articles in the Calendar — those run on the day you pick.
             </span>
           </div>
 
-          {/* Master toggle */}
           <label className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">Enable auto-pilot</span>
             <button
@@ -209,9 +237,10 @@ export default function AutopilotSettings({ apiUrl }: Props) {
           </fieldset>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
+          {okMsg && <p className="text-xs text-green-700">{okMsg}</p>}
 
           <div className="flex items-center justify-end gap-2">
-            {!dirty && <span className="text-xs text-slate-400">Saved</span>}
+            {!dirty && !okMsg && <span className="text-xs text-slate-400">Saved</span>}
             <button
               onClick={handleSave}
               disabled={saving || !dirty}

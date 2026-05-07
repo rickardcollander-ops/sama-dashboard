@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Sparkles, Clock, ArrowRight, Plus, Trash2, FileText, MessageSquare, Mail, BarChart3, Lightbulb, RefreshCw,
-  Wand2, Search, Crosshair, UserSquare2,
+  Wand2, Search, Crosshair, UserSquare2, Calendar,
 } from "lucide-react";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -22,6 +23,8 @@ export interface PlanItem {
   status: string;
   source: string;
   content_piece_id: string | null;
+  scheduled_for?: string | null;
+  auto_publish_on_schedule?: boolean;
   metadata?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
@@ -61,7 +64,6 @@ function typeIcon(t: string) {
 }
 
 interface Props {
-  /** Override the API base if the parent already resolved one. */
   apiUrl?: string;
 }
 
@@ -92,8 +94,6 @@ export default function ContentPlanTab({ apiUrl }: Props) {
 
   useEffect(() => { fetchItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  // Counts for the source filter chips — visible at a glance so the user
-  // doesn't have to filter just to see "do I have any analysis gaps?"
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = { all: items.length, manual: 0, ai_generated: 0, analysis_gap: 0, competitor_gap: 0 };
     for (const it of items) {
@@ -102,6 +102,10 @@ export default function ContentPlanTab({ apiUrl }: Props) {
     }
     return counts;
   }, [items]);
+
+  const scheduledCount = useMemo(() =>
+    items.filter(i => i.scheduled_for && i.status !== "published").length
+  , [items]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -193,10 +197,21 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           <div>
             <h3 className="text-lg font-semibold text-slate-900">What to write next</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article.
+              Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article, or use the calendar to schedule the publish date.
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/content-calendar"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Open the content calendar"
+            >
+              <Calendar className="h-4 w-4 text-blue-600" />
+              <span className="hidden sm:inline">Calendar</span>
+              {scheduledCount > 0 && (
+                <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">{scheduledCount}</span>
+              )}
+            </Link>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -234,7 +249,6 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           </div>
         </div>
 
-        {/* Source filter chips */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-3">
           <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Source</span>
           <SourceChip value="all" label="All" />
@@ -259,7 +273,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
               </h3>
               <p className="mt-2 text-sm text-slate-500">
                 {items.length === 0 ? (
-                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or click <span className="font-medium">Analyze</span> in the page header to surface gaps from your existing content.</>
+                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or <Link href="/content-calendar" className="font-medium text-blue-600 hover:underline">open the calendar</Link> and schedule articles directly on a day.</>
                 ) : (
                   <>Try clearing the filters above.</>
                 )}
@@ -299,6 +313,13 @@ export default function ContentPlanTab({ apiUrl }: Props) {
                       </span>
                       {item.pillar && (
                         <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] text-indigo-700">{item.pillar}</span>
+                      )}
+                      {item.scheduled_for && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700">
+                          <Calendar className="h-2.5 w-2.5" />
+                          {new Date(item.scheduled_for).toLocaleDateString()}
+                          {item.auto_publish_on_schedule ? " · auto-publish" : ""}
+                        </span>
                       )}
                     </div>
                     {item.topic && <p className="mt-1 text-sm text-slate-600 line-clamp-2">{item.topic}</p>}
