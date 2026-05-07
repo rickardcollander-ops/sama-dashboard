@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import LayoutShell from "@/components/LayoutShell";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/hooks/useLanguage";
 
@@ -19,7 +18,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <LanguageProvider>
           <ToastProvider>
-            <LayoutShell>{children}</LayoutShell>
+            {children}
           </ToastProvider>
         </LanguageProvider>
       </body>
