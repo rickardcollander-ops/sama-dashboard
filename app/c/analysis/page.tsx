@@ -57,6 +57,22 @@ async function persistAnalysisRun(run: AnalysisRun, tenantId: string): Promise<v
   }
 }
 
+async function persistSiteAuditRun(run: SiteAuditRun, tenantId: string): Promise<void> {
+  if (!run || run.status !== "completed") return;
+  try {
+    await fetch("/api/site-audit/runs/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": tenantId,
+      },
+      body: JSON.stringify(run),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 async function pollAnalysisRun(tenantId: string, runId: string): Promise<AnalysisRun & { error?: string } | null> {
   const start = Date.now();
   while (Date.now() - start < 15 * 60 * 1000) {
@@ -205,7 +221,10 @@ export default function AnalysisPage() {
             });
             if (full.ok) {
               const run = await full.json();
-              if (run?.status === "completed") setAuditRun(run);
+              if (run?.status === "completed") {
+                setAuditRun(run);
+                void persistSiteAuditRun(run, effectiveTenantId);
+              }
             }
           }
         }
@@ -321,7 +340,10 @@ export default function AnalysisPage() {
           });
           polls.push(
             pollSiteAuditRun(effectiveTenantId, auditId).then((r) => {
-              if (r?.status === "completed") setAuditRun(r);
+              if (r?.status === "completed") {
+                setAuditRun(r);
+                void persistSiteAuditRun(r, effectiveTenantId);
+              }
             })
           );
         }
@@ -435,17 +457,37 @@ export default function AnalysisPage() {
           <div className="mb-8 space-y-6">
             <CombinedHistory
               tenantId={effectiveTenantId}
-              onOpenVisibility={(id) => {
-                fetch(`/api/analysis/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } })
-                  .then((r) => r.json())
-                  .then((d) => { if (d?.status === "completed") { setVisibilityRun(d); setShowHistory(false); } })
-                  .catch(() => {});
+              onOpenVisibility={async (id) => {
+                setError("");
+                try {
+                  const res = await fetch(`/api/analysis/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } });
+                  const d = await res.json().catch(() => ({}));
+                  if (res.ok && d?.status === "completed") {
+                    setVisibilityRun(d);
+                    setShowHistory(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  } else {
+                    setError(d?.error || "Kunde inte ladda analysen. Backend kan vara otillgänglig — försök igen om en stund.");
+                  }
+                } catch {
+                  setError("Kunde inte ladda analysen. Kontrollera din anslutning och försök igen.");
+                }
               }}
-              onOpenAudit={(id) => {
-                fetch(`/api/site-audit/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } })
-                  .then((r) => r.json())
-                  .then((d) => { if (d?.status === "completed") { setAuditRun(d); setShowHistory(false); } })
-                  .catch(() => {});
+              onOpenAudit={async (id) => {
+                setError("");
+                try {
+                  const res = await fetch(`/api/site-audit/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } });
+                  const d = await res.json().catch(() => ({}));
+                  if (res.ok && d?.status === "completed") {
+                    setAuditRun(d);
+                    setShowHistory(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  } else {
+                    setError(d?.error || "Kunde inte ladda sajtgenomgången. Backend kan vara otillgänglig — försök igen om en stund.");
+                  }
+                } catch {
+                  setError("Kunde inte ladda sajtgenomgången. Kontrollera din anslutning och försök igen.");
+                }
               }}
             />
           </div>
