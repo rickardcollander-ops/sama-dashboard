@@ -86,7 +86,6 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   content: [
     { href: "/c/content", labelKey: "overview", exact: true },
     { href: "/c/content/plan", labelKey: "plan" },
-    { href: "/c/content/calendar", labelKey: "calendar" },
   ],
   settings: [
     { href: "/c/settings", labelKey: "account", exact: true },

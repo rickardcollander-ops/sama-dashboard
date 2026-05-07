@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, ArrowRight, AlertCircle, X,
-  PenTool, Check, Bot, Zap, Code2, Calendar as CalendarIcon, Sparkles,
+  PenTool, Check, Bot, Zap, Code2, Sparkles,
   ChevronDown, ChevronUp, TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
@@ -485,7 +485,6 @@ export default function CustomerDashboard() {
             <div className="space-y-2">
               {[
                 { href: "/c/content",          icon: PenTool,      color: "text-purple-600", label: t.dashboard.createContent },
-                { href: "/c/content/calendar", icon: CalendarIcon, color: "text-indigo-600", label: t.dashboard.viewCalendar },
                 { href: "/c/tech",             icon: Code2,        color: "text-slate-700",  label: t.dashboard.techActions },
                 { href: "/c/analysis",         icon: Sparkles,     color: "text-blue-600",  label: t.dashboard.viewVisibility },
                 { href: "/c/settings",         icon: Bot,          color: "text-slate-600", label: t.dashboard.openSettings },
