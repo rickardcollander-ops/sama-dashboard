@@ -194,20 +194,23 @@ export function suggestQueries(input: {
   brand_description?: string;
   unique_selling_points?: string;
   target_audience?: string;
+  category?: string;
 }): string[] {
-  const seed = input.brand_name || "your brand";
-  // Deterministic placeholder list — real implementation uses an LLM with the
-  // brand's USP and audience to produce buyer-intent queries.
+  // These queries are sent to AI assistants to measure unbiased visibility,
+  // so they must NOT contain the brand name or domain — otherwise the AI sees
+  // the brand in the prompt and the result is biased.
+  const audience = input.target_audience || "B2B teams";
+  const category = input.category || "tools in this category";
   return [
-    `What is the best ${seed} alternative?`,
-    `${seed} vs competitors`,
-    `How does ${seed} compare to other tools in the market?`,
-    `Top tools for ${input.target_audience || "B2B teams"}`,
-    `Is ${seed} worth it?`,
-    `${seed} pricing and plans`,
-    `${seed} reviews and ratings`,
-    `Best alternatives to ${seed}`,
-    `${seed} use cases`,
-    `Why choose ${seed}?`,
+    `Best ${category} for ${audience}`,
+    `Top ${category} for ${audience} in 2025`,
+    `How to choose ${category}`,
+    `${category} pricing benchmarks`,
+    `${category} reviews and ratings`,
+    `Most popular ${category}`,
+    `What should I look for when buying ${category}?`,
+    `${category} use cases for ${audience}`,
+    `Leading vendors in ${category}`,
+    `Recommended ${category} for growing teams`,
   ];
 }
