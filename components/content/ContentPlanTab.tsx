@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles, Clock, ArrowRight, Plus, Trash2, FileText, MessageSquare, Mail, BarChart3, Lightbulb, RefreshCw,
+  Wand2, Search, Crosshair, UserSquare2,
 } from "lucide-react";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -19,6 +20,7 @@ export interface PlanItem {
   reason: string;
   priority: string;
   status: string;
+  source: string;
   content_piece_id: string | null;
   metadata?: Record<string, unknown>;
   created_at?: string;
@@ -39,6 +41,16 @@ const STATUS_BADGE: Record<string, string> = {
   published: "bg-green-100 text-green-700",
   archived: "bg-slate-100 text-slate-400",
 };
+
+interface SourceMeta { label: string; cls: string; icon: React.ReactNode }
+const SOURCE_META: Record<string, SourceMeta> = {
+  manual:         { label: "Manual",      cls: "bg-slate-100 text-slate-600",     icon: <UserSquare2 className="h-3 w-3" /> },
+  ai_generated:   { label: "AI",          cls: "bg-purple-100 text-purple-700",   icon: <Wand2 className="h-3 w-3" /> },
+  analysis_gap:   { label: "Gap",         cls: "bg-amber-100 text-amber-700",     icon: <Search className="h-3 w-3" /> },
+  competitor_gap: { label: "Competitor",  cls: "bg-rose-100 text-rose-700",       icon: <Crosshair className="h-3 w-3" /> },
+};
+
+type SourceFilter = "all" | "ai_generated" | "analysis_gap" | "competitor_gap" | "manual";
 
 function typeIcon(t: string) {
   if (t === "blog_article" || t === "blog_post") return <FileText className="h-4 w-4 text-blue-600" />;
@@ -62,7 +74,8 @@ export default function ContentPlanTab({ apiUrl }: Props) {
   const [drafting, setDrafting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState(6);
-  const [filter, setFilter] = useState<"all" | "idea" | "draft" | "published">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "idea" | "draft" | "published">("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   const fetchItems = async () => {
     try {
@@ -79,6 +92,17 @@ export default function ContentPlanTab({ apiUrl }: Props) {
 
   useEffect(() => { fetchItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // Counts for the source filter chips — visible at a glance so the user
+  // doesn't have to filter just to see "do I have any analysis gaps?"
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: items.length, manual: 0, ai_generated: 0, analysis_gap: 0, competitor_gap: 0 };
+    for (const it of items) {
+      const s = it.source || "manual";
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return counts;
+  }, [items]);
+
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
@@ -90,9 +114,12 @@ export default function ContentPlanTab({ apiUrl }: Props) {
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to generate ideas");
-      // Prepend the new items so the user sees them immediately.
       const fresh: PlanItem[] = Array.isArray(data.items) ? data.items : [];
       setItems(prev => [...fresh, ...prev]);
+      if (data.skipped) {
+        setError(`${fresh.length} ideas added (${data.skipped} duplicates skipped)`);
+        setTimeout(() => setError(null), 4000);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate ideas");
     } finally {
@@ -101,12 +128,10 @@ export default function ContentPlanTab({ apiUrl }: Props) {
   };
 
   const handleClick = async (item: PlanItem) => {
-    // Already drafted → open the editor.
     if (item.content_piece_id) {
       router.push(`/content/${item.content_piece_id}`);
       return;
     }
-    // Not yet drafted → materialise into a content piece, then navigate.
     setDrafting(item.id);
     setError(null);
     try {
@@ -115,7 +140,6 @@ export default function ContentPlanTab({ apiUrl }: Props) {
       if (!data.success) throw new Error(data.error || "Failed to draft article");
       const pieceId = data.content_piece_id;
       if (!pieceId) throw new Error("Backend did not return a content_piece_id");
-      // Reflect in local state so badges update without a re-fetch.
       setItems(prev => prev.map(p => p.id === item.id ? { ...p, status: "draft", content_piece_id: pieceId } : p));
       router.push(`/content/${pieceId}`);
     } catch (e) {
@@ -132,29 +156,53 @@ export default function ContentPlanTab({ apiUrl }: Props) {
       await fetch(`${base}/api/content/plan/${item.id}`, { method: "DELETE" });
       setItems(prev => prev.filter(p => p.id !== item.id));
     } catch {
-      // Best-effort — failure is non-fatal, the user can retry.
+      /* best-effort */
     }
   };
 
-  const filtered = items.filter(it => filter === "all" || it.status === filter);
+  const filtered = items.filter(it => {
+    if (statusFilter !== "all" && it.status !== statusFilter) return false;
+    if (sourceFilter !== "all" && (it.source || "manual") !== sourceFilter) return false;
+    return true;
+  });
+
+  const SourceChip = ({ value, label }: { value: SourceFilter; label: string }) => {
+    const active = sourceFilter === value;
+    const meta = value === "all" ? null : SOURCE_META[value];
+    const count = sourceCounts[value] ?? 0;
+    return (
+      <button
+        onClick={() => setSourceFilter(value)}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+          active
+            ? "border-blue-500 bg-blue-50 text-blue-700"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        {meta?.icon}
+        {label}
+        <span className={`rounded-full px-1.5 py-0 text-[10px] ${active ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>{count}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Content Plan</h3>
+            <h3 className="text-lg font-semibold text-slate-900">What to write next</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Persistent backlog of content ideas. Click any card to draft it into a full article you can edit with AI.
+              Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <select
-              value={filter}
-              onChange={e => setFilter(e.target.value as typeof filter)}
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
             >
-              <option value="all">All ({items.length})</option>
+              <option value="all">All statuses</option>
               <option value="idea">Ideas</option>
               <option value="draft">Drafts</option>
               <option value="published">Published</option>
@@ -186,8 +234,18 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           </div>
         </div>
 
+        {/* Source filter chips */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-3">
+          <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Source</span>
+          <SourceChip value="all" label="All" />
+          <SourceChip value="ai_generated" label="AI" />
+          <SourceChip value="analysis_gap" label="Gap" />
+          <SourceChip value="competitor_gap" label="Competitor" />
+          <SourceChip value="manual" label="Manual" />
+        </div>
+
         {error && (
-          <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</div>
+          <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">{error}</div>
         )}
 
         <div className="divide-y">
@@ -196,15 +254,22 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
               <Lightbulb className="mx-auto h-12 w-12 text-slate-300" />
-              <h3 className="mt-4 text-lg font-semibold text-slate-900">No ideas yet</h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900">
+                {items.length === 0 ? "No ideas yet" : "Nothing matches that filter"}
+              </h3>
               <p className="mt-2 text-sm text-slate-500">
-                Click <span className="font-medium">Generate ideas</span> to populate the plan with AI-suggested topics tailored to your brand.
+                {items.length === 0 ? (
+                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or click <span className="font-medium">Analyze</span> in the page header to surface gaps from your existing content.</>
+                ) : (
+                  <>Try clearing the filters above.</>
+                )}
               </p>
             </div>
           ) : (
             filtered.map(item => {
               const isDrafting = drafting === item.id;
               const opensEditor = !!item.content_piece_id;
+              const sourceMeta = SOURCE_META[item.source || "manual"] || SOURCE_META.manual;
               return (
                 <div
                   key={item.id}
@@ -220,6 +285,9 @@ export default function ContentPlanTab({ apiUrl }: Props) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="truncate font-medium text-slate-900">{item.title}</h4>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${sourceMeta.cls}`}>
+                        {sourceMeta.icon}{sourceMeta.label}
+                      </span>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${PRIORITY_BADGE[item.priority] || PRIORITY_BADGE.medium}`}>
                         {item.priority}
                       </span>
