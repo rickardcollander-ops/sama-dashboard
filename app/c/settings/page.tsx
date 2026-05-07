@@ -159,7 +159,6 @@ function CustomerSettingsPageInner() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [newCompetitor, setNewCompetitor] = useState("");
-  const [newQuery, setNewQuery] = useState("");
   const [expandedAdPlatform, setExpandedAdPlatform] = useState<string | null>(null);
   const [googleStatus, setGoogleStatus] = useState<GoogleServiceStatus>({ search_console: false, analytics: false, ads: false });
   const [googleEmails, setGoogleEmails] = useState<GoogleAccountEmails>({});
@@ -431,12 +430,6 @@ function CustomerSettingsPageInner() {
   };
   const removeCompetitor = (c: string) => setSettings((prev) => ({ ...prev, competitors: prev.competitors.filter((x) => x !== c) }));
 
-  const addQuery = () => {
-    const q = newQuery.trim().replace(/^["''"]+|["''"]+$/g, "");
-    if (q && !settings.geo_queries.includes(q)) { setSettings((prev) => ({ ...prev, geo_queries: [...prev.geo_queries, q] })); setNewQuery(""); }
-  };
-  const removeQuery = (q: string) => setSettings((prev) => ({ ...prev, geo_queries: prev.geo_queries.filter((x) => x !== q) }));
-
   const togglePlatform = (p: string) => setSettings((prev) => ({ ...prev, geo_platforms: prev.geo_platforms.includes(p) ? prev.geo_platforms.filter((x) => x !== p) : [...prev.geo_platforms, p] }));
 
   if (loading) {
@@ -682,23 +675,6 @@ function CustomerSettingsPageInner() {
           {/* ── Team members ── */}
           <Section icon={Users} title={t.settings.teamTitle} desc="Bjud in kollegor till kontot — de får tillgång till samma sidor, integrationer och rapporter.">
             <TeamManagementPanel compact />
-          </Section>
-
-          {/* ── GEO Queries ── */}
-          <Section icon={Search} title={t.settings.geoQueriesTitle} desc={t.settings.geoQueriesDesc}>
-            <div className="flex gap-2 mb-3">
-              <input type="text" value={newQuery} onChange={(e) => setNewQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addQuery())} placeholder={t.settings.geoQueryPlaceholder} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              <button onClick={addQuery} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors"><Plus className="h-4 w-4" /></button>
-            </div>
-            <div className="space-y-2">
-              {settings.geo_queries.length === 0 && <p className="text-sm text-slate-400">{t.settings.noQueries}</p>}
-              {settings.geo_queries.map((q) => (
-                <div key={q} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2">
-                  <span className="text-sm text-slate-700">&ldquo;{q}&rdquo;</span>
-                  <button onClick={() => removeQuery(q)} className="text-slate-400 hover:text-red-600"><X className="h-4 w-4" /></button>
-                </div>
-              ))}
-            </div>
           </Section>
 
           {/* ── AI Platforms ── */}

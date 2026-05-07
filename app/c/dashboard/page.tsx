@@ -279,7 +279,7 @@ export default function CustomerDashboard() {
     () => [
       { id: "brand", label: t.dashboard.checkBrand, description: t.dashboard.checkBrandDesc, done: !!(settings.brand_name && settings.domain), href: "/c/settings", cta: t.dashboard.checkBrandCta },
       { id: "competitors", label: t.dashboard.checkCompetitors, description: t.dashboard.checkCompetitorsDesc, done: (settings.competitors?.length ?? 0) >= 2, href: "/c/settings", cta: t.dashboard.checkCompetitorsCta },
-      { id: "geo_queries", label: t.dashboard.checkGeoQueries, description: t.dashboard.checkGeoQueriesDesc, done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/settings", cta: t.dashboard.checkGeoQueriesCta },
+      { id: "geo_queries", label: t.dashboard.checkGeoQueries, description: t.dashboard.checkGeoQueriesDesc, done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/geo", cta: t.dashboard.checkGeoQueriesCta },
       { id: "first_check", label: t.dashboard.checkFirstCheck, description: t.dashboard.checkFirstCheckDesc, done: (geoSummary?.total_checks ?? 0) > 0, href: "/c/geo", cta: t.dashboard.checkFirstCheckCta },
       { id: "first_keyword", label: t.dashboard.checkFirstKeyword, description: t.dashboard.checkFirstKeywordDesc, done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: t.dashboard.checkFirstKeywordCta },
       { id: "first_content", label: t.dashboard.checkFirstContent, description: t.dashboard.checkFirstContentDesc, done: anyContentEver, href: "/c/content", cta: t.dashboard.checkFirstContentCta },
