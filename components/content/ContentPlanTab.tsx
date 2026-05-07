@@ -202,7 +202,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/content-calendar"
+              href="/c/content/plan"
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               title="Open the content calendar"
             >
@@ -273,7 +273,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
               </h3>
               <p className="mt-2 text-sm text-slate-500">
                 {items.length === 0 ? (
-                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or <Link href="/content-calendar" className="font-medium text-blue-600 hover:underline">open the calendar</Link> and schedule articles directly on a day.</>
+                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or <Link href="/c/content/plan" className="font-medium text-blue-600 hover:underline">open the calendar</Link> and schedule articles directly on a day.</>
                 ) : (
                   <>Try clearing the filters above.</>
                 )}
