@@ -352,72 +352,59 @@ export default function CustomerSeoPage() {
           </div>
         )}
 
-        {/* Add Keyword + AI Suggestions */}
-        <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-          <h2 className="font-semibold text-slate-900 mb-4">{t.seo.addKeyword}</h2>
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={newKeyword}
-              onChange={(e) => setNewKeyword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-              placeholder={t.seo.keywordPlaceholder}
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-              onClick={addKeyword}
-              disabled={addingKeyword || !newKeyword.trim()}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
-            >
-              {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {t.seo.addKeyword}
-            </button>
-            <button
-              onClick={suggestKeywords}
-              disabled={suggestingKeywords}
-              className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
-            >
-              {suggestingKeywords ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              AI Suggestions
-            </button>
-          </div>
-
-          {/* AI Suggestions */}
-          {suggestions.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase mb-2">{t.seo.suggestedKeywords}</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => addSuggestion(s)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                  >
-                    <Plus className="h-3 w-3" />
-                    {s}
-                  </button>
-                ))}
-              </div>
+        {/* Add Keyword + AI Recommendations panel side by side */}
+        <div className="mb-8 grid gap-4 lg:grid-cols-2 items-start">
+          {/* Add Keyword + AI Suggestions */}
+          <div className="rounded-xl border bg-white p-6 shadow-sm">
+            <h2 className="font-semibold text-slate-900 mb-4">{t.seo.addKeyword}</h2>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <input
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+                placeholder={t.seo.keywordPlaceholder}
+                className="flex-1 min-w-[12rem] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                onClick={addKeyword}
+                disabled={addingKeyword || !newKeyword.trim()}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
+              >
+                {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {t.seo.addKeyword}
+              </button>
+              <button
+                onClick={suggestKeywords}
+                disabled={suggestingKeywords}
+                className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors"
+              >
+                {suggestingKeywords ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                AI Suggestions
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Google data diagnostics */}
-        {user && (
-          <div className="mb-8">
-            <GoogleDataDiagnostics
-              service="search_console"
-              tenantId={effectiveTenantId}
-              agentName="seo"
-              trackedCount={keywords.length}
-              onSynced={fetchKeywords}
-              showImportFromGsc
-            />
+            {/* AI Suggestions */}
+            {suggestions.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase mb-2">{t.seo.suggestedKeywords}</p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => addSuggestion(s)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* AI Recommendations panel */}
-        <div className="mb-8">
+          {/* AI Recommendations panel */}
           <KeywordGeoRecommendations
             existingKeywords={keywords.map((k) => k.keyword)}
             sections={["keywords", "long_tail_phrases"]}
@@ -601,6 +588,20 @@ export default function CustomerSeoPage() {
             </div>
           )}
         </div>
+
+        {/* Google data diagnostics */}
+        {user && (
+          <div className="mt-8">
+            <GoogleDataDiagnostics
+              service="search_console"
+              tenantId={effectiveTenantId}
+              agentName="seo"
+              trackedCount={keywords.length}
+              onSynced={fetchKeywords}
+              showImportFromGsc
+            />
+          </div>
+        )}
       </main>
     </div>
   );
