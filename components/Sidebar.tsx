@@ -7,7 +7,8 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign, Code2,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle, UserPlus
+  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle, UserPlus,
+  Bell
 } from "lucide-react";
 
 interface NavItem {
@@ -43,6 +44,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/approvals", label: "Approvals", desc: "Review pending changes", icon: Shield, group: "ops" },
   { href: "/system-health", label: "System Health", desc: "Dev agent diagnostics", icon: HeartPulse, group: "ops" },
   { href: "/logs", label: "Activity Logs", desc: "Agent execution history", icon: ClipboardList, group: "ops" },
+
+  { href: "/settings/notifications", label: "Notifications", desc: "Weekly email & alerts", icon: Bell, group: "settings" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -50,11 +53,12 @@ const GROUP_LABELS: Record<string, string> = {
   agents: "Agents",
   insights: "Insights",
   ops: "Operations",
+  settings: "Settings",
 };
 
 function NavContent({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
-  const groups = ["main", "agents", "insights", "ops"];
+  const groups = ["main", "agents", "insights", "ops", "settings"];
 
   return (
     <nav className="flex-1 overflow-y-auto py-2 px-2">
