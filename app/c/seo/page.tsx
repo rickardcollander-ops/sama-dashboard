@@ -102,10 +102,7 @@ export default function CustomerSeoPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/seo/keywords", {
-        method: "GET",
-        headers: samaHeaders(),
-      });
+      const res = await fetch("/api/seo/keywords", { method: "GET", headers: samaHeaders() });
       if (!res.ok) throw new Error(`GET /api/seo/keywords: ${res.status}`);
       const data = (await res.json()) as { keywords?: Keyword[] };
       const kws = data.keywords || [];

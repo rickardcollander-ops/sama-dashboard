@@ -5,9 +5,11 @@ import {
   Sparkles, Loader2, RefreshCw, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
   History as HistoryIcon, Search, Globe, Lock, ChevronDown, ChevronUp,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
+import CreateContentPlanModal from "@/components/CreateContentPlanModal";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -133,12 +135,15 @@ export default function AnalysisPage() {
   const [error, setError] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [planToast, setPlanToast] = useState<string | null>(null);
 
   // Clear results when workspace changes so old site's data isn't shown
   useEffect(() => {
     setVisibilityRun(null);
     setAuditRun(null);
     setInitialLoading(true);
+    setPlanToast(null);
   }, [effectiveTenantId]);
 
   // Load brand settings + latest results
@@ -240,8 +245,6 @@ export default function AnalysisPage() {
         fetch("/api/site-audit/run", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
-          // 200 covers a typical SMB sitemap end-to-end; the backend caps
-          // sitemap discovery at SITEMAP_DISCOVERY_CAP and the API at 500.
           body: JSON.stringify({ domain: brand.domain, max_pages: 200 }),
         }),
       ]);
@@ -269,8 +272,6 @@ export default function AnalysisPage() {
         const aData = await auditRes.value.json().catch(() => ({}));
         const auditId = (aData as { id?: string }).id;
         if (auditId) {
-          // Register with the running-jobs widget so the user can navigate
-          // away and still see progress in the bottom-right corner.
           registerRun("site_audit", auditId, {
             label: brand.domain ? `Sajtanalys · ${brand.domain}` : "Sajtanalys",
           });
@@ -306,6 +307,12 @@ export default function AnalysisPage() {
 
   const noDomain = !brand.domain;
   const hasResults = !!(visibilityRun || auditRun);
+  // Skapa content-plan-knappen kräver en färdig analyserad körning + tenant
+  const canCreatePlan =
+    !!visibilityRun?.id &&
+    visibilityRun.status === "completed" &&
+    !!effectiveTenantId &&
+    effectiveTenantId !== "default";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -331,7 +338,7 @@ export default function AnalysisPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setShowHistory((v) => !v)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
@@ -339,6 +346,19 @@ export default function AnalysisPage() {
               <HistoryIcon className="h-4 w-4" />
               {t.insights.historyBtn}
               {showHistory ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              onClick={() => setShowPlanModal(true)}
+              disabled={!canCreatePlan}
+              title={
+                !canCreatePlan
+                  ? "Kör en analys först för att kunna skapa en plan från den"
+                  : "Skapa en 90-dagars content-plan baserat på analysens gap"
+              }
+              className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Skapa content-plan
             </button>
             <button
               onClick={handleRun}
@@ -358,6 +378,26 @@ export default function AnalysisPage() {
         {error && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
             <AlertTriangle className="h-4 w-4" /> {error}
+          </div>
+        )}
+
+        {planToast && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="font-medium">Content-plan skapas i bakgrunden</div>
+              <div className="mt-0.5 text-xs opacity-80">{planToast}</div>
+              <a href="/c/content/plan" className="mt-1 inline-block text-xs font-semibold underline">
+                Visa kalendern →
+              </a>
+            </div>
+            <button
+              onClick={() => setPlanToast(null)}
+              className="text-emerald-500 hover:text-emerald-700"
+              aria-label="Stäng"
+            >
+              ×
+            </button>
           </div>
         )}
 
@@ -483,11 +523,28 @@ export default function AnalysisPage() {
           </div>
         )}
       </div>
+
+      {/* Skapa content-plan modal */}
+      {showPlanModal && visibilityRun?.id && effectiveTenantId && (
+        <CreateContentPlanModal
+          analysisRunId={visibilityRun.id}
+          tenantId={effectiveTenantId}
+          onClose={() => setShowPlanModal(false)}
+          onSuccess={(result) => {
+            setPlanToast(
+              result.message ||
+                `Cirka ${result.articles_per_week * 13} artiklar och ${
+                  result.articles_per_week * 13 * result.social_platforms.length
+                } sociala inlägg genereras.`,
+            );
+          }}
+        />
+      )}
     </div>
   );
 }
 
-/* ── Combined history ───────────────────────────────────────────────────────────── */
+/* ── Combined history ─────────────────────────────────────────────────────────────────────── */
 
 function CombinedHistory({
   tenantId,
@@ -938,7 +995,7 @@ function GapsTab({ run }: { run: AnalysisRun }) {
   );
 }
 
-/* ── small UI helpers ──────────────────────────────────────────────────── */
+/* ── small UI helpers ───────────────────────────────────────────────────────────────────── */
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/integrations/store";
-import {
-  getSiteSettingsAccess,
-  resolveSiteId,
-} from "@/lib/integrations/site-context";
+import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import { getSiteSettingsAccess, resolveSiteId } from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -24,24 +21,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no keywords provided" }, { status: 400 });
   }
 
+  // Resolve the tenant the dashboard is acting on (admin view-as sends a
+  // different X-Sama-Site-Id than the caller's user.id). Writing to
+  // user.id here is what previously caused customers to see — and edit —
+  // the admin's own keyword list.
   const siteId = resolveSiteId(req, user.id);
-  const access = await getSiteSettingsAccess(user, siteId);
-  const settings = access.settings;
-  const existing: string[] = Array.isArray(settings.tracked_keywords)
-    ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
-  const lower = new Set(existing.map((k) => k.toLowerCase()));
-  const merged = [...existing];
+
+  let existing: string[] = [];
+  let merged: string[] = [];
   let added = 0;
-  for (const kw of inputs) {
-    if (!lower.has(kw.toLowerCase())) {
-      merged.push(kw);
-      lower.add(kw.toLowerCase());
-      added += 1;
+
+  if (siteId === user.id) {
+    const settings = await loadSettings(user.id);
+    existing = Array.isArray(settings.tracked_keywords)
+      ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
+      : [];
+    const lower = new Set(existing.map((k) => k.toLowerCase()));
+    merged = [...existing];
+    for (const kw of inputs) {
+      if (!lower.has(kw.toLowerCase())) {
+        merged.push(kw);
+        lower.add(kw.toLowerCase());
+        added += 1;
+      }
     }
-  }
-  if (added > 0) {
-    await access.save({ ...settings, tracked_keywords: merged });
+    if (added > 0) {
+      await saveSettings(user.id, { ...settings, tracked_keywords: merged });
+    }
+  } else {
+    const access = await getSiteSettingsAccess(user, siteId);
+    existing = Array.isArray(access.settings.tracked_keywords)
+      ? (access.settings.tracked_keywords as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : [];
+    const lower = new Set(existing.map((k) => k.toLowerCase()));
+    merged = [...existing];
+    for (const kw of inputs) {
+      if (!lower.has(kw.toLowerCase())) {
+        merged.push(kw);
+        lower.add(kw.toLowerCase());
+        added += 1;
+      }
+    }
+    if (added > 0) {
+      await access.save({ ...access.settings, tracked_keywords: merged });
+    }
   }
 
   let backendSynced = 0;

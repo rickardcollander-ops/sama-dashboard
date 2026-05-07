@@ -11,6 +11,7 @@ import {
 } from "react";
 import { tenantApi } from "@/lib/api";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 
 export type AgentKey = "ai_visibility" | "seo" | "analytics" | "ads" | "content" | "social" | "strategy" | "site_audit";
 
@@ -144,6 +145,12 @@ function saveToStorage(userId: string, runs: ActiveRun[]) {
 
 export function ActiveRunsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
+  // Trigger and poll under the *active site* so writes and reads target the
+  // same backend tenant_id. Using user.id here was the historical bug behind
+  // GEO checks completing but never appearing — the proxy resolved that to
+  // the user's first site, while the page read checks filtered by activeSite.
+  const { effectiveTenantId, activeAccountId } = useSite();
+  const apiTenantId = effectiveTenantId || user?.id || "";
   const [runs, setRuns] = useState<ActiveRun[]>([]);
   const runsRef = useRef<ActiveRun[]>([]);
 
@@ -186,7 +193,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
       };
       setRuns((prev) => [...prev.filter((r) => !(r.agent === agent && r.status !== "running")), newRun]);
       try {
-        const client = tenantApi(user.id);
+        const client = tenantApi(apiTenantId, activeAccountId || undefined);
         const resp = await client.post<Record<string, unknown>>(
           endpoint,
           options?.body,
@@ -213,7 +220,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
         return id;
       }
     },
-    [user, updateRun],
+    [user, updateRun, apiTenantId, activeAccountId],
   );
 
   const registerRun = useCallback<ActiveRunsContextValue["registerRun"]>(
@@ -393,7 +400,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
 
       if (activeNonAudit.length > 0) {
         try {
-          const data = await tenantApi(user.id).get<{ runs?: AgentRunRow[] }>(
+          const data = await tenantApi(apiTenantId, activeAccountId || undefined).get<{ runs?: AgentRunRow[] }>(
             `/api/tenant/agent-runs?limit=30`,
           );
           backendRuns = data.runs || [];
@@ -412,7 +419,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
           activeAuditIds.map(async (id) => {
             try {
               const res = await fetch(`/api/site-audit/runs/${encodeURIComponent(id)}`, {
-                headers: { "X-Tenant-ID": user.id },
+                headers: { "X-Tenant-ID": apiTenantId },
               });
               if (res.status === 404) {
                 siteAuditRuns.set(id, {
@@ -439,7 +446,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
       cancelled = true;
       clearInterval(interval);
     };
-  }, [user]);
+  }, [user, apiTenantId, activeAccountId]);
 
   const value = useMemo<ActiveRunsContextValue>(
     () => ({ runs, triggerRun, registerRun, dismissRun, clearCompleted }),

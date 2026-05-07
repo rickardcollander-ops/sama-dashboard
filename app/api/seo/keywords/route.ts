@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/integrations/store";
-import {
-  getSiteSettingsAccess,
-  resolveSiteId,
-} from "@/lib/integrations/site-context";
+import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getSiteSettingsAccess, resolveSiteId } from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,19 +45,36 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  // Honor the X-Sama-Site-Id / X-Tenant-ID headers the dashboard sends
+  // (set by samaHeaders() in admin view-as mode). Without this the route
+  // would always fetch the calling admin's own keywords and leak them
+  // into the customer's view.
   const siteId = resolveSiteId(req, user.id);
-  let settings: Record<string, unknown> = {};
+
+  // Read locally tracked keywords from the right scope. For self-view we
+  // keep the legacy user_settings store; for view-as on a different tenant
+  // we read from the site-scoped user_sites row (admin uses service role
+  // inside getSiteSettingsAccess) so we don't bleed the admin's list in.
+  // Site row not yet readable (e.g. RLS race during onboarding) is treated
+  // as empty rather than leaking another site's keywords.
+  let local: string[] = [];
   try {
-    const access = await getSiteSettingsAccess(user, siteId);
-    settings = access.settings;
+    if (siteId === user.id) {
+      const settings = await loadSettings(user.id);
+      local = Array.isArray(settings.tracked_keywords)
+        ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
+        : [];
+    } else {
+      const access = await getSiteSettingsAccess(user, siteId);
+      local = Array.isArray(access.settings.tracked_keywords)
+        ? (access.settings.tracked_keywords as unknown[]).filter(
+            (v): v is string => typeof v === "string",
+          )
+        : [];
+    }
   } catch {
-    // Site row not yet readable (e.g. RLS race during onboarding) — start
-    // with an empty list rather than leaking another site's keywords.
-    settings = {};
+    local = [];
   }
-  const local: string[] = Array.isArray(settings.tracked_keywords)
-    ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
 
   const backendMap = new Map<string, BackendKeyword>();
   try {
