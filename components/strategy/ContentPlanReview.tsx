@@ -5,6 +5,7 @@ import {
   FileText, Linkedin, Mail, Users, Calendar, Trash2,
   Plus, CheckCircle, Loader2, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import type { StrategyGoals } from "./StrategyGoalsForm";
 
 export interface ContentPlanItem {
@@ -30,9 +31,9 @@ interface Props {
 }
 
 const TYPE_META = {
-  blog_post: { label: "Blogg", icon: FileText, bg: "bg-blue-100", text: "text-blue-700" },
-  linkedin: { label: "LinkedIn", icon: Linkedin, bg: "bg-indigo-100", text: "text-indigo-700" },
-  epost: { label: "E-post", icon: Mail, bg: "bg-amber-100", text: "text-amber-700" },
+  blog_post: { icon: FileText, bg: "bg-blue-100", text: "text-blue-700" },
+  linkedin: { icon: Linkedin, bg: "bg-indigo-100", text: "text-indigo-700" },
+  epost: { icon: Mail, bg: "bg-amber-100", text: "text-amber-700" },
 } as const;
 
 function uid() {
@@ -57,7 +58,6 @@ function formatMonthLabel(isoMonth: string): string {
 function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] {
   const start = new Date(goals.plan_start_date);
 
-  // Collect topic strings from strategy
   const topics: string[] = [];
   for (const p of strategy.cross_channel_priorities ?? []) {
     if (p.title) topics.push(p.title);
@@ -74,9 +74,8 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
   }
 
   const items: ContentPlanItem[] = [];
-  const weeks = 13; // 90 days ≈ 13 weeks
+  const weeks = 13;
 
-  // Blog posts
   if (goals.content_types.includes("blog_post") && goals.posts_per_week_blog > 0) {
     const total = goals.posts_per_week_blog * weeks;
     for (let i = 0; i < total; i++) {
@@ -96,7 +95,6 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
     }
   }
 
-  // LinkedIn posts
   if (goals.content_types.includes("linkedin") && goals.posts_per_week_linkedin > 0) {
     const total = goals.posts_per_week_linkedin * weeks;
     const topicOffset = items.length;
@@ -117,7 +115,6 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
     }
   }
 
-  // Newsletters
   if (goals.content_types.includes("epost") && goals.newsletters_per_month > 0) {
     const total = goals.newsletters_per_month * 3;
     const topicOffset = items.length;
@@ -137,15 +134,21 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
     }
   }
 
-  // Sort by date
   return items.sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
 }
 
 export default function ContentPlanReview({ goals, strategy, onApprove, onBack }: Props) {
+  const { t } = useLanguage();
   const [items, setItems] = useState<ContentPlanItem[]>(() => buildPlan(goals, strategy));
   const [approving, setApproving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const TYPE_LABELS: Record<string, string> = {
+    blog_post: t.contentPlanReview.typeBlog,
+    linkedin: t.contentPlanReview.typeLinkedin,
+    epost: t.contentPlanReview.typeEmail,
+  };
 
   const blogCount = items.filter((i) => i.content_type === "blog_post").length;
   const linkedinCount = items.filter((i) => i.content_type === "linkedin").length;
@@ -178,7 +181,6 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
     setApproving(false);
   };
 
-  // Group by month
   const byMonth: Record<string, ContentPlanItem[]> = {};
   for (const item of items) {
     const key = item.scheduled_date.slice(0, 7);
@@ -190,37 +192,35 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
     <div className="space-y-6">
       {/* Summary */}
       <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-        <h2 className="text-base font-semibold text-emerald-900 mb-3">Din 90-dagarsplan</h2>
+        <h2 className="text-base font-semibold text-emerald-900 mb-3">{t.contentPlanReview.summaryTitle}</h2>
         <div className="flex flex-wrap gap-4">
           {blogCount > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-sm border border-blue-100">
               <FileText className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-semibold text-blue-700">{blogCount}</span>
-              <span className="text-sm text-slate-600">blogginlägg</span>
+              <span className="text-sm text-slate-600">{t.contentPlanReview.blogPosts}</span>
             </div>
           )}
           {linkedinCount > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-sm border border-indigo-100">
               <Linkedin className="h-4 w-4 text-indigo-600" />
               <span className="text-sm font-semibold text-indigo-700">{linkedinCount}</span>
-              <span className="text-sm text-slate-600">LinkedIn-inlägg</span>
+              <span className="text-sm text-slate-600">{t.contentPlanReview.linkedinPosts}</span>
             </div>
           )}
           {emailCount > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-sm border border-amber-100">
               <Mail className="h-4 w-4 text-amber-600" />
               <span className="text-sm font-semibold text-amber-700">{emailCount}</span>
-              <span className="text-sm text-slate-600">nyhetsbrev</span>
+              <span className="text-sm text-slate-600">{t.contentPlanReview.newsletters}</span>
             </div>
           )}
           <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-sm border border-slate-100">
             <Calendar className="h-4 w-4 text-slate-500" />
-            <span className="text-sm text-slate-600">Totalt {items.length} inlägg</span>
+            <span className="text-sm text-slate-600">{t.contentPlanReview.totalPosts} {items.length} {t.contentPlanReview.posts}</span>
           </div>
         </div>
-        <p className="mt-3 text-xs text-emerald-700">
-          Granska och justera nedan. Titlar, datum och ansvarig kan ändras innan du godkänner.
-        </p>
+        <p className="mt-3 text-xs text-emerald-700">{t.contentPlanReview.reviewHint}</p>
       </section>
 
       {/* Items grouped by month */}
@@ -235,7 +235,7 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
             >
               <span className="text-sm font-semibold text-slate-800 capitalize">{label}</span>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">{monthItems.length} inlägg</span>
+                <span className="text-xs text-slate-400">{monthItems.length} {t.contentPlanReview.posts}</span>
                 {isCollapsed ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronUp className="h-4 w-4 text-slate-400" />}
               </div>
             </button>
@@ -265,11 +265,11 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
                             onClick={() => setEditingId(item.id)}
                             className="text-left text-sm text-slate-800 hover:text-emerald-700 w-full truncate"
                           >
-                            {item.title || <span className="italic text-slate-400">Klicka för att ange titel…</span>}
+                            {item.title || <span className="italic text-slate-400">{t.contentPlanReview.titlePlaceholder}</span>}
                           </button>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className={`rounded-full px-2 py-0.5 font-medium ${meta.bg} ${meta.text}`}>{meta.label}</span>
+                          <span className={`rounded-full px-2 py-0.5 font-medium ${meta.bg} ${meta.text}`}>{TYPE_LABELS[item.content_type]}</span>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             <input
@@ -306,17 +306,17 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
       <div className="flex flex-wrap gap-2">
         {goals.content_types.includes("blog_post") && (
           <button onClick={() => addItem("blog_post")} className="flex items-center gap-1.5 rounded-lg border border-dashed border-blue-300 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Lägg till blogginlägg
+            <Plus className="h-3.5 w-3.5" /> {t.contentPlanReview.addBlog}
           </button>
         )}
         {goals.content_types.includes("linkedin") && (
           <button onClick={() => addItem("linkedin")} className="flex items-center gap-1.5 rounded-lg border border-dashed border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Lägg till LinkedIn-inlägg
+            <Plus className="h-3.5 w-3.5" /> {t.contentPlanReview.addLinkedin}
           </button>
         )}
         {goals.content_types.includes("epost") && (
           <button onClick={() => addItem("epost")} className="flex items-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Lägg till nyhetsbrev
+            <Plus className="h-3.5 w-3.5" /> {t.contentPlanReview.addNewsletter}
           </button>
         )}
       </div>
@@ -328,7 +328,7 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
           disabled={approving}
           className="text-sm text-slate-500 hover:text-slate-700 underline-offset-2 hover:underline disabled:opacity-50"
         >
-          ← Ändra mål
+          {t.contentPlanReview.back}
         </button>
         <button
           onClick={handleApprove}
@@ -340,7 +340,7 @@ export default function ContentPlanReview({ goals, strategy, onApprove, onBack }
           ) : (
             <CheckCircle className="h-4 w-4" />
           )}
-          {approving ? "Skapar innehåll…" : `Godkänn och skapa ${items.filter((i) => i.title.trim()).length} inlägg`}
+          {approving ? t.contentPlanReview.approving : `${t.contentPlanReview.approve} ${items.filter((i) => i.title.trim()).length} ${t.contentPlanReview.approveUnit}`}
         </button>
       </div>
     </div>
