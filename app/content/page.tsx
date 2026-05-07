@@ -7,6 +7,7 @@ import AgentChat from "@/components/AgentChat";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 import ContentPlanTab from "@/components/content/ContentPlanTab";
 import QuickFixesPanel from "@/components/content/QuickFixesPanel";
+import AutopilotSettings from "@/components/content/AutopilotSettings";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
@@ -48,8 +49,6 @@ export default function ContentPage() {
   const [actions, setActions] = useState<Action[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Persist the latest analysis snapshot to the agent cache. Best-effort —
-  // a failure just means the next reload won't have the cached snapshot.
   const persistSnapshot = async (snapshot: { summary: AnalysisSummary | null; actions: Action[] }) => {
     try {
       await fetch(`${SAMA_API_URL}/api/content/analysis/save`, {
@@ -112,8 +111,6 @@ export default function ContentPage() {
       onError: (err) => setError(err),
     });
 
-  // UI state — Plan is now the default tab; analysis-driven gaps land
-  // there automatically so it's the highest-leverage entry point.
   const [activeTab, setActiveTab] = useState<'plan' | 'library' | 'pillars'>('plan');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
@@ -139,8 +136,6 @@ export default function ContentPage() {
   };
 
   const runAnalysis = async () => {
-    // After analysis completes, the gaps auto-feed into the plan, so
-    // jumping to Plan tab is the right place to land the user.
     setActiveTab('plan');
     setError(null);
     await startBgAnalysis();
@@ -190,7 +185,6 @@ export default function ContentPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto">
-          {/* Left: Content Area */}
           <div className="lg:max-w-4xl flex-1 min-w-0">
             {error && (
               <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -214,7 +208,7 @@ export default function ContentPage() {
                 <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Agent</h2>
                 <p className="mt-1 sm:mt-2 text-slate-500 text-sm">
                   Analyse content gaps, plan articles, and edit them with AI — gaps surfaced by Analyze
-                  feed straight into the plan below.
+                  feed straight into the plan below. Toggle Auto-pilot to run the chain weekly.
                 </p>
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -233,7 +227,10 @@ export default function ContentPage() {
               </div>
             </div>
 
-            {/* Analysis progress */}
+            {/* Auto-pilot panel — collapsible, top of the page so the user can
+                toggle it in one click whenever they walk in. */}
+            <AutopilotSettings apiUrl={SAMA_API_URL} />
+
             {analyzing && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
@@ -250,7 +247,6 @@ export default function ContentPage() {
               </div>
             )}
 
-            {/* Stats */}
             <div className="mb-6 grid gap-4 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-5 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">Total Content</p>
@@ -270,10 +266,8 @@ export default function ContentPage() {
               </div>
             </div>
 
-            {/* Quick fixes (collapsible, only renders when there are any) */}
             <QuickFixesPanel apiUrl={SAMA_API_URL} />
 
-            {/* Tabs */}
             <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
               {[
                 { id: 'plan' as const, label: 'Content Plan', icon: <Lightbulb className="h-4 w-4" /> },
@@ -289,12 +283,8 @@ export default function ContentPage() {
               ))}
             </div>
 
-            {/* TAB: Content Plan */}
-            {activeTab === 'plan' && (
-              <ContentPlanTab apiUrl={SAMA_API_URL} />
-            )}
+            {activeTab === 'plan' && (<ContentPlanTab apiUrl={SAMA_API_URL} />)}
 
-            {/* TAB: Library */}
             {activeTab === 'library' && (
               <div className="rounded-lg border bg-white shadow-sm">
                 <div className="border-b p-6">
@@ -391,12 +381,10 @@ export default function ContentPage() {
               </div>
             )}
 
-            {/* TAB: Pillars */}
             {activeTab === 'pillars' && (
               <ContentPillarsTab contentPieces={contentPieces} apiUrl={SAMA_API_URL} />
             )}
 
-            {/* Tiny analysis-snapshot footer (replaces the old Actions tab) */}
             {analysisSummary && (
               <p className="mt-6 text-center text-xs text-slate-400">
                 Last analysis surfaced {analysisSummary.total_actions || 0} actions
@@ -406,7 +394,6 @@ export default function ContentPage() {
             )}
           </div>
 
-          {/* Right: Agent Chat Sidebar */}
           <div className="hidden lg:block w-[380px] flex-shrink-0">
             <div className="sticky top-8">
               <AgentChat
