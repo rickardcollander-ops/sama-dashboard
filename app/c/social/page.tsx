@@ -48,7 +48,7 @@ const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = {
 
 export default function CustomerSocialPage() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [stats, setStats] = useState<SocialStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,9 +61,16 @@ export default function CustomerSocialPage() {
   const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
 
+  // Drop the previous site's posts/stats when the workspace changes.
   useEffect(() => {
-    if (user) fetchData();
-  }, [user]);
+    setPosts([]);
+    setStats(null);
+  }, [effectiveTenantId]);
+
+  useEffect(() => {
+    if (user && effectiveTenantId) fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, effectiveTenantId]);
 
   useEffect(() => {
     if (error) {

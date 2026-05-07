@@ -222,45 +222,51 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     void loadSites();
   }, [loadSites]);
 
+  // Switching tenant is treated as navigating to a different workspace —
+  // the only way to guarantee no data leaks across the boundary is to
+  // throw out the entire JS context (in-flight requests, page-level
+  // caches, recharts/animation timers, polling hooks, etc.) and start
+  // fresh. A React state update would otherwise let stale closures or
+  // late-arriving fetches paint the previous tenant's numbers onto the
+  // new one.
   const setActiveSiteId = useCallback((id: string) => {
-    setActiveSiteIdState((prev) => (prev === id ? prev : id));
+    if (typeof window === "undefined") return;
+    if (id === activeSiteId) return;
     try {
       localStorage.setItem(ACTIVE_SITE_KEY, id);
-    } catch { /* ignore */ }
-  }, []);
+    } catch { /* private mode etc. */ }
+    window.location.reload();
+  }, [activeSiteId]);
 
   const setActiveAccountId = useCallback((id: string) => {
-    setActiveAccountIdState((prev) => {
-      if (prev === id) return prev;
-      // Clear the cached sites list immediately. Otherwise `activeSite`
-      // briefly resolves to the old account's first site (via the sites[0]
-      // fallback in the useMemo below), which leaks the previous account's
-      // brand name / domain into headers and downstream fetches before
-      // loadSites runs for the new owner.
-      setSites([]);
-      setLoading(true);
-      return id;
-    });
+    if (typeof window === "undefined") return;
+    if (id === activeAccountId) return;
     try {
       localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
-      // Reset site selection so we don't carry over the previous account's site.
+      // The previously selected site belongs to the old account and
+      // probably doesn't exist under the new one — drop it so the new
+      // session resolves to the new account's first site.
       localStorage.removeItem(ACTIVE_SITE_KEY);
-    } catch { /* ignore */ }
-    setActiveSiteIdState(null);
-  }, []);
+    } catch { /* private mode etc. */ }
+    window.location.reload();
+  }, [activeAccountId]);
 
   const setViewAs = useCallback((v: ViewAs) => {
-    setViewAsState(v);
+    if (typeof window === "undefined") return;
     try {
       sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(v));
     } catch { /* ignore */ }
+    // Same reasoning as setActiveSiteId: switching to view-as a different
+    // tenant means we need a clean JS context, not a soft state update.
+    window.location.reload();
   }, []);
 
   const clearViewAs = useCallback(() => {
-    setViewAsState(null);
+    if (typeof window === "undefined") return;
     try {
       sessionStorage.removeItem(VIEW_AS_KEY);
     } catch { /* ignore */ }
+    window.location.reload();
   }, []);
 
   const activeSite = useMemo(

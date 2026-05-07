@@ -160,11 +160,7 @@ function AccountSwitcher() {
       setOpen(false);
       return;
     }
-    if (inFlightRuns.length > 0) {
-      setPendingSwitch(id);
-    } else {
-      setActiveAccountId(id);
-    }
+    setPendingSwitch(id);
     setOpen(false);
   };
 
@@ -176,6 +172,17 @@ function AccountSwitcher() {
     confirmTarget?.domain ||
     confirmTarget?.owner_email ||
     "kontot";
+  const confirmDescription =
+    inFlightRuns.length > 0
+      ? `Du har ${inFlightRuns.length} pågående körning${
+          inFlightRuns.length === 1 ? "" : "ar"
+        } (${inFlightRuns
+          .map((r) => r.label)
+          .slice(0, 3)
+          .join(
+            ", ",
+          )}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`
+      : `All data och inställningar växlas till ${confirmLabel}. Eventuella osparade ändringar förloras.`;
 
   return (
     <div className="relative px-3 pb-2" ref={ref}>
@@ -230,16 +237,14 @@ function AccountSwitcher() {
       <ConfirmDialog
         open={pendingSwitch !== null}
         title="Byta konto?"
-        description={`Du har ${inFlightRuns.length} pågående körning${
-          inFlightRuns.length === 1 ? "" : "ar"
-        } (${inFlightRuns
-          .map((r) => r.label)
-          .slice(0, 3)
-          .join(", ")}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`}
-        confirmLabel="Byt ändå"
-        cancelLabel="Stanna kvar"
+        description={confirmDescription}
+        confirmLabel="Byt"
+        cancelLabel="Avbryt"
         onConfirm={() => {
-          if (pendingSwitch) setActiveAccountId(pendingSwitch);
+          if (pendingSwitch) {
+            setActiveAccountId(pendingSwitch);
+            return;
+          }
           setPendingSwitch(null);
         }}
         onCancel={() => setPendingSwitch(null)}
@@ -269,11 +274,7 @@ function SiteSwitcher() {
       setOpen(false);
       return;
     }
-    if (inFlightRuns.length > 0) {
-      setPendingSwitch(id);
-    } else {
-      setActiveSiteId(id);
-    }
+    setPendingSwitch(id);
     setOpen(false);
   };
 
@@ -284,6 +285,17 @@ function SiteSwitcher() {
     confirmTarget?.site_name ||
     (confirmTarget?.settings?.brand_name as string | undefined) ||
     "den nya sidan";
+  const confirmDescription =
+    inFlightRuns.length > 0
+      ? `Du har ${inFlightRuns.length} pågående körning${
+          inFlightRuns.length === 1 ? "" : "ar"
+        } (${inFlightRuns
+          .map((r) => r.label)
+          .slice(0, 3)
+          .join(
+            ", ",
+          )}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`
+      : `Vyn växlas till ${confirmLabel}. Sidor laddas om så att du ser rätt data för den valda webbplatsen.`;
 
   return (
     <div className="relative px-3 pb-3" ref={ref}>
@@ -333,16 +345,14 @@ function SiteSwitcher() {
       <ConfirmDialog
         open={pendingSwitch !== null}
         title="Byta sida?"
-        description={`Du har ${inFlightRuns.length} pågående körning${
-          inFlightRuns.length === 1 ? "" : "ar"
-        } (${inFlightRuns
-          .map((r) => r.label)
-          .slice(0, 3)
-          .join(", ")}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`}
-        confirmLabel="Byt ändå"
-        cancelLabel="Stanna kvar"
+        description={confirmDescription}
+        confirmLabel="Byt"
+        cancelLabel="Avbryt"
         onConfirm={() => {
-          if (pendingSwitch) setActiveSiteId(pendingSwitch);
+          if (pendingSwitch) {
+            setActiveSiteId(pendingSwitch);
+            return;
+          }
           setPendingSwitch(null);
         }}
         onCancel={() => setPendingSwitch(null)}
