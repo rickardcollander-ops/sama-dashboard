@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Globe, Plus, Trash2, Loader2, CheckCircle, X, AlertCircle, Edit2, Save } from "lucide-react";
+import { Globe, Plus, Trash2, Loader2, CheckCircle, X, AlertCircle, Edit2, Save, Lock } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useSite, type UserSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { isAdminEmail } from "@/lib/admin";
 
 export default function SitesSettingsPage() {
   const { user } = useUser();
   const { sites, activeSite, setActiveSiteId, reloadSites, effectiveOwnerId, viewAs } = useSite();
+  const isAdmin = isAdminEmail(user?.email);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -32,6 +34,10 @@ export default function SitesSettingsPage() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
     if (!user || !newName.trim() || !newDomain.trim()) return;
+    if (!isAdmin) {
+      setError("Endast admin kan lägga till sidor. Kontakta admin.");
+      return;
+    }
     const ownerId = effectiveOwnerId || user.id;
     const siteName = newName.trim();
     const settings = { brand_name: siteName, domain: newDomain.trim() };
@@ -140,7 +146,7 @@ export default function SitesSettingsPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
               <Globe className="h-6 w-6 text-slate-400" />
@@ -150,12 +156,22 @@ export default function SitesSettingsPage() {
               Hantera webbsidor kopplade till det här kontot. Varje sida har egna inställningar och agenter.
             </p>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Lägg till sida
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Lägg till sida
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
+              title="Endast admin kan lägga till sidor"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              <span>Kontakta admin för att lägga till fler sidor</span>
+            </div>
+          )}
         </div>
 
         {notice && (
@@ -171,7 +187,7 @@ export default function SitesSettingsPage() {
         )}
 
         {/* Add-site form */}
-        {showAdd && (
+        {showAdd && isAdmin && (
           <form
             onSubmit={handleAdd}
             className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3"
