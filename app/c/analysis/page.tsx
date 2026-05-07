@@ -11,6 +11,7 @@ import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
@@ -26,7 +27,7 @@ function getISOWeek(date: Date = new Date()): string {
   d.setDate(d.getDate() + 4 - (d.getDay() || 7));
   const yearStart = new Date(d.getFullYear(), 0, 1);
   const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getFullYear()}-W${week.toString().padStart(2, "0")}`;
+  return `${d.getFullYear()}-W${week.toString().padStart(2, "00")}`;
 }
 
 interface AnalysisRunSummary {
@@ -119,6 +120,7 @@ const GAP_ICON: Record<GapCategory, typeof Trophy> = {
 };
 
 export default function AnalysisPage() {
+  const { t } = useLanguage();
   const { user, loading: userLoading } = useUser();
   const { effectiveTenantId, activeSite } = useSite();
   const { registerRun } = useActiveRuns();
@@ -143,7 +145,6 @@ export default function AnalysisPage() {
   useEffect(() => {
     if (!user || !effectiveTenantId) return;
     (async () => {
-      // Load brand settings from active site
       const s = (activeSite?.settings || {}) as Record<string, unknown>;
       setBrand({
         brand_name: (s.brand_name as string) || "",
@@ -171,7 +172,6 @@ export default function AnalysisPage() {
         setUsedThisWeek(0);
       }
 
-      // Load latest analysis run
       try {
         const res = await fetch("/api/analysis/runs?limit=1", {
           headers: { "X-Tenant-ID": effectiveTenantId },
@@ -191,7 +191,6 @@ export default function AnalysisPage() {
         }
       } catch { /* not critical */ }
 
-      // Load latest site audit
       try {
         const res = await fetch("/api/site-audit/runs?limit=1", {
           headers: { "X-Tenant-ID": effectiveTenantId },
@@ -247,7 +246,6 @@ export default function AnalysisPage() {
     setError("");
 
     try {
-      // 1. Auto-generate queries from brand context
       let queries: string[] = [];
       try {
         const qRes = await fetch("/api/analysis/generate-queries", {
@@ -259,14 +257,12 @@ export default function AnalysisPage() {
           const qData = await qRes.json();
           queries = qData.queries || [];
         }
-      } catch { /* fallback to empty — backend may reject */ }
+      } catch { /* fallback */ }
 
       if (queries.length === 0) {
-        // Minimal fallback: just brand name as query
         queries = [brand.brand_name, brand.domain].filter(Boolean);
       }
 
-      // 2. Start visibility analysis + site audit in parallel
       const platforms: AIPlatform[] = ["chatgpt", "claude", "perplexity", "google_aio"];
 
       const [visRes, auditRes] = await Promise.allSettled([
@@ -290,7 +286,6 @@ export default function AnalysisPage() {
         }),
       ]);
 
-      // 3. Poll both to completion in parallel
       const polls: Promise<unknown>[] = [];
 
       if (visRes.status === "fulfilled" && visRes.value.ok) {
@@ -362,7 +357,7 @@ export default function AnalysisPage() {
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
               <Sparkles className="h-6 w-6 text-violet-600" />
-              Insikter
+              {t.insights.title}
             </h1>
             <div className="mt-1 flex items-center gap-2 flex-wrap">
               {brand.domain ? (
@@ -371,7 +366,7 @@ export default function AnalysisPage() {
                 </span>
               ) : (
                 <a href="/c/settings" className="text-sm text-amber-600 hover:underline">
-                  ⚠ Lägg till domän i Inställningar för att starta analyser
+                  ⚠ {t.insights.domainHint}
                 </a>
               )}
               <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${
@@ -381,7 +376,9 @@ export default function AnalysisPage() {
                   ? "bg-amber-100 text-amber-700"
                   : "bg-emerald-100 text-emerald-700"
               }`}>
-                {limitReached ? "Veckolimit nådd" : `${remaining} av ${MAX_ANALYSES_PER_WEEK} analyser kvar denna vecka`}
+                {limitReached
+                  ? t.insights.weeklyLimitReached
+                  : `${remaining} ${t.insights.weeklyRemaining} ${MAX_ANALYSES_PER_WEEK} ${t.insights.weeklyRemainingPart2}`}
               </span>
             </div>
           </div>
@@ -391,7 +388,7 @@ export default function AnalysisPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
             >
               <HistoryIcon className="h-4 w-4" />
-              Historik
+              {t.insights.historyBtn}
               {showHistory ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
             <button
@@ -405,7 +402,7 @@ export default function AnalysisPage() {
               className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
             >
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {running ? "Analyserar…" : "Kör ny analys"}
+              {running ? t.insights.analysing : t.insights.runAnalysis}
             </button>
           </div>
         </div>
@@ -423,7 +420,7 @@ export default function AnalysisPage() {
               <div>
                 <p className="text-sm font-semibold text-violet-900">Analyserar {brand.domain}…</p>
                 <p className="text-xs text-violet-600 mt-0.5">
-                  Kör synlighetsmätning mot Google + AI-assistenter och genomsöker sajten. Tar vanligtvis 1–3 minuter.
+                  {t.insights.analysingDesc}
                 </p>
               </div>
             </div>
@@ -455,9 +452,10 @@ export default function AnalysisPage() {
         {!initialLoading && !running && !hasResults && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <Sparkles className="mx-auto h-10 w-10 text-violet-200 mb-4" />
-            <h2 className="text-lg font-semibold text-slate-800">Inga analyser ännu</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{t.insights.emptyTitle}</h2>
             <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
-              Klicka på <strong>Kör ny analys</strong> för att mäta hur {brand.domain || "er sajt"} syns i Google och AI-assistenter — och identifiera tekniska förbättringar.
+              {t.insights.emptyHint} <strong>{t.insights.emptyHintRun}</strong> {t.insights.emptyHintSuffix}{" "}
+              {brand.domain || "er sajt"} {t.insights.emptyHintSuffix2}
             </p>
             {noDomain && (
               <a href="/c/settings" className="mt-4 inline-block text-sm font-medium text-violet-700 underline">
@@ -473,7 +471,7 @@ export default function AnalysisPage() {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-violet-500" />
-                <h2 className="text-sm font-semibold text-slate-800">Synlighetsanalys</h2>
+                <h2 className="text-sm font-semibold text-slate-800">{t.insights.visibilityTitle}</h2>
                 {visibilityRun.created_at && (
                   <span className="text-xs text-slate-400">
                     · {new Date(visibilityRun.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })}
@@ -499,7 +497,7 @@ export default function AnalysisPage() {
           <div className="mb-8">
             <div className="mb-3 flex items-center gap-2">
               <Globe className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-slate-800">Sajtgenomgång</h2>
+              <h2 className="text-sm font-semibold text-slate-800">{t.insights.auditTitle}</h2>
               {auditRun.created_at && (
                 <span className="text-xs text-slate-400">
                   · {new Date(auditRun.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })}
@@ -521,7 +519,7 @@ export default function AnalysisPage() {
   );
 }
 
-/* ── Combined history ─────────────────────────────────────────────────────── */
+/* ── Combined history ───────────────────────────────────────────────────────────── */
 
 function CombinedHistory({
   tenantId,
@@ -532,6 +530,7 @@ function CombinedHistory({
   onOpenVisibility: (id: string) => void;
   onOpenAudit: (id: string) => void;
 }) {
+  const { t } = useLanguage();
   const [visRuns, setVisRuns] = useState<AnalysisRunSummary[] | null>(null);
   const [auditRuns, setAuditRuns] = useState<SiteAuditRunSummary[] | null>(null);
   const [activeTab, setActiveTab] = useState<"visibility" | "audit">("visibility");
@@ -550,8 +549,8 @@ function CombinedHistory({
     <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
       <div className="flex border-b border-slate-100">
         {[
-          { id: "visibility" as const, label: "Synlighetsanalyser", icon: Search },
-          { id: "audit" as const, label: "Sajtgenomgångar", icon: Globe },
+          { id: "visibility" as const, label: t.insights.tabVisibility, icon: Search },
+          { id: "audit" as const, label: t.insights.tabAudit, icon: Globe },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -569,15 +568,15 @@ function CombinedHistory({
         visRuns === null ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
         ) : visRuns.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">Inga synlighetsanalyser ännu.</p>
+          <p className="py-8 text-center text-sm text-slate-400">{t.insights.historyNoVisibility}</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">Datum</th>
-                <th className="text-left px-4 py-2 font-medium">Frågor</th>
-                <th className="text-left px-4 py-2 font-medium">Plattformar</th>
-                <th className="text-left px-4 py-2 font-medium">Status</th>
+                <th className="text-left px-4 py-2 font-medium">{t.insights.historyColDate}</th>
+                <th className="text-left px-4 py-2 font-medium">{t.insights.historyColQueries}</th>
+                <th className="text-left px-4 py-2 font-medium">{t.insights.historyColPlatforms}</th>
+                <th className="text-left px-4 py-2 font-medium">{t.insights.historyColStatus}</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
@@ -597,7 +596,7 @@ function CombinedHistory({
                   <td className="px-4 py-2 text-right">
                     {r.status === "completed" && (
                       <button onClick={() => onOpenVisibility(r.id)} className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
-                        Visa
+                        {t.insights.historyView}
                       </button>
                     )}
                   </td>
@@ -612,17 +611,17 @@ function CombinedHistory({
         auditRuns === null ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
         ) : auditRuns.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">Inga sajtgenomgångar ännu.</p>
+          <p className="py-8 text-center text-sm text-slate-400">{t.insights.historyNoAudit}</p>
         ) : (
           <>
             <AuditScoreTimeline runs={auditRuns} />
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium">Datum</th>
-                  <th className="text-left px-4 py-2 font-medium">Sidor</th>
-                  <th className="text-left px-4 py-2 font-medium">Score</th>
-                  <th className="text-left px-4 py-2 font-medium">Status</th>
+                  <th className="text-left px-4 py-2 font-medium">{t.insights.historyColDate}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t.insights.historyColPages}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t.insights.historyColScore}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t.insights.historyColStatus}</th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
@@ -644,7 +643,7 @@ function CombinedHistory({
                     <td className="px-4 py-2 text-right">
                       {r.status === "completed" && (
                         <button onClick={() => onOpenAudit(r.id)} className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
-                          Visa
+                          {t.insights.historyView}
                         </button>
                       )}
                     </td>
@@ -659,8 +658,8 @@ function CombinedHistory({
   );
 }
 
-// Sprint 3 (I5) — score-historik som linjegraf.
 function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
+  const { t } = useLanguage();
   const points = runs
     .filter((r) => r.status === "completed" && typeof r.overall_score === "number")
     .map((r) => ({
@@ -702,9 +701,9 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
     <div className="rounded-xl border bg-white p-5 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-700">Score-historik</h3>
+          <h3 className="text-sm font-semibold text-slate-700">{t.insights.scoreHistory}</h3>
           <p className="text-xs text-slate-500">
-            {points.length} kompletta revisioner — {first.label} → {last.label}
+            {points.length} {t.insights.scoreHistoryDesc} — {first.label} → {last.label}
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -715,7 +714,7 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
             }`}
           >
             {delta > 0 ? "+" : ""}
-            {delta} vs första
+            {delta} {t.insights.firstVs} första
           </span>
         </div>
       </div>
@@ -755,12 +754,13 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
 type ResultsTab = "overview" | "matrix" | "gaps" | "recommendations";
 
 function ResultsStage({ run }: { run: AnalysisRun }) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<ResultsTab>("overview");
   const tabs: { id: ResultsTab; label: string; show: boolean }[] = [
-    { id: "overview", label: "Översikt", show: true },
-    { id: "matrix", label: "Per fråga", show: true },
-    { id: "gaps", label: "Gap-analys", show: true },
-    { id: "recommendations", label: "Rekommendationer", show: true },
+    { id: "overview", label: t.insights.auditTabOverview, show: true },
+    { id: "matrix", label: t.insights.auditTabMatrix, show: true },
+    { id: "gaps", label: t.insights.auditTabGaps, show: true },
+    { id: "recommendations", label: t.insights.auditTabRecommendations, show: true },
   ];
 
   const gapSummary = useMemo(() => buildGapSummary(run), [run]);
@@ -769,16 +769,16 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
   return (
     <div>
       <div className="mb-4 flex gap-1 border-b border-slate-200">
-        {tabs.filter((t) => t.show).map((t) => (
+        {tabs.filter((tab) => tab.show).map((tabItem) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+            key={tabItem.id}
+            onClick={() => setTab(tabItem.id)}
             className={`relative px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.id ? "text-violet-700" : "text-slate-500 hover:text-slate-800"
+              tab === tabItem.id ? "text-violet-700" : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            {t.label}
-            {tab === t.id && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-violet-600 rounded-t-sm" />}
+            {tabItem.label}
+            {tab === tabItem.id && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-violet-600 rounded-t-sm" />}
           </button>
         ))}
       </div>
@@ -970,7 +970,7 @@ function GapsTab({ run }: { run: AnalysisRun }) {
   );
 }
 
-/* ── small UI helpers ───────────────────────────────────────────────────── */
+/* ── small UI helpers ──────────────────────────────────────────────────── */
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (

@@ -6,20 +6,9 @@ import {
   ArrowRight, CheckCircle2, AlertCircle, Loader2, Info,
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
 import TrendBadge from "@/components/dashboard/TrendBadge";
-
-// Sprint 3 (I1) — Insikter-översikt.
-//
-// Standalone overview component that renders at the top of /c/analysis. Pulls
-// GEO + SEO snapshots and synthesises a combined visibility score, top
-// strengths and top gaps. Each gap card links into Content with a draft
-// suggestion so the loop Insikter -> Content stays one click.
-//
-// Combined visibility score (0-100), v1:
-//   geoComponent  = mention_rate * 100              (0-100)
-//   seoComponent  = clamp(101 - avg_position, 0, 100)
-//   visibility    = geoComponent * 0.5 + seoComponent * 0.5
 
 interface GeoSummary {
   mention_rate?: number;
@@ -52,7 +41,6 @@ interface Strength {
 }
 
 interface Gap {
-  // Stable id used to round-trip the gap into Content (Sprint 2, K-1/K-2).
   id: string;
   title: string;
   detail: string;
@@ -67,98 +55,6 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
-function buildStrengths(geo: GeoSummary | null, seo: SeoStats | null): Strength[] {
-  const out: Strength[] = [];
-  if (geo && (geo.mention_rate ?? 0) >= 0.5) {
-    const pct = Math.round((geo.mention_rate ?? 0) * 100);
-    out.push({
-      title: "Synlig i AI-assistenter",
-      detail: `Ditt varumärke nämns i ${pct}% av frågorna AI-agenten kör.`,
-    });
-  }
-  if (geo?.engine_stats) {
-    const best = Object.entries(geo.engine_stats)
-      .filter(([, s]) => (s?.total ?? 0) > 0)
-      .sort((a, b) => (b[1].rate ?? 0) - (a[1].rate ?? 0))[0];
-    if (best && best[1].rate >= 0.5) {
-      out.push({
-        title: `Stark närvaro i ${best[0]}`,
-        detail: `${Math.round(best[1].rate * 100)}% omnämnandegrad — er bästa AI-tjänst.`,
-      });
-    }
-  }
-  const avgPos = seo?.avg_position ?? seo?.avgPosition ?? 0;
-  if (avgPos > 0 && avgPos <= 10) {
-    out.push({
-      title: "Top-10 i Google",
-      detail: `Snittposition ${avgPos.toFixed(1)} på dina ${seo?.total_keywords ?? seo?.totalKeywords ?? 0} sökord.`,
-    });
-  }
-  if (seo?.top_keywords && seo.top_keywords.length > 0) {
-    const winners = seo.top_keywords.filter((k) => k.position > 0 && k.position <= 3);
-    if (winners.length > 0) {
-      out.push({
-        title: `${winners.length} sökord i topp 3`,
-        detail: `Topp: "${winners[0].keyword}" på position ${winners[0].position}.`,
-      });
-    }
-  }
-  return out.slice(0, 3);
-}
-
-function buildGaps(geo: GeoSummary | null, seo: SeoStats | null): Gap[] {
-  const out: Gap[] = [];
-  if (geo && (geo.open_gaps ?? 0) > 0) {
-    out.push({
-      id: "ai_open_gaps",
-      title: `${geo.open_gaps} öppna AI-gap`,
-      detail: "Frågor där konkurrenter nämns men inte ditt varumärke. Skapa content som täcker dem.",
-      topic: "Frågor där konkurrenter nämns men inte vi",
-    });
-  }
-  if (geo && (geo.mention_rate ?? 0) < 0.3 && (geo.total_checks ?? 0) > 0) {
-    const pct = Math.round((geo.mention_rate ?? 0) * 100);
-    out.push({
-      id: "low_ai_mention",
-      title: "Låg synlighet i AI-sök",
-      detail: `Endast ${pct}% omnämnandegrad — branschspecifikt content kan lyfta siffran.`,
-      topic: "Branschspecifikt content som lyfter omnämnandegraden",
-    });
-  }
-  const avgPos = seo?.avg_position ?? seo?.avgPosition ?? 0;
-  if (avgPos > 0 && avgPos > 30) {
-    out.push({
-      id: "low_seo_rank",
-      title: "Sökord rankar utanför topp 30",
-      detail: `Snittposition ${avgPos.toFixed(1)} — content som matchar sökintention behövs.`,
-      topic: "Sökord-content som matchar sökintention",
-    });
-  }
-  if (geo?.top_competitors && geo.top_competitors.length > 0) {
-    const dominant = geo.top_competitors[0];
-    if (dominant.count >= 3) {
-      const slug = dominant.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-      out.push({
-        id: `competitor_${slug}`,
-        title: `${dominant.name} dominerar i AI-svar`,
-        detail: `Nämns ${dominant.count} gånger mer än ni. Värt att skriva content som svarar på samma frågor.`,
-        topic: `Varför ${dominant.name} inte räcker — vår syn`,
-      });
-    }
-  }
-  if (out.length === 0) {
-    out.push({
-      id: "no_gaps",
-      title: "Inga akuta gap upptäckta",
-      detail: "Kör en ny AI-kontroll för att hitta nya förbättringsområden.",
-    });
-  }
-  return out.slice(0, 3);
-}
-
-// Sprint 2 (K-10) — round-trip status for a gap. We treat any piece whose
-// source_gap_id matches as "addressing" the gap, and use the piece's status
-// to colour the badge: published = "Stängd", anything else = "Pågående".
 interface PieceLink {
   id: string;
   title: string;
@@ -184,11 +80,101 @@ function pickGapOutcome(pieces: PieceLink[], gapId: string): GapOutcome | null {
 }
 
 export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
+  const { t } = useLanguage();
   const [geo, setGeo] = useState<GeoSummary | null>(null);
   const [seo, setSeo] = useState<SeoStats | null>(null);
   const [pieces, setPieces] = useState<PieceLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+
+  const buildStrengths = (geoData: GeoSummary | null, seoData: SeoStats | null): Strength[] => {
+    const out: Strength[] = [];
+    if (geoData && (geoData.mention_rate ?? 0) >= 0.5) {
+      const pct = Math.round((geoData.mention_rate ?? 0) * 100);
+      out.push({
+        title: t.insightsOverview.aiVisibleTitle,
+        detail: `${t.insightsOverview.aiVisibleDetailPrefix} ${pct}${t.insightsOverview.aiVisibleDetailSuffix}`,
+      });
+    }
+    if (geoData?.engine_stats) {
+      const best = Object.entries(geoData.engine_stats)
+        .filter(([, s]) => (s?.total ?? 0) > 0)
+        .sort((a, b) => (b[1].rate ?? 0) - (a[1].rate ?? 0))[0];
+      if (best && best[1].rate >= 0.5) {
+        out.push({
+          title: `${t.insightsOverview.engineStrengthTitle} ${best[0]}`,
+          detail: `${Math.round(best[1].rate * 100)}% ${t.insightsOverview.engineStrengthDetail}`,
+        });
+      }
+    }
+    const avgPos = seoData?.avg_position ?? seoData?.avgPosition ?? 0;
+    if (avgPos > 0 && avgPos <= 10) {
+      out.push({
+        title: t.insightsOverview.googleTop10Title,
+        detail: `${t.insightsOverview.googleTop10DetailPrefix} ${avgPos.toFixed(1)} ${t.insightsOverview.googleTop10DetailOn} ${seoData?.total_keywords ?? seoData?.totalKeywords ?? 0} ${t.insightsOverview.googleTop10DetailSuffix}`,
+      });
+    }
+    if (seoData?.top_keywords && seoData.top_keywords.length > 0) {
+      const winners = seoData.top_keywords.filter((k) => k.position > 0 && k.position <= 3);
+      if (winners.length > 0) {
+        out.push({
+          title: `${winners.length} ${t.insightsOverview.top3TitleSuffix}`,
+          detail: `${t.insightsOverview.top3DetailQuote} "${winners[0].keyword}" ${t.insightsOverview.top3DetailSuffix} ${winners[0].position}.`,
+        });
+      }
+    }
+    return out.slice(0, 3);
+  };
+
+  const buildGaps = (geoData: GeoSummary | null, seoData: SeoStats | null): Gap[] => {
+    const out: Gap[] = [];
+    if (geoData && (geoData.open_gaps ?? 0) > 0) {
+      out.push({
+        id: "ai_open_gaps",
+        title: `${geoData.open_gaps} ${t.insightsOverview.gapAiOpenTitleSuffix}`,
+        detail: t.insightsOverview.gapAiOpenDetail,
+        topic: "Frågor där konkurrenter nämns men inte vi",
+      });
+    }
+    if (geoData && (geoData.mention_rate ?? 0) < 0.3 && (geoData.total_checks ?? 0) > 0) {
+      const pct = Math.round((geoData.mention_rate ?? 0) * 100);
+      out.push({
+        id: "low_ai_mention",
+        title: t.insightsOverview.gapLowAiTitle,
+        detail: `${t.insightsOverview.gapLowAiDetailPrefix} ${pct}${t.insightsOverview.gapLowAiDetailSuffix}`,
+        topic: "Branschspecifikt content som lyfter omnämnandegraden",
+      });
+    }
+    const avgPos = seoData?.avg_position ?? seoData?.avgPosition ?? 0;
+    if (avgPos > 0 && avgPos > 30) {
+      out.push({
+        id: "low_seo_rank",
+        title: t.insightsOverview.gapLowSeoTitle,
+        detail: `${t.insightsOverview.gapLowSeoDetailPrefix} ${avgPos.toFixed(1)} ${t.insightsOverview.gapLowSeoDetailSuffix}`,
+        topic: "Sökord-content som matchar sökintention",
+      });
+    }
+    if (geoData?.top_competitors && geoData.top_competitors.length > 0) {
+      const dominant = geoData.top_competitors[0];
+      if (dominant.count >= 3) {
+        const slug = dominant.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+        out.push({
+          id: `competitor_${slug}`,
+          title: `${dominant.name} ${t.insightsOverview.gapCompetitorTitleSuffix}`,
+          detail: `${t.insightsOverview.gapCompetitorDetailPrefix} ${dominant.count} ${t.insightsOverview.gapCompetitorDetailMiddle} ${t.insightsOverview.gapCompetitorDetailSuffix}`,
+          topic: `Varför ${dominant.name} inte räcker — vår syn`,
+        });
+      }
+    }
+    if (out.length === 0) {
+      out.push({
+        id: "no_gaps",
+        title: t.insightsOverview.noGapsDetectedTitle,
+        detail: t.insightsOverview.noGapsDetectedDetail,
+      });
+    }
+    return out.slice(0, 3);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -220,7 +206,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     return (
       <div className="rounded-xl border bg-white p-6 shadow-sm flex items-center gap-3 text-sm text-slate-500">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Hämtar synlighet…
+        {t.insightsOverview.loadingText}
       </div>
     );
   }
@@ -239,7 +225,6 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       : null);
   const avgPos = seo?.avg_position ?? seo?.avgPosition ?? 0;
 
-  // Combined visibility score (0-100)
   const geoComponent = mentionRate * 100;
   const seoComponent = avgPos > 0 ? clamp(101 - avgPos, 0, 100) : 0;
   const haveGeo = (geo?.total_checks ?? 0) > 0;
@@ -288,11 +273,11 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            Styrkor
+            {t.insightsOverview.strengthsTitle}
           </h2>
           {strengths.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-white p-5 text-sm text-slate-400">
-              Inga uppenbara styrkor än — kör fler kontroller för att hitta dem.
+              {t.insightsOverview.noStrengths}
             </div>
           ) : (
             <ul className="space-y-2">
@@ -312,17 +297,15 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
             <AlertCircle className="h-4 w-4 text-amber-500" />
-            Gap att täcka
+            {t.insightsOverview.gapsTitle}
           </h2>
           {gaps.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-white p-5 text-sm text-slate-400">
-              Inga gap upptäckta.
+              {t.insightsOverview.noGaps}
             </div>
           ) : (
             <ul className="space-y-2">
               {gaps.map((g) => {
-                // Sprint 2 (K-1): always pass a stable gap id so Content can
-                // round-trip the piece back via source_gap_id.
                 const params = new URLSearchParams();
                 params.set("gap", g.id);
                 if (g.topic) params.set("topic", g.topic);
@@ -341,7 +324,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                             : "border-blue-200 bg-blue-50 text-blue-700"
                         }`}
                       >
-                        {outcome.state === "published" ? "Stängd" : "Pågående"}
+                        {outcome.state === "published" ? t.insightsOverview.gapStatusClosed : t.insightsOverview.gapStatusInProgress}
                         <span className="opacity-70">— {outcome.pieceTitle}</span>
                       </div>
                     )}
@@ -350,7 +333,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                         href={href}
                         className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
                       >
-                        Skapa artikel för detta
+                        {t.insightsOverview.createArticle}
                         <ArrowRight className="h-3 w-3" />
                       </Link>
                     )}
@@ -365,26 +348,24 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
         <Info className="h-4 w-4 flex-shrink-0 text-slate-400 mt-0.5" />
         <p>
-          <strong className="text-slate-700">Vad mäter vi?</strong>{" "}
-          Synlighet kombinerar två saker: hur ofta ert varumärke nämns när AI-assistenter
-          (ChatGPT, Claude, Perplexity, Gemini) får relevanta frågor — och hur högt era sidor
-          rankar i Google-sök för spårade sökord. Båda mäts mot konkurrenterna ni angett.
+          <strong className="text-slate-700">{t.insightsOverview.infoTitle}</strong>{" "}
+          {t.insightsOverview.infoText}
         </p>
       </div>
 
       <div className="text-xs text-slate-400">
-        Senaste AI-kontroll:{" "}
+        {t.insightsOverview.lastCheck}{" "}
         {geo?.last_check_at
           ? new Date(geo.last_check_at).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-          : "aldrig"}
+          : t.insightsOverview.never}
         {(seo?.total_keywords || seo?.totalKeywords) ? (
           <>
-            {" · "}{seo?.total_keywords ?? seo?.totalKeywords} sökord spårade
+            {" · "}{seo?.total_keywords ?? seo?.totalKeywords} {t.insightsOverview.trackedKeywords}
           </>
         ) : null}
         {(geo?.total_checks ?? 0) > 0 && (
           <>
-            {" · "}{geo?.total_checks} AI-kontroller
+            {" · "}{geo?.total_checks} {t.insightsOverview.aiChecks}
           </>
         )}
       </div>
