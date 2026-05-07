@@ -2,9 +2,9 @@
 
 import { useState, ReactNode } from "react";
 import { Loader2, Sparkles, X, CheckCircle, AlertCircle } from "lucide-react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 // Free-form payload — each page renders and imports its own shape.
-// Using `any` index signature so concrete shapes don't need an explicit one.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SuggestionItem = Record<string, any>;
 
@@ -35,9 +35,10 @@ const ACCENT: Record<string, { bg: string; text: string; border: string; solid: 
 export default function SuggestionsPanel<T extends SuggestionItem>({
   title, description, accent,
   fetchSuggestions, renderItem, importItem,
-  importLabel = "Importera förslag",
+  importLabel,
   importButtonLabel,
 }: Props<T>) {
+  const { t } = useLanguage();
   const c = ACCENT[accent];
 
   const [suggestions, setSuggestions] = useState<T[]>([]);
@@ -54,9 +55,9 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
     try {
       const items = await fetchSuggestions();
       setSuggestions(items);
-      if (!items.length) setError("Inga förslag returnerades. Försök igen om en stund.");
+      if (!items.length) setError(t.suggestionsPanel.noResults);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte hämta förslag.");
+      setError(err instanceof Error ? err.message : t.suggestionsPanel.errorFetch);
     }
     setLoading(false);
   };
@@ -68,12 +69,11 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
     try {
       const msg = await importItem(pending);
       setFeedback(msg);
-      // Remove imported item from the list
       setSuggestions((prev) => prev.filter((s) => s !== pending));
       setPending(null);
       setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Kunde inte importera.");
+      setImportError(err instanceof Error ? err.message : t.suggestionsPanel.errorImport);
     }
     setImporting(false);
   };
@@ -94,7 +94,7 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
           className={`flex items-center gap-2 rounded-lg ${c.solid} ${c.solidHover} px-4 py-2 text-sm font-medium text-white shadow-sm disabled:opacity-50 transition-colors`}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {loading ? "Hämtar..." : suggestions.length > 0 ? "Hämta nya förslag" : "Föreslå med AI"}
+          {loading ? t.suggestionsPanel.fetching : suggestions.length > 0 ? t.suggestionsPanel.fetchNew : t.suggestionsPanel.suggest}
         </button>
       </div>
 
@@ -130,7 +130,6 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
         </div>
       )}
 
-      {/* Confirmation modal */}
       {pending && (
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={() => !importing && setPending(null)} />
@@ -139,7 +138,7 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                   <Sparkles className={`h-5 w-5 ${c.text}`} />
-                  {importLabel}
+                  {importLabel ?? t.suggestionsPanel.defaultImportLabel}
                 </h3>
                 <button
                   onClick={() => !importing && setPending(null)}
@@ -154,7 +153,7 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
               </div>
 
               <p className="text-sm text-slate-600 mb-4">
-                Vill du importera detta till agenten? Agenten kommer att skapa ett utkast som du kan granska innan publicering.
+                {t.suggestionsPanel.importConfirm}
               </p>
 
               {importError && (
@@ -170,7 +169,7 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
                   disabled={importing}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition-colors"
                 >
-                  Avbryt
+                  {t.suggestionsPanel.cancel}
                 </button>
                 <button
                   onClick={confirmImport}
@@ -178,7 +177,7 @@ export default function SuggestionsPanel<T extends SuggestionItem>({
                   className={`flex items-center gap-2 rounded-lg ${c.solid} ${c.solidHover} px-4 py-2 text-sm font-medium text-white disabled:opacity-50 transition-colors`}
                 >
                   {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                  {importing ? "Importerar..." : "Importera"}
+                  {importing ? t.suggestionsPanel.importing : t.suggestionsPanel.import}
                 </button>
               </div>
             </div>
