@@ -30,6 +30,11 @@ Rules:
 - Each item must have a one-sentence reason explaining WHY it's a useful addition.
 - Bias toward terms where the brand has a real chance of being mentioned (relevant to brand description, audience, USPs).
 - If gap_summary is provided, prioritize themes where competitors win and the brand loses.
+- CRITICAL: "geo_queries" are sent verbatim to AI assistants to measure unbiased brand visibility.
+  geo_queries MUST NOT contain the brand name, domain, or any obvious brand identifier — if the AI
+  sees the brand in the prompt, the result is biased and worthless. Phrase geo_queries from the
+  perspective of a buyer who has NOT yet heard of the brand (category-level questions, problem
+  statements, "best X for Y" comparisons against competitors, etc.).
 - Output STRICT JSON, no prose, matching the requested schema.`;
 
 function buildUserPrompt(input: {
@@ -60,6 +65,8 @@ ${input.existing_keywords.slice(0, 80).map((k) => `- ${k}`).join("\n") || "(none
 
 Existing GEO queries (DO NOT REPEAT):
 ${input.existing_geo_queries.slice(0, 40).map((q) => `- ${q}`).join("\n") || "(none)"}
+
+Reminder: geo_queries MUST NOT contain "${input.brand_name || ""}" or "${input.domain || ""}" — these queries are sent to AI assistants to measure unbiased visibility, so they have to read like a buyer who has never heard of the brand.
 
 ${input.gap_summary ? `Recent analysis gaps:\n${input.gap_summary}\n` : ""}
 Return JSON:
@@ -92,6 +99,24 @@ async function callAnthropic(apiKey: string, system: string, user: string): Prom
   const data = await res.json();
   const content = data.content?.[0]?.text || "";
   return content;
+}
+
+function brandIdentityTokens(brandName: string, domain: string): string[] {
+  const tokens = new Set<string>();
+  const add = (s: string) => {
+    const t = s.trim().toLowerCase();
+    if (t.length >= 3) tokens.add(t);
+  };
+  if (brandName) add(brandName);
+  if (domain) {
+    const host = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    if (host) {
+      add(host);
+      const root = host.split(".")[0];
+      if (root) add(root);
+    }
+  }
+  return Array.from(tokens);
 }
 
 function safeParse(text: string): Recommendations | null {
@@ -213,9 +238,18 @@ export async function POST(req: NextRequest) {
     const dedupe = (items: RecommendationItem[]) =>
       items.filter((it) => it && typeof it.text === "string" && !existingLower.has(it.text.toLowerCase()));
 
+    const brandTokens = brandIdentityTokens(str("brand_name"), str("domain"));
+    const stripBrand = (items: RecommendationItem[]) =>
+      brandTokens.length === 0
+        ? items
+        : items.filter((it) => {
+            const t = it.text.toLowerCase();
+            return !brandTokens.some((token) => t.includes(token));
+          });
+
     return NextResponse.json({
       keywords: dedupe(parsed.keywords),
-      geo_queries: dedupe(parsed.geo_queries),
+      geo_queries: stripBrand(dedupe(parsed.geo_queries)),
       long_tail_phrases: dedupe(parsed.long_tail_phrases),
     });
   } catch (e) {
