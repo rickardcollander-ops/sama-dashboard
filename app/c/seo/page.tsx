@@ -10,7 +10,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
-import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -352,7 +351,7 @@ export default function CustomerSeoPage() {
           </div>
         )}
 
-        {/* Add Keyword + AI Recommendations panel side by side */}
+        {/* Add Keyword + Top Performing Keywords side by side */}
         <div className="mb-8 grid gap-4 lg:grid-cols-2 items-start">
           {/* Add Keyword + AI Suggestions */}
           <div className="rounded-xl border bg-white p-6 shadow-sm">
@@ -404,14 +403,29 @@ export default function CustomerSeoPage() {
             )}
           </div>
 
-          {/* AI Recommendations panel */}
-          <KeywordGeoRecommendations
-            existingKeywords={keywords.map((k) => k.keyword)}
-            sections={["keywords", "long_tail_phrases"]}
-            title="Hitta nya sökord med AI"
-            description="AI proposes new SEO keywords and long-tail phrases based on your brand and current tracked keywords. Pick the ones to add."
-            onAdded={() => fetchKeywords()}
-          />
+          {/* Top Performing Keywords */}
+          {topKeywords.length > 0 && (
+            <div className="rounded-xl border bg-white p-6 shadow-sm">
+              <h2 className="font-semibold text-slate-900 mb-4">{t.seo.topPerforming}</h2>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {topKeywords.slice(0, 6).map((kw) => (
+                  <div
+                    key={kw.keyword}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
+                  >
+                    <span className="text-sm font-medium text-slate-700 truncate mr-3">{kw.keyword}</span>
+                    <span
+                      className={`text-sm font-bold ${
+                        kw.position <= 3 ? "text-emerald-600" : kw.position <= 10 ? "text-blue-600" : "text-slate-500"
+                      }`}
+                    >
+                      #{kw.position}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Position History Chart */}
@@ -467,30 +481,6 @@ export default function CustomerSeoPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Top Performing Keywords */}
-        {topKeywords.length > 0 && (
-          <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-4">{t.seo.topPerforming}</h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {topKeywords.slice(0, 6).map((kw) => (
-                <div
-                  key={kw.keyword}
-                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
-                >
-                  <span className="text-sm font-medium text-slate-700 truncate mr-3">{kw.keyword}</span>
-                  <span
-                    className={`text-sm font-bold ${
-                      kw.position <= 3 ? "text-emerald-600" : kw.position <= 10 ? "text-blue-600" : "text-slate-500"
-                    }`}
-                  >
-                    #{kw.position}
-                  </span>
-                </div>
-              ))}
             </div>
           </div>
         )}
