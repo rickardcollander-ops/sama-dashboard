@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import { ApiError } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -62,21 +63,6 @@ interface AuditFinding {
   category?: string;
 }
 
-function verdictStyle(verdict?: Verdict): { label: string; bg: string; text: string; ring: string } {
-  switch (verdict) {
-    case "strong":
-      return { label: "Stark", bg: "bg-green-50", text: "text-green-700", ring: "ring-green-200" };
-    case "improving":
-      return { label: "Förbättras", bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-200" };
-    case "weak":
-      return { label: "Svag", bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200" };
-    case "critical":
-      return { label: "Kritisk", bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" };
-    default:
-      return { label: verdict || "Okänd", bg: "bg-slate-100", text: "text-slate-700", ring: "ring-slate-200" };
-  }
-}
-
 function formatDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -92,16 +78,6 @@ function strategyAgeDays(iso?: string): number | null {
   const ms = Date.now() - new Date(iso).getTime();
   if (!Number.isFinite(ms) || ms < 0) return null;
   return Math.floor(ms / (1000 * 60 * 60 * 24));
-}
-
-function northStarText(ns: Strategy["north_star_metric"]): string {
-  if (!ns) return "";
-  if (typeof ns === "string") return ns;
-  const parts: string[] = [];
-  if (ns.name) parts.push(ns.name);
-  if (ns.target) parts.push(`mål: ${ns.target}`);
-  if (ns.current) parts.push(`nu: ${ns.current}`);
-  return parts.join(" · ");
 }
 
 function buildTldr(strategy: Strategy): string[] {
@@ -120,14 +96,8 @@ function buildTldr(strategy: Strategy): string[] {
   return bullets.slice(0, 3);
 }
 
-const VERDICT_HINT: Record<string, string> = {
-  critical: "Kritisk — vi har för lite data för att ge säkra rekommendationer. Kör en första synlighetsanalys på Insikter.",
-  weak: "Svag — synligheten ligger lågt. Fokusera content på de gap som listas under Plan per kanal.",
-  improving: "Förbättras — riktningen är rätt. Fortsätt enligt prioriteringarna nedan.",
-  strong: "Stark — håll i nuvarande spår och bevaka nya gap löpande.",
-};
-
 export default function StrategyPage() {
+  const { t } = useLanguage();
   const { user } = useUser();
   const { tenantClient, effectiveTenantId } = useSite();
   const { runs, triggerRun } = useActiveRuns();
@@ -145,7 +115,40 @@ export default function StrategyPage() {
   const [auditLoading, setAuditLoading] = useState(true);
   const [bulkResult, setBulkResult] = useState<{ created: number; failed: number } | null>(null);
 
-  const verdict = useMemo(() => verdictStyle(current?.verdict), [current?.verdict]);
+  const verdictStyle = (v?: Verdict): { label: string; bg: string; text: string; ring: string } => {
+    switch (v) {
+      case "strong":
+        return { label: t.strategy.verdictStrong, bg: "bg-green-50", text: "text-green-700", ring: "ring-green-200" };
+      case "improving":
+        return { label: t.strategy.verdictImproving, bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-200" };
+      case "weak":
+        return { label: t.strategy.verdictWeak, bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200" };
+      case "critical":
+        return { label: t.strategy.verdictCritical, bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" };
+      default:
+        return { label: v || t.strategy.verdictUnknown, bg: "bg-slate-100", text: "text-slate-700", ring: "ring-slate-200" };
+    }
+  };
+
+  const VERDICT_HINT: Record<string, string> = {
+    critical: t.strategy.verdictHintCritical,
+    weak: t.strategy.verdictHintWeak,
+    improving: t.strategy.verdictHintImproving,
+    strong: t.strategy.verdictHintStrong,
+  };
+
+  const northStarText = (ns: Strategy["north_star_metric"]): string => {
+    if (!ns) return "";
+    if (typeof ns === "string") return ns;
+    const parts: string[] = [];
+    if (ns.name) parts.push(ns.name);
+    if (ns.target) parts.push(`${t.strategy.northStarGoal} ${ns.target}`);
+    if (ns.current) parts.push(`${t.strategy.northStarCurrent} ${ns.current}`);
+    return parts.join(" · ");
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const verdict = useMemo(() => verdictStyle(current?.verdict), [current?.verdict, t]);
 
   const activeStrategyRun = runs.find(
     (r) => r.agent === "strategy" && (r.status === "pending" || r.status === "running"),
@@ -173,7 +176,7 @@ export default function StrategyPage() {
       }
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 404)) {
-        setError("Kunde inte hämta strategin.");
+        setError(t.strategy.errorFetch);
       }
     }
   };
@@ -308,7 +311,7 @@ export default function StrategyPage() {
 
   useEffect(() => {
     if (!lastFailedStrategyRun) return;
-    setError(lastFailedStrategyRun.error || "Kunde inte generera en ny strategi.");
+    setError(lastFailedStrategyRun.error || t.strategy.errorGenerate);
     if (step === "generating") setStep("goals");
   }, [lastFailedStrategyRun]);
 
@@ -317,7 +320,6 @@ export default function StrategyPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Pass the active site's tenant ID so pieces land in the right bucket
         ...(effectiveTenantId ? { "X-Site-Id": effectiveTenantId } : {}),
       },
       body: JSON.stringify({ items }),
@@ -352,10 +354,10 @@ export default function StrategyPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Strategi</h1>
               <p className="text-sm text-slate-500">
-                {step === "goals" && "Definiera dina mål för att generera en 90-dagarsplan."}
-                {step === "generating" && "Genererar din strategi och 90-dagarsplan…"}
-                {step === "review" && "Granska och godkänn din 90-dagarsplan."}
-                {step === "done" && "Din strategi och 90-dagarsplan är aktiv."}
+                {step === "goals" && t.strategy.wizardGoals}
+                {step === "generating" && t.strategy.wizardGenerating}
+                {step === "review" && t.strategy.wizardReview}
+                {step === "done" && t.strategy.wizardDone}
               </p>
             </div>
           </div>
@@ -366,7 +368,7 @@ export default function StrategyPage() {
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm"
               >
                 <Settings className="h-4 w-4" />
-                Ändra mål
+                {t.strategy.changeGoals}
               </button>
               <button
                 onClick={async () => {
@@ -377,7 +379,7 @@ export default function StrategyPage() {
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {generating ? "Genererar…" : "Uppdatera plan"}
+                {generating ? "Genererar…" : t.strategy.updatePlan}
               </button>
             </div>
           )}
@@ -387,9 +389,9 @@ export default function StrategyPage() {
         {step !== "done" && (
           <div className="mb-8 flex items-center gap-2">
             {[
-              { key: "goals", label: "1. Mål" },
-              { key: "generating", label: "2. Genererar" },
-              { key: "review", label: "3. Granska" },
+              { key: "goals", label: t.strategy.stepGoals },
+              { key: "generating", label: t.strategy.stepGenerating },
+              { key: "review", label: t.strategy.stepReview },
             ].map(({ key, label }, i) => {
               const stepOrder = ["goals", "generating", "review"];
               const currentIdx = stepOrder.indexOf(step);
@@ -425,15 +427,15 @@ export default function StrategyPage() {
               <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <div>
                 <p>
-                  {bulkResult.created} inlägg skapades som utkast
-                  {bulkResult.failed > 0 && ` (${bulkResult.failed} misslyckades)`}.
+                  {bulkResult.created} {t.strategy.bulkCreated}
+                  {bulkResult.failed > 0 && ` (${bulkResult.failed} ${t.strategy.bulkFailed})`}.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-3">
                   <a href="/c/content" className="font-semibold underline hover:text-emerald-700">
-                    Öppna Content → (fliken "Att granska")
+                    {t.strategy.openContent}
                   </a>
                   <a href="/c/content/calendar" className="font-semibold underline hover:text-emerald-700">
-                    Öppna Kalender →
+                    {t.strategy.openCalendar}
                   </a>
                 </div>
               </div>
@@ -458,19 +460,19 @@ export default function StrategyPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
               <Sparkles className="h-7 w-7 text-emerald-600 animate-pulse" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-800">Genererar din 90-dagarsplan…</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{t.strategy.generatingTitle}</h2>
             <p className="mt-2 text-sm text-slate-500">
-              SAMA analyserar dina mål, SEO-data och eventuella audit-fynd. Det tar vanligtvis 1–3 minuter.
+              {t.strategy.generatingHint}
             </p>
             <div className="mt-6 flex items-center justify-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
-              <span className="text-sm text-slate-400">Du kan lämna sidan — vi meddelar när det är klart.</span>
+              <span className="text-sm text-slate-400">{t.strategy.generatingLeave}</span>
             </div>
             <button
               onClick={() => setStep("goals")}
               className="mt-6 text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2"
             >
-              Avbryt och ändra mål
+              {t.strategy.cancelGenerating}
             </button>
           </div>
         )}
@@ -505,7 +507,7 @@ export default function StrategyPage() {
                       </span>
                     )}
                     {current.generated_at && (
-                      <span className="text-xs text-slate-400">Skapad {formatDate(current.generated_at)}</span>
+                      <span className="text-xs text-slate-400">{t.strategy.createdAt} {formatDate(current.generated_at)}</span>
                     )}
                   </div>
 
@@ -518,7 +520,7 @@ export default function StrategyPage() {
                     if (tldr.length === 0) return null;
                     return (
                       <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">TL;DR</h3>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.strategy.tldr}</h3>
                         <ul className="mt-2 space-y-1.5">
                           {tldr.map((b, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
@@ -539,21 +541,21 @@ export default function StrategyPage() {
                         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-900">
                           <RefreshCw className="h-3.5 w-3.5" />
                           <span>
-                            Strategin är <strong>{days} dagar gammal</strong> — utfallet kan ha hunnit ändras.
+                            {t.strategy.ageWarning} <strong>{days} {t.strategy.ageDaysSuffix} gammal</strong> {t.strategy.ageWarningSuffix}
                           </span>
                           <button
                             onClick={() => setStep("goals")}
                             className="ml-auto inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700"
                           >
                             <Sparkles className="h-3 w-3" />
-                            Uppdatera plan
+                            {t.strategy.updatePlanBtn}
                           </button>
                         </div>
                       );
                     }
                     return (
                       <div className="mt-3 text-xs text-slate-400">
-                        Senast uppdaterad för {days === 0 ? "mindre än ett dygn" : days === 1 ? "1 dag" : `${days} dagar`} sen.
+                        Senast uppdaterad för {days === 0 ? t.strategy.ageJustNow : days === 1 ? t.strategy.ageDay : `${days} ${t.strategy.ageDaysSuffix}`} {t.strategy.ageSuffix}
                       </div>
                     );
                   })()}
@@ -562,7 +564,7 @@ export default function StrategyPage() {
                     <EditableSection
                       value={current.headline ?? ""}
                       onSave={(next) => saveStrategyPatch({ headline: next })}
-                      placeholder="Lägg till en huvudrubrik för strategin"
+                      placeholder={t.strategy.editHeadlinePlaceholder}
                       textClassName="text-xl font-bold text-slate-900"
                       label="Redigera huvudrubrik"
                     />
@@ -573,7 +575,7 @@ export default function StrategyPage() {
                       value={current.executive_summary ?? ""}
                       onSave={(next) => saveStrategyPatch({ executive_summary: next })}
                       variant="textarea"
-                      placeholder="Skriv en kort sammanfattning av strategin (3–5 meningar)."
+                      placeholder={t.strategy.editSummaryPlaceholder}
                       textClassName="text-sm leading-relaxed text-slate-700"
                       label="Redigera sammanfattning"
                     />
@@ -582,7 +584,7 @@ export default function StrategyPage() {
                   {northStarText(current.north_star_metric) && (
                     <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800">
                       <Target className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-medium">Huvudmål:</span>
+                      <span className="font-medium">{t.strategy.northStar}</span>
                       <span>{northStarText(current.north_star_metric)}</span>
                     </div>
                   )}
@@ -600,7 +602,7 @@ export default function StrategyPage() {
                   if (all.length === 0) return null;
                   return (
                     <section>
-                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Plan per kanal</h3>
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t.strategy.planPerChannel}</h3>
                       <div className="grid gap-4 sm:grid-cols-2">
                         {all.map((d, idx) => {
                           const isPaused = !!d._paused;
@@ -614,26 +616,26 @@ export default function StrategyPage() {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{d.domain}</div>
                                 {isPaused ? (
-                                  <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">Snart kommer</span>
+                                  <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">{t.strategy.comingSoon}</span>
                                 ) : hasData ? (
                                   <a
                                     href={`/c/content?${params.toString()}`}
                                     className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
                                   >
                                     <Sparkles className="h-3 w-3" />
-                                    Skapa content från detta
+                                    {t.strategy.createContentFrom}
                                   </a>
                                 ) : null}
                               </div>
                               {!isPaused && !hasData && (
                                 <p className="mt-2 text-sm text-slate-500">
-                                  Vi får data för den här kanalen när Insikter har kört en första mätning.{" "}
+                                  {t.strategy.noDataChannel}{" "}
                                   <a href="/c/analysis" className="font-medium text-violet-700 underline hover:text-violet-900">Gå till Insikter</a>
                                 </p>
                               )}
-                              {isPaused && <p className="mt-2 text-sm text-slate-500">Inte aktiv än — den här kanalen finns med i planen men kör inte några agenter just nu.</p>}
-                              {d.diagnosis && <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">Diagnos: </span>{d.diagnosis}</p>}
-                              {d.goal && <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">Mål: </span>{d.goal}</p>}
+                              {isPaused && <p className="mt-2 text-sm text-slate-500">{t.strategy.pausedChannel}</p>}
+                              {d.diagnosis && <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">{t.strategy.diagnosis} </span>{d.diagnosis}</p>}
+                              {d.goal && <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">{t.strategy.goal} </span>{d.goal}</p>}
                               {d.key_actions && d.key_actions.length > 0 && (
                                 <ul className="mt-3 space-y-1.5">
                                   {d.key_actions.map((action, i) => (
@@ -657,7 +659,7 @@ export default function StrategyPage() {
                   <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-blue-500" />
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Prioriteringar över kanaler</h3>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{t.strategy.crossChannelTitle}</h3>
                     </div>
                     <ul className="mt-3 space-y-3">
                       {current.cross_channel_priorities.map((p, i) => (
@@ -711,7 +713,7 @@ export default function StrategyPage() {
                     >
                       <div className="flex items-center gap-2">
                         <History className="h-4 w-4 text-slate-400" />
-                        <span className="text-sm font-semibold text-slate-700">Tidigare strategier ({history.length})</span>
+                        <span className="text-sm font-semibold text-slate-700">{t.strategy.historyTitle} ({history.length})</span>
                       </div>
                       <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${showHistory ? "rotate-90" : ""}`} />
                     </button>
@@ -737,14 +739,14 @@ export default function StrategyPage() {
             ) : (
               <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
                 <Compass className="mx-auto h-8 w-8 text-slate-300" />
-                <h2 className="mt-3 text-lg font-semibold text-slate-700">Ingen strategi genererad än</h2>
-                <p className="mt-1 text-sm text-slate-500">Sätt dina mål och generera en 90-dagarsplan.</p>
+                <h2 className="mt-3 text-lg font-semibold text-slate-700">{t.strategy.noStrategyTitle}</h2>
+                <p className="mt-1 text-sm text-slate-500">{t.strategy.noStrategyHint}</p>
                 <button
                   onClick={() => setStep("goals")}
                   className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
                 >
                   <Target className="h-4 w-4" />
-                  Sätt mål och skapa plan
+                  {t.strategy.setGoals}
                 </button>
               </div>
             )}
