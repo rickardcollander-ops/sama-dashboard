@@ -7,7 +7,8 @@ import {
   Search, MessageSquare, TrendingUp, Users, BarChart3, Activity,
   Bot, Shield, AlertTriangle, FileText, DollarSign, Code2,
   ChevronLeft, ChevronRight, Home, ClipboardList, BarChart2,
-  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle, UserPlus
+  Menu, X, Target, HeartPulse, FileBarChart, MessageCircle, UserPlus,
+  Calendar
 } from "lucide-react";
 
 interface NavItem {
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
 
   { href: "/seo", label: "SEO", desc: "Rankings, audits & keywords", icon: Search, group: "agents" },
   { href: "/content", label: "Content", desc: "AI-generated articles & pages", icon: MessageSquare, group: "agents" },
+  { href: "/content-calendar", label: "Content Calendar", desc: "Schedule & auto-publish articles", icon: Calendar, group: "agents" },
   { href: "/tech", label: "Tech", desc: "Code changes via Pull Requests", icon: Code2, group: "agents" },
   { href: "/ads", label: "Google Ads", desc: "Campaign optimization", icon: TrendingUp, group: "agents" },
   { href: "/social", label: "Social Media", desc: "Twitter, Reddit & scheduling", icon: Users, group: "agents" },
