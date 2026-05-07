@@ -71,14 +71,24 @@ export function samaHeaders(): Record<string, string> {
     const accountId = localStorage.getItem("sama_active_account_id");
     const siteId = localStorage.getItem("sama_active_site_id");
     const viewAsRaw = sessionStorage.getItem("sama_admin_view_as");
-    const viewAs = viewAsRaw ? (JSON.parse(viewAsRaw) as { tenantId?: string }) : null;
-    if (accountId) out["X-Sama-Account-Id"] = accountId;
-    if (viewAs?.tenantId) {
-      out["X-Sama-Site-Id"] = viewAs.tenantId;
-      out["X-Tenant-ID"] = viewAs.tenantId;
-    } else if (siteId) {
-      out["X-Sama-Site-Id"] = siteId;
-      out["X-Tenant-ID"] = siteId;
+    const viewAs = viewAsRaw
+      ? (JSON.parse(viewAsRaw) as { userId?: string; tenantId?: string })
+      : null;
+
+    // In admin "view-as" mode the account header must point at the
+    // viewed customer (not the logged-in admin). The site header should
+    // honour the SiteSwitcher's selection — falling back to viewAs's
+    // initial tenant only when no explicit choice has been stored.
+    if (viewAs?.userId) {
+      out["X-Sama-Account-Id"] = viewAs.userId;
+    } else if (accountId) {
+      out["X-Sama-Account-Id"] = accountId;
+    }
+
+    const resolvedSiteId = siteId || viewAs?.tenantId;
+    if (resolvedSiteId) {
+      out["X-Sama-Site-Id"] = resolvedSiteId;
+      out["X-Tenant-ID"] = resolvedSiteId;
     }
   } catch {
     /* ignore — storage access can throw in private mode */

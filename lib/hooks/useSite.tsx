@@ -151,7 +151,17 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
           const body = await res.json() as { sites: UserSite[] };
           const loaded = body.sites ?? [];
           setSites(loaded);
-          setActiveSiteIdState(loaded[0]?.id ?? null);
+          // Honour an explicit selection from localStorage if it still
+          // belongs to this customer — otherwise we forget the choice
+          // every reload and fall back to the first site, which is what
+          // made the SiteSwitcher appear to "snap back" in admin
+          // kundvy.
+          const stored =
+            typeof window !== "undefined"
+              ? localStorage.getItem(ACTIVE_SITE_KEY)
+              : null;
+          const valid = stored && loaded.some((s) => s.id === stored);
+          setActiveSiteIdState(valid ? stored : (loaded[0]?.id ?? null));
         } else {
           setSites([]);
         }
@@ -274,12 +284,21 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [sites, activeSiteId]
   );
 
-  // The effective tenant ID: admin view-as overrides the active site.
-  const effectiveTenantId = viewAs?.tenantId ?? activeSite?.id ?? effectiveOwnerId;
+  // The effective tenant ID. In admin view-as mode the loaded `sites`
+  // come from the viewed customer (via /api/admin/user-sites), so the
+  // selection in the SiteSwitcher is the source of truth — fall back to
+  // the original viewAs.tenantId only while sites are still loading,
+  // and to effectiveOwnerId as a last resort.
+  const effectiveTenantId =
+    activeSite?.id ?? viewAs?.tenantId ?? effectiveOwnerId;
 
   const tenantClient = useMemo(
-    () => tenantApi(effectiveTenantId, viewAs?.tenantId ?? activeAccountId ?? undefined),
-    [effectiveTenantId, viewAs, activeAccountId]
+    () =>
+      tenantApi(
+        effectiveTenantId,
+        viewAs?.userId ?? activeAccountId ?? undefined,
+      ),
+    [effectiveTenantId, viewAs, activeAccountId],
   );
 
   const myRole = useMemo<AccountRole | null>(() => {

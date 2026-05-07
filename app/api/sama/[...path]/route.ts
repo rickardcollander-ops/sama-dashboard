@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { isAdminEmail } from "@/lib/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,11 +130,12 @@ function rateLimit(key: string, limit: number): { ok: boolean; remaining: number
   return { ok, remaining: Math.max(0, limit - b.count), reset: b.windowStart + WINDOW_MS };
 }
 
-async function getUserId(): Promise<string | null> {
+async function getCurrentUser(): Promise<{ id: string; email: string | null } | null> {
   try {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
+    if (!data?.user) return null;
+    return { id: data.user.id, email: data.user.email ?? null };
   } catch {
     return null;
   }
@@ -167,9 +169,9 @@ const contextCache = new Map<string, CachedContext>();
  */
 async function resolveTenantContext(
   req: NextRequest,
-  userId: string | null,
+  user: { id: string; email: string | null } | null,
 ): Promise<TenantContext> {
-  if (!userId) {
+  if (!user) {
     return {
       accountId: req.headers.get("x-sama-account-id"),
       siteId:
@@ -178,6 +180,8 @@ async function resolveTenantContext(
     };
   }
 
+  const userId = user.id;
+  const isAdmin = isAdminEmail(user.email);
   const requestedAccount = req.headers.get("x-sama-account-id") || userId;
   const requestedSite =
     req.headers.get("x-sama-site-id") ||
@@ -200,8 +204,14 @@ async function resolveTenantContext(
     return { accountId: requestedAccount, siteId: requestedSite || null, siteDomain: null };
   }
 
+  // Admin "view-as" mode: the operator account browses other tenants'
+  // data. Membership and ownership checks would otherwise fall back to
+  // the admin's own account/site and silently leak admin data into the
+  // customer view.
   let accountId: string | null = null;
-  if (requestedAccount === userId) {
+  if (isAdmin) {
+    accountId = requestedAccount;
+  } else if (requestedAccount === userId) {
     accountId = userId;
   } else {
     const { data: membership } = await admin
@@ -216,12 +226,12 @@ async function resolveTenantContext(
 
   let siteRow: { id: string; settings: Record<string, unknown> | null } | null = null;
   if (requestedSite) {
-    const { data } = await admin
+    let query = admin
       .from("user_sites")
       .select("id, settings, user_id")
-      .eq("id", requestedSite)
-      .eq("user_id", accountId)
-      .maybeSingle();
+      .eq("id", requestedSite);
+    if (!isAdmin) query = query.eq("user_id", accountId);
+    const { data } = await query.maybeSingle();
     if (data) siteRow = { id: data.id, settings: data.settings };
   }
   if (!siteRow) {
@@ -271,7 +281,8 @@ async function handle(
   const fullPath = "/" + path.join("/");
   const target = `${BACKEND.replace(/\/$/, "")}/${path.join("/")}${url.search}`;
 
-  const userId = await getUserId();
+  const user = await getCurrentUser();
+  const userId = user?.id ?? null;
   const intent = req.headers.get("x-sama-intent");
   const isExpensive = EXPENSIVE_PATTERNS.some((re) => re.test(fullPath));
 
@@ -315,7 +326,7 @@ async function handle(
   }
 
   const headers = copyRequestHeaders(req.headers);
-  const tenant = await resolveTenantContext(req, userId);
+  const tenant = await resolveTenantContext(req, user);
   if (tenant.accountId) {
     headers.set("X-Sama-Account-Id", tenant.accountId);
   }
