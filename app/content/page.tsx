@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, TrendingUp, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen } from "lucide-react";
+import { FileText, TrendingUp, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
+import ContentPlanTab from "@/components/content/ContentPlanTab";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
@@ -33,13 +34,20 @@ interface Action {
   status: string;
 }
 
+interface AnalysisSummary {
+  total_actions?: number;
+  content_gaps?: number;
+  content_pieces?: number;
+  high?: number;
+  medium?: number;
+}
+
 export default function ContentPage() {
   const [loading, setLoading] = useState(true);
   const [contentPieces, setContentPieces] = useState<ContentPiece[]>([]);
 
-  // Analysis state
-  // analyzing state from useBackgroundAnalysis hook
-  const analysis: any = null;
+  // Analysis state — now backed by the persistent cache so it survives reloads.
+  const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
 
   // Execution state
@@ -47,32 +55,85 @@ export default function ContentPage() {
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
 
-  // Background analysis
+  // Persist the latest analysis snapshot to the agent cache. Best-effort —
+  // a failure here doesn't break the user's flow, just means next reload
+  // won't have the cached snapshot.
+  const persistSnapshot = async (snapshot: { summary: AnalysisSummary | null; actions: Action[] }) => {
+    try {
+      await fetch(`${SAMA_API_URL}/api/content/analysis/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: 'content', summary: snapshot.summary || {}, actions: snapshot.actions }),
+      });
+    } catch {
+      /* non-fatal */
+    }
+  };
+
   const fetchActions = async () => {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/content/actions`);
       if (res.ok) {
         const d = await res.json();
-        setActions(d.actions || []);
+        const newActions: Action[] = d.actions || [];
+        setActions(newActions);
+        return newActions;
       }
     } catch (error) {
       console.error('Failed to fetch content actions:', error);
     }
+    return null;
   };
+
+  const fetchLatestAnalysisFromCache = async () => {
+    try {
+      const res = await fetch(`${SAMA_API_URL}/api/content/analysis/latest`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const cached = data?.analysis;
+      if (cached && typeof cached === 'object') {
+        if (Array.isArray(cached.actions)) setActions(cached.actions as Action[]);
+        if (cached.summary && typeof cached.summary === 'object') setAnalysisSummary(cached.summary as AnalysisSummary);
+      }
+    } catch {
+      /* cache miss is fine */
+    }
+  };
+
   const { startAnalysis: startBgAnalysis, analyzing, phase: analysisPhase, progress: analysisProgress } =
     useBackgroundAnalysis({
       agent: 'content',
-      onComplete: () => { fetchLibrary(); fetchActions(); },
+      onComplete: async () => {
+        fetchLibrary();
+        const latest = await fetchActions();
+        // Compute a fresh summary from the actions and snapshot it server-side
+        // so the next visit hydrates instantly from cache.
+        if (latest) {
+          const summary: AnalysisSummary = {
+            total_actions: latest.length,
+            high: latest.filter(a => a.priority === 'high').length,
+            medium: latest.filter(a => a.priority === 'medium').length,
+            content_gaps: latest.filter(a => a.type === 'blog_post').length,
+          };
+          setAnalysisSummary(summary);
+          persistSnapshot({ summary, actions: latest });
+        }
+      },
       onError: (err) => setError(err),
     });
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'library' | 'actions' | 'pillars'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'plan' | 'actions' | 'pillars'>('library');
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
-  useEffect(() => { fetchLibrary(); }, []);
+  useEffect(() => {
+    fetchLibrary();
+    // Hydrate the analysis from cache so the user sees their last run
+    // immediately — no need to re-run analysis just to populate the UI.
+    fetchLatestAnalysisFromCache();
+  }, []);
 
   const fetchLibrary = async () => {
     try {
@@ -265,6 +326,7 @@ export default function ContentPage() {
         <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
           {[
             { id: 'library' as const, label: 'Content Library', icon: <BookOpen className="h-4 w-4" /> },
+            { id: 'plan' as const, label: 'Content Plan', icon: <Lightbulb className="h-4 w-4" /> },
             { id: 'actions' as const, label: `Pending Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
             { id: 'pillars' as const, label: 'Content Pillars', icon: <BarChart3 className="h-4 w-4" /> },
           ].map(tab => (
@@ -284,7 +346,7 @@ export default function ContentPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-                  <p className="mt-1 text-sm text-slate-500">All content pieces generated by the Content Agent, stored in Supabase. Published items are live on successifier.com.</p>
+                  <p className="mt-1 text-sm text-slate-500">All content pieces generated by the Content Agent. Click any item to edit it with the AI editor.</p>
                 </div>
               </div>
               <div className="mt-4 flex gap-3">
@@ -313,30 +375,31 @@ export default function ContentPage() {
                 <div className="p-12 text-center">
                   <FileText className="mx-auto h-12 w-12 text-slate-300" />
                   <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
-                  <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze Content Gaps&quot; to scan competitors and generate content recommendations. You can also ask the Content Agent in the chat to create specific pieces.</p>
+                  <p className="mt-2 text-sm text-slate-500">Switch to the <span className="font-medium">Content Plan</span> tab to generate ideas, or click &quot;Analyze&quot; to scan competitors and surface gaps.</p>
                 </div>
               ) : filteredPieces.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-500">No content matches your search.</div>
               ) : (
                 filteredPieces.map((cp) => {
-                  // Generate live URL based on content type and title
                   let liveUrl = '';
                   if (cp.status === 'published') {
                     if (cp.type === 'comparison') {
-                      // Extract competitor name from title (e.g., "Successifier vs Gainsight" -> "gainsight")
                       const match = cp.title.match(/vs\s+(\w+)/i);
                       if (match) {
                         liveUrl = `https://successifier.com/vs/${match[1].toLowerCase()}`;
                       }
                     } else if (cp.type === 'blog_post') {
-                      // Generate slug from title
                       const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                       liveUrl = `https://successifier.com/blog/${slug}`;
                     }
                   }
 
                   return (
-                    <div key={cp.id} className="p-4 hover:bg-slate-50">
+                    <Link
+                      key={cp.id}
+                      href={`/content/${cp.id}`}
+                      className="block p-4 hover:bg-slate-50"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -346,23 +409,26 @@ export default function ContentPage() {
                             }`}>{cp.status}</span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
                             {liveUrl && (
-                              <a href={liveUrl} target="_blank" rel="noopener noreferrer" 
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                              <span
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(liveUrl, '_blank'); }}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                              >
                                 <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
                                 View Live
-                              </a>
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-slate-500">
                             {cp.word_count > 0 && <span>{cp.word_count} words</span>}
                             {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
                             {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
+                            <span className="ml-auto text-blue-600">Edit with AI →</span>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })
               )}
@@ -370,15 +436,20 @@ export default function ContentPage() {
           </div>
         )}
 
+        {/* TAB: Content Plan */}
+        {activeTab === 'plan' && (
+          <ContentPlanTab apiUrl={SAMA_API_URL} />
+        )}
+
         {/* TAB: Actions */}
         {activeTab === 'actions' && (
           <div className="space-y-4">
-            {analysis && (
+            {analysisSummary && (
               <div className="rounded-lg border bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Content Analysis</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Each action below can be executed — the agent will generate the content, optimize meta tags, or publish as needed.</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Snapshot loaded from cache — re-run Analyze to refresh. Each action below can be executed by the agent.</p>
                   </div>
                   {pendingCount > 0 && (
                     <button onClick={executeAll} disabled={executing.size > 0}
@@ -390,15 +461,15 @@ export default function ContentPage() {
                 </div>
                 <div className="grid grid-cols-4 gap-4">
                   <div className="rounded-lg bg-slate-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-slate-900">{analysis.summary?.total_actions || 0}</p>
+                    <p className="text-2xl font-bold text-slate-900">{analysisSummary.total_actions || 0}</p>
                     <p className="text-xs text-slate-500">Total Actions</p>
                   </div>
                   <div className="rounded-lg bg-orange-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-orange-600">{analysis.summary?.content_gaps || 0}</p>
+                    <p className="text-2xl font-bold text-orange-600">{analysisSummary.content_gaps || 0}</p>
                     <p className="text-xs text-orange-600">Content Gaps</p>
                   </div>
                   <div className="rounded-lg bg-blue-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{analysis.summary?.content_pieces || 0}</p>
+                    <p className="text-2xl font-bold text-blue-600">{analysisSummary.content_pieces || contentPieces.length}</p>
                     <p className="text-xs text-blue-600">Existing Pieces</p>
                   </div>
                   <div className="rounded-lg bg-green-50 p-3 text-center">
@@ -413,7 +484,7 @@ export default function ContentPage() {
               <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
                 <Zap className="mx-auto h-12 w-12 text-slate-300" />
                 <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze Content Gaps&quot; to compare your content against competitors and generate specific actions (new blog posts, comparison pages, meta optimizations).</p>
+                <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze&quot; to compare your content against competitors and generate specific actions (new blog posts, comparison pages, meta optimizations).</p>
               </div>
             ) : (
               actions.map((action) => (
