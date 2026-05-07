@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import LayoutShell from "@/components/LayoutShell";
 import { ToastProvider } from "@/components/Toast";
+import { LanguageProvider } from "@/lib/hooks/useLanguage";
 
 export const metadata: Metadata = {
   title: "SAMA 2.0 — Successifier Marketing AI",
@@ -16,9 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <ToastProvider>
-          <LayoutShell>{children}</LayoutShell>
-        </ToastProvider>
+        <LanguageProvider>
+          <ToastProvider>
+            <LayoutShell>{children}</LayoutShell>
+          </ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

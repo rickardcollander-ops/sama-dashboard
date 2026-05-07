@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertCircle, Bell, Check, FileText, X, Inbox } from "lucide-react";
 import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";
 import { useUser } from "@/lib/hooks/useUser";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : "/api/sama";
@@ -43,31 +44,40 @@ const SEVERITY_DOT: Record<string, string> = {
 
 type TabId = "pending" | "recent" | "alerts";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "pending", label: "Att godkänna" },
-  { id: "recent", label: "Senaste" },
-  { id: "alerts", label: "Varningar" },
-];
+type TimeStrings = {
+  never: string;
+  justNow: string;
+  minutesSuffix: string;
+  hoursSuffix: string;
+  daysSuffix: string;
+};
 
-function fmtRelative(iso: string): string {
+function fmtRelative(iso: string, time: TimeStrings): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just nu";
-  if (mins < 60) return `${mins}m sen`;
+  if (mins < 1) return time.justNow;
+  if (mins < 60) return `${mins}${time.minutesSuffix}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h sen`;
+  if (hours < 24) return `${hours}${time.hoursSuffix}`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d sen`;
+  if (days < 7) return `${days}${time.daysSuffix}`;
   return new Date(iso).toLocaleDateString();
 }
 
 export default function NotificationBell() {
   const { user } = useUser();
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [pending, setPending] = useState<PendingApproval[]>([]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TabId>("pending");
   const ref = useRef<HTMLDivElement>(null);
+
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "pending", label: t.notifications.tabPending },
+    { id: "recent", label: t.notifications.tabRecent },
+    { id: "alerts", label: t.notifications.tabAlerts },
+  ];
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -158,8 +168,8 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen(!open)}
         className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-        title="Aviseringar"
-        aria-label="Aviseringar"
+        title={t.notifications.title}
+        aria-label={t.notifications.title}
       >
         <Bell className="h-5 w-5" />
         {totalBadge > 0 && (
@@ -173,23 +183,23 @@ export default function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-[22rem] sm:w-[26rem] rounded-xl border bg-white shadow-xl z-50 overflow-hidden">
           {/* Tab strip */}
           <div className="flex border-b">
-            {TABS.map((t) => {
-              const isActive = tab === t.id;
+            {tabs.map((tabItem) => {
+              const isActive = tab === tabItem.id;
               const count =
-                t.id === "pending" ? pending.length :
-                t.id === "alerts" ? alerts.length :
+                tabItem.id === "pending" ? pending.length :
+                tabItem.id === "alerts" ? alerts.length :
                 notifications.length;
               return (
                 <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
+                  key={tabItem.id}
+                  onClick={() => setTab(tabItem.id)}
                   className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
                     isActive
                       ? "text-blue-700 border-b-2 border-blue-600 -mb-px"
                       : "text-slate-500 hover:text-slate-900 border-b-2 border-transparent"
                   }`}
                 >
-                  {t.label}
+                  {tabItem.label}
                   {count > 0 && (
                     <span className={`ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
                       isActive ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
@@ -211,14 +221,14 @@ export default function NotificationBell() {
               <NotificationList
                 items={notifications}
                 onDismiss={markRead}
-                emptyLabel="Inga nya händelser"
+                emptyLabel={t.notifications.emptyRecent}
               />
             )}
             {tab === "alerts" && (
               <NotificationList
                 items={alerts}
                 onDismiss={markRead}
-                emptyLabel="Inga varningar"
+                emptyLabel={t.notifications.emptyAlerts}
               />
             )}
           </div>
@@ -231,7 +241,7 @@ export default function NotificationBell() {
                 className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
               >
                 <Check className="h-3 w-3" />
-                Markera alla som lästa
+                {t.notifications.markAllRead}
               </button>
             </div>
           )}
@@ -242,7 +252,7 @@ export default function NotificationBell() {
                 onClick={() => setOpen(false)}
                 className="text-xs font-medium text-blue-600 hover:text-blue-800"
               >
-                Öppna alla utkast →
+                {t.notifications.openAllDrafts}
               </Link>
             </div>
           )}
@@ -253,11 +263,12 @@ export default function NotificationBell() {
 }
 
 function PendingList({ items }: { items: PendingApproval[] }) {
+  const { t } = useLanguage();
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-sm text-slate-400">
         <Inbox className="h-6 w-6 text-slate-300" />
-        Inga utkast väntar på dig
+        {t.notifications.emptyPending}
       </div>
     );
   }
@@ -274,13 +285,13 @@ function PendingList({ items }: { items: PendingApproval[] }) {
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
-                {p.title || "Utkast utan titel"}
+                {p.title || t.notifications.untitled}
               </p>
               <p className="text-xs text-slate-500 line-clamp-2">
-                {p.body?.slice(0, 140) || (p.kind ? `${p.kind}-utkast` : "Väntar på godkännande")}
+                {p.body?.slice(0, 140) || (p.kind ? `${p.kind}${t.notifications.draftSuffix}` : t.notifications.waitingApproval)}
               </p>
               <p className="mt-0.5 text-[10px] text-slate-400">
-                {p.agent_name || p.kind} · {fmtRelative(p.created_at)}
+                {p.agent_name || p.kind} · {fmtRelative(p.created_at, t.time)}
               </p>
             </div>
           </Link>
@@ -299,6 +310,7 @@ function NotificationList({
   onDismiss: (id: string) => void;
   emptyLabel: string;
 }) {
+  const { t } = useLanguage();
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-sm text-slate-400">
@@ -321,14 +333,14 @@ function NotificationList({
             <p className="text-sm font-medium text-slate-900 truncate">{n.title}</p>
             <p className="text-xs text-slate-500 line-clamp-2">{n.message}</p>
             <p className="mt-0.5 text-[10px] text-slate-400">
-              {n.agent} · {fmtRelative(n.created_at)}
+              {n.agent} · {fmtRelative(n.created_at, t.time)}
             </p>
           </div>
           <button
             onClick={() => onDismiss(n.id)}
             className="flex-shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
-            title="Stäng"
-            aria-label="Stäng avisering"
+            title={t.notifications.close}
+            aria-label={t.notifications.closeAria}
           >
             <X className="h-3.5 w-3.5" />
           </button>
