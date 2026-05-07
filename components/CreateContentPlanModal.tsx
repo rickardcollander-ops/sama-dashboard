@@ -14,6 +14,7 @@ export interface CreateContentPlanModalProps {
     articles_per_week: number;
     social_platforms: string[];
     message: string;
+    run_id?: string;
   }) => void;
 }
 
@@ -77,6 +78,7 @@ export default function CreateContentPlanModal({
         articles_per_week: articlesPerWeek,
         social_platforms: Array.from(platforms),
         message: data.message || "",
+        run_id: typeof data.run_id === "string" ? data.run_id : undefined,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte skapa content-plan");
