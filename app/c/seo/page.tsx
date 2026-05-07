@@ -442,7 +442,7 @@ export default function CustomerSeoPage() {
               </button>
             </div>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <LineChart
                   data={selectedKeyword.position_history}
                   margin={{ top: 5, right: 20, bottom: 5, left: 0 }}

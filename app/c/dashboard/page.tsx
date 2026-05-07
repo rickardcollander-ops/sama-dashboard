@@ -549,7 +549,7 @@ function TrafficGraph({
         <div className="px-6 pb-6">
           {hasData ? (
             <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtDate} />

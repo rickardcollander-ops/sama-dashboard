@@ -216,13 +216,24 @@ export default function StrategyPage() {
     if (!user) return;
     setAuditLoading(true);
     try {
-      const data = await tenantClient.get<{ run?: { findings?: AuditFinding[] }; findings?: AuditFinding[] }>(
-        "/api/site-audit/latest",
-      );
-      const findings = data?.run?.findings ?? data?.findings ?? [];
-      setAuditFindings(
-        findings.filter((f: AuditFinding) => f.severity === "critical" || f.severity === "warning")
-      );
+      // Hits the local Next.js route (always 200) — bypasses tenantClient so
+      // we don't reach the backend at NEXT_PUBLIC_SAMA_API_URL, which doesn't
+      // implement /latest and used to flood the console with 404s.
+      const res = await fetch("/api/site-audit/latest", {
+        headers: effectiveTenantId ? { "X-Tenant-ID": effectiveTenantId } : {},
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          run?: { findings?: AuditFinding[] };
+          findings?: AuditFinding[];
+        };
+        const findings = data?.run?.findings ?? data?.findings ?? [];
+        setAuditFindings(
+          findings.filter((f: AuditFinding) => f.severity === "critical" || f.severity === "warning")
+        );
+      } else {
+        setAuditFindings([]);
+      }
     } catch {
       setAuditFindings([]);
     }

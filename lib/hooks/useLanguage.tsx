@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { translations, type Language, type Translations } from "@/lib/locales/translations";
 
 interface LanguageContextType {
@@ -12,19 +12,35 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
 const STORAGE_KEY = "sama_language";
-
-function getInitialLanguage(): Language {
-  if (typeof window === "undefined") return "sv";
-  const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-  return stored && stored in translations ? stored : "sv";
-}
+const DEFAULT_LANGUAGE: Language = "sv";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(getInitialLanguage);
+  // Always start with the default so server-rendered HTML matches the
+  // client's first render. Reading localStorage in a lazy initializer would
+  // diverge from SSR and trigger React hydration error #418 for any text
+  // routed through `t.*`.
+  const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
+      if (stored && stored in translations && stored !== language) {
+        setLanguageState(stored);
+      }
+    } catch {
+      /* private mode / storage disabled — keep default */
+    }
+    // Intentionally only run on mount; we just need to reconcile once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem(STORAGE_KEY, lang);
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
