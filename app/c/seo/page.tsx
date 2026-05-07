@@ -18,6 +18,7 @@ import { api, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { exportCsv } from "@/lib/csv";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import Link from "next/link";
 
 type SortKey = "keyword" | "position" | "clicks" | "impressions" | "ctr";
@@ -36,6 +37,7 @@ interface Keyword {
 export default function CustomerSeoPage() {
   const { user, loading: userLoading } = useUser();
   const { tenantClient, effectiveTenantId } = useSite();
+  const { t } = useLanguage();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -64,8 +66,8 @@ export default function CustomerSeoPage() {
 
   useEffect(() => {
     if (error) {
-      const t = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(timer);
     }
   }, [error]);
 
@@ -76,7 +78,6 @@ export default function CustomerSeoPage() {
       const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
       if (data?.settings) setBrandContext(data.settings);
     } catch {}
-    // Check GSC connection — mirror settings page (backend reads tenant_id from query)
     try {
       const status = await api.get<Record<string, { connected?: boolean }>>(
         `/api/auth/google/status?tenant_id=${effectiveTenantId}`
@@ -232,7 +233,6 @@ export default function CustomerSeoPage() {
     result.sort((a, b) => {
       const getValue = (k: Keyword) => {
         if (sortKey === "keyword") return k.keyword;
-        // Treat "0" (not ranked) as worst when sorting position ascending
         if (sortKey === "position" && k.position <= 0) return Number.MAX_SAFE_INTEGER;
         return (k as any)[sortKey] ?? 0;
       };
@@ -290,11 +290,9 @@ export default function CustomerSeoPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Search className="h-7 w-7 text-blue-500" />
-              Google-synlighet
+              {t.seo.title}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Sökord, ranking och klick från Google Search Console
-            </p>
+            <p className="mt-1 text-sm text-slate-500">{t.seo.subtitle}</p>
           </div>
           <div className="relative group">
             <button
@@ -307,7 +305,7 @@ export default function CustomerSeoPage() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {checking ? "Kör…" : "Kör kontroll"}
+              {checking ? t.seo.running : t.seo.runCheck}
             </button>
             {keywords.length === 0 && (
               <span className="absolute right-0 top-full mt-1 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white shadow-lg z-10">
@@ -323,16 +321,13 @@ export default function CustomerSeoPage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-blue-900">Google Search Console är inte anslutet</p>
-                <p className="text-sm text-blue-700 mt-1">
-                  Anslut Google Search Console i Inställningar så hämtas sökdata automatiskt.
-                  Du kan också lägga till sökord manuellt nedan.
-                </p>
+                <p className="text-sm font-medium text-blue-900">{t.seo.gscNotConnected}</p>
+                <p className="text-sm text-blue-700 mt-1">{t.seo.gscNotConnectedHint}</p>
                 <Link
                   href="/c/settings/integrations"
                   className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
                 >
-                  Gå till Integrationer →
+                  {t.seo.gscGoToIntegrations}
                 </Link>
               </div>
             </div>
@@ -341,26 +336,10 @@ export default function CustomerSeoPage() {
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
-          <StatCard
-            label="Sökord"
-            value={keywords.length}
-            icon={<Target className="h-5 w-5 text-blue-500" />}
-          />
-          <StatCard
-            label="Snittposition"
-            value={avgPosition > 0 ? avgPosition.toFixed(1) : "--"}
-            icon={<BarChart2 className="h-5 w-5 text-violet-500" />}
-          />
-          <StatCard
-            label="Klick"
-            value={(totalClicks ?? 0).toLocaleString()}
-            icon={<TrendingUp className="h-5 w-5 text-emerald-500" />}
-          />
-          <StatCard
-            label="Visningar"
-            value={(totalImpressions ?? 0).toLocaleString()}
-            icon={<Search className="h-5 w-5 text-amber-500" />}
-          />
+          <StatCard label={t.seo.statKeywords} value={keywords.length} icon={<Target className="h-5 w-5 text-blue-500" />} />
+          <StatCard label={t.seo.statAvgPosition} value={avgPosition > 0 ? avgPosition.toFixed(1) : "--"} icon={<BarChart2 className="h-5 w-5 text-violet-500" />} />
+          <StatCard label={t.seo.statClicks} value={(totalClicks ?? 0).toLocaleString()} icon={<TrendingUp className="h-5 w-5 text-emerald-500" />} />
+          <StatCard label={t.seo.statImpressions} value={(totalImpressions ?? 0).toLocaleString()} icon={<Search className="h-5 w-5 text-amber-500" />} />
         </div>
 
         {error && (
@@ -375,14 +354,14 @@ export default function CustomerSeoPage() {
 
         {/* Add Keyword + AI Suggestions */}
         <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-          <h2 className="font-semibold text-slate-900 mb-4">Lägg till sökord</h2>
+          <h2 className="font-semibold text-slate-900 mb-4">{t.seo.addKeyword}</h2>
           <div className="flex gap-2 mb-4">
             <input
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-              placeholder="Skriv in ett sökord, t.ex. 'frisör Stockholm'"
+              placeholder={t.seo.keywordPlaceholder}
               className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
@@ -391,7 +370,7 @@ export default function CustomerSeoPage() {
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors"
             >
               {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Add
+              {t.seo.addKeyword}
             </button>
             <button
               onClick={suggestKeywords}
@@ -406,7 +385,7 @@ export default function CustomerSeoPage() {
           {/* AI Suggestions */}
           {suggestions.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase mb-2">Föreslagna sökord</p>
+              <p className="text-xs font-medium text-slate-500 uppercase mb-2">{t.seo.suggestedKeywords}</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
                   <button
@@ -423,7 +402,7 @@ export default function CustomerSeoPage() {
           )}
         </div>
 
-        {/* Google data diagnostics — surfaces why no GSC data is flowing in */}
+        {/* Google data diagnostics */}
         {user && (
           <div className="mb-8">
             <GoogleDataDiagnostics
@@ -508,23 +487,17 @@ export default function CustomerSeoPage() {
         {/* Top Performing Keywords */}
         {topKeywords.length > 0 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-4">Sökord som presterar bäst</h2>
+            <h2 className="font-semibold text-slate-900 mb-4">{t.seo.topPerforming}</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {topKeywords.slice(0, 6).map((kw) => (
                 <div
                   key={kw.keyword}
                   className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
                 >
-                  <span className="text-sm font-medium text-slate-700 truncate mr-3">
-                    {kw.keyword}
-                  </span>
+                  <span className="text-sm font-medium text-slate-700 truncate mr-3">{kw.keyword}</span>
                   <span
                     className={`text-sm font-bold ${
-                      kw.position <= 3
-                        ? "text-emerald-600"
-                        : kw.position <= 10
-                        ? "text-blue-600"
-                        : "text-slate-500"
+                      kw.position <= 3 ? "text-emerald-600" : kw.position <= 10 ? "text-blue-600" : "text-slate-500"
                     }`}
                   >
                     #{kw.position}
@@ -550,7 +523,7 @@ export default function CustomerSeoPage() {
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filtrera sökord…"
+                placeholder={t.seo.filterSearch}
                 className="rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
               />
             </div>
@@ -559,11 +532,11 @@ export default function CustomerSeoPage() {
               onChange={(e) => setPositionFilter(e.target.value as PositionFilter)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="all">Alla positioner</option>
-              <option value="top3">Topp 3</option>
-              <option value="top10">Topp 10</option>
-              <option value="top30">Topp 30</option>
-              <option value="outside">Utanför topp 30</option>
+              <option value="all">{t.seo.filterAll}</option>
+              <option value="top3">{t.seo.filterTop3}</option>
+              <option value="top10">{t.seo.filterTop10}</option>
+              <option value="top30">{t.seo.filterTop30}</option>
+              <option value="outside">{t.seo.filterOutside}</option>
             </select>
             <button
               onClick={handleExportCsv}
@@ -571,7 +544,7 @@ export default function CustomerSeoPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Exportera CSV
+              {t.seo.export}
             </button>
           </div>
 
@@ -582,56 +555,40 @@ export default function CustomerSeoPage() {
           ) : keywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">Inga sökord än</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Lägg till sökord ovan, använd AI-förslag, eller anslut Google Search Console i Inställningar för automatisk import.
-              </p>
+              <p className="text-sm font-medium text-slate-600">{t.seo.emptyNoKeywords}</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">{t.seo.emptyNoKeywordsHint}</p>
             </div>
           ) : sortedKeywords.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Search className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-600">Inga matchningar</p>
-              <p className="text-xs text-slate-400 mt-1">Justera filtret och försök igen.</p>
+              <p className="text-sm font-medium text-slate-600">{t.seo.emptyNoMatch}</p>
+              <p className="text-xs text-slate-400 mt-1">{t.seo.emptyNoMatchHint}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                    <SortHeader label="Sökord" sortKey="keyword" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="left" />
-                    <SortHeader label="Position" sortKey="position" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <SortHeader label="Klick" sortKey="clicks" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <SortHeader label="Visningar" sortKey="impressions" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <SortHeader label="CTR" sortKey="ctr" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
-                    <th className="px-4 py-3 font-medium text-slate-500 text-center">Historik</th>
+                    <SortHeader label={t.seo.colKeyword} sortKey="keyword" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="left" />
+                    <SortHeader label={t.seo.colPosition} sortKey="position" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label={t.seo.colClicks} sortKey="clicks" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label={t.seo.colImpressions} sortKey="impressions" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <SortHeader label={t.seo.colCtr} sortKey="ctr" currentKey={sortKey} direction={sortDir} onClick={toggleSort} align="right" />
+                    <th className="px-4 py-3 font-medium text-slate-500 text-center">{t.seo.colHistory}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedKeywords.map((kw) => (
-                    <tr
-                      key={kw.keyword}
-                      className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
-                    >
+                    <tr key={kw.keyword} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-3 font-medium text-slate-700">{kw.keyword}</td>
-                      <td className="px-4 py-3 text-right">
-                        <PositionBadge position={kw.position} />
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {(kw.clicks ?? 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {(kw.impressions ?? 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {((kw.ctr ?? 0) * 100).toFixed(1)}%
-                      </td>
+                      <td className="px-4 py-3 text-right"><PositionBadge position={kw.position} /></td>
+                      <td className="px-4 py-3 text-right text-slate-600">{(kw.clicks ?? 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{(kw.impressions ?? 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{((kw.ctr ?? 0) * 100).toFixed(1)}%</td>
                       <td className="px-4 py-3 text-center">
                         {kw.position_history && kw.position_history.length > 0 ? (
-                          <button
-                            onClick={() => setSelectedKeyword(kw)}
-                            className="text-blue-500 hover:text-blue-700 text-xs font-medium"
-                          >
-                            Visa
+                          <button onClick={() => setSelectedKeyword(kw)} className="text-blue-500 hover:text-blue-700 text-xs font-medium">
+                            {t.seo.showHistory}
                           </button>
                         ) : (
                           <span className="text-slate-300">--</span>
@@ -650,9 +607,7 @@ export default function CustomerSeoPage() {
 }
 
 function StatCard({
-  label,
-  value,
-  icon,
+  label, value, icon,
 }: {
   label: string;
   value: string | number;
@@ -670,12 +625,7 @@ function StatCard({
 }
 
 function SortHeader({
-  label,
-  sortKey,
-  currentKey,
-  direction,
-  onClick,
-  align = "left",
+  label, sortKey, currentKey, direction, onClick, align = "left",
 }: {
   label: string;
   sortKey: SortKey;
@@ -705,13 +655,10 @@ function SortHeader({
 function PositionBadge({ position }: { position: number }) {
   if (position <= 0) return <span className="text-slate-400">--</span>;
   const color =
-    position <= 3
-      ? "text-emerald-600 bg-emerald-50"
-      : position <= 10
-      ? "text-blue-600 bg-blue-50"
-      : position <= 30
-      ? "text-amber-600 bg-amber-50"
-      : "text-slate-600 bg-slate-50";
+    position <= 3 ? "text-emerald-600 bg-emerald-50" :
+    position <= 10 ? "text-blue-600 bg-blue-50" :
+    position <= 30 ? "text-amber-600 bg-amber-50" :
+    "text-slate-600 bg-slate-50";
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>
       #{position}

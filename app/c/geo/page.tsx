@@ -18,6 +18,7 @@ import { tenantApi } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import { exportCsv } from "@/lib/csv";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 interface Summary {
   mention_rate: number;
@@ -46,9 +47,16 @@ interface AICheck {
   checked_at: string;
 }
 
+function trendIcon(trend?: string) {
+  return trend === "up" ? <TrendingUp className="h-4 w-4 text-emerald-500" /> :
+    trend === "down" ? <TrendingDown className="h-4 w-4 text-red-500" /> :
+    <Minus className="h-4 w-4 text-zinc-400" />;
+}
+
 export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
   const { tenantClient } = useSite();
+  const { t } = useLanguage();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
@@ -71,7 +79,6 @@ export default function CustomerGeoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, days]);
 
-  // Reload page data once a GEO run completes so new checks appear
   useEffect(() => {
     if (!lastCompletedGeoRunId) return;
     loadData(true);
@@ -80,8 +87,8 @@ export default function CustomerGeoPage() {
 
   useEffect(() => {
     if (error) {
-      const t = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(timer);
     }
   }, [error]);
 
@@ -150,11 +157,6 @@ export default function CustomerGeoPage() {
 
   const running = !!activeGeoRun;
 
-  const trendIcon = (t?: string) =>
-    t === "up" ? <TrendingUp className="h-4 w-4 text-emerald-500" /> :
-    t === "down" ? <TrendingDown className="h-4 w-4 text-red-500" /> :
-    <Minus className="h-4 w-4 text-zinc-400" />;
-
   if (userLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -175,11 +177,9 @@ export default function CustomerGeoPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Eye className="h-7 w-7 text-slate-400" />
-              Synlighet i AI-assistenter
+              {t.geo.title}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Hur ofta nämns ditt varumärke i ChatGPT, Claude, Perplexity och Gemini?
-            </p>
+            <p className="mt-1 text-sm text-slate-500">{t.geo.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector value={period} onChange={setPeriod} />
@@ -189,7 +189,7 @@ export default function CustomerGeoPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Exportera
+              {t.geo.export}
             </button>
             <button
               type="button"
@@ -198,7 +198,7 @@ export default function CustomerGeoPage() {
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
             >
               {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? "Kör…" : "Kör kontroll"}
+              {running ? t.geo.running : t.geo.runCheck}
             </button>
           </div>
         </div>
@@ -216,7 +216,7 @@ export default function CustomerGeoPage() {
         {activeGeoRun && (
           <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 flex items-center gap-2">
             <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
-            Kontroll körs i ChatGPT, Claude, Perplexity och Gemini — vanligtvis 2–5 minuter. Du kan lämna sidan; status visas nere till höger och resultat dyker upp här automatiskt.
+            {t.geo.runningBanner}
           </div>
         )}
 
@@ -224,7 +224,7 @@ export default function CustomerGeoPage() {
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Omnämnandegrad</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">{t.geo.cardMentionRate}</p>
               <div className="mt-2 flex items-end gap-2">
                 <span className="text-2xl font-bold text-slate-900">
                   {(summary.mention_rate * 100).toFixed(0)}%
@@ -233,19 +233,19 @@ export default function CustomerGeoPage() {
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Snittposition</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">{t.geo.cardAvgPosition}</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {summary.avg_rank ? `#${summary.avg_rank.toFixed(1)}` : "—"}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Antal kontroller</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">{t.geo.cardChecks}</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {(summary.total_checks ?? 0).toLocaleString()}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase">Öppna gap</p>
+              <p className="text-xs font-medium text-slate-500 uppercase">{t.geo.cardOpenGaps}</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{summary.open_gaps ?? 0}</p>
             </div>
           </div>
@@ -253,24 +253,22 @@ export default function CustomerGeoPage() {
 
         {/* Recent checks */}
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Senaste kontroller</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.recentChecks}</h2>
           {checks.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
               <div className="flex flex-col items-center text-center">
                 <div className="rounded-full bg-violet-100 p-4 mb-4">
                   <Eye className="h-8 w-8 text-violet-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Ingen data än</h3>
-                <p className="text-sm text-slate-500 max-w-md mb-6">
-                  Kör en första kontroll för att se hur synligt ditt varumärke är i AI-assistenter som ChatGPT, Claude och Perplexity.
-                </p>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">{t.geo.noDataTitle}</h3>
+                <p className="text-sm text-slate-500 max-w-md mb-6">{t.geo.noDataHint}</p>
                 <button
                   onClick={runCheck}
                   disabled={running}
                   className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
                 >
                   {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  {running ? "Kör…" : "Kör kontroll"}
+                  {running ? t.geo.running : t.geo.runCheck}
                 </button>
               </div>
             </div>
@@ -279,11 +277,11 @@ export default function CustomerGeoPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Fråga</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">AI</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Nämnd</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Position</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Konkurrenter</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">{t.geo.tableQuery}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">{t.geo.tableAI}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">{t.geo.tableMentioned}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">{t.geo.tablePosition}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">{t.geo.tableCompetitors}</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -322,10 +320,10 @@ export default function CustomerGeoPage() {
                           <tr className="bg-slate-50/50">
                             <td colSpan={6} className="px-4 py-4">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Svar från {c.ai_engine}
+                                {t.geo.expandedResponse} {c.ai_engine}
                               </p>
                               <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700 max-h-96 overflow-y-auto">
-                                {responseText || "(inget svar sparades)"}
+                                {responseText || t.geo.noResponse}
                               </div>
                             </td>
                           </tr>
@@ -342,7 +340,7 @@ export default function CustomerGeoPage() {
         {/* Mention Rate History */}
         {summary?.history && summary.history.length > 1 && (
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Omnämnandegrad över tid</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.mentionHistory}</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
@@ -371,7 +369,7 @@ export default function CustomerGeoPage() {
                       color: "#f8fafc",
                       fontSize: "12px",
                     }}
-                    formatter={(value) => [`${Math.round(Number(value ?? 0) * 100)}%`, "Omnämnandegrad"]}
+                    formatter={(value) => [`${Math.round(Number(value ?? 0) * 100)}%`, t.geo.cardMentionRate]}
                   />
                   <Line
                     type="monotone"
@@ -389,7 +387,7 @@ export default function CustomerGeoPage() {
         {/* Engine breakdown */}
         {summary?.engine_stats && Object.keys(summary.engine_stats).length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Per AI-tjänst</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.perService}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {Object.entries(summary.engine_stats).map(([engine, stats]) => (
                 <div key={engine} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -398,7 +396,7 @@ export default function CustomerGeoPage() {
                     {(stats.rate * 100).toFixed(0)}%
                   </p>
                   <p className="text-xs text-slate-500">
-                    {stats.mentioned}/{stats.total} omnämnanden
+                    {stats.mentioned}/{stats.total} {t.geo.mentions}
                   </p>
                 </div>
               ))}
@@ -409,12 +407,12 @@ export default function CustomerGeoPage() {
         {/* Top competitors */}
         {summary?.top_competitors && summary.top_competitors.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Konkurrenter som nämns mest av AI</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.topCompetitors}</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {summary.top_competitors.map((c) => (
                 <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-sm font-medium text-slate-700">{c.name}</p>
-                  <p className="text-xs text-slate-500">{c.count} omnämnanden</p>
+                  <p className="text-xs text-slate-500">{c.count} {t.geo.mentions}</p>
                 </div>
               ))}
             </div>
@@ -430,7 +428,7 @@ export default function CustomerGeoPage() {
                 ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
                 : undefined
             }
-            title="Hitta nya frågor att bevaka"
+            title={t.geo.recommendTitle}
             description={`AI föreslår nya naturliga frågor att bevaka i ChatGPT, Claude, Perplexity och Gemini. Välj vilka du vill lägga till (max ${MAX_GEO_QUERIES} samtidigt).`}
             geoTrackedCount={trackedQueries.length}
             geoMax={MAX_GEO_QUERIES}
@@ -443,10 +441,9 @@ export default function CustomerGeoPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Bevakade frågor</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t.geo.trackedTitle}</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Frågor som AI-agenten kör mot ChatGPT, Claude, Perplexity och Gemini.
-                  Begränsat till {MAX_GEO_QUERIES} för att kontrollerna ska gå snabbt.
+                  {t.geo.trackedDesc} {MAX_GEO_QUERIES} {t.geo.trackedDescSuffix}
                 </p>
               </div>
               <span
@@ -460,9 +457,7 @@ export default function CustomerGeoPage() {
               </span>
             </div>
             {trackedQueries.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                Inga bevakade frågor än. Använd panelen ovan för att generera förslag och lägga till de du vill bevaka.
-              </p>
+              <p className="text-sm text-slate-500">{t.geo.noTracked}</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {trackedQueries.map((q) => (
