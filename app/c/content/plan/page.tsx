@@ -134,7 +134,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
       onAdded(data.item);
       // If we drafted right now, jump straight into the editor.
       if (draftNow && data.content_piece_id) {
-        router.push(`/content/${data.content_piece_id}`);
+        router.push(`/c/content/${data.content_piece_id}`);
         return;
       }
       onClose();
@@ -350,16 +350,16 @@ export default function ContentCalendarPage() {
   const handleItemClick = (it: PlanItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (it.content_piece_id) {
-      router.push(`/content/${it.content_piece_id}`);
+      router.push(`/c/content/${it.content_piece_id}`);
     } else {
       // Not drafted yet — drafting is async; just open the plan tab as a fallback.
-      router.push(`/content`);
+      router.push(`/c/content`);
     }
   };
 
   const handlePieceClick = (p: PublishedPiece, e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/content/${p.id}`);
+    router.push(`/c/content/${p.id}`);
   };
 
   const handleDayClick = (d: Date) => {
@@ -382,7 +382,7 @@ export default function ContentCalendarPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/content" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <Link href="/c/content" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               ← Back to content
             </Link>
             <button onClick={goToday} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
@@ -515,7 +515,7 @@ export default function ContentCalendarPage() {
             <Sparkles className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 text-base font-semibold text-slate-900">No scheduled content this month</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Click a day to schedule an article, or head to <Link href="/content" className="font-medium text-blue-600 hover:underline">/content</Link> to generate ideas.
+              Click a day to schedule an article, or head to <Link href="/c/content" className="font-medium text-blue-600 hover:underline">/c/content</Link> to generate ideas.
             </p>
           </div>
         )}

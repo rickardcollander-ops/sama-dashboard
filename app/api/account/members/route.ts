@@ -32,22 +32,26 @@ export async function GET(req: NextRequest) {
   }
 
   // Enrich with auth.users data so the UI can show real emails for active members.
+  // The auth.admin SDK can throw on transient network issues; fall through with
+  // an unenriched response rather than 500-ing the entire team page.
   const userIds = (members ?? [])
     .map((m) => m.user_id)
     .filter((v): v is string => !!v);
 
   const emailById = new Map<string, { email: string | null; last_sign_in_at: string | null }>();
   if (userIds.length > 0) {
-    // Supabase admin SDK has no batch lookup, but listUsers returns enough for
-    // typical team sizes. For larger teams we do per-id lookups.
     if (userIds.length <= 5) {
       for (const id of userIds) {
-        const { data } = await admin.auth.admin.getUserById(id);
-        if (data?.user) {
-          emailById.set(id, {
-            email: data.user.email ?? null,
-            last_sign_in_at: data.user.last_sign_in_at ?? null,
-          });
+        try {
+          const { data } = await admin.auth.admin.getUserById(id);
+          if (data?.user) {
+            emailById.set(id, {
+              email: data.user.email ?? null,
+              last_sign_in_at: data.user.last_sign_in_at ?? null,
+            });
+          }
+        } catch {
+          // single-user lookup failed — skip enrichment for this id
         }
       }
     } else {
@@ -55,19 +59,24 @@ export async function GET(req: NextRequest) {
       const perPage = 200;
       const wanted = new Set(userIds);
       while (wanted.size > 0 && page <= 50) {
-        const { data, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
-        if (listErr) break;
-        for (const u of data.users) {
-          if (wanted.has(u.id)) {
-            emailById.set(u.id, {
-              email: u.email ?? null,
-              last_sign_in_at: u.last_sign_in_at ?? null,
-            });
-            wanted.delete(u.id);
+        try {
+          const { data, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
+          if (listErr) break;
+          for (const u of data.users) {
+            if (wanted.has(u.id)) {
+              emailById.set(u.id, {
+                email: u.email ?? null,
+                last_sign_in_at: u.last_sign_in_at ?? null,
+              });
+              wanted.delete(u.id);
+            }
           }
+          if (data.users.length < perPage) break;
+          page += 1;
+        } catch {
+          // listUsers threw — bail out of paging and return what we have
+          break;
         }
-        if (data.users.length < perPage) break;
-        page += 1;
       }
     }
   }
@@ -114,12 +123,16 @@ export async function POST(req: NextRequest) {
   if (existingByUser) {
     for (const row of existingByUser) {
       if (!row.user_id) continue;
-      const { data } = await admin.auth.admin.getUserById(row.user_id);
-      if (data?.user?.email && data.user.email.toLowerCase() === email) {
-        return NextResponse.json(
-          { error: "User is already a member of this account" },
-          { status: 409 },
-        );
+      try {
+        const { data } = await admin.auth.admin.getUserById(row.user_id);
+        if (data?.user?.email && data.user.email.toLowerCase() === email) {
+          return NextResponse.json(
+            { error: "User is already a member of this account" },
+            { status: 409 },
+          );
+        }
+      } catch {
+        // skip this row's check rather than failing the entire invite
       }
     }
   }
@@ -147,15 +160,19 @@ export async function POST(req: NextRequest) {
   let page = 1;
   const perPage = 200;
   while (page <= 50) {
-    const { data, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
-    if (listErr) break;
-    const found = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
-    if (found) {
-      invitedUserId = found.id;
+    try {
+      const { data, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
+      if (listErr) break;
+      const found = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
+      if (found) {
+        invitedUserId = found.id;
+        break;
+      }
+      if (data.users.length < perPage) break;
+      page += 1;
+    } catch {
       break;
     }
-    if (data.users.length < perPage) break;
-    page += 1;
   }
 
   if (!invitedUserId) {
