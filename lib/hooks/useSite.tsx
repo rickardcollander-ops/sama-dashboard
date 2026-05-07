@@ -131,9 +131,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   const loadSites = useCallback(async () => {
     if (!effectiveOwnerId) {
       setSites([]);
+      setActiveSiteIdState(null);
       setLoading(false);
       return;
     }
+    // Drop any cached rows from the previous owner before we hit the network
+    // — otherwise `activeSite` keeps falling back to the old `sites[0]` while
+    // the new fetch is in flight.
+    setSites([]);
+    setActiveSiteIdState(null);
     setLoading(true);
 
     // When in view-as mode, load the viewed tenant's sites via admin API.
@@ -217,14 +223,24 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   }, [loadSites]);
 
   const setActiveSiteId = useCallback((id: string) => {
-    setActiveSiteIdState(id);
+    setActiveSiteIdState((prev) => (prev === id ? prev : id));
     try {
       localStorage.setItem(ACTIVE_SITE_KEY, id);
     } catch { /* ignore */ }
   }, []);
 
   const setActiveAccountId = useCallback((id: string) => {
-    setActiveAccountIdState(id);
+    setActiveAccountIdState((prev) => {
+      if (prev === id) return prev;
+      // Clear the cached sites list immediately. Otherwise `activeSite`
+      // briefly resolves to the old account's first site (via the sites[0]
+      // fallback in the useMemo below), which leaks the previous account's
+      // brand name / domain into headers and downstream fetches before
+      // loadSites runs for the new owner.
+      setSites([]);
+      setLoading(true);
+      return id;
+    });
     try {
       localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
       // Reset site selection so we don't carry over the previous account's site.

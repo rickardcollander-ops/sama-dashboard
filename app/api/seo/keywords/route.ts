@@ -1,5 +1,9 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/integrations/store";
+import {
+  getSiteSettingsAccess,
+  resolveSiteId,
+} from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,11 +44,20 @@ function normalizeCtr(k: BackendKeyword): BackendKeyword {
   return { ...k, ctr };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const settings = await loadSettings(user.id);
+  const siteId = resolveSiteId(req, user.id);
+  let settings: Record<string, unknown> = {};
+  try {
+    const access = await getSiteSettingsAccess(user, siteId);
+    settings = access.settings;
+  } catch {
+    // Site row not yet readable (e.g. RLS race during onboarding) — start
+    // with an empty list rather than leaking another site's keywords.
+    settings = {};
+  }
   const local: string[] = Array.isArray(settings.tracked_keywords)
     ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
@@ -53,7 +66,7 @@ export async function GET() {
   try {
     const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
       method: "GET",
-      headers: { "X-Tenant-ID": user.id },
+      headers: { "X-Tenant-ID": siteId },
       signal: AbortSignal.timeout(15_000),
     });
     if (res.ok) {

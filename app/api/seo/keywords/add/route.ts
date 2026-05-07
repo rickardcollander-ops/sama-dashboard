@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import { getCurrentUser } from "@/lib/integrations/store";
+import {
+  getSiteSettingsAccess,
+  resolveSiteId,
+} from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -20,7 +24,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no keywords provided" }, { status: 400 });
   }
 
-  const settings = await loadSettings(user.id);
+  const siteId = resolveSiteId(req, user.id);
+  const access = await getSiteSettingsAccess(user, siteId);
+  const settings = access.settings;
   const existing: string[] = Array.isArray(settings.tracked_keywords)
     ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
@@ -35,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (added > 0) {
-    await saveSettings(user.id, { ...settings, tracked_keywords: merged });
+    await access.save({ ...settings, tracked_keywords: merged });
   }
 
   let backendSynced = 0;
@@ -43,7 +49,7 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Tenant-ID": user.id },
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": siteId },
         body: JSON.stringify({ keyword: kw }),
         signal: AbortSignal.timeout(15_000),
       });

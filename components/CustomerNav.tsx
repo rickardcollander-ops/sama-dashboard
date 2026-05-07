@@ -11,11 +11,13 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import { LANGUAGES } from "@/lib/locales";
 import type { Translations } from "@/lib/locales";
 import { isAdminEmail } from "@/lib/admin";
 import NotificationBell from "@/components/NotificationBell";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface NavItem {
   id: SectionId;
@@ -134,8 +136,15 @@ function LanguageSelector() {
 
 function AccountSwitcher() {
   const { accounts, activeAccountId, setActiveAccountId, myRole } = useSite();
+  const { runs } = useActiveRuns();
   const [open, setOpen] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Background work that would be abandoned if we switch contexts.
+  const inFlightRuns = runs.filter(
+    (r) => r.status === "running" || r.status === "pending",
+  );
 
   if (accounts.length <= 1) return null;
 
@@ -145,6 +154,28 @@ function AccountSwitcher() {
     active?.domain ||
     active?.owner_email ||
     "Välj konto";
+
+  const requestSwitch = (id: string) => {
+    if (id === activeAccountId) {
+      setOpen(false);
+      return;
+    }
+    if (inFlightRuns.length > 0) {
+      setPendingSwitch(id);
+    } else {
+      setActiveAccountId(id);
+    }
+    setOpen(false);
+  };
+
+  const confirmTarget = pendingSwitch
+    ? accounts.find((a) => a.account_id === pendingSwitch)
+    : null;
+  const confirmLabel =
+    confirmTarget?.brand_name ||
+    confirmTarget?.domain ||
+    confirmTarget?.owner_email ||
+    "kontot";
 
   return (
     <div className="relative px-3 pb-2" ref={ref}>
@@ -173,7 +204,7 @@ function AccountSwitcher() {
               return (
                 <button
                   key={acc.account_id}
-                  onClick={() => { setActiveAccountId(acc.account_id); setOpen(false); }}
+                  onClick={() => requestSwitch(acc.account_id)}
                   className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                     isActive ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
                   }`}
@@ -195,19 +226,64 @@ function AccountSwitcher() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingSwitch !== null}
+        title="Byta konto?"
+        description={`Du har ${inFlightRuns.length} pågående körning${
+          inFlightRuns.length === 1 ? "" : "ar"
+        } (${inFlightRuns
+          .map((r) => r.label)
+          .slice(0, 3)
+          .join(", ")}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`}
+        confirmLabel="Byt ändå"
+        cancelLabel="Stanna kvar"
+        onConfirm={() => {
+          if (pendingSwitch) setActiveAccountId(pendingSwitch);
+          setPendingSwitch(null);
+        }}
+        onCancel={() => setPendingSwitch(null)}
+      />
     </div>
   );
 }
 
 function SiteSwitcher() {
   const { sites, activeSite, setActiveSiteId } = useSite();
+  const { runs } = useActiveRuns();
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  const inFlightRuns = runs.filter(
+    (r) => r.status === "running" || r.status === "pending",
+  );
 
   if (sites.length <= 1) return null;
 
   const label = activeSite?.site_name || activeSite?.settings?.brand_name as string || t.siteSwitcher.selectSite;
+
+  const requestSwitch = (id: string) => {
+    if (id === activeSite?.id) {
+      setOpen(false);
+      return;
+    }
+    if (inFlightRuns.length > 0) {
+      setPendingSwitch(id);
+    } else {
+      setActiveSiteId(id);
+    }
+    setOpen(false);
+  };
+
+  const confirmTarget = pendingSwitch
+    ? sites.find((s) => s.id === pendingSwitch)
+    : null;
+  const confirmLabel =
+    confirmTarget?.site_name ||
+    (confirmTarget?.settings?.brand_name as string | undefined) ||
+    "den nya sidan";
 
   return (
     <div className="relative px-3 pb-3" ref={ref}>
@@ -231,7 +307,7 @@ function SiteSwitcher() {
               return (
                 <button
                   key={site.id}
-                  onClick={() => { setActiveSiteId(site.id); setOpen(false); }}
+                  onClick={() => requestSwitch(site.id)}
                   className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                     isActive ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
                   }`}
@@ -253,6 +329,24 @@ function SiteSwitcher() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingSwitch !== null}
+        title="Byta sida?"
+        description={`Du har ${inFlightRuns.length} pågående körning${
+          inFlightRuns.length === 1 ? "" : "ar"
+        } (${inFlightRuns
+          .map((r) => r.label)
+          .slice(0, 3)
+          .join(", ")}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`}
+        confirmLabel="Byt ändå"
+        cancelLabel="Stanna kvar"
+        onConfirm={() => {
+          if (pendingSwitch) setActiveSiteId(pendingSwitch);
+          setPendingSwitch(null);
+        }}
+        onCancel={() => setPendingSwitch(null)}
+      />
     </div>
   );
 }

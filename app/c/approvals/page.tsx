@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface Approval {
   id: string;
@@ -29,6 +30,7 @@ const KIND_ICON: Record<string, typeof FileText> = {
 
 export default function ApprovalsPage() {
   const { user, loading: userLoading } = useUser();
+  const { effectiveTenantId } = useSite();
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [edited, setEdited] = useState<{ title: string; body: string }>({ title: "", body: "" });
@@ -37,10 +39,10 @@ export default function ApprovalsPage() {
   const [tab, setTab] = useState<"pending" | "approved" | "rejected">("pending");
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     try {
       const res = await fetch(`/api/approvals?status=${tab}`, {
-        headers: { "X-Tenant-ID": user.id },
+        headers: { "X-Tenant-ID": effectiveTenantId },
       });
       if (!res.ok) throw new Error("load failed");
       const data = (await res.json()) as { approvals: Approval[] };
@@ -56,16 +58,16 @@ export default function ApprovalsPage() {
     setError("");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, tab]);
+  }, [user, tab, effectiveTenantId]);
 
   const decide = async (id: string, action: "approve" | "reject", note?: string) => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     setWorking(id);
     setError("");
     try {
       const res = await fetch(`/api/approvals/${id}/${action}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Tenant-ID": user.id },
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
         body: JSON.stringify({ note }),
       });
       if (!res.ok) throw new Error("decide failed");
@@ -77,12 +79,12 @@ export default function ApprovalsPage() {
   };
 
   const saveEdit = async (id: string) => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     setWorking(id);
     try {
       await fetch(`/api/approvals/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "X-Tenant-ID": user.id },
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
         body: JSON.stringify({ title: edited.title, body: edited.body }),
       });
       setEditing(null);
