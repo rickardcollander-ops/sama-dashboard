@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, TrendingUp, CheckCircle, Zap, Clock, Play, ChevronDown, ChevronUp, PenTool, BarChart3, BookOpen, Lightbulb } from "lucide-react";
+import { FileText, TrendingUp, Zap, Clock, BookOpen, Lightbulb, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import AgentChat from "@/components/AgentChat";
 import { useBackgroundAnalysis } from "@/lib/hooks/useBackgroundAnalysis";
 import ContentPlanTab from "@/components/content/ContentPlanTab";
+import QuickFixesPanel from "@/components/content/QuickFixesPanel";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
@@ -25,12 +26,6 @@ interface Action {
   type: string;
   priority: string;
   title: string;
-  description: string;
-  action: string;
-  keyword?: string;
-  content_id?: string;
-  competitor?: string;
-  pillar?: string;
   status: string;
 }
 
@@ -42,22 +37,19 @@ interface AnalysisSummary {
   medium?: number;
 }
 
+const QUICK_FIX_TYPES = new Set(["optimize", "meta", "publish"]);
+
 export default function ContentPage() {
   const [loading, setLoading] = useState(true);
   const [contentPieces, setContentPieces] = useState<ContentPiece[]>([]);
 
-  // Analysis state — now backed by the persistent cache so it survives reloads.
+  // Analysis state — backed by the persistent cache so it survives reloads.
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
-
-  // Execution state
-  const [executing, setExecuting] = useState<Set<string>>(new Set());
-  const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
 
   // Persist the latest analysis snapshot to the agent cache. Best-effort —
-  // a failure here doesn't break the user's flow, just means next reload
-  // won't have the cached snapshot.
+  // a failure just means the next reload won't have the cached snapshot.
   const persistSnapshot = async (snapshot: { summary: AnalysisSummary | null; actions: Action[] }) => {
     try {
       await fetch(`${SAMA_API_URL}/api/content/analysis/save`, {
@@ -79,8 +71,8 @@ export default function ContentPage() {
         setActions(newActions);
         return newActions;
       }
-    } catch (error) {
-      console.error('Failed to fetch content actions:', error);
+    } catch (err) {
+      console.error('Failed to fetch content actions:', err);
     }
     return null;
   };
@@ -106,8 +98,6 @@ export default function ContentPage() {
       onComplete: async () => {
         fetchLibrary();
         const latest = await fetchActions();
-        // Compute a fresh summary from the actions and snapshot it server-side
-        // so the next visit hydrates instantly from cache.
         if (latest) {
           const summary: AnalysisSummary = {
             total_actions: latest.length,
@@ -122,16 +112,14 @@ export default function ContentPage() {
       onError: (err) => setError(err),
     });
 
-  // UI state
-  const [activeTab, setActiveTab] = useState<'library' | 'plan' | 'actions' | 'pillars'>('library');
-  const [expandedAction, setExpandedAction] = useState<string | null>(null);
+  // UI state — Plan is now the default tab; analysis-driven gaps land
+  // there automatically so it's the highest-leverage entry point.
+  const [activeTab, setActiveTab] = useState<'plan' | 'library' | 'pillars'>('plan');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   useEffect(() => {
     fetchLibrary();
-    // Hydrate the analysis from cache so the user sees their last run
-    // immediately — no need to re-run analysis just to populate the UI.
     fetchLatestAnalysisFromCache();
   }, []);
 
@@ -143,61 +131,19 @@ export default function ContentPage() {
         try { data = await response.json(); } catch (e) { console.error('Failed to parse content library JSON:', e); data = {}; }
         setContentPieces(data.content || []);
       }
-    } catch (error) {
-      console.error('Error fetching content library:', error);
+    } catch (err) {
+      console.error('Error fetching content library:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const runAnalysis = async () => {
-    setActiveTab('actions');
+    // After analysis completes, the gaps auto-feed into the plan, so
+    // jumping to Plan tab is the right place to land the user.
+    setActiveTab('plan');
     setError(null);
     await startBgAnalysis();
-  };
-
-  const executeAction = async (action: Action) => {
-    setExecuting(prev => new Set([...prev, action.id]));
-    try {
-      const response = await fetch(`${SAMA_API_URL}/api/content/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action),
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setExecutionResults(prev => ({ ...prev, [action.id]: result }));
-        setActions(prev => prev.map(a => a.id === action.id ? { ...a, status: 'completed' } : a));
-        fetchLibrary();
-      } else {
-        setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Execution failed' } }));
-      }
-    } catch {
-      setExecutionResults(prev => ({ ...prev, [action.id]: { error: 'Backend not reachable' } }));
-    } finally {
-      setExecuting(prev => { const next = new Set(prev); next.delete(action.id); return next; });
-    }
-  };
-
-  const executeAll = async () => {
-    // Execute all pending actions
-    await Promise.all(actions.filter(a => a.status === 'pending').map(action => executeAction(action)));
-  };
-
-  const getPriorityColor = (p: string) => {
-    if (p === 'critical') return 'bg-red-100 text-red-800 border-red-200';
-    if (p === 'high') return 'bg-orange-100 text-orange-800 border-orange-200';
-    if (p === 'medium') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    return 'bg-blue-100 text-blue-800 border-blue-200';
-  };
-
-  const getTypeIcon = (t: string) => {
-    if (t === 'blog_post') return <PenTool className="h-5 w-5 text-blue-600" />;
-    if (t === 'comparison') return <BarChart3 className="h-5 w-5 text-purple-600" />;
-    if (t === 'optimize') return <TrendingUp className="h-5 w-5 text-green-600" />;
-    if (t === 'meta') return <FileText className="h-5 w-5 text-orange-600" />;
-    if (t === 'publish') return <CheckCircle className="h-5 w-5 text-green-600" />;
-    return <BookOpen className="h-5 w-5 text-slate-600" />;
   };
 
   const filteredPieces = contentPieces.filter(cp => {
@@ -221,353 +167,261 @@ export default function ContentPage() {
           type: 'blog_post',
           priority: 'high',
           title: 'AI-suggested next article',
-          description: 'Based on content gaps and keyword opportunities, generate the next article for Successifier',
+          description: 'Based on content gaps and keyword opportunities, generate the next article',
           action: 'suggest_next_article',
           status: 'pending',
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        setNextArticleSuggestion(data.result?.title || data.suggestions || data.message || 'Suggestion generated — check the actions tab.');
+        setNextArticleSuggestion(data.result?.title || data.suggestions || data.message || 'Suggestion generated.');
         fetchActions();
         fetchLibrary();
       }
-    } catch (error) { console.error('Failed to suggest next article:', error); }
+    } catch (err) { console.error('Failed to suggest next article:', err); }
     finally { setSuggestingNext(false); }
   };
 
-  const pendingCount = actions.filter(a => a.status === 'pending').length;
-  const completedCount = actions.filter(a => a.status === 'completed').length;
+  const quickFixCount = actions.filter(a => QUICK_FIX_TYPES.has(a.type) && a.status === 'pending').length;
   const publishedCount = contentPieces.filter(c => c.status === 'published').length;
   const draftCount = contentPieces.filter(c => c.status === 'draft').length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-<main className="px-4 py-8 sm:px-6 lg:px-8">
+      <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto">
-        {/* Left: Content Area */}
-        <div className="lg:max-w-4xl flex-1 min-w-0">
-        {error && (
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-4 font-bold hover:text-red-900">✕</button>
-          </div>
-        )}
-
-        {nextArticleSuggestion && (
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-blue-600" />
-              <p className="text-sm text-blue-800"><span className="font-medium">Next article suggestion:</span> {nextArticleSuggestion}</p>
-            </div>
-            <button onClick={() => setNextArticleSuggestion(null)} className="ml-4 font-bold text-blue-400 hover:text-blue-600">✕</button>
-          </div>
-        )}
-
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Agent</h2>
-            <p className="mt-1 sm:mt-2 text-slate-500 text-sm">Analyzes content gaps, generates SEO-optimized blog posts and comparison pages.</p>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <Link href="/content-analytics"
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
-              <TrendingUp className="h-4 w-4 text-green-600" /> <span className="hidden sm:inline">Analytics</span>
-            </Link>
-            <button onClick={suggestNextArticle} disabled={suggestingNext || analyzing}
-              className="flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              {suggestingNext ? <><Clock className="h-4 w-4 animate-spin" /> Suggesting...</> : <><BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">Suggest</span> Next</>}
-            </button>
-            <button onClick={runAnalysis} disabled={analyzing}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
-              {analyzing ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing...</> : <><Zap className="h-4 w-4" /> Analyze</>}
-            </button>
-          </div>
-        </div>
-
-        {/* Analysis progress bar */}
-        {analyzing && (
-          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 animate-spin text-blue-600" />
-                <p className="text-sm font-medium text-blue-800">{analysisPhase || 'Starting analysis...'}</p>
+          {/* Left: Content Area */}
+          <div className="lg:max-w-4xl flex-1 min-w-0">
+            {error && (
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <span>{error}</span>
+                <button onClick={() => setError(null)} className="ml-4 font-bold hover:text-red-900">✕</button>
               </div>
-              <span className="text-xs font-mono text-blue-600">{analysisProgress}%</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
-              <div className="h-full rounded-full bg-blue-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
-            </div>
-            <p className="mt-1.5 text-xs text-blue-600">You can navigate away — the analysis continues in the background.</p>
-          </div>
-        )}
+            )}
 
-        {/* Stats */}
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Total Content</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{contentPieces.length}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Published</p>
-            <p className="mt-1 text-2xl font-bold text-green-600">{publishedCount}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Drafts</p>
-            <p className="mt-1 text-2xl font-bold text-yellow-600">{draftCount}</p>
-          </div>
-          <div className="rounded-lg border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Actions Pending</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">{pendingCount}</p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
-          {[
-            { id: 'library' as const, label: 'Content Library', icon: <BookOpen className="h-4 w-4" /> },
-            { id: 'plan' as const, label: 'Content Plan', icon: <Lightbulb className="h-4 w-4" /> },
-            { id: 'actions' as const, label: `Pending Actions${actions.length > 0 ? ` (${pendingCount})` : ''}`, icon: <Zap className="h-4 w-4" /> },
-            { id: 'pillars' as const, label: 'Content Pillars', icon: <BarChart3 className="h-4 w-4" /> },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}>
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* TAB: Library */}
-        {activeTab === 'library' && (
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="border-b p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
-                  <p className="mt-1 text-sm text-slate-500">All content pieces generated by the Content Agent. Click any item to edit it with the AI editor.</p>
+            {nextArticleSuggestion && (
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-blue-600" />
+                  <p className="text-sm text-blue-800"><span className="font-medium">Next article suggestion:</span> {nextArticleSuggestion}</p>
                 </div>
+                <button onClick={() => setNextArticleSuggestion(null)} className="ml-4 font-bold text-blue-400 hover:text-blue-600">✕</button>
               </div>
-              <div className="mt-4 flex gap-3">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search by title or keyword..."
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value as 'all' | 'published' | 'draft')}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                </select>
+            )}
+
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Agent</h2>
+                <p className="mt-1 sm:mt-2 text-slate-500 text-sm">
+                  Analyse content gaps, plan articles, and edit them with AI — gaps surfaced by Analyze
+                  feed straight into the plan below.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <Link href="/content-analytics"
+                  className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
+                  <TrendingUp className="h-4 w-4 text-green-600" /> <span className="hidden sm:inline">Analytics</span>
+                </Link>
+                <button onClick={suggestNextArticle} disabled={suggestingNext || analyzing}
+                  className="flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {suggestingNext ? <><Clock className="h-4 w-4 animate-spin" /> Suggesting...</> : <><BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">Suggest</span> Next</>}
+                </button>
+                <button onClick={runAnalysis} disabled={analyzing}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400 shadow-lg shadow-blue-600/20">
+                  {analyzing ? <><Clock className="h-4 w-4 animate-spin" /> Analyzing...</> : <><Zap className="h-4 w-4" /> Analyze</>}
+                </button>
               </div>
             </div>
-            <div className="divide-y">
-              {loading ? (
-                <div className="p-8 text-center text-sm text-slate-500">Loading content...</div>
-              ) : contentPieces.length === 0 ? (
-                <div className="p-12 text-center">
-                  <FileText className="mx-auto h-12 w-12 text-slate-300" />
-                  <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
-                  <p className="mt-2 text-sm text-slate-500">Switch to the <span className="font-medium">Content Plan</span> tab to generate ideas, or click &quot;Analyze&quot; to scan competitors and surface gaps.</p>
-                </div>
-              ) : filteredPieces.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">No content matches your search.</div>
-              ) : (
-                filteredPieces.map((cp) => {
-                  let liveUrl = '';
-                  if (cp.status === 'published') {
-                    if (cp.type === 'comparison') {
-                      const match = cp.title.match(/vs\s+(\w+)/i);
-                      if (match) {
-                        liveUrl = `https://successifier.com/vs/${match[1].toLowerCase()}`;
-                      }
-                    } else if (cp.type === 'blog_post') {
-                      const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-                      liveUrl = `https://successifier.com/blog/${slug}`;
-                    }
-                  }
 
-                  return (
-                    <Link
-                      key={cp.id}
-                      href={`/content/${cp.id}`}
-                      className="block p-4 hover:bg-slate-50"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-slate-900">{cp.title}</h4>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                            }`}>{cp.status}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
-                            {liveUrl && (
-                              <span
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(liveUrl, '_blank'); }}
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                              >
-                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                                View Live
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-500">
-                            {cp.word_count > 0 && <span>{cp.word_count} words</span>}
-                            {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
-                            {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
-                            <span className="ml-auto text-blue-600">Edit with AI →</span>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: Content Plan */}
-        {activeTab === 'plan' && (
-          <ContentPlanTab apiUrl={SAMA_API_URL} />
-        )}
-
-        {/* TAB: Actions */}
-        {activeTab === 'actions' && (
-          <div className="space-y-4">
-            {analysisSummary && (
-              <div className="rounded-lg border bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Content Analysis</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Snapshot loaded from cache — re-run Analyze to refresh. Each action below can be executed by the agent.</p>
+            {/* Analysis progress */}
+            {analyzing && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 animate-spin text-blue-600" />
+                    <p className="text-sm font-medium text-blue-800">{analysisPhase || 'Starting analysis...'}</p>
                   </div>
-                  {pendingCount > 0 && (
-                    <button onClick={executeAll} disabled={executing.size > 0}
-                      title="The agent will generate all pending content pieces, optimization updates, and meta changes"
-                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                      <Play className="h-4 w-4" /> Execute All ({pendingCount})
-                    </button>
+                  <span className="text-xs font-mono text-blue-600">{analysisProgress}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-blue-500 transition-all duration-700 ease-out" style={{ width: `${analysisProgress}%` }} />
+                </div>
+                <p className="mt-1.5 text-xs text-blue-600">You can navigate away — the analysis continues in the background. Gaps will auto-populate the plan.</p>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="mb-6 grid gap-4 md:grid-cols-4">
+              <div className="rounded-lg border bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Total Content</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{contentPieces.length}</p>
+              </div>
+              <div className="rounded-lg border bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Published</p>
+                <p className="mt-1 text-2xl font-bold text-green-600">{publishedCount}</p>
+              </div>
+              <div className="rounded-lg border bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Drafts</p>
+                <p className="mt-1 text-2xl font-bold text-yellow-600">{draftCount}</p>
+              </div>
+              <div className="rounded-lg border bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Quick fixes</p>
+                <p className="mt-1 text-2xl font-bold text-amber-600">{quickFixCount}</p>
+              </div>
+            </div>
+
+            {/* Quick fixes (collapsible, only renders when there are any) */}
+            <QuickFixesPanel apiUrl={SAMA_API_URL} />
+
+            {/* Tabs */}
+            <div className="mb-6 flex gap-1 rounded-lg bg-white p-1 border shadow-sm overflow-x-auto">
+              {[
+                { id: 'plan' as const, label: 'Content Plan', icon: <Lightbulb className="h-4 w-4" /> },
+                { id: 'library' as const, label: 'Library', icon: <BookOpen className="h-4 w-4" /> },
+                { id: 'pillars' as const, label: 'Pillars', icon: <BarChart3 className="h-4 w-4" /> },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}>
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* TAB: Content Plan */}
+            {activeTab === 'plan' && (
+              <ContentPlanTab apiUrl={SAMA_API_URL} />
+            )}
+
+            {/* TAB: Library */}
+            {activeTab === 'library' && (
+              <div className="rounded-lg border bg-white shadow-sm">
+                <div className="border-b p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Content Library</h3>
+                      <p className="mt-1 text-sm text-slate-500">All content pieces generated by the Content Agent. Click any item to edit it with the AI editor.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-3">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search by title or keyword..."
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value as 'all' | 'published' | 'draft')}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="all">All statuses</option>
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {loading ? (
+                    <div className="p-8 text-center text-sm text-slate-500">Loading content...</div>
+                  ) : contentPieces.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <FileText className="mx-auto h-12 w-12 text-slate-300" />
+                      <h3 className="mt-4 text-lg font-semibold text-slate-900">No Content Yet</h3>
+                      <p className="mt-2 text-sm text-slate-500">Switch to the <span className="font-medium">Content Plan</span> tab to generate ideas, or click &quot;Analyze&quot; to scan competitors and surface gaps.</p>
+                    </div>
+                  ) : filteredPieces.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-slate-500">No content matches your search.</div>
+                  ) : (
+                    filteredPieces.map((cp) => {
+                      let liveUrl = '';
+                      if (cp.status === 'published') {
+                        if (cp.type === 'comparison') {
+                          const match = cp.title.match(/vs\s+(\w+)/i);
+                          if (match) {
+                            liveUrl = `https://successifier.com/vs/${match[1].toLowerCase()}`;
+                          }
+                        } else if (cp.type === 'blog_post') {
+                          const slug = cp.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                          liveUrl = `https://successifier.com/blog/${slug}`;
+                        }
+                      }
+
+                      return (
+                        <Link
+                          key={cp.id}
+                          href={`/content/${cp.id}`}
+                          className="block p-4 hover:bg-slate-50"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium text-slate-900">{cp.title}</h4>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  cp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                }`}>{cp.status}</span>
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{cp.type}</span>
+                                {liveUrl && (
+                                  <span
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(liveUrl, '_blank'); }}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                                  >
+                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    View Live
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-slate-500">
+                                {cp.word_count > 0 && <span>{cp.word_count} words</span>}
+                                {cp.target_keyword && <span>Keyword: {cp.target_keyword}</span>}
+                                {cp.created_at && <span>{new Date(cp.created_at).toLocaleDateString()}</span>}
+                                <span className="ml-auto text-blue-600">Edit with AI →</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="rounded-lg bg-slate-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-slate-900">{analysisSummary.total_actions || 0}</p>
-                    <p className="text-xs text-slate-500">Total Actions</p>
-                  </div>
-                  <div className="rounded-lg bg-orange-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-orange-600">{analysisSummary.content_gaps || 0}</p>
-                    <p className="text-xs text-orange-600">Content Gaps</p>
-                  </div>
-                  <div className="rounded-lg bg-blue-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{analysisSummary.content_pieces || contentPieces.length}</p>
-                    <p className="text-xs text-blue-600">Existing Pieces</p>
-                  </div>
-                  <div className="rounded-lg bg-green-50 p-3 text-center">
-                    <p className="text-2xl font-bold text-green-600">{completedCount}</p>
-                    <p className="text-xs text-green-600">Completed</p>
-                  </div>
-                </div>
               </div>
             )}
 
-            {actions.length === 0 ? (
-              <div className="rounded-lg border bg-white p-12 text-center shadow-sm">
-                <Zap className="mx-auto h-12 w-12 text-slate-300" />
-                <h3 className="mt-4 text-lg font-semibold text-slate-900">No Actions Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Click &quot;Analyze&quot; to compare your content against competitors and generate specific actions (new blog posts, comparison pages, meta optimizations).</p>
-              </div>
-            ) : (
-              actions.map((action) => (
-                <div key={action.id} className={`rounded-lg border bg-white shadow-sm transition-all ${action.status === 'completed' ? 'opacity-75' : ''}`}>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        {action.status === 'completed' ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" /> : getTypeIcon(action.type)}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-slate-900">{action.title}</h4>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${getPriorityColor(action.priority)}`}>{action.priority}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{action.type?.replace(/_/g, ' ') || 'action'}</span>
-                          </div>
-                          <p className="text-sm text-slate-600">{action.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        {action.status === 'pending' && (
-                          <button onClick={() => executeAction(action)} disabled={executing.has(action.id)}
-                            className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-                            {executing.has(action.id) ? <><Clock className="h-3 w-3 animate-spin" /> Running...</> : <><Play className="h-3 w-3" /> Execute</>}
-                          </button>
-                        )}
-                        <button onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)} className="rounded p-1 hover:bg-slate-100">
-                          {expandedAction === action.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
+            {/* TAB: Pillars */}
+            {activeTab === 'pillars' && (
+              <ContentPillarsTab contentPieces={contentPieces} apiUrl={SAMA_API_URL} />
+            )}
 
-                    {expandedAction === action.id && (
-                      <div className="mt-3 ml-8 space-y-2">
-                        <div className="rounded-lg bg-slate-50 p-3">
-                          <p className="text-xs font-medium text-slate-500 mb-1">Recommended Action</p>
-                          <p className="text-sm text-slate-700">{action.action}</p>
-                        </div>
-                        {action.keyword && <p className="text-xs text-slate-500"><span className="font-medium">Keyword:</span> {action.keyword}</p>}
-                        {action.competitor && <p className="text-xs text-slate-500"><span className="font-medium">Competitor:</span> {action.competitor}</p>}
-                        {action.pillar && <p className="text-xs text-slate-500"><span className="font-medium">Pillar:</span> {action.pillar}</p>}
-                        {executionResults[action.id] && (
-                          <div className={`rounded-lg p-3 ${executionResults[action.id].error ? 'bg-red-50' : 'bg-green-50'}`}>
-                            <p className="text-xs font-medium mb-1">{executionResults[action.id].error ? 'Error' : 'Result'}</p>
-                            {executionResults[action.id].result ? (
-                              <pre className="text-xs text-slate-700 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(executionResults[action.id].result, null, 2)}</pre>
-                            ) : executionResults[action.id].meta_description ? (
-                              <p className="text-sm text-slate-700">{executionResults[action.id].meta_description}</p>
-                            ) : (
-                              <p className="text-xs text-slate-600">{executionResults[action.id].message || executionResults[action.id].error || 'Done'}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
+            {/* Tiny analysis-snapshot footer (replaces the old Actions tab) */}
+            {analysisSummary && (
+              <p className="mt-6 text-center text-xs text-slate-400">
+                Last analysis surfaced {analysisSummary.total_actions || 0} actions
+                {analysisSummary.content_gaps ? ` (${analysisSummary.content_gaps} content gaps)` : ''} —
+                gaps appear in the plan above as <span className="font-medium text-amber-700">Gap</span> rows.
+              </p>
             )}
           </div>
-        )}
 
-        {/* TAB: Content Pillars */}
-        {activeTab === 'pillars' && (
-          <ContentPillarsTab contentPieces={contentPieces} apiUrl={SAMA_API_URL} />
-        )}
-
-        </div>
-
-        {/* Right: Agent Chat Sidebar */}
-        <div className="hidden lg:block w-[380px] flex-shrink-0">
-          <div className="sticky top-8">
-            <AgentChat
-              agentName="Content"
-              apiUrl={`${SAMA_API_URL}/api/content`}
-              placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
-              examplePrompts={[
-                "Create a blog post about reducing customer churn",
-                "Analyze content gaps for Q1",
-                "Write a comparison page vs Gainsight",
-                "What content should I prioritize?",
-              ]}
-            />
+          {/* Right: Agent Chat Sidebar */}
+          <div className="hidden lg:block w-[380px] flex-shrink-0">
+            <div className="sticky top-8">
+              <AgentChat
+                agentName="Content"
+                apiUrl={`${SAMA_API_URL}/api/content`}
+                placeholder="Ask Content agent to create blog posts, comparison pages, or analyze content gaps"
+                examplePrompts={[
+                  "Create a blog post about reducing customer churn",
+                  "Analyze content gaps for Q1",
+                  "Write a comparison page vs Gainsight",
+                  "What content should I prioritize?",
+                ]}
+              />
+            </div>
           </div>
-        </div>
         </div>
       </main>
     </div>
@@ -601,7 +455,6 @@ function ContentPillarsTab({ contentPieces, apiUrl }: { contentPieces: ContentPi
         if (res.ok) {
           const data = await res.json();
           const pieces: ContentPiece[] = data.content || [];
-          // Derive pillars from actual target keywords
           const kwMap = new Map<string, number>();
           pieces.forEach(p => {
             const kw = (p.target_keyword || '').toLowerCase().trim();
@@ -619,7 +472,7 @@ function ContentPillarsTab({ contentPieces, apiUrl }: { contentPieces: ContentPi
             if (derived.length > 0) setPillars(derived);
           }
         }
-      } catch (error) { console.error('Failed to load content pillars:', error); }
+      } catch (err) { console.error('Failed to load content pillars:', err); }
       setLoaded(true);
     })();
   }, [loaded, apiUrl]);
