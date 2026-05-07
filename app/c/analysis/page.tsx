@@ -12,23 +12,9 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
-
-const getSupabase = getSupabaseBrowser;
-
-const MAX_ANALYSES_PER_WEEK = 3;
-
-function getISOWeek(date: Date = new Date()): string {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-  const yearStart = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getFullYear()}-W${week.toString().padStart(2, "00")}`;
-}
 
 interface AnalysisRunSummary {
   id: string;
@@ -145,7 +131,6 @@ export default function AnalysisPage() {
   const [visibilityRun, setVisibilityRun] = useState<AnalysisRun | null>(null);
   const [auditRun, setAuditRun] = useState<SiteAuditRun | null>(null);
   const [error, setError] = useState("");
-  const [usedThisWeek, setUsedThisWeek] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
@@ -153,11 +138,10 @@ export default function AnalysisPage() {
   useEffect(() => {
     setVisibilityRun(null);
     setAuditRun(null);
-    setUsedThisWeek(0);
     setInitialLoading(true);
   }, [effectiveTenantId]);
 
-  // Load brand settings + weekly usage + latest results
+  // Load brand settings + latest results
   useEffect(() => {
     if (!user || !effectiveTenantId) return;
     (async () => {
@@ -170,23 +154,6 @@ export default function AnalysisPage() {
         target_audience: (s.target_audience as string) || "",
         competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
       });
-
-      // Weekly usage (stored per (user, tenant) inside user_settings)
-      try {
-        const supabase = getSupabase();
-        const { data } = await supabase
-          .from("user_settings")
-          .select("settings")
-          .eq("user_id", user.id)
-          .single();
-        const us = (data?.settings || {}) as Record<string, unknown>;
-        const byTenant = (us.analysis_weekly_usage_by_tenant || {}) as Record<string, { week?: string; count?: number }>;
-        const usage = byTenant[effectiveTenantId];
-        const currentWeek = getISOWeek();
-        setUsedThisWeek(usage?.week === currentWeek ? (usage.count ?? 0) : 0);
-      } catch {
-        setUsedThisWeek(0);
-      }
 
       try {
         const res = await fetch("/api/analysis/runs?limit=1", {
@@ -233,34 +200,8 @@ export default function AnalysisPage() {
     })();
   }, [user, effectiveTenantId, activeSite]);
 
-  const incrementWeeklyUsage = async () => {
-    if (!user || !effectiveTenantId) return;
-    const newCount = usedThisWeek + 1;
-    setUsedThisWeek(newCount);
-    try {
-      const supabase = getSupabase();
-      const { data } = await supabase
-        .from("user_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .single();
-      const existingSettings = (data?.settings ?? {}) as Record<string, unknown>;
-      const existingByTenant = (existingSettings.analysis_weekly_usage_by_tenant || {}) as Record<string, { week: string; count: number }>;
-      const merged = {
-        ...existingSettings,
-        analysis_weekly_usage_by_tenant: {
-          ...existingByTenant,
-          [effectiveTenantId]: { week: getISOWeek(), count: newCount },
-        },
-      };
-      await supabase
-        .from("user_settings")
-        .upsert({ user_id: user.id, settings: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    } catch { /* best-effort */ }
-  };
-
   const handleRun = async () => {
-    if (!brand || !brand.domain || usedThisWeek >= MAX_ANALYSES_PER_WEEK) return;
+    if (!brand || !brand.domain) return;
     setRunning(true);
     setError("");
 
@@ -345,7 +286,6 @@ export default function AnalysisPage() {
       }
 
       await Promise.allSettled(polls);
-      await incrementWeeklyUsage();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysen misslyckades");
     }
@@ -364,8 +304,6 @@ export default function AnalysisPage() {
     );
   }
 
-  const remaining = MAX_ANALYSES_PER_WEEK - usedThisWeek;
-  const limitReached = remaining <= 0;
   const noDomain = !brand.domain;
   const hasResults = !!(visibilityRun || auditRun);
 
@@ -391,17 +329,6 @@ export default function AnalysisPage() {
                   ⚠ {t.insights.domainHint}
                 </a>
               )}
-              <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${
-                limitReached
-                  ? "bg-red-100 text-red-700"
-                  : remaining === 1
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-emerald-100 text-emerald-700"
-              }`}>
-                {limitReached
-                  ? t.insights.weeklyLimitReached
-                  : `${remaining} ${t.insights.weeklyRemaining} ${MAX_ANALYSES_PER_WEEK} ${t.insights.weeklyRemainingPart2}`}
-              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -415,10 +342,9 @@ export default function AnalysisPage() {
             </button>
             <button
               onClick={handleRun}
-              disabled={running || limitReached || noDomain}
+              disabled={running || noDomain}
               title={
                 noDomain ? "Lägg till domän i Inställningar" :
-                limitReached ? "Du har nått veckogränsen på 3 analyser" :
                 "Kör en ny synlighets- och sajtanalys"
               }
               className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
