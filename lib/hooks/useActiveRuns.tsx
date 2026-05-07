@@ -306,6 +306,13 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
             next.status = "failed";
             next.error = row.error || "Sajtanalys misslyckades";
             next.completed_at = row.completed_at ? Date.parse(row.completed_at) : Date.now();
+          } else if (row.status === "missing") {
+            // Backend returned 404 for this run — the row never made it to
+            // the agent backend (saved-only audit, or wrong tenant). Stop
+            // polling so we don't flood the console with red 404s.
+            next.status = "completed";
+            next.summary = "Sajtanalysen finns inte längre på servern. Uppdatera sidan.";
+            next.completed_at = Date.now();
           } else {
             next.status = "running";
           }
@@ -395,18 +402,30 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
         }
       }
       if (activeAuditIds.length > 0) {
-        // Fetch each in-flight site_audit row in parallel. The audits
-        // endpoint is per-row (no list-by-ids variant), but realistically
-        // there's only ever one running at a time per tenant.
+        // Fetch each in-flight site_audit row in parallel. We hit the
+        // dashboard's own /api route (not tenantApi) so the request goes
+        // through the Next.js handler that falls back to locally-saved
+        // audits when the agent backend doesn't have the row. Bypassing
+        // the proxy was producing console-flooding 404s when
+        // NEXT_PUBLIC_SAMA_API_URL was set to a full Railway URL.
         await Promise.all(
           activeAuditIds.map(async (id) => {
             try {
-              const row = await tenantApi(user.id).get<SiteAuditRunRow>(
-                `/api/site-audit/runs/${id}`,
-              );
+              const res = await fetch(`/api/site-audit/runs/${encodeURIComponent(id)}`, {
+                headers: { "X-Tenant-ID": user.id },
+              });
+              if (res.status === 404) {
+                siteAuditRuns.set(id, {
+                  id,
+                  status: "missing",
+                } as SiteAuditRunRow);
+                return;
+              }
+              if (!res.ok) return; // transient — try again next tick
+              const row = (await res.json()) as SiteAuditRunRow;
               if (row && row.id) siteAuditRuns.set(row.id, row);
             } catch {
-              // transient; ignore
+              // network error; ignore and retry next tick
             }
           }),
         );
