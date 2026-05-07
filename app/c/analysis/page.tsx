@@ -41,12 +41,15 @@ interface AnalysisRunSummary {
   error: string | null;
 }
 
-async function persistAnalysisRun(run: AnalysisRun): Promise<void> {
+async function persistAnalysisRun(run: AnalysisRun, tenantId: string): Promise<void> {
   if (!run || run.status !== "completed") return;
   try {
     await fetch("/api/analysis/runs/save", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": tenantId,
+      },
       body: JSON.stringify(run),
     });
   } catch {
@@ -294,13 +297,13 @@ export default function AnalysisPage() {
         const vData = await visRes.value.json().catch(() => ({}));
         if (Array.isArray((vData as AnalysisRun).query_results)) {
           setVisibilityRun(vData as AnalysisRun);
-          void persistAnalysisRun(vData as AnalysisRun);
+          void persistAnalysisRun(vData as AnalysisRun, effectiveTenantId);
         } else if ((vData as { id?: string }).id) {
           polls.push(
             pollAnalysisRun(effectiveTenantId, (vData as { id: string }).id).then((r) => {
               if (r?.status === "completed") {
                 setVisibilityRun(r);
-                void persistAnalysisRun(r);
+                void persistAnalysisRun(r, effectiveTenantId);
               }
             })
           );

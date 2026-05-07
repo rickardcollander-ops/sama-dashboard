@@ -9,10 +9,10 @@ const MAX_SAVED_ANALYSES = 50;
 /**
  * POST /api/analysis/runs/save
  *
- * Persists a completed AnalysisRun to user_settings.saved_analyses so the
- * user's analysis history survives even when the upstream sama-agent backend
- * is unreachable or rotates run IDs. We cap the list at MAX_SAVED_ANALYSES
- * (most recent first) to keep the settings JSON from growing unbounded.
+ * Persists a completed AnalysisRun to user_settings.saved_analyses_by_tenant
+ * so the analysis history survives even when the upstream sama-agent backend
+ * is unreachable or rotates run IDs. The map is keyed by tenant so saves
+ * never leak across the user's other workspaces/customers.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -23,15 +23,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "completed analysis run required" }, { status: 400 });
   }
 
-  const settings = await loadSettings(user.id);
-  const existing = Array.isArray(settings.saved_analyses)
-    ? (settings.saved_analyses as AnalysisRun[])
-    : [];
+  const tenantId = req.headers.get("X-Tenant-ID") || user.id;
 
+  const settings = await loadSettings(user.id);
+  const byTenant = (settings.saved_analyses_by_tenant && typeof settings.saved_analyses_by_tenant === "object"
+    ? settings.saved_analyses_by_tenant
+    : {}) as Record<string, AnalysisRun[]>;
+
+  const existing = Array.isArray(byTenant[tenantId]) ? byTenant[tenantId] : [];
   const without = existing.filter((r) => r && r.id !== run.id);
   const next = [run, ...without].slice(0, MAX_SAVED_ANALYSES);
 
-  await saveSettings(user.id, { ...settings, saved_analyses: next });
+  await saveSettings(user.id, {
+    ...settings,
+    saved_analyses_by_tenant: { ...byTenant, [tenantId]: next },
+  });
 
   return NextResponse.json({ saved: true, total: next.length });
 }

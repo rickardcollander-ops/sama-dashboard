@@ -34,8 +34,9 @@ function summarizeSavedRun(run: AnalysisRun): RunSummary {
  * GET /api/analysis/runs?limit=20
  *
  * Recent analysis runs for the calling tenant. Merges saved local runs
- * (user_settings.saved_analyses) with backend runs so history survives even
- * when the upstream agent backend is paused or unreachable.
+ * (user_settings.saved_analyses_by_tenant[tenantId]) with backend runs so
+ * history survives even when the upstream agent backend is paused or
+ * unreachable. Saves are scoped per tenant to keep customers isolated.
  */
 export async function GET(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get("limit") || "20");
@@ -62,9 +63,19 @@ export async function GET(req: NextRequest) {
     const user = await getCurrentUser();
     if (user) {
       const settings = await loadSettings(user.id);
-      const saved = Array.isArray(settings.saved_analyses)
-        ? (settings.saved_analyses as AnalysisRun[])
-        : [];
+      const effectiveTenantId = tenantId || user.id;
+      const byTenant = (settings.saved_analyses_by_tenant && typeof settings.saved_analyses_by_tenant === "object"
+        ? settings.saved_analyses_by_tenant
+        : {}) as Record<string, AnalysisRun[]>;
+      let saved = Array.isArray(byTenant[effectiveTenantId]) ? byTenant[effectiveTenantId] : [];
+
+      // Legacy compat: pre-migration saves lived in a flat user_settings.saved_analyses
+      // list (no tenant scoping). Only surface them on the user's own primary site so
+      // they don't leak into other customers/workspaces.
+      if (saved.length === 0 && effectiveTenantId === user.id && Array.isArray(settings.saved_analyses)) {
+        saved = settings.saved_analyses as AnalysisRun[];
+      }
+
       savedRuns = saved.map(summarizeSavedRun);
     }
   } catch {
