@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { CheckCircle, Clock, Play, Trash2, FileText, Search, BarChart3, MessageSquare, Star, CheckSquare, Square, Wifi } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";
+import ContentApprovalsSection from "@/components/approvals/ContentApprovalsSection";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : '/api/sama';
@@ -183,6 +184,11 @@ export default function ApprovalsPage() {
             )}
           </div>
         </div>
+
+        {/* Content drafts from autopilot — separate from the agent-action queue
+            because they live in pending_approvals, not agent_actions, and they
+            need a different verb (review in editor, not execute in place). */}
+        <ContentApprovalsSection />
 
         {/* Agent filter tabs */}
         {agents.length > 1 && (
