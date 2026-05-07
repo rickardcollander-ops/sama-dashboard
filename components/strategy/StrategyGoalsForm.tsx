@@ -5,6 +5,7 @@ import {
   Target, TrendingUp, Users, FileText, Linkedin, Mail,
   AlertTriangle, ChevronDown, ChevronUp, CheckCircle2,
 } from "lucide-react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 export type PrimaryGoalValue = "traffic" | "brand" | "leads" | "seo" | "social" | "custom";
 
@@ -34,19 +35,19 @@ interface Props {
   onSubmit: (goals: StrategyGoals) => void;
 }
 
-const PRIMARY_GOALS = [
-  { value: "traffic", label: "Öka trafik", desc: "Fler besökare till hemsidan via SEO & content", icon: TrendingUp },
-  { value: "leads", label: "Generera leads", desc: "Fler kontaktförfrågningar och konverteringar", icon: Target },
-  { value: "brand", label: "Bygga varumärke", desc: "Stärka kännedom och trovärdighet", icon: CheckCircle2 },
-  { value: "seo", label: "Förbättra SEO", desc: "Bättre positioner i Google", icon: TrendingUp },
-  { value: "social", label: "Sociala medier", desc: "Bygga följarskap och engagemang", icon: Users },
-  { value: "custom", label: "Eget mål", desc: "Beskriv ditt specifika mål nedan", icon: Target },
-] as const;
+const PRIMARY_GOALS: { value: PrimaryGoalValue; icon: typeof TrendingUp }[] = [
+  { value: "traffic", icon: TrendingUp },
+  { value: "leads", icon: Target },
+  { value: "brand", icon: CheckCircle2 },
+  { value: "seo", icon: TrendingUp },
+  { value: "social", icon: Users },
+  { value: "custom", icon: Target },
+];
 
 const CONTENT_TYPE_META = {
-  blog_post: { label: "Blogginlägg", icon: FileText, color: "blue" },
-  linkedin: { label: "LinkedIn", icon: Linkedin, color: "indigo" },
-  epost: { label: "E-post / nyhetsbrev", icon: Mail, color: "amber" },
+  blog_post: { icon: FileText, color: "blue" },
+  linkedin: { icon: Linkedin, color: "indigo" },
+  epost: { icon: Mail, color: "amber" },
 } as const;
 
 function today() {
@@ -54,6 +55,7 @@ function today() {
 }
 
 export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFindings, auditLoading, onSubmit }: Props) {
+  const { t } = useLanguage();
   const [primaryGoals, setPrimaryGoals] = useState<PrimaryGoalValue[]>(initialGoals?.primary_goals ?? ["traffic"]);
   const [customGoalText, setCustomGoalText] = useState(initialGoals?.custom_goal_text ?? "");
   const [contentTypes, setContentTypes] = useState<StrategyGoals["content_types"]>(
@@ -67,9 +69,24 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
   const [assignedMembers, setAssignedMembers] = useState<string[]>(initialGoals?.assigned_members ?? []);
   const [auditExpanded, setAuditExpanded] = useState(false);
 
-  const toggleContentType = (t: StrategyGoals["content_types"][number]) => {
+  const goalMeta: Record<PrimaryGoalValue, { label: string; desc: string }> = {
+    traffic: { label: t.strategyGoalsForm.goalTrafficLabel, desc: t.strategyGoalsForm.goalTrafficDesc },
+    leads: { label: t.strategyGoalsForm.goalLeadsLabel, desc: t.strategyGoalsForm.goalLeadsDesc },
+    brand: { label: t.strategyGoalsForm.goalBrandLabel, desc: t.strategyGoalsForm.goalBrandDesc },
+    seo: { label: t.strategyGoalsForm.goalSeoLabel, desc: t.strategyGoalsForm.goalSeoDesc },
+    social: { label: t.strategyGoalsForm.goalSocialLabel, desc: t.strategyGoalsForm.goalSocialDesc },
+    custom: { label: t.strategyGoalsForm.goalCustomLabel, desc: t.strategyGoalsForm.goalCustomDesc },
+  };
+
+  const contentTypeLabels: Record<StrategyGoals["content_types"][number], string> = {
+    blog_post: t.strategyGoalsForm.typeBlogLabel,
+    linkedin: t.strategyGoalsForm.typeLinkedinLabel,
+    epost: t.strategyGoalsForm.typeEmailLabel,
+  };
+
+  const toggleContentType = (ct: StrategyGoals["content_types"][number]) => {
     setContentTypes((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+      prev.includes(ct) ? prev.filter((x) => x !== ct) : [...prev, ct]
     );
   };
 
@@ -109,11 +126,12 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
     <div className="space-y-8">
       {/* Step 1: Primary goal */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Vad är dina mål?</h2>
-        <p className="text-sm text-slate-500 mb-4">Välj upp till 2 mål — strategin anpassas utifrån dessa.</p>
+        <h2 className="text-base font-semibold text-slate-900 mb-1">{t.strategyGoalsForm.goalsTitle}</h2>
+        <p className="text-sm text-slate-500 mb-4">{t.strategyGoalsForm.goalsHint}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {PRIMARY_GOALS.map(({ value, label, desc, icon: Icon }) => {
+          {PRIMARY_GOALS.map(({ value, icon: Icon }) => {
             const selected = primaryGoals.includes(value);
+            const meta = goalMeta[value];
             return (
               <button
                 key={value}
@@ -131,21 +149,21 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                 )}
                 <div className="flex items-center gap-2 pr-6">
                   <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? "text-emerald-600" : "text-slate-400"}`} />
-                  <span className={`text-sm font-medium ${selected ? "text-emerald-700" : "text-slate-700"}`}>{label}</span>
+                  <span className={`text-sm font-medium ${selected ? "text-emerald-700" : "text-slate-700"}`}>{meta.label}</span>
                 </div>
-                <p className="text-xs text-slate-500 leading-snug">{desc}</p>
+                <p className="text-xs text-slate-500 leading-snug">{meta.desc}</p>
               </button>
             );
           })}
         </div>
         {primaryGoals.length === 0 && (
-          <p className="mt-2 text-xs text-red-500">Välj minst ett mål.</p>
+          <p className="mt-2 text-xs text-red-500">{t.strategyGoalsForm.noGoalError}</p>
         )}
         {primaryGoals.includes("custom") && (
           <textarea
             value={customGoalText}
             onChange={(e) => setCustomGoalText(e.target.value)}
-            placeholder="Beskriv ditt mål…"
+            placeholder={t.strategyGoalsForm.customGoalPlaceholder}
             rows={2}
             className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
@@ -154,8 +172,8 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
 
       {/* Step 2: Content types & volume */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Vilket innehåll ska skapas?</h2>
-        <p className="text-sm text-slate-500 mb-4">Välj typer och ange hur ofta.</p>
+        <h2 className="text-base font-semibold text-slate-900 mb-1">{t.strategyGoalsForm.contentTitle}</h2>
+        <p className="text-sm text-slate-500 mb-4">{t.strategyGoalsForm.contentHint}</p>
         <div className="space-y-4">
           {(Object.entries(CONTENT_TYPE_META) as [StrategyGoals["content_types"][number], typeof CONTENT_TYPE_META[keyof typeof CONTENT_TYPE_META]][]).map(([type, meta]) => {
             const selected = contentTypes.includes(type);
@@ -169,7 +187,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                   <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${selected ? "bg-emerald-100" : "bg-slate-100"}`}>
                     <Icon className={`h-4 w-4 ${selected ? "text-emerald-600" : "text-slate-400"}`} />
                   </div>
-                  <span className={`text-sm font-medium ${selected ? "text-emerald-800" : "text-slate-700"}`}>{meta.label}</span>
+                  <span className={`text-sm font-medium ${selected ? "text-emerald-800" : "text-slate-700"}`}>{contentTypeLabels[type]}</span>
                   <div className={`ml-auto h-5 w-5 rounded-full border-2 flex items-center justify-center ${selected ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`}>
                     {selected && <CheckCircle2 className="h-3 w-3 text-white" />}
                   </div>
@@ -178,7 +196,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                   <div className="border-t border-slate-100 px-4 pb-4 pt-3">
                     {type === "blog_post" && (
                       <label className="flex items-center justify-between text-sm text-slate-600">
-                        <span>Blogginlägg per vecka</span>
+                        <span>{t.strategyGoalsForm.blogPerWeek}</span>
                         <div className="flex items-center gap-2">
                           <button onClick={() => setPostsPerWeekBlog((v) => Math.max(1, v - 1))} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center text-base">−</button>
                           <span className="w-6 text-center font-semibold text-slate-800">{postsPerWeekBlog}</span>
@@ -188,7 +206,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                     )}
                     {type === "linkedin" && (
                       <label className="flex items-center justify-between text-sm text-slate-600">
-                        <span>LinkedIn-inlägg per vecka</span>
+                        <span>{t.strategyGoalsForm.linkedinPerWeek}</span>
                         <div className="flex items-center gap-2">
                           <button onClick={() => setPostsPerWeekLinkedin((v) => Math.max(1, v - 1))} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center text-base">−</button>
                           <span className="w-6 text-center font-semibold text-slate-800">{postsPerWeekLinkedin}</span>
@@ -198,7 +216,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                     )}
                     {type === "epost" && (
                       <label className="flex items-center justify-between text-sm text-slate-600">
-                        <span>Nyhetsbrev per månad</span>
+                        <span>{t.strategyGoalsForm.newslettersPerMonth}</span>
                         <div className="flex items-center gap-2">
                           <button onClick={() => setNewslettersPerMonth((v) => Math.max(1, v - 1))} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center text-base">−</button>
                           <span className="w-6 text-center font-semibold text-slate-800">{newslettersPerMonth}</span>
@@ -213,14 +231,14 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
           })}
         </div>
         {contentTypes.length === 0 && (
-          <p className="mt-2 text-xs text-red-500">Välj minst en innehållstyp.</p>
+          <p className="mt-2 text-xs text-red-500">{t.strategyGoalsForm.noContentError}</p>
         )}
       </section>
 
       {/* Step 3: Start date */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Startdatum för 90-dagarsplanen</h2>
-        <p className="text-sm text-slate-500 mb-4">Planen sträcker sig 90 dagar framåt från detta datum.</p>
+        <h2 className="text-base font-semibold text-slate-900 mb-1">{t.strategyGoalsForm.startDateTitle}</h2>
+        <p className="text-sm text-slate-500 mb-4">{t.strategyGoalsForm.startDateHint}</p>
         <input
           type="date"
           value={planStartDate}
@@ -232,8 +250,8 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
       {/* Step 4: Team assignment */}
       {teamMembers.length > 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900 mb-1">Vilka ska skapa innehållet?</h2>
-          <p className="text-sm text-slate-500 mb-4">Välj teammedlemmar som ska tilldelas inlägg i planen.</p>
+          <h2 className="text-base font-semibold text-slate-900 mb-1">{t.strategyGoalsForm.teamTitle}</h2>
+          <p className="text-sm text-slate-500 mb-4">{t.strategyGoalsForm.teamHint}</p>
           <div className="flex flex-wrap gap-2">
             {teamMembers.map((m) => {
               const sel = assignedMembers.includes(m);
@@ -254,7 +272,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
             })}
           </div>
           {assignedMembers.length === 0 && (
-            <p className="mt-2 text-xs text-slate-400">Välj ingen för att hoppa över tilldelning.</p>
+            <p className="mt-2 text-xs text-slate-400">{t.strategyGoalsForm.noTeamSelection}</p>
           )}
         </section>
       )}
@@ -263,17 +281,17 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 mb-1">Tekniska förbättringar från Site Audit</h2>
+            <h2 className="text-base font-semibold text-slate-900 mb-1">{t.strategyGoalsForm.auditTitle}</h2>
             <p className="text-sm text-slate-500">
               {auditLoading
-                ? "Hämtar senaste audit…"
+                ? t.strategyGoalsForm.auditLoading
                 : auditFindings.length === 0
-                ? "Inga audit-fynd hittades. Kör en site audit under Insikter."
-                : `${criticalCount} kritiska · ${warningCount} varningar hittades`}
+                ? t.strategyGoalsForm.auditNone
+                : `${criticalCount} ${t.strategyGoalsForm.auditFindings} · ${warningCount} ${t.strategyGoalsForm.auditFindingsWarnings}`}
             </p>
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-sm text-slate-600">Inkludera i planen</span>
+            <span className="text-sm text-slate-600">{t.strategyGoalsForm.auditInclude}</span>
             <button
               role="switch"
               aria-checked={includeAudit}
@@ -292,7 +310,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
               className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
             >
               {auditExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {auditExpanded ? "Dölj fynd" : "Visa fynd"}
+              {auditExpanded ? t.strategyGoalsForm.auditHideFindings : t.strategyGoalsForm.auditShowFindings}
             </button>
             {auditExpanded && (
               <div className="mt-3 space-y-1.5">
@@ -301,12 +319,12 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
                     <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 ${f.severity === "critical" ? "text-red-500" : "text-amber-500"}`} />
                     <span className="text-xs text-slate-700">{f.title}</span>
                     <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${f.severity === "critical" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                      {f.severity === "critical" ? "Kritisk" : "Varning"}
+                      {f.severity === "critical" ? t.strategyGoalsForm.severityCritical : t.strategyGoalsForm.severityWarning}
                     </span>
                   </div>
                 ))}
                 {auditFindings.length > 10 && (
-                  <p className="text-xs text-slate-400 pl-1">+ {auditFindings.length - 10} fler fynd</p>
+                  <p className="text-xs text-slate-400 pl-1">+ {auditFindings.length - 10} {t.strategyGoalsForm.auditMore}</p>
                 )}
               </div>
             )}
@@ -322,7 +340,7 @@ export default function StrategyGoalsForm({ initialGoals, teamMembers, auditFind
           className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
         >
           <Target className="h-4 w-4" />
-          Generera 90-dagarsplan
+          {t.strategyGoalsForm.generateBtn}
         </button>
       </div>
     </div>

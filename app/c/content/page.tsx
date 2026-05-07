@@ -16,6 +16,7 @@ import PiecePerformance from "@/components/content/PiecePerformance";
 import RefineDialog from "@/components/content/RefineDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
 
@@ -63,6 +64,7 @@ export default function CustomerContentPage() {
 }
 
 function CustomerContentInner() {
+  const { t } = useLanguage();
   const { user, loading: userLoading } = useUser();
   const { tenantClient, effectiveTenantId } = useSite();
   const searchParams = useSearchParams();
@@ -83,8 +85,7 @@ function CustomerContentInner() {
   const [modalSaving, setModalSaving] = useState(false);
   const [modalFullscreen, setModalFullscreen] = useState(false);
   // Sprint 2 (K-1 / K-4) — pre-fill state when arriving from a gap on
-  // Insikter or a topic on Strategi. We pass these through to the saved
-  // piece so the loop is round-trippable.
+  // Insikter or a topic on Strategi.
   const [sourceGap, setSourceGap] = useState<{ id: string; title: string } | null>(null);
   const [sourceStrategyTopic, setSourceStrategyTopic] = useState<string | null>(null);
   const [ghConnected, setGhConnected] = useState(false);
@@ -97,13 +98,42 @@ function CustomerContentInner() {
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   const [refineId, setRefineId] = useState<string | null>(null);
 
+  const TYPE_LABELS: Record<string, string> = {
+    linkedin_post: t.content.typeLinkedin,
+    linkedin: t.content.typeLinkedin,
+    blog_post: t.content.typeBlog,
+    blog: t.content.typeBlog,
+    blogg: t.content.typeBlog,
+    email: t.content.typeEmail,
+    epost: t.content.typeEmail,
+    faq: t.content.typeFaq,
+    faq_page: t.content.typeFaq,
+    landing_page: t.content.typeLanding,
+    landing: t.content.typeLanding,
+    comparison: t.content.typeComparison,
+    product_page: t.content.typeProduct,
+    guide: t.content.typeGuide,
+    case_study: t.content.typeCase,
+  };
+
+  const formatTypeLabel = (type: string | undefined): string => {
+    if (!type) return t.content.typeFallback;
+    return TYPE_LABELS[type.toLowerCase()] || type;
+  };
+
+  const nextStatusLabel = (s: string) => {
+    if (s === "draft") return t.content.actionSendReview;
+    if (s === "review") return t.content.actionApprove;
+    if (s === "approved") return t.content.actionMarkPublished;
+    return null;
+  };
+
   useEffect(() => {
     if (user && effectiveTenantId) fetchContent();
   }, [user, effectiveTenantId]);
 
   // Sprint 2 (K-1 / K-4) — when arriving with ?gap=… or ?topic=…, open the
-  // modal pre-filled with the brief from the originating surface. This is
-  // what makes Insikter -> Content / Strategi -> Content one click.
+  // modal pre-filled with the brief from the originating surface.
   useEffect(() => {
     const gap = searchParams.get("gap");
     const gapTitle = searchParams.get("gap_title");
@@ -178,8 +208,8 @@ function CustomerContentInner() {
 
   useEffect(() => {
     if (error) {
-      const t = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setError(""), 8000);
+      return () => clearTimeout(timer);
     }
   }, [error]);
 
@@ -197,7 +227,7 @@ function CustomerContentInner() {
       if (IS_DEMO) {
         setPieces(demoContentPieces);
       } else {
-        setError("Kunde inte hämta content. Content-agenten har kanske inte genererat något än.");
+        setError(t.content.errorFetch);
       }
     }
     setLoading(false);
@@ -208,10 +238,6 @@ function CustomerContentInner() {
     setGenerating(true);
     try {
       const client = tenantClient;
-      // /api/content/generate only returns text — it does not persist a
-      // piece. We chain a /pieces save so the new draft actually appears.
-      // The proxy guards /generate behind X-Sama-Intent (see app/api/sama)
-      // so we must mark this as a user action or it returns 423.
       const gen = await client.post<{
         title?: string;
         body?: string;
@@ -224,9 +250,6 @@ function CustomerContentInner() {
       );
       const body = gen.body || gen.content || "";
       if (!body) {
-        // Backend returns 200 with empty body on Anthropic errors and puts
-        // the real reason in suggestions[0]. Surface it instead of saving
-        // an empty piece.
         const detail = gen.suggestions?.[0] || "Inget innehåll returnerades från AI:n.";
         throw new Error(detail);
       }
@@ -252,10 +275,6 @@ function CustomerContentInner() {
     setModalContent("");
     try {
       const client = tenantClient;
-      // Backend returns { title, body, platform, suggestions }. Empty body
-      // with a message in suggestions[0] = AI failure (key missing, parse
-      // error, rate limit). Surface that instead of showing a placeholder
-      // that looks like real content.
       const result = await client.post<{
         title?: string;
         body?: string;
@@ -294,9 +313,6 @@ function CustomerContentInner() {
         content: modalContent,
         status: "draft",
         word_count: modalContent.split(/\s+/).filter(Boolean).length,
-        // Sprint 2 (K-2 / K-5) — round-trip the originating surface so the
-        // piece can show its provenance and the gap/topic can know it's
-        // being addressed.
         source_gap_id: sourceGap?.id ?? null,
         source_gap_title: sourceGap?.title ?? null,
         source_strategy_topic: sourceStrategyTopic ?? null,
@@ -328,8 +344,7 @@ function CustomerContentInner() {
     setSourceGap(null);
     setSourceStrategyTopic(null);
     // Pull the canonical row from the server so the local-* placeholder is
-    // replaced with a real piece (otherwise PATCH calls on the placeholder
-    // would 404).
+    // replaced with a real piece.
     fetchContent();
   };
 
@@ -353,13 +368,6 @@ function CustomerContentInner() {
     approved: "published",
   };
 
-  const nextStatusLabel = (s: string) => {
-    if (s === "draft") return "Skicka till granskning";
-    if (s === "review") return "Godkänn";
-    if (s === "approved") return "Markera publicerad";
-    return null;
-  };
-
   const updateStatus = async (pieceId: string, newStatus: string) => {
     if (!user) return;
     setUpdatingStatus(pieceId);
@@ -369,9 +377,6 @@ function CustomerContentInner() {
     );
     try {
       const client = tenantClient;
-      // Backend exposes a generic PATCH /pieces/{id}; there's no /status
-      // sub-resource. Local-only optimistic IDs (e.g. `local-…`) skip the
-      // round-trip since they don't exist on the server yet.
       if (!pieceId.startsWith("local-")) {
         await client.patch(`/api/content/pieces/${pieceId}`, { status: newStatus });
       }
@@ -388,10 +393,7 @@ function CustomerContentInner() {
     await updateStatus(pieceId, "archived");
   };
 
-  // Sprint 3 (C-6 / SET-4) — "Skicka via mail" handoff. Loads the piece
-  // body and opens a pre-filled mailto: targeting the recipient stored on
-  // settings. We fall back to a blank recipient so the user can still pick
-  // someone in their mail client.
+  // Sprint 3 (C-6 / SET-4) — "Skicka via mail" handoff.
   const sendByMail = async (piece: ContentPiece) => {
     if (!user) return;
     setLoadingBodyId(piece.id);
@@ -405,7 +407,7 @@ function CustomerContentInner() {
       );
       body = data.piece?.body || data.piece?.content || data.piece?.markdown || "";
     } catch {
-      // fall through with empty body — user can paste it themselves
+      // fall through with empty body
     }
     try {
       const sb = (await import("@/lib/supabase-browser")).getSupabaseBrowser();
@@ -426,8 +428,6 @@ function CustomerContentInner() {
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(
       subject,
     )}&body=${encodeURIComponent(body || `Hej!\n\nHär kommer ett utkast: ${piece.title}`)}`;
-    // Trigger the mailto handoff via a transient anchor so the dashboard
-    // tab keeps its state instead of navigating away.
     const a = document.createElement("a");
     a.href = mailto;
     a.rel = "noopener";
@@ -448,7 +448,7 @@ function CustomerContentInner() {
       );
       body = data.piece?.body || data.piece?.content || data.piece?.markdown || "";
     } catch {
-      // fall through with empty body — user can paste it
+      // fall through with empty body
     }
     setLoadingBodyId(null);
     setCmsDialog({ piece, body: body || `# ${piece.title}\n\n` });
@@ -478,7 +478,7 @@ function CustomerContentInner() {
               Content
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Här skapas och publiceras era artiklar. Idéerna kommer från er strategi och era luckor från Insikter.
+              {t.content.subtitle}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -488,7 +488,7 @@ function CustomerContentInner() {
               title="Skriv eget ämne och låt SAMA generera ett utkast."
             >
               <Plus className="h-4 w-4" />
-              Skapa nytt content
+              {t.content.createNew}
             </button>
             <button
               onClick={() => {
@@ -500,7 +500,7 @@ function CustomerContentInner() {
               title="Visa AI-förslag baserat på er strategi och era luckor i Insikter."
             >
               <Sparkles className="h-4 w-4" />
-              Få artikel-idéer
+              {t.content.getIdeas}
             </button>
             <button
               onClick={generateContent}
@@ -513,7 +513,7 @@ function CustomerContentInner() {
               ) : (
                 <Wand2 className="h-4 w-4" />
               )}
-              {generating ? "Genererar…" : "Auto-generera"}
+              {generating ? t.content.generating : t.content.autoGenerate}
             </button>
           </div>
         </div>
@@ -523,21 +523,21 @@ function CustomerContentInner() {
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <FileText className="h-5 w-5 text-purple-500" />
-              <span className="text-sm text-slate-500">Totalt antal</span>
+              <span className="text-sm text-slate-500">{t.content.statTotal}</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{pieces.length}</span>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <CheckCircle className="h-5 w-5 text-emerald-500" />
-              <span className="text-sm text-slate-500">Publicerat</span>
+              <span className="text-sm text-slate-500">{t.content.statPublished}</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{publishedCount}</span>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <Hash className="h-5 w-5 text-blue-500" />
-              <span className="text-sm text-slate-500">Totalt antal ord</span>
+              <span className="text-sm text-slate-500">{t.content.statWords}</span>
             </div>
             <span className="text-2xl font-bold text-slate-900">{(totalWords ?? 0).toLocaleString()}</span>
           </div>
@@ -565,15 +565,15 @@ function CustomerContentInner() {
             <div className="flex-1">
               <p className="font-semibold text-emerald-900">
                 {pendingApprovalsCount === 1
-                  ? "1 utkast väntar på din granskning"
-                  : `${pendingApprovalsCount} utkast väntar på din granskning`}
+                  ? t.content.pendingApproval1
+                  : `${pendingApprovalsCount} ${t.content.pendingApprovals}`}
               </p>
               <p className="text-xs text-emerald-700">
-                Tills du godkänner ligger publiceringen still.
+                {t.content.pendingApprovalHint}
               </p>
             </div>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700">
-              Granska
+              {t.content.reviewAction}
               <ArrowRight className="h-3.5 w-3.5" />
             </span>
           </Link>
@@ -584,15 +584,13 @@ function CustomerContentInner() {
         <div id="ideas" />
         {user && (
           <SuggestionsPanel<ContentTopicSuggestion>
-            title="Få artikel-idéer"
-            description="Baserat på er strategi och era luckor i Insikter. Importera ett förslag så genererar Content-agenten ett utkast."
+            title={t.content.suggestionsTitle}
+            description={t.content.suggestionsDesc}
             accent="purple"
-            importButtonLabel="Importera till Content"
-            importLabel="Importera till Content-agenten"
+            importButtonLabel={t.content.importToContent}
+            importLabel={t.content.importLabel}
             fetchSuggestions={async () => {
               const client = tenantClient;
-              // Proxy guards /suggest-* behind X-Sama-Intent — see
-              // app/api/sama/[...path]/route.ts.
               const res = await client.post<{ topics?: ContentTopicSuggestion[] }>(
                 "/api/content/suggest-topics",
                 {},
@@ -618,9 +616,6 @@ function CustomerContentInner() {
             )}
             importItem={async (item) => {
               const client = tenantClient;
-              // Save a stub draft *first* so the user sees the new piece
-              // immediately. Awaiting /generate (Anthropic, 10-30s) blocked
-              // the import dialog and made it look like nothing happened.
               const saved = await client.post<{
                 success: boolean;
                 error?: string;
@@ -638,8 +633,7 @@ function CustomerContentInner() {
                 setPieces((prev) => [saved.piece as ContentPiece, ...prev]);
               }
               // Background fill-in: generate the body and PATCH the piece
-              // when it returns. If generation fails, the stub still exists
-              // and the user can refine it manually.
+              // when it returns.
               const pieceId = saved.piece?.id;
               if (pieceId) {
                 (async () => {
@@ -672,17 +666,15 @@ function CustomerContentInner() {
 
         {/* Filters — Sprint 1 (C-5): four logical buckets instead of six. */}
         <div className="flex flex-wrap gap-2 mb-6">
-          {(
-            [
-              { key: "to_review", label: "Att granska", count: draftCount + reviewCount },
-              { key: "scheduled", label: "Schemalagda", count: approvedCount },
-              { key: "published", label: "Publicerade", count: publishedCount },
-              { key: "archived", label: "Arkiverade", count: archivedCount },
-            ] as const
-          ).map((f) => (
+          {[
+            { key: "to_review" as const, label: t.content.tabToReview, count: draftCount + reviewCount },
+            { key: "scheduled" as const, label: t.content.tabScheduled, count: approvedCount },
+            { key: "published" as const, label: t.content.tabPublished, count: publishedCount },
+            { key: "archived" as const, label: t.content.tabArchived, count: archivedCount },
+          ].map((f) => (
             <button
               key={f.key}
-              onClick={() => setFilter(f.key as any)}
+              onClick={() => setFilter(f.key)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 filter === f.key
                   ? "bg-purple-100 text-purple-700 border border-purple-200"
@@ -703,14 +695,10 @@ function CustomerContentInner() {
           <div className="rounded-xl border bg-white p-12 shadow-sm text-center">
             <PenTool className="mx-auto h-10 w-10 text-slate-300 mb-3" />
             <p className="text-sm text-slate-700 max-w-md mx-auto">
-              Här hamnar artiklar SAMA föreslår och som ni godkänner.
+              {t.content.emptyTitle}
             </p>
             <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-              Starta med att klicka <strong>Få artikel-idéer</strong> ovan, eller gå till{" "}
-              <Link href="/c/analysis" className="text-purple-700 underline">
-                Insikter
-              </Link>{" "}
-              och välj en lucka att fylla.
+              {t.content.emptyHint}
             </p>
           </div>
         ) : (
@@ -726,9 +714,7 @@ function CustomerContentInner() {
                       <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
                       <StatusBadge status={piece.status} />
                     </div>
-                    {/* Sprint 2 (K-3 / K-6) — provenance line. Tells the
-                        reader which surface motivated the article so the
-                        loop is visible. */}
+                    {/* Sprint 2 (K-3 / K-6) — provenance line. */}
                     {(piece.source_gap_id || piece.source_strategy_topic) && (
                       <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                         {piece.source_gap_id && (
@@ -737,7 +723,7 @@ function CustomerContentInner() {
                             className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-800 hover:bg-amber-100"
                           >
                             <Target className="h-3 w-3" />
-                            Skapad från lucka{piece.source_gap_title ? `: ${piece.source_gap_title}` : ""} (Insikter)
+                            {t.content.createdFromGap}{piece.source_gap_title ? `: ${piece.source_gap_title}` : ""}
                           </Link>
                         )}
                         {piece.source_strategy_topic && (
@@ -755,7 +741,7 @@ function CustomerContentInner() {
                       {piece.word_count > 0 && (
                         <span className="flex items-center gap-1">
                           <Hash className="h-3 w-3" />
-                          {(piece.word_count ?? 0).toLocaleString()} ord
+                          {(piece.word_count ?? 0).toLocaleString()} {t.content.words}
                         </span>
                       )}
                       {piece.target_keyword && (
@@ -801,7 +787,7 @@ function CustomerContentInner() {
                       </button>
                     )}
 
-                    {/* Toggle performance (C6) — once content exists at all */}
+                    {/* Toggle performance (C6) */}
                     {(piece.status === "approved" || piece.status === "published") && (
                       <button
                         onClick={() =>
@@ -835,10 +821,7 @@ function CustomerContentInner() {
                       </button>
                     )}
 
-                    {/* Sprint 3 (C-6) — explicit publishing actions on
-                        every piece: sajten + mail. "Spara som utkast" lever
-                        already in the create-modal so we don't repeat it
-                        here. */}
+                    {/* Sprint 3 (C-6) — explicit publishing actions */}
                     {(piece.status === "approved" || piece.status === "published") && (
                       <>
                         <button
@@ -852,7 +835,7 @@ function CustomerContentInner() {
                           ) : (
                             <Send className="h-3.5 w-3.5" />
                           )}
-                          Publicera till sajten
+                          {t.content.publishToSite}
                         </button>
                         <button
                           onClick={() => sendByMail(piece)}
@@ -861,7 +844,7 @@ function CustomerContentInner() {
                           title="Skicka via mail till mottagaren från Inställningar"
                         >
                           <Send className="h-3.5 w-3.5" />
-                          Skicka via mail
+                          {t.content.sendByMail}
                         </button>
                       </>
                     )}
@@ -871,7 +854,7 @@ function CustomerContentInner() {
                       ghConnected ? (
                         publishingId === piece.id ? (
                           <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publicerar…
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.content.publishing}
                           </span>
                         ) : publishResult?.id === piece.id ? (
                           <a
@@ -881,7 +864,7 @@ function CustomerContentInner() {
                             className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
                           >
                             <CheckCircle className="h-3.5 w-3.5" />
-                            PR skapad!
+                            {t.content.prCreated}
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
@@ -890,13 +873,13 @@ function CustomerContentInner() {
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Publicera via GitHub
+                            {t.content.publishViaGitHub}
                           </button>
                         )
                       ) : (
                         <span className="text-xs text-slate-400" title="Anslut GitHub i Inställningar för att publicera">
                           <Code2 className="h-3.5 w-3.5 inline mr-1" />
-                          Anslut GitHub
+                          {t.content.connectGitHub}
                         </span>
                       )
                     )}
@@ -949,7 +932,7 @@ function CustomerContentInner() {
                 <div className="flex items-center justify-between border-b px-6 py-4">
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-purple-500" />
-                    Skapa nytt content
+                    {t.content.modalTitle}
                   </h3>
                   <div className="flex items-center gap-1">
                     <button
@@ -968,8 +951,7 @@ function CustomerContentInner() {
                   </div>
                 </div>
                 <div className="p-6 space-y-5">
-                  {/* Sprint 2 (K-1 / K-4) — show the originating surface
-                      inside the modal so the user understands the brief. */}
+                  {/* Sprint 2 (K-1 / K-4) — show the originating surface inside the modal. */}
                   {(sourceGap || sourceStrategyTopic) && (
                     <div
                       className={`rounded-lg border p-3 text-xs ${
@@ -980,30 +962,30 @@ function CustomerContentInner() {
                     >
                       {sourceGap ? (
                         <>
-                          <strong>Skapas från lucka i Insikter:</strong> {sourceGap.title}
+                          <strong>{t.content.gapPrefix}</strong> {sourceGap.title}
                         </>
                       ) : (
                         <>
-                          <strong>Skapas utifrån strategi-topic:</strong> {sourceStrategyTopic}
+                          <strong>{t.content.strategyTopicPrefix}</strong> {sourceStrategyTopic}
                         </>
                       )}
                     </div>
                   )}
                   {/* Type selector */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">{t.content.modalFormat}</label>
                     <div className="flex gap-2">
-                      {(["linkedin", "blogg", "epost"] as const).map((t) => (
+                      {(["linkedin", "blogg", "epost"] as const).map((type) => (
                         <button
-                          key={t}
-                          onClick={() => setModalType(t)}
+                          key={type}
+                          onClick={() => setModalType(type)}
                           className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                            modalType === t
+                            modalType === type
                               ? "bg-purple-100 text-purple-700 border border-purple-200"
                               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                           }`}
                         >
-                          {t === "linkedin" ? "LinkedIn" : t === "blogg" ? "Blogg" : "E-post"}
+                          {type === "linkedin" ? "LinkedIn" : type === "blogg" ? "Blogg" : "E-post"}
                         </button>
                       ))}
                     </div>
@@ -1011,12 +993,12 @@ function CustomerContentInner() {
 
                   {/* Topic */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Ämne</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">{t.content.modalTopic}</label>
                     <input
                       type="text"
                       value={modalTopic}
                       onChange={(e) => setModalTopic(e.target.value)}
-                      placeholder="T.ex. Hur restauranger kan synas i AI-sök…"
+                      placeholder={t.content.modalTopicPlaceholder}
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
@@ -1032,14 +1014,14 @@ function CustomerContentInner() {
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {modalGenerating ? "Genererar…" : "Generera"}
+                    {modalGenerating ? t.content.generating : t.content.modalGenerate}
                   </button>
 
                   {/* Generated content */}
                   {modalContent && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Genererat innehåll</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t.content.modalContent}</label>
                         <textarea
                           value={modalContent}
                           onChange={(e) => setModalContent(e.target.value)}
@@ -1057,7 +1039,7 @@ function CustomerContentInner() {
                         ) : (
                           <Save className="h-4 w-4" />
                         )}
-                        Spara som utkast
+                        {t.content.modalSave}
                       </button>
                     </>
                   )}
@@ -1071,56 +1053,33 @@ function CustomerContentInner() {
   );
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  linkedin_post: "LinkedIn-inlägg",
-  linkedin: "LinkedIn-inlägg",
-  blog_post: "Blogginlägg",
-  blog: "Blogginlägg",
-  blogg: "Blogginlägg",
-  email: "E-post",
-  epost: "E-post",
-  faq: "FAQ-sida",
-  faq_page: "FAQ-sida",
-  landing_page: "Landningssida",
-  landing: "Landningssida",
-  comparison: "Jämförelseartikel",
-  product_page: "Produktsida",
-  guide: "Guide",
-  case_study: "Kundcase",
-};
-
-function formatTypeLabel(type: string | undefined): string {
-  if (!type) return "Förslag";
-  const normalized = type.toLowerCase();
-  return TYPE_LABELS[normalized] || type;
-}
-
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
   const config: Record<string, { styles: string; Icon: any; label: string }> = {
     draft: {
       styles: "bg-slate-50 text-slate-700 border-slate-200",
       Icon: PenTool,
-      label: "utkast",
+      label: t.content.statusDraft,
     },
     review: {
       styles: "bg-amber-50 text-amber-700 border-amber-200",
       Icon: Eye,
-      label: "under granskning",
+      label: t.content.statusReview,
     },
     approved: {
       styles: "bg-blue-50 text-blue-700 border-blue-200",
       Icon: CheckCircle,
-      label: "godkänd",
+      label: t.content.statusApproved,
     },
     published: {
       styles: "bg-emerald-50 text-emerald-700 border-emerald-200",
       Icon: CheckCircle,
-      label: "publicerad",
+      label: t.content.statusPublished,
     },
     archived: {
       styles: "bg-slate-50 text-slate-500 border-slate-200",
       Icon: Archive,
-      label: "arkiverad",
+      label: t.content.statusArchived,
     },
   };
   const c = config[status] || config.draft;

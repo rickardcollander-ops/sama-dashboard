@@ -4,7 +4,6 @@ import { Fragment, type ReactNode } from "react";
 import { PeriodProvider } from "@/lib/hooks/usePeriod";
 import { ActiveRunsProvider } from "@/lib/hooks/useActiveRuns";
 import { SiteProvider, useSite } from "@/lib/hooks/useSite";
-import { LanguageProvider } from "@/lib/hooks/useLanguage";
 import ActiveRunsBanner from "@/components/ActiveRunsBanner";
 import AdminViewBanner from "@/components/AdminViewBanner";
 
@@ -19,16 +18,14 @@ function SiteScopedChildren({ children }: { children: ReactNode }) {
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
-    <LanguageProvider>
-      <SiteProvider>
-        <PeriodProvider>
-          <ActiveRunsProvider>
-            <AdminViewBanner />
-            <SiteScopedChildren>{children}</SiteScopedChildren>
-            <ActiveRunsBanner />
-          </ActiveRunsProvider>
-        </PeriodProvider>
-      </SiteProvider>
-    </LanguageProvider>
+    <SiteProvider>
+      <PeriodProvider>
+        <ActiveRunsProvider>
+          <AdminViewBanner />
+          <SiteScopedChildren>{children}</SiteScopedChildren>
+          <ActiveRunsBanner />
+        </ActiveRunsProvider>
+      </PeriodProvider>
+    </SiteProvider>
   );
 }

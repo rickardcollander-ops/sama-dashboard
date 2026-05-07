@@ -6,12 +6,7 @@ import {
 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
-
-// Sprint 4 (C5) — Förbättra med AI dialog.
-//
-// Loads the full body of a piece, lets the user pick an intent (grammar /
-// tone / SEO / shorten / expand) and shows the original + refined text side
-// by side. "Behåll förbättringen" PATCH-uppdaterar pieces.
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 interface PieceFull {
   id: string;
@@ -33,21 +28,20 @@ interface Props {
   onClose: () => void;
   tenantId: string;
   pieceId: string;
-  /** Called after the user keeps the rewrite. */
   onSaved?: () => void;
-  /** Optional pre-loaded user_settings.target_audience used to ground the rewrite. */
   audience?: string;
 }
 
-const INTENTS: { id: string; label: string; description: string }[] = [
-  { id: "grammar", label: "Grammatik", description: "Putsa språk och formulering, behåll innehållet." },
-  { id: "tone", label: "Tonalitet", description: "Mer naturlig ton, mindre säljig." },
-  { id: "seo", label: "SEO-täckning", description: "Förbättrade rubriker och naturlig nyckelordsanvändning." },
-  { id: "shorten", label: "Förkorta", description: "Cirka 70% av nuvarande längd." },
-  { id: "expand", label: "Utveckla", description: "Lägg till exempel och en skarpare avslutning." },
-];
-
 export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved, audience }: Props) {
+  const { t } = useLanguage();
+  const INTENTS: { id: string; label: string; description: string }[] = [
+    { id: "grammar", label: t.refineDialog.intents.grammarLabel, description: t.refineDialog.intents.grammarDesc },
+    { id: "tone", label: t.refineDialog.intents.toneLabel, description: t.refineDialog.intents.toneDesc },
+    { id: "seo", label: t.refineDialog.intents.seoLabel, description: t.refineDialog.intents.seoDesc },
+    { id: "shorten", label: t.refineDialog.intents.shortenLabel, description: t.refineDialog.intents.shortenDesc },
+    { id: "expand", label: t.refineDialog.intents.expandLabel, description: t.refineDialog.intents.expandDesc },
+  ];
+
   const [piece, setPiece] = useState<PieceFull | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,14 +69,13 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
         const p = data?.piece || (data as unknown as PieceFull) || null;
         setPiece(p);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Kunde inte hämta innehåll");
+        setError(e instanceof Error ? e.message : t.refineDialog.errorLoad);
       }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tenantId, pieceId]);
 
-  // Pull target_audience from user_settings once the dialog opens, if the
-  // caller didn't supply one. Used to ground the AI rewrite.
   useEffect(() => {
     if (!open || audience) return;
     (async () => {
@@ -107,7 +100,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
 
   const handleRefine = async () => {
     if (!body) {
-      setError("Inget innehåll att förbättra.");
+      setError(t.refineDialog.noContentError);
       return;
     }
     setRefining(true);
@@ -124,7 +117,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
       );
       setRefined(res.refined_text || "");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte förbättra texten");
+      setError(e instanceof Error ? e.message : t.refineDialog.errorRefine);
     }
     setRefining(false);
   };
@@ -140,7 +133,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
       onSaved?.();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte spara den förbättrade texten");
+      setError(e instanceof Error ? e.message : t.refineDialog.errorSave);
       setSaving(false);
     }
   };
@@ -153,11 +146,11 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
           <div className="flex items-center justify-between border-b px-6 py-4">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
               <Wand2 className="h-5 w-5 text-purple-500" />
-              Förbättra med AI
+              {t.refineDialog.title}
             </h3>
             <button
               onClick={onClose}
-              aria-label="Stäng"
+              aria-label={t.refineDialog.closeLabel}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             >
               <X className="h-5 w-5" />
@@ -168,7 +161,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
             {loading && (
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Hämtar innehåll…
+                {t.refineDialog.loadingContent}
               </div>
             )}
 
@@ -183,7 +176,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
               <>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Vad vill du förbättra?
+                    {t.refineDialog.whatToImprove}
                   </label>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {INTENTS.map((it) => {
@@ -223,23 +216,22 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {refining ? "Förbättrar…" : refined ? "Försök igen" : "Förbättra texten"}
+                    {refining ? t.refineDialog.refiningBtn : refined ? t.refineDialog.retryBtn : t.refineDialog.refineBtn}
                   </button>
                 </div>
 
-                {/* Side-by-side */}
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Original
+                      {t.refineDialog.original}
                     </p>
                     <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 font-sans">
-                      {body || "Inget innehåll laddat."}
+                      {body || t.refineDialog.noContent}
                     </pre>
                   </div>
                   <div>
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Förbättrad version
+                      {t.refineDialog.refined}
                     </p>
                     {refined ? (
                       <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border border-purple-200 bg-purple-50/50 p-3 text-sm leading-relaxed text-slate-800 font-sans">
@@ -247,7 +239,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
                       </pre>
                     ) : (
                       <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-xs text-slate-400">
-                        Klicka &quot;Förbättra texten&quot; för att se en förbättrad version här.
+                        {t.refineDialog.placeholder}
                       </div>
                     )}
                   </div>
@@ -262,7 +254,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
               disabled={saving}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-60"
             >
-              Stäng
+              {t.refineDialog.close}
             </button>
             <button
               onClick={handleKeep}
@@ -270,7 +262,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Behåll förbättringen
+              {t.refineDialog.keep}
             </button>
           </div>
         </div>
@@ -278,4 +270,3 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
     </>
   );
 }
-
