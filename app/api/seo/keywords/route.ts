@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getSiteSettingsAccess, resolveSiteId } from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,20 +41,44 @@ function normalizeCtr(k: BackendKeyword): BackendKeyword {
   return { ...k, ctr };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const settings = await loadSettings(user.id);
-  const local: string[] = Array.isArray(settings.tracked_keywords)
-    ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
+  // Honor the X-Sama-Site-Id / X-Tenant-ID headers the dashboard sends
+  // (set by samaHeaders() in admin view-as mode). Without this the route
+  // would always fetch the calling admin's own keywords and leak them
+  // into the customer's view.
+  const siteId = resolveSiteId(req, user.id);
+
+  // Read locally tracked keywords from the right scope. For self-view we
+  // keep the legacy user_settings store; for view-as on a different tenant
+  // we read from the site-scoped user_sites row (admin uses service role
+  // inside getSiteSettingsAccess) so we don't bleed the admin's list in.
+  let local: string[] = [];
+  try {
+    if (siteId === user.id) {
+      const settings = await loadSettings(user.id);
+      local = Array.isArray(settings.tracked_keywords)
+        ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
+        : [];
+    } else {
+      const access = await getSiteSettingsAccess(user, siteId);
+      local = Array.isArray(access.settings.tracked_keywords)
+        ? (access.settings.tracked_keywords as unknown[]).filter(
+            (v): v is string => typeof v === "string",
+          )
+        : [];
+    }
+  } catch {
+    local = [];
+  }
 
   const backendMap = new Map<string, BackendKeyword>();
   try {
     const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
       method: "GET",
-      headers: { "X-Tenant-ID": user.id },
+      headers: { "X-Tenant-ID": siteId },
       signal: AbortSignal.timeout(15_000),
     });
     if (res.ok) {

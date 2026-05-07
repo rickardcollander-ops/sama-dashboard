@@ -13,7 +13,7 @@ import CustomerNav from "@/components/CustomerNav";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
-import { api, tenantApi } from "@/lib/api";
+import { api, samaHeaders, tenantApi } from "@/lib/api";
 import { IS_DEMO, demoSeoKeywords } from "@/lib/demo-data";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { exportCsv } from "@/lib/csv";
@@ -92,7 +92,7 @@ export default function CustomerSeoPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/seo/keywords", { method: "GET" });
+      const res = await fetch("/api/seo/keywords", { method: "GET", headers: samaHeaders() });
       if (!res.ok) throw new Error(`GET /api/seo/keywords: ${res.status}`);
       const data = (await res.json()) as { keywords?: Keyword[] };
       const kws = data.keywords || [];
@@ -133,7 +133,7 @@ export default function CustomerSeoPage() {
     try {
       const res = await fetch("/api/seo/keywords/add", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         body: JSON.stringify({ keyword: trimmed }),
       });
       if (!res.ok) {
@@ -158,7 +158,7 @@ export default function CustomerSeoPage() {
     try {
       const res = await fetch("/api/seo/keywords/add", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         body: JSON.stringify({ keyword }),
       });
       if (!res.ok) {
