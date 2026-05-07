@@ -77,10 +77,16 @@ export default function CustomerAnalyticsPage() {
     } catch {}
   }, [compare]);
 
+  // Wipe analytics when the workspace changes so we never display the
+  // previous site's traffic numbers during the refetch.
   useEffect(() => {
-    if (user) fetchAnalytics();
+    setData({});
+  }, [effectiveTenantId]);
+
+  useEffect(() => {
+    if (user && effectiveTenantId) fetchAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, days, compare]);
+  }, [user, days, compare, effectiveTenantId]);
 
   useEffect(() => {
     if (error) {

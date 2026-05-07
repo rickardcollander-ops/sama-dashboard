@@ -55,7 +55,7 @@ function trendIcon(trend?: string) {
 
 export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient } = useSite();
+  const { tenantClient, effectiveTenantId } = useSite();
   const { t } = useLanguage();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [checks, setChecks] = useState<AICheck[]>([]);
@@ -76,10 +76,18 @@ export default function CustomerGeoPage() {
     .filter((r) => r.agent === "ai_visibility" && r.status === "completed")
     .sort((a, b) => (b.completed_at || 0) - (a.completed_at || 0))[0]?.id;
 
+  // Reset cached data when the active site changes so we don't show
+  // another site's mentions/checks while the new fetch is in flight.
   useEffect(() => {
-    if (user) loadData();
+    setSummary(null);
+    setChecks([]);
+    setTrackedQueries([]);
+  }, [effectiveTenantId]);
+
+  useEffect(() => {
+    if (user && effectiveTenantId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, days]);
+  }, [user, days, effectiveTenantId]);
 
   useEffect(() => {
     if (!lastCompletedGeoRunId) return;
