@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Plus,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -61,6 +61,8 @@ export default function CustomerGeoPage() {
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
+  const [newQueryInput, setNewQueryInput] = useState("");
+  const [addingQuery, setAddingQuery] = useState(false);
   const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -114,6 +116,35 @@ export default function CustomerGeoPage() {
       setError(`Could not load data: ${err?.message || err}`);
     }
     if (!silent) setLoading(false);
+  };
+
+  const addTrackedQuery = async () => {
+    const query = newQueryInput.trim();
+    if (!query) return;
+    if (trackedQueries.length >= MAX_GEO_QUERIES) {
+      setError(`Tracking cap reached — remove a query to add a new one (max ${MAX_GEO_QUERIES}).`);
+      return;
+    }
+    setAddingQuery(true);
+    setError("");
+    try {
+      const res = await fetch("/api/recommendations/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
+        body: JSON.stringify({ geo_queries: [query] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Add failed");
+      setTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : trackedQueries);
+      setNewQueryInput("");
+      if (data?.geo_added === 0 && data?.geo_skipped_full > 0) {
+        setError(`Tracking cap reached — only ${MAX_GEO_QUERIES} queries can be tracked at a time.`);
+      }
+    } catch (err: any) {
+      console.error("Failed to add tracked query:", err);
+      setError(`Could not add query: ${err?.message || err}`);
+    }
+    setAddingQuery(false);
   };
 
   const removeTrackedQuery = async (query: string) => {
@@ -253,6 +284,140 @@ export default function CustomerGeoPage() {
           </div>
         )}
 
+        {/* Engine breakdown */}
+        {summary?.engine_stats && Object.keys(summary.engine_stats).length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.perService}</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {Object.entries(summary.engine_stats).map(([engine, stats]) => (
+                <div key={engine} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm font-medium text-slate-700 capitalize">{engine}</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">
+                    {(stats.rate * 100).toFixed(0)}%
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {stats.mentioned}/{stats.total} {t.geo.mentions}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top competitors */}
+        {summary?.top_competitors && summary.top_competitors.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.topCompetitors}</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {summary.top_competitors.map((c) => (
+                <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm font-medium text-slate-700">{c.name}</p>
+                  <p className="text-xs text-slate-500">{c.count} {t.geo.mentions}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Recommendations */}
+        <div className="mb-8">
+          <KeywordGeoRecommendations
+            sections={["geo_queries", "long_tail_phrases"]}
+            gapSummary={
+              summary
+                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
+                : undefined
+            }
+            title={t.geo.recommendTitle}
+            description={`AI föreslår nya naturliga frågor att bevaka i ChatGPT, Claude, Perplexity och Gemini. Välj vilka du vill lägga till (max ${MAX_GEO_QUERIES} samtidigt).`}
+            geoTrackedCount={trackedQueries.length}
+            geoMax={MAX_GEO_QUERIES}
+            onAdded={() => loadData()}
+          />
+        </div>
+
+        {/* Tracked GEO Queries */}
+        <div className="mb-8">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">{t.geo.trackedTitle}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {t.geo.trackedDesc} {MAX_GEO_QUERIES} {t.geo.trackedDescSuffix}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  trackedQueries.length >= MAX_GEO_QUERIES
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {trackedQueries.length} / {MAX_GEO_QUERIES}
+              </span>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addTrackedQuery();
+              }}
+              className="mb-4 flex flex-wrap items-center gap-2"
+            >
+              <input
+                type="text"
+                value={newQueryInput}
+                onChange={(e) => setNewQueryInput(e.target.value)}
+                placeholder="Add your own query, e.g. 'best customer success platform for SaaS'"
+                maxLength={200}
+                disabled={addingQuery || trackedQueries.length >= MAX_GEO_QUERIES}
+                className="flex-1 min-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={
+                  addingQuery ||
+                  !newQueryInput.trim() ||
+                  trackedQueries.length >= MAX_GEO_QUERIES
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              >
+                {addingQuery ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                Add
+              </button>
+            </form>
+
+            {trackedQueries.length === 0 ? (
+              <p className="text-sm text-slate-500">{t.geo.noTracked}</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {trackedQueries.map((q) => (
+                  <li key={q} className="flex items-start gap-3 py-2.5">
+                    <span className="flex-1 text-sm text-slate-700">{q}</span>
+                    <button
+                      onClick={() => removeTrackedQuery(q)}
+                      disabled={removingQuery === q}
+                      className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
+                      aria-label={`Remove \"${q}\"`}
+                    >
+                      {removingQuery === q ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
         {/* Recent checks */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.recentChecks}</h2>
@@ -386,104 +551,6 @@ export default function CustomerGeoPage() {
           </div>
         )}
 
-        {/* Engine breakdown */}
-        {summary?.engine_stats && Object.keys(summary.engine_stats).length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.perService}</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(summary.engine_stats).map(([engine, stats]) => (
-                <div key={engine} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-sm font-medium text-slate-700 capitalize">{engine}</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900">
-                    {(stats.rate * 100).toFixed(0)}%
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {stats.mentioned}/{stats.total} {t.geo.mentions}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Top competitors */}
-        {summary?.top_competitors && summary.top_competitors.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.topCompetitors}</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {summary.top_competitors.map((c) => (
-                <div key={c.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-sm font-medium text-slate-700">{c.name}</p>
-                  <p className="text-xs text-slate-500">{c.count} {t.geo.mentions}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* AI Recommendations */}
-        <div className="mb-8">
-          <KeywordGeoRecommendations
-            sections={["geo_queries", "long_tail_phrases"]}
-            gapSummary={
-              summary
-                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
-                : undefined
-            }
-            title={t.geo.recommendTitle}
-            description={`AI föreslår nya naturliga frågor att bevaka i ChatGPT, Claude, Perplexity och Gemini. Välj vilka du vill lägga till (max ${MAX_GEO_QUERIES} samtidigt).`}
-            geoTrackedCount={trackedQueries.length}
-            geoMax={MAX_GEO_QUERIES}
-            onAdded={() => loadData()}
-          />
-        </div>
-
-        {/* Tracked GEO Queries */}
-        <div>
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">{t.geo.trackedTitle}</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {t.geo.trackedDesc} {MAX_GEO_QUERIES} {t.geo.trackedDescSuffix}
-                </p>
-              </div>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  trackedQueries.length >= MAX_GEO_QUERIES
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {trackedQueries.length} / {MAX_GEO_QUERIES}
-              </span>
-            </div>
-            {trackedQueries.length === 0 ? (
-              <p className="text-sm text-slate-500">{t.geo.noTracked}</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {trackedQueries.map((q) => (
-                  <li key={q} className="flex items-start gap-3 py-2.5">
-                    <span className="flex-1 text-sm text-slate-700">{q}</span>
-                    <button
-                      onClick={() => removeTrackedQuery(q)}
-                      disabled={removingQuery === q}
-                      className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 transition-colors"
-                      aria-label={`Remove \"${q}\"`}
-                    >
-                      {removingQuery === q ? (
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3 w-3" />
-                      )}
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   );
