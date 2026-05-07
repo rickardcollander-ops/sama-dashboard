@@ -55,6 +55,8 @@ export async function GET(req: NextRequest) {
   // keep the legacy user_settings store; for view-as on a different tenant
   // we read from the site-scoped user_sites row (admin uses service role
   // inside getSiteSettingsAccess) so we don't bleed the admin's list in.
+  // Site row not yet readable (e.g. RLS race during onboarding) is treated
+  // as empty rather than leaking another site's keywords.
   let local: string[] = [];
   try {
     if (siteId === user.id) {

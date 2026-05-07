@@ -142,10 +142,21 @@ export default function CustomerDashboard() {
     })();
   }, [user, userLoading, router]);
 
+  // Clear cached metrics when the active site changes so we never render the
+  // previous site's numbers while the new fetch is still in flight.
   useEffect(() => {
-    if (user && checkedOnboarding) loadData();
+    setGeoSummary(null);
+    setSeoStats(null);
+    setContentStats(null);
+    setAnyContentEver(false);
+    setPendingApprovals(0);
+    setTrafficData({});
+  }, [effectiveTenantId]);
+
+  useEffect(() => {
+    if (user && checkedOnboarding && effectiveTenantId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, checkedOnboarding, days]);
+  }, [user, checkedOnboarding, days, effectiveTenantId]);
 
   useEffect(() => {
     if (error) {
@@ -231,10 +242,10 @@ export default function CustomerDashboard() {
   };
 
   const loadPendingApprovals = async () => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     try {
       const res = await fetch("/api/approvals?status=pending", {
-        headers: { "X-Tenant-ID": user.id },
+        headers: { "X-Tenant-ID": effectiveTenantId },
       });
       if (res.ok) {
         const data = (await res.json()) as { approvals?: unknown[] };

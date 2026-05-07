@@ -157,11 +157,12 @@ function CustomerContentInner() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
+    setPendingApprovalsCount(0);
     (async () => {
       try {
         const res = await fetch("/api/approvals?status=pending", {
-          headers: { "X-Tenant-ID": user.id },
+          headers: { "X-Tenant-ID": effectiveTenantId },
         });
         if (res.ok) {
           const data = (await res.json()) as { approvals?: unknown[] };
@@ -171,7 +172,7 @@ function CustomerContentInner() {
         /* silent — banner just won't show */
       }
     })();
-  }, [user]);
+  }, [user, effectiveTenantId]);
 
   const checkGitHubStatus = async () => {
     if (!user) return;

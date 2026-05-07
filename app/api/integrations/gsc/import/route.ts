@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import { getCurrentUser } from "@/lib/integrations/store";
+import {
+  getSiteSettingsAccess,
+  resolveSiteId,
+  type SiteSettingsAccess,
+} from "@/lib/integrations/site-context";
 
 export const runtime = "nodejs";
 
@@ -22,9 +27,12 @@ function extractKeywordStrings(payload: unknown): string[] {
   return out;
 }
 
-async function persistTrackedKeywords(userId: string, keywords: string[]): Promise<number> {
+async function persistTrackedKeywords(
+  access: SiteSettingsAccess,
+  keywords: string[],
+): Promise<number> {
   if (keywords.length === 0) return 0;
-  const settings = await loadSettings(userId);
+  const settings = access.settings;
   const existing: string[] = Array.isArray(settings.tracked_keywords)
     ? (settings.tracked_keywords as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
@@ -39,12 +47,12 @@ async function persistTrackedKeywords(userId: string, keywords: string[]): Promi
     }
   }
   if (added > 0) {
-    await saveSettings(userId, { ...settings, tracked_keywords: merged });
+    await access.save({ ...settings, tracked_keywords: merged });
   }
   return added;
 }
 
-async function fetchBackendKeywords(userId: string): Promise<string[]> {
+async function fetchBackendKeywords(siteId: string): Promise<string[]> {
   // Pass an explicit high limit to defeat any default pagination on the
   // backend (some builds cap at 10 by default).
   const paths = ["/api/seo/keywords?limit=1000", "/api/seo/keywords"];
@@ -52,7 +60,7 @@ async function fetchBackendKeywords(userId: string): Promise<string[]> {
     try {
       const res = await fetch(`${SAMA_API_URL}${path}`, {
         method: "GET",
-        headers: { "X-Tenant-ID": userId },
+        headers: { "X-Tenant-ID": siteId },
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) continue;
@@ -78,10 +86,10 @@ interface QueryProbe {
 // known GSC-query endpoints so we can pull every query the property has
 // ranked for and add them to the tracked list ourselves.
 async function fetchBackendGscQueries(
-  userId: string,
+  siteId: string,
   limit: number | null,
 ): Promise<{ keywords: string[]; probes: QueryProbe[] }> {
-  const headers = { "X-Tenant-ID": userId };
+  const headers = { "X-Tenant-ID": siteId };
   const qs = limit == null ? "?limit=1000" : `?limit=${limit}`;
   const candidates = [
     `/api/seo/gsc/queries${qs}`,
@@ -119,13 +127,13 @@ async function fetchBackendGscQueries(
   return { keywords: firstHit, probes };
 }
 
-async function syncKeywordsToBackend(userId: string, keywords: string[]): Promise<number> {
+async function syncKeywordsToBackend(siteId: string, keywords: string[]): Promise<number> {
   let synced = 0;
   for (const kw of keywords) {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Tenant-ID": userId },
+        headers: { "Content-Type": "application/json", "X-Tenant-ID": siteId },
         body: JSON.stringify({ keyword: kw }),
         signal: AbortSignal.timeout(15_000),
       });
@@ -159,9 +167,20 @@ export async function POST(req: NextRequest) {
     rawLimit === undefined || rawLimit === null || rawLimit === "all" || Number(rawLimit) <= 0;
   const limit = wantAll ? null : Math.min(Math.max(Number(rawLimit) || 25, 1), 1000);
 
+  const siteId = resolveSiteId(req, user.id);
+  let access: SiteSettingsAccess;
+  try {
+    access = await getSiteSettingsAccess(user, siteId);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Could not load tenant settings" },
+      { status: 500 },
+    );
+  }
+
   const headers = {
     "Content-Type": "application/json",
-    "X-Tenant-ID": user.id,
+    "X-Tenant-ID": siteId,
   };
 
   // sync-gsc is the canonical endpoint for refreshing GSC stats; the
@@ -218,8 +237,8 @@ export async function POST(req: NextRequest) {
         data?.keywords ?? data?.queries ?? data?.items,
       );
       const [fromBackend, fromGsc] = await Promise.all([
-        fetchBackendKeywords(user.id),
-        fetchBackendGscQueries(user.id, limit),
+        fetchBackendKeywords(siteId),
+        fetchBackendGscQueries(siteId, limit),
       ]);
       const allKeywords = Array.from(
         new Set(
@@ -228,7 +247,7 @@ export async function POST(req: NextRequest) {
             .filter(Boolean),
         ),
       );
-      const persisted = await persistTrackedKeywords(user.id, allKeywords);
+      const persisted = await persistTrackedKeywords(access, allKeywords);
       // If we discovered queries the backend didn't already have in its
       // tracked list, register them there too so its `/api/seo/keywords`
       // GET starts returning them.
@@ -236,7 +255,7 @@ export async function POST(req: NextRequest) {
         (k) => !fromBackend.some((b) => b.toLowerCase() === k.toLowerCase()),
       );
       const backendSynced = missingOnBackend.length
-        ? await syncKeywordsToBackend(user.id, missingOnBackend)
+        ? await syncKeywordsToBackend(siteId, missingOnBackend)
         : 0;
       // Prefer the count of keywords we actually added to the user's
       // tracked list — `data.inserted` reflects backend-internal state

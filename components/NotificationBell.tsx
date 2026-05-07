@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertCircle, Bell, Check, FileText, X, Inbox } from "lucide-react";
 import { useRealtimeSubscription } from "@/lib/hooks/useRealtimeSubscription";
 import { useUser } from "@/lib/hooks/useUser";
+import { useSite } from "@/lib/hooks/useSite";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -66,6 +67,7 @@ function fmtRelative(iso: string, time: TimeStrings): string {
 
 export default function NotificationBell() {
   const { user } = useUser();
+  const { effectiveTenantId } = useSite();
   const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [pending, setPending] = useState<PendingApproval[]>([]);
@@ -92,10 +94,10 @@ export default function NotificationBell() {
   }, []);
 
   const fetchPending = useCallback(async () => {
-    if (!user) return;
+    if (!user || !effectiveTenantId) return;
     try {
       const res = await fetch("/api/approvals?status=pending", {
-        headers: { "X-Tenant-ID": user.id },
+        headers: { "X-Tenant-ID": effectiveTenantId },
       });
       if (res.ok) {
         const data = (await res.json()) as { approvals?: PendingApproval[] };
@@ -104,7 +106,7 @@ export default function NotificationBell() {
     } catch {
       /* silent */
     }
-  }, [user]);
+  }, [user, effectiveTenantId]);
 
   // Realtime: new notifications appear instantly (falls back to polling)
   useRealtimeSubscription<Notification>({
@@ -118,6 +120,12 @@ export default function NotificationBell() {
     }, []),
     onPoll: fetchNotifications,
   });
+
+  // Clear pending list when the active site changes so the badge count
+  // doesn't briefly show the previous site's drafts.
+  useEffect(() => {
+    setPending([]);
+  }, [effectiveTenantId]);
 
   useEffect(() => {
     fetchNotifications();

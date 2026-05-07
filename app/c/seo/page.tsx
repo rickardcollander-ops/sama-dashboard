@@ -56,6 +56,16 @@ export default function CustomerSeoPage() {
   const [searchFilter, setSearchFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
 
+  // Reset cached keywords/brand info when the active site changes so the
+  // table doesn't briefly show the previous site's rows while the new
+  // fetch is in flight.
+  useEffect(() => {
+    setKeywords([]);
+    setBrandContext({});
+    setSuggestions([]);
+    setGscConnected(null);
+  }, [effectiveTenantId]);
+
   useEffect(() => {
     if (user && effectiveTenantId) {
       fetchKeywords();
