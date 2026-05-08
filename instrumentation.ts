@@ -1,8 +1,8 @@
 /**
  * Next.js instrumentation hook — runs once at server startup.
  *
- * Initialises Sentry on both the Node and Edge runtimes when ``SENTRY_DSN``
- * is set. ``beforeSend`` redacts known sensitive headers and tokens so the
+ * Initialises Sentry on the Node runtime when ``SENTRY_DSN`` is set.
+ * ``beforeSend`` redacts known sensitive headers and tokens so the
  * MISSION_SECRET / Supabase service-role key never end up in error reports.
  */
 
@@ -11,8 +11,7 @@ export async function register() {
   if (!dsn) return;
 
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const Sentry = await import("@sentry/nextjs").catch(() => null);
-    if (!Sentry) return;
+    const Sentry = await import("@sentry/nextjs");
     Sentry.init({
       dsn,
       environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,

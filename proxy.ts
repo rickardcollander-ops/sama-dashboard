@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Edge middleware. Replaces the obsolete `proxy.ts` (never wired into Next.js
- * because the file name was wrong) and the legacy MISSION_SECRET cookie path
- * (a plaintext-secret-as-session anti-pattern). Authentication for both the
- * customer portal (/c/*) and admin API routes is enforced server-side:
- *   - /c/* pages call `createSupabaseServerClient()` and gate on the user.
- *   - /api/admin/* routes go through `requireAdmin()` (lib/admin-guard.ts).
+ * Next.js 16 ``proxy`` (replaces the deprecated ``middleware`` convention).
  *
- * This middleware only handles Supabase session refresh for /c/* and adds
- * baseline security headers on every response. Bot-friendly endpoints
- * (e.g. /api/public-audit) keep their own rate-limit at the route level.
+ * Authentication for both the customer portal (/c/*) and admin API routes
+ * is enforced server-side:
+ *   - /c/* pages refresh the Supabase session here and redirect to /c/login
+ *     when no user is present.
+ *   - /api/admin/* routes go through ``requireAdmin()`` (lib/admin-guard.ts).
+ *
+ * This proxy also adds baseline security headers on every response. Public
+ * endpoints (e.g. /api/public-audit) keep their own rate-limit at the route
+ * level.
  */
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -74,7 +75,7 @@ async function refreshSupabaseSession(req: NextRequest): Promise<NextResponse> {
   }
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/c/") || pathname === "/c") {
