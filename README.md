@@ -29,7 +29,9 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-NEXT_PUBLIC_SAMA_API_URL=https://sama-agent-ivory.vercel.app
+# Server-side only — used by the /api/sama proxy to forward browser
+# requests to the agent backend with validated tenant headers attached.
+SAMA_API_URL=https://web-production-5324a.up.railway.app
 ```
 
 3. Run development server:
