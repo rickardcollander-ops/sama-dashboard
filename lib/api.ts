@@ -6,16 +6,18 @@
  */
 
 /**
- * BASE_URL routes all backend calls through the Next.js proxy at /api/sama
- * to bypass CORS. The proxy forwards server-to-server to the real backend
- * (configured via SAMA_API_URL env var on the server side).
+ * BASE_URL routes all browser-side backend calls through the Next.js proxy
+ * at /api/sama. The proxy reads the Supabase session and injects the
+ * server-validated X-Sama-Account-Id / X-Sama-Site-Id headers before
+ * forwarding to the real backend (configured server-side via SAMA_API_URL).
  *
- * If NEXT_PUBLIC_SAMA_API_URL is explicitly set to a full URL it overrides
- * the proxy — useful for local dev pointing at a local backend with CORS
- * already configured.
+ * The browser MUST NOT hit the backend directly: it has no way to attach
+ * a verified tenant identity, so the backend's tenant middleware now
+ * rejects those calls with 401. NEXT_PUBLIC_SAMA_API_URL is intentionally
+ * not used here — point SAMA_API_URL (server-side) at your dev backend
+ * instead.
  */
-const RAW_BASE = process.env.NEXT_PUBLIC_SAMA_API_URL || '';
-const BASE_URL = /^https?:\/\//.test(RAW_BASE) ? RAW_BASE : '/api/sama';
+const BASE_URL = '/api/sama';
 
 /**
  * Paths that may not exist on the backend yet. These always go through the
