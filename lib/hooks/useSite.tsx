@@ -11,6 +11,7 @@ import {
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { tenantApi } from "@/lib/api";
 import { useUser } from "@/lib/hooks/useUser";
+import { isAdminEmail } from "@/lib/admin";
 
 export interface UserSite {
   id: string;
@@ -90,6 +91,23 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
   });
+
+  // sessionStorage survives sign-out/sign-in within the same tab. If a
+  // non-admin lands on the dashboard with a stale view-as left over from
+  // a previous admin session, every request will be tagged with the wrong
+  // account and /api/admin/* will 401/403 — and AdminViewBanner is hidden
+  // for non-admins, so they have no way to clear it. Drop it as soon as we
+  // know who's logged in.
+  useEffect(() => {
+    if (!user) return;
+    if (isAdminEmail(user.email)) return;
+    if (typeof window === "undefined") return;
+    if (!sessionStorage.getItem(VIEW_AS_KEY)) return;
+    try {
+      sessionStorage.removeItem(VIEW_AS_KEY);
+    } catch { /* ignore */ }
+    setViewAsState(null);
+  }, [user]);
 
   // Load (and reconcile) the accounts the user has access to.
   const loadAccounts = useCallback(async () => {
