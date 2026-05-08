@@ -101,6 +101,11 @@ const INITIAL: OnboardingData = {
 // user never has to re-enter what they've already typed in.
 const DRAFT_KEY = "sama_onboarding_draft_v1";
 
+// Tells the dashboard's onboarding gate to leave the user alone after
+// they've explicitly clicked "Hoppa över". Cleared on successful save so
+// the gate kicks in again if they ever reset their settings.
+const SKIP_KEY = "sama_onboarding_skipped";
+
 interface Draft {
   data: OnboardingData;
   step: number;
@@ -133,6 +138,20 @@ function clearDraft() {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(DRAFT_KEY);
+  } catch { /* ignore */ }
+}
+
+function setSkipped() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SKIP_KEY, "1");
+  } catch { /* ignore */ }
+}
+
+function clearSkipped() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(SKIP_KEY);
   } catch { /* ignore */ }
 }
 
@@ -328,7 +347,9 @@ export default function OnboardingPage() {
       if (!ok) return;
     }
     // Keep the draft around so revisiting /c/onboarding picks up where the
-    // user left off. They can still discard it manually from the form.
+    // user left off, but mark them as skipped so the dashboard doesn't
+    // bounce them straight back here on next render.
+    setSkipped();
     setSavedAndDone(true);
     router.push("/c/dashboard");
   };
@@ -390,9 +411,11 @@ export default function OnboardingPage() {
 
       // Settings are now persisted server-side — we no longer need the
       // local draft, and we don't want the beforeunload guard firing on
-      // the way to /c/dashboard.
+      // the way to /c/dashboard. Also clear any stale skip-flag so the
+      // dashboard's onboarding gate behaves normally going forward.
       setSavedAndDone(true);
       clearDraft();
+      clearSkipped();
       router.push("/c/dashboard");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Kunde inte spara dina uppgifter");
