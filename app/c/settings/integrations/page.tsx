@@ -47,6 +47,35 @@ interface CmsDestination {
   name: string;
 }
 
+interface AdPlatform {
+  key: string;
+  label: string;
+  description: string;
+}
+
+const AD_PLATFORMS: AdPlatform[] = [
+  {
+    key: "meta",
+    label: "Meta Ads",
+    description: "Annonser och resultat från Facebook och Instagram.",
+  },
+  {
+    key: "linkedin",
+    label: "LinkedIn Ads",
+    description: "B2B-annonsering och lead-data från LinkedIn.",
+  },
+  {
+    key: "tiktok",
+    label: "TikTok Ads",
+    description: "Annonsering och kampanjresultat från TikTok.",
+  },
+  {
+    key: "snapchat",
+    label: "Snapchat Ads",
+    description: "Annonser och resultat från Snapchat.",
+  },
+];
+
 function StatusChip({ status }: { status: Status }) {
   if (status === "loading") {
     return (
@@ -210,6 +239,53 @@ export default function IntegrationsPage() {
                 </li>
               );
             })}
+          </ul>
+        </section>
+
+        {/* Ads platforms */}
+        <section className="mt-6 rounded-xl border bg-white shadow-sm">
+          <div className="border-b px-6 py-4">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-slate-500" />
+              <h2 className="font-semibold text-slate-900">Ads</h2>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
+                Kommer snart
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              Anslut dina annonsplattformar för att hämta resultat och optimera kampanjer.
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {AD_PLATFORMS.map((p) => (
+              <li
+                key={p.key}
+                aria-disabled="true"
+                className="flex items-center gap-4 px-6 py-4 opacity-60"
+              >
+                <span className="rounded-lg bg-slate-100 p-2.5">
+                  <Megaphone className="h-5 w-5 text-slate-400" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-700">{p.label}</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                      Kommer snart
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">{p.description}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  title="Kommer snart"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                >
+                  Anslut
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
           </ul>
         </section>
 

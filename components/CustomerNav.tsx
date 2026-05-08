@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users,
+  Users, Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -24,6 +24,7 @@ interface NavItem {
   href: string;
   icon: LucideIcon;
   matchPrefixes: string[];
+  disabled?: boolean;
 }
 
 interface SubNavItem {
@@ -32,7 +33,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-type SectionId = "home" | "insights" | "content" | "tech" | "settings" | "admin";
+type SectionId = "home" | "insights" | "content" | "tech" | "ads" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -60,6 +61,13 @@ const TOP_NAV: NavItem[] = [
     matchPrefixes: ["/c/tech"],
   },
   {
+    id: "ads",
+    href: "#",
+    icon: Megaphone,
+    matchPrefixes: [],
+    disabled: true,
+  },
+  {
     id: "settings",
     href: "/c/settings",
     icon: Settings,
@@ -77,6 +85,7 @@ const ADMIN_NAV: NavItem = {
 const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   home: [],
   tech: [],
+  ads: [],
   insights: [
     { href: "/c/analysis", labelKey: "overview" },
     { href: "/c/seo", labelKey: "google" },
@@ -398,6 +407,22 @@ function SidebarContent({
         {navItems.map((item) => {
           const isActive = section === item.id;
           const subItems = SUB_NAV[item.id];
+          if (item.disabled) {
+            return (
+              <div
+                key={item.id}
+                aria-disabled="true"
+                title={t.common.comingSoon}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 cursor-not-allowed"
+              >
+                <item.icon className="h-4.5 w-4.5 flex-shrink-0 text-slate-300" style={{ width: "1.125rem", height: "1.125rem" }} />
+                <span className="flex-1">{t.nav[item.id]}</span>
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500 uppercase">
+                  {t.common.comingSoon}
+                </span>
+              </div>
+            );
+          }
           return (
             <div key={item.id}>
               <Link

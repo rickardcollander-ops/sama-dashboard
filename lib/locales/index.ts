@@ -14,6 +14,7 @@ const sv = {
     insights: "Insikter",
     content: "Content",
     tech: "Tech",
+    ads: "Ads",
     settings: "Inställningar",
     admin: "Admin",
   },
@@ -55,6 +56,7 @@ const sv = {
     fix: "Fixa",
     run: "Kör",
     refresh: "Uppdatera",
+    comingSoon: "Kommer snart",
   },
   time: {
     never: "aldrig",
@@ -341,6 +343,7 @@ const no: typeof sv = {
     insights: "Innsikter",
     content: "Innhold",
     tech: "Tech",
+    ads: "Ads",
     settings: "Innstillinger",
     admin: "Admin",
   },
@@ -382,6 +385,7 @@ const no: typeof sv = {
     fix: "Fiks",
     run: "Kjør",
     refresh: "Oppdater",
+    comingSoon: "Kommer snart",
   },
   time: {
     never: "aldri",
@@ -668,6 +672,7 @@ const da: typeof sv = {
     insights: "Indsigter",
     content: "Indhold",
     tech: "Tech",
+    ads: "Ads",
     settings: "Indstillinger",
     admin: "Admin",
   },
@@ -709,6 +714,7 @@ const da: typeof sv = {
     fix: "Fix",
     run: "Kør",
     refresh: "Opdater",
+    comingSoon: "Kommer snart",
   },
   time: {
     never: "aldrig",
@@ -995,6 +1001,7 @@ const en: typeof sv = {
     insights: "Insights",
     content: "Content",
     tech: "Tech",
+    ads: "Ads",
     settings: "Settings",
     admin: "Admin",
   },
@@ -1036,6 +1043,7 @@ const en: typeof sv = {
     fix: "Fix",
     run: "Run",
     refresh: "Refresh",
+    comingSoon: "Coming soon",
   },
   time: {
     never: "never",
