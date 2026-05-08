@@ -158,26 +158,22 @@ const contextCache = new Map<string, CachedContext>();
 
 /**
  * Resolve the active account_id, site_id and site domain for an upstream
- * request, using:
- *   1) the client-supplied `x-sama-account-id` / `x-sama-site-id` headers
- *      (validated against `account_members` and `user_sites`), or
- *   2) sensible fallbacks (the user's own account; the first user_sites row).
+ * request. The client may pass `x-sama-account-id` / `x-sama-site-id` to
+ * indicate which tenant it wants, but the server validates that against
+ * `account_members` and `user_sites` and overwrites the headers with the
+ * authoritative values before forwarding upstream.
  *
- * Returns nulls when no Supabase user is present (e.g. admin pages that
- * still use the MISSION_SECRET cookie). In that case the caller decides
- * whether to forward whatever the client sent.
+ * If no Supabase user is present we return all-null. The caller MUST then
+ * either reject the request or forward without tenant headers — never trust
+ * unauthenticated client-supplied identifiers, otherwise an unauthenticated
+ * caller can browse any tenant by guessing the id.
  */
 async function resolveTenantContext(
   req: NextRequest,
   user: { id: string; email: string | null } | null,
 ): Promise<TenantContext> {
   if (!user) {
-    return {
-      accountId: req.headers.get("x-sama-account-id"),
-      siteId:
-        req.headers.get("x-sama-site-id") || req.headers.get("x-tenant-id"),
-      siteDomain: req.headers.get("x-sama-site-domain"),
-    };
+    return { accountId: null, siteId: null, siteDomain: null };
   }
 
   const userId = user.id;
@@ -283,6 +279,13 @@ async function handle(
 
   const user = await getCurrentUser();
   const userId = user?.id ?? null;
+  const requireAuth = process.env.SAMA_PROXY_REQUIRE_AUTH !== "0";
+  if (requireAuth && !user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
   const intent = req.headers.get("x-sama-intent");
   const isExpensive = EXPENSIVE_PATTERNS.some((re) => re.test(fullPath));
 

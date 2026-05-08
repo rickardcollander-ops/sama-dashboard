@@ -1,81 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+
+/**
+ * Next.js 16 ``proxy`` (replaces the deprecated ``middleware`` convention).
+ *
+ * Authentication for both the customer portal (/c/*) and admin API routes
+ * is enforced server-side:
+ *   - /c/* pages refresh the Supabase session here and redirect to /c/login
+ *     when no user is present.
+ *   - /api/admin/* routes go through ``requireAdmin()`` (lib/admin-guard.ts).
+ *
+ * This proxy also adds baseline security headers on every response. Public
+ * endpoints (e.g. /api/public-audit) keep their own rate-limit at the route
+ * level.
+ */
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+};
+
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    res.headers.set(name, value);
+  }
+  if (process.env.NODE_ENV === "production") {
+    res.headers.set(
+      "Strict-Transport-Security",
+      "max-age=63072000; includeSubDomains; preload",
+    );
+  }
+  return res;
+}
+
+async function refreshSupabaseSession(req: NextRequest): Promise<NextResponse> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.redirect(new URL("/c/login", req.url));
+  }
+
+  try {
+    const { createServerClient } = await import("@supabase/ssr");
+    const res = NextResponse.next({ request: req });
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            req.cookies.set(name, value);
+            res.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.redirect(new URL("/c/login", req.url));
+    }
+
+    return res;
+  } catch {
+    return NextResponse.redirect(new URL("/c/login", req.url));
+  }
+}
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ── Customer portal (/c/*) — Supabase Auth ──────────────────────────────────
-  if (pathname.startsWith('/c/') || pathname === '/c') {
-    // Always allow customer login page, auth callback, password reset, and
-    // the public AI-readiness audit landing page.
+  if (pathname.startsWith("/c/") || pathname === "/c") {
+    const PUBLIC_C_ROUTES = new Set([
+      "/c/login",
+      "/c/auth/callback",
+      "/c/auth/reset-password",
+      "/c/audit",
+    ]);
     if (
-      pathname === '/c/login' ||
-      pathname === '/c/auth/callback' ||
-      pathname === '/c/auth/reset-password' ||
-      pathname === '/c/audit' ||
-      pathname.startsWith('/c/audit/')
+      PUBLIC_C_ROUTES.has(pathname) ||
+      pathname.startsWith("/c/audit/") ||
+      pathname.startsWith("/c/auth/")
     ) {
-      return NextResponse.next();
+      return applySecurityHeaders(NextResponse.next());
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.redirect(new URL('/c/login', req.url));
-    }
-
-    try {
-      const { createServerClient } = await import('@supabase/ssr');
-
-      const supabaseResponse = NextResponse.next({ request: req });
-
-      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              req.cookies.set(name, value);
-              supabaseResponse.cookies.set(name, value, options);
-            });
-          },
-        },
-      });
-
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.redirect(new URL('/c/login', req.url));
-      }
-
-      return supabaseResponse;
-    } catch {
-      return NextResponse.redirect(new URL('/c/login', req.url));
-    }
+    const res = await refreshSupabaseSession(req);
+    return applySecurityHeaders(res);
   }
 
-  // ── Public audit API endpoints — no auth ────────────────────────────────────
-  if (pathname === '/api/public-audit' || pathname.startsWith('/api/public-audit/')) {
-    return NextResponse.next();
-  }
-
-  // ── Admin dashboard (everything else) — MISSION_SECRET ───────────────────────
-  if (pathname === '/login' || pathname.startsWith('/api/auth') || pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
-  const cookie = req.cookies.get('sama_auth')?.value;
-  const secret = process.env.MISSION_SECRET;
-
-  if (!secret || cookie !== secret) {
-    const loginUrl = new URL('/login', req.url);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
+  return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

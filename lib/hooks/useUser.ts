@@ -32,7 +32,6 @@ export function useUser() {
     if (isSupabaseConfigured) {
       await getSupabaseBrowser().auth.signOut();
     }
-    document.cookie = "sama_auth=; path=/; max-age=0";
     window.location.href = "/c/login";
   };
 
