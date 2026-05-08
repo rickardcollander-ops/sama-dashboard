@@ -164,7 +164,6 @@ export default function AutopilotSettings({ apiUrl }: Props) {
             <span>
               Auto-pilot runs <span className="font-medium">{cfg.cadence}</span>: analyses content, fills the plan with new ideas,
               drafts the top {cfg.auto_draft_top_n}, and {cfg.auto_publish ? "publishes drafts that score ≥ " + cfg.min_score_for_publish : "queues them for your approval"}.
-              You can also schedule specific articles in the Calendar — those run on the day you pick.
             </span>
           </div>
 

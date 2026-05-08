@@ -445,9 +445,6 @@ export default function StrategyPage() {
                   <a href="/c/content" className="font-semibold underline hover:text-emerald-700">
                     {t.strategy.openContent}
                   </a>
-                  <a href="/c/content/calendar" className="font-semibold underline hover:text-emerald-700">
-                    {t.strategy.openCalendar}
-                  </a>
                 </div>
               </div>
             </div>
