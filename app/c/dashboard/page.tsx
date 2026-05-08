@@ -21,7 +21,6 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { useLanguage } from "@/lib/hooks/useLanguage";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
@@ -78,7 +77,13 @@ interface ContentStats {
 
 export default function CustomerDashboard() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId, activeSite } = useSite();
+  const {
+    tenantClient,
+    effectiveTenantId,
+    activeSite,
+    sites,
+    loading: sitesLoading,
+  } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const { t } = useLanguage();
   const router = useRouter();
@@ -120,27 +125,37 @@ export default function CustomerDashboard() {
     return new Date(iso).toLocaleDateString();
   }
 
+  // Onboarding gate: only push first-run users into /c/onboarding. Anyone
+  // with a brand_name on their active site, or who has explicitly clicked
+  // "Hoppa över", stays on the dashboard. Reading from useSite() (instead
+  // of querying user_settings directly) means we look at the same table
+  // that onboarding writes to — without that, completed onboarding still
+  // bounced back here because user_settings was empty.
   useEffect(() => {
-    if (!user || userLoading) return;
-    (async () => {
-      try {
-        const supabase = getSupabaseBrowser();
-        const { data } = await supabase
-          .from("user_settings")
-          .select("settings")
-          .eq("user_id", user.id)
-          .single();
-        if (!data?.settings?.brand_name) {
-          router.push("/c/onboarding");
-          return;
-        }
-      } catch {
-        router.push("/c/onboarding");
-        return;
-      }
+    if (!user || userLoading || sitesLoading) return;
+
+    if (settings.brand_name) {
       setCheckedOnboarding(true);
-    })();
-  }, [user, userLoading, router]);
+      return;
+    }
+
+    const skipped =
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("sama_onboarding_skipped") === "1";
+    if (skipped) {
+      setCheckedOnboarding(true);
+      return;
+    }
+
+    if (sites.length === 0) {
+      router.push("/c/onboarding");
+      return;
+    }
+
+    // Has a site row but no brand_name yet — let them in; the in-app
+    // checklist + "Kom igång"-bannern guides them to fill it out.
+    setCheckedOnboarding(true);
+  }, [user, userLoading, sitesLoading, sites.length, settings.brand_name, router]);
 
   // Clear cached metrics when the active site changes so we never render the
   // previous site's numbers while the new fetch is still in flight.
