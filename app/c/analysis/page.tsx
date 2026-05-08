@@ -537,6 +537,20 @@ export default function AnalysisPage() {
                   result.articles_per_week * 13 * result.social_platforms.length
                 } sociala inlägg genereras.`,
             );
+            if (result.run_id) {
+              const totalArticles = result.articles_per_week * 13;
+              const totalSocial = totalArticles * result.social_platforms.length;
+              // Each article costs 2 Claude calls (~25s combined) plus social
+              // posts at ~5s each — gives a realistic progress-bar baseline.
+              const expectedSeconds = Math.max(
+                90,
+                totalArticles * 25 + totalSocial * 5,
+              );
+              registerRun("content", result.run_id, {
+                label: `Content-plan · ${totalArticles} artiklar + ${totalSocial} inlägg`,
+                expectedSeconds,
+              });
+            }
           }}
         />
       )}

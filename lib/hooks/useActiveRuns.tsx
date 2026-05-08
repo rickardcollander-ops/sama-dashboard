@@ -100,7 +100,7 @@ interface ActiveRunsContextValue {
   registerRun: (
     agent: AgentKey,
     runId: string,
-    options?: { label?: string },
+    options?: { label?: string; expectedSeconds?: number },
   ) => string | undefined;
   dismissRun: (id: string) => void;
   clearCompleted: () => void;
@@ -236,7 +236,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
         agent,
         label: options?.label || defaults.label,
         triggered_at: Date.now(),
-        expected_seconds: defaults.expected_seconds,
+        expected_seconds: options?.expectedSeconds ?? defaults.expected_seconds,
         status: "running",
         run_id: runId,
       };
