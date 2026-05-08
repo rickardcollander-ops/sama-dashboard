@@ -7,7 +7,7 @@ import {
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
   ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Target,
-  CalendarPlus,
+  CalendarPlus, Lightbulb, MessageSquare, Mail, Trash2, Edit3,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -47,6 +47,30 @@ interface ContentPiece {
   source_strategy_topic?: string | null;
 }
 
+// A row in content_plan_items with status='idea' — i.e. an unwritten
+// suggestion that the analysis surfaced. The body is produced only when
+// the user approves the idea (POST /api/content/plan/{id}/draft).
+interface PlanIdea {
+  id: string;
+  title: string;
+  topic?: string | null;
+  content_type: string;
+  target_keyword?: string | null;
+  pillar?: string | null;
+  reason?: string | null;
+  priority?: string | null;
+  status: string;
+  source?: string | null;
+  scheduled_for: string | null;
+  parent_plan_item_id?: string | null;
+  metadata?: {
+    gap_type?: string;
+    platform?: string;
+    parent_article_title?: string;
+    angle?: string;
+  } | null;
+}
+
 export default function CustomerContentPage() {
   return (
     <Suspense
@@ -72,10 +96,23 @@ function CustomerContentInner() {
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Sprint 1 (C-5) — collapsed status tabs to four logical buckets:
-  // "to_review" covers both draft and review (everything pre-approval),
-  // "scheduled" maps to approved, plus published and archived.
-  const [filter, setFilter] = useState<"to_review" | "scheduled" | "published" | "archived">("to_review");
+  // Tabs across the top of the content list. "ideas" surfaces plan items
+  // that haven't been drafted yet (status='idea' on content_plan_items),
+  // because the new plan-creator stops at idea-rows and lets the user
+  // approve them one at a time. Default lands on Ideas when at least one
+  // is waiting; otherwise we drop the user back into "to_review" as
+  // before.
+  const [filter, setFilter] = useState<"ideas" | "to_review" | "scheduled" | "published" | "archived">("to_review");
+  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [editingIdea, setEditingIdea] = useState<PlanIdea | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editTopic, setEditTopic] = useState("");
+  const [editKeyword, setEditKeyword] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [ideaToast, setIdeaToast] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<"linkedin" | "blogg" | "epost">("linkedin");
@@ -157,6 +194,12 @@ function CustomerContentInner() {
       setShowModal(true);
       setModalType("blogg");
       setModalTopic(topic || gapTitle || strategyTopic || "");
+    }
+    // /c/content?tab=ideas — landed here after creating a content plan.
+    const tab = searchParams.get("tab");
+    if (tab === "ideas") {
+      setFilter("ideas");
+      setAutoSwitchedToIdeas(true);
     }
   }, [searchParams]);
 
@@ -240,6 +283,115 @@ function CustomerContentInner() {
       }
     }
     setLoading(false);
+    fetchIdeas();
+  };
+
+  const fetchIdeas = async () => {
+    if (!user) return;
+    setIdeasLoading(true);
+    try {
+      const client = tenantClient;
+      const data = await client.get<{ items?: PlanIdea[] }>(
+        "/api/content/plan?status=idea",
+      );
+      setIdeas(data.items || []);
+    } catch (err) {
+      console.error("Failed to fetch ideas:", err);
+      setIdeas([]);
+    }
+    setIdeasLoading(false);
+  };
+
+  // The first time we land on the page with ideas waiting, default the
+  // user into the Ideas tab. Don't override an explicit user choice.
+  const [autoSwitchedToIdeas, setAutoSwitchedToIdeas] = useState(false);
+  useEffect(() => {
+    if (autoSwitchedToIdeas) return;
+    if (ideas.length > 0 && filter === "to_review") {
+      setFilter("ideas");
+      setAutoSwitchedToIdeas(true);
+    }
+  }, [ideas.length, filter, autoSwitchedToIdeas]);
+
+  const approveIdea = async (idea: PlanIdea) => {
+    if (!user) return;
+    setApprovingId(idea.id);
+    try {
+      const client = tenantClient;
+      await client.post(
+        `/api/content/plan/${idea.id}/draft`,
+        {},
+        { headers: { "X-Sama-Intent": "user-action" } },
+      );
+      setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
+      setTimeout(() => setIdeaToast(null), 6000);
+      // Refetch both lists: idea moves out, draft moves into "to_review".
+      await fetchIdeas();
+      await fetchContent();
+    } catch (err: any) {
+      setError(`${err?.message || "Kunde inte godkänna idén"}`);
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const archiveIdea = async (idea: PlanIdea) => {
+    if (!user) return;
+    try {
+      const client = tenantClient;
+      await client.patch(`/api/content/plan/${idea.id}`, { status: "archived" });
+      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      setIdeaToast(`"${idea.title}" ${t.content.ideaArchived}`);
+      setTimeout(() => setIdeaToast(null), 4000);
+    } catch (err: any) {
+      setError(`${err?.message || "Kunde inte arkivera"}`);
+    }
+  };
+
+  const openEditIdea = (idea: PlanIdea) => {
+    setEditingIdea(idea);
+    setEditTitle(idea.title);
+    setEditTopic(idea.topic || "");
+    setEditKeyword(idea.target_keyword || "");
+    if (idea.scheduled_for) {
+      // Convert ISO → datetime-local string in user's local timezone.
+      const d = new Date(idea.scheduled_for);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      setEditDate(
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      );
+    } else {
+      setEditDate("");
+    }
+  };
+
+  const closeEditIdea = () => {
+    setEditingIdea(null);
+    setEditSaving(false);
+  };
+
+  const submitEditIdea = async () => {
+    if (!editingIdea || !user) return;
+    setEditSaving(true);
+    try {
+      const client = tenantClient;
+      const body: Record<string, unknown> = {
+        title: editTitle.trim() || editingIdea.title,
+        topic: editTopic.trim() || null,
+        target_keyword: editKeyword.trim() || null,
+      };
+      if (editDate) {
+        body.scheduled_for = new Date(editDate).toISOString();
+      }
+      await client.patch(`/api/content/plan/${editingIdea.id}`, body);
+      setIdeaToast(`"${body.title}" ${t.content.ideaUpdated}`);
+      setTimeout(() => setIdeaToast(null), 4000);
+      closeEditIdea();
+      await fetchIdeas();
+    } catch (err: any) {
+      setError(`${err?.message || "Kunde inte spara"}`);
+      setEditSaving(false);
+    }
   };
 
   const generateInModal = async () => {
@@ -684,9 +836,13 @@ function CustomerContentInner() {
           />
         )}
 
-        {/* Filters — Sprint 1 (C-5): four logical buckets instead of six. */}
+        {/* Filters — "Ideas" comes first because that's where freshly-
+            generated suggestions land before any AI tokens have been
+            spent. Once approved an idea moves into "Att granska" as a
+            real draft. */}
         <div className="flex flex-wrap gap-2 mb-6">
           {[
+            { key: "ideas" as const, label: t.content.tabIdeas, count: ideas.length },
             { key: "to_review" as const, label: t.content.tabToReview, count: draftCount + reviewCount },
             { key: "scheduled" as const, label: t.content.tabScheduled, count: approvedCount },
             { key: "published" as const, label: t.content.tabPublished, count: publishedCount },
@@ -706,8 +862,138 @@ function CustomerContentInner() {
           ))}
         </div>
 
+        {/* Ideas list — only when this tab is active. Ideas have no body
+            yet; the user picks ones to draft. */}
+        {filter === "ideas" ? (
+          ideasLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : ideas.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 shadow-sm text-center">
+              <Lightbulb className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+              <p className="text-sm text-slate-700 max-w-md mx-auto">
+                {t.content.emptyIdeas}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                {t.content.emptyIdeasHint}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ideas.map((idea) => {
+                const isSocial = (idea.content_type || "").startsWith("social_");
+                const platform = idea.metadata?.platform || idea.content_type?.replace(/^social_/, "");
+                const Icon = isSocial
+                  ? (platform === "linkedin"
+                    ? MessageSquare
+                    : platform === "x"
+                    ? MessageSquare
+                    : platform === "instagram"
+                    ? MessageSquare
+                    : platform === "facebook"
+                    ? MessageSquare
+                    : Mail)
+                  : FileText;
+                const typeLabel = isSocial
+                  ? `${(platform || "social").charAt(0).toUpperCase()}${(platform || "").slice(1)}-inlägg`
+                  : formatTypeLabel(idea.content_type);
+                const sched = idea.scheduled_for ? new Date(idea.scheduled_for) : null;
+                return (
+                  <div
+                    key={idea.id}
+                    className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/40 to-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <Lightbulb className="h-4 w-4 flex-shrink-0 text-amber-500" />
+                          <h3 className="font-semibold text-slate-900 truncate">{idea.title}</h3>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+                            <Icon className="h-3 w-3" />
+                            {typeLabel}
+                          </span>
+                        </div>
+                        {idea.topic && (
+                          <p className="mt-1 text-sm text-slate-600">
+                            {idea.topic}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {sched
+                              ? `${t.content.ideaScheduledOn} ${sched.toLocaleDateString("sv-SE", { dateStyle: "medium" })}`
+                              : t.content.ideaUnscheduled}
+                          </span>
+                          {idea.target_keyword && (
+                            <span className="inline-flex items-center gap-1">
+                              <Search className="h-3 w-3" />
+                              {idea.target_keyword}
+                            </span>
+                          )}
+                          {idea.metadata?.gap_type && !isSocial && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                              <Target className="h-3 w-3" />
+                              {t.content.ideaSourceGap}: {idea.metadata.gap_type}
+                            </span>
+                          )}
+                          {isSocial && idea.metadata?.parent_article_title && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">
+                              {t.content.ideaSourceSocial}: {idea.metadata.parent_article_title}
+                            </span>
+                          )}
+                        </div>
+                        {!isSocial && (
+                          <p className="mt-2 text-[11px] italic text-slate-400">
+                            {t.content.ideaCascadeNote}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        {!isSocial && (
+                          <button
+                            onClick={() => approveIdea(idea)}
+                            disabled={approvingId === idea.id}
+                            className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                          >
+                            {approvingId === idea.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            {approvingId === idea.id
+                              ? t.content.ideaApproving
+                              : t.content.ideaApprove}
+                          </button>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEditIdea(idea)}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 transition-colors"
+                            title={t.content.ideaEdit}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => archiveIdea(idea)}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            title={t.content.ideaArchive}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : null}
+
         {/* Content List */}
-        {loading ? (
+        {filter !== "ideas" && (loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
           </div>
@@ -930,7 +1216,7 @@ function CustomerContentInner() {
               </div>
             ))}
           </div>
-        )}
+        ))}
 
         {/* Refine dialog (C5) */}
         {refineId && user && (
@@ -941,6 +1227,111 @@ function CustomerContentInner() {
             pieceId={refineId}
             onSaved={() => fetchContent()}
           />
+        )}
+
+        {/* Idea edit dialog — title, angle, keyword, scheduled date. */}
+        {editingIdea && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40"
+              onClick={closeEditIdea}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-2xl border bg-white shadow-2xl">
+                <div className="flex items-center justify-between border-b px-5 py-4">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <Edit3 className="h-5 w-5 text-purple-500" />
+                    {t.content.ideaEdit}
+                  </h3>
+                  <button
+                    onClick={closeEditIdea}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    aria-label="Stäng"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-3 p-5">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-600">
+                      {t.content.ideaEditTitle}
+                    </span>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-600">
+                      {t.content.ideaEditTopic}
+                    </span>
+                    <textarea
+                      value={editTopic}
+                      onChange={(e) => setEditTopic(e.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-600">
+                        {t.content.ideaEditKeyword}
+                      </span>
+                      <input
+                        type="text"
+                        value={editKeyword}
+                        onChange={(e) => setEditKeyword(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-slate-600">
+                        {t.content.ideaEditDate}
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+                  <button
+                    onClick={closeEditIdea}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {t.suggestionsPanel.cancel}
+                  </button>
+                  <button
+                    onClick={submitEditIdea}
+                    disabled={editSaving || !editTitle.trim()}
+                    className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {editSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {editSaving ? t.content.ideaEditSaving : t.content.ideaEditSave}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Idea action toast (approve / archive / update). */}
+        {ideaToast && (
+          <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 transform rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+              <span>{ideaToast}</span>
+            </div>
+          </div>
         )}
 
         {/* Schedule dialog: drop a draft onto the calendar */}

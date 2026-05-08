@@ -380,8 +380,10 @@ export default function ContentCalendarPage() {
     if (it.content_piece_id) {
       router.push(`/c/content/${it.content_piece_id}`);
     } else {
-      // Not drafted yet — drafting is async; just open the plan tab as a fallback.
-      router.push(`/c/content`);
+      // No body yet — this is an idea waiting for the user to approve it.
+      // Send them straight to the Idéer tab where they can approve/edit/
+      // archive it instead of dropping them on the generic content page.
+      router.push(`/c/content?tab=ideas`);
     }
   };
 

@@ -104,7 +104,7 @@ export default function CreateContentPlanModal({
         throw new Error(text.slice(0, 200) || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      setDone(data.message || "Plan skapas i bakgrunden.");
+      setDone(data.message || "Idélista skapas i bakgrunden.");
       onSuccess?.({
         articles_per_week: articlesPerWeek,
         social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
@@ -151,22 +151,35 @@ export default function CreateContentPlanModal({
           <div className="p-6 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
             <h4 className="mt-3 text-base font-semibold text-slate-900">
-              Plan skapas!
+              Idélista skapas!
             </h4>
             <p className="mt-1 text-sm text-slate-600">{done}</p>
-            <a
-              href="/c/content/plan"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-            >
-              Visa kalendern
-            </a>
+            <p className="mt-2 text-xs text-slate-500">
+              Vi skriver inte texten ännu — du godkänner idéerna en i taget
+              under Innehåll → Idéer.
+            </p>
+            <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+              <a
+                href="/c/content?tab=ideas"
+                className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                Visa idéer
+              </a>
+              <a
+                href="/c/content/plan"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Visa kalendern
+              </a>
+            </div>
           </div>
         ) : (
           <>
             <div className="space-y-5 p-5">
               <p className="text-sm text-slate-600">
-                Vi använder analysens gap och din hemsidas ton för att skriva en
-                content-plan för de kommande 90 dagarna.
+                Vi gör en lista med artikel- och inlägg-idéer för de kommande
+                90 dagarna baserat på era luckor i Insikter. Texterna skrivs
+                först när du godkänner idéerna en i taget.
               </p>
 
               <label className="block">
@@ -269,10 +282,11 @@ export default function CreateContentPlanModal({
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                <strong className="font-semibold text-slate-700">Tonmatchning:</strong>{" "}
-                Innehållet skrivs i din egen hemsidas ton (vi skrapar din domän om
-                vi inte redan har gört det) och utan AI-tells som em-dash, „delve”
-                eller „moreover”.
+                <strong className="font-semibold text-slate-700">Så fungerar det:</strong>{" "}
+                Vi skapar idé-listan direkt. När du godkänner en artikel-idé
+                skrivs hela texten (i er ton, utan AI-tells som em-dash, „delve”
+                eller „moreover”) och de tillhörande sociala inläggen automatiskt
+                i samma steg.
               </div>
 
               {error && (
