@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Globe, Star, Rocket, ChevronRight, ChevronLeft,
@@ -97,12 +97,89 @@ const INITIAL: OnboardingData = {
   posts_per_week_blog: 1, posts_per_week_linkedin: 3, newsletters_per_month: 1,
 };
 
+// Survives refresh, accidental tab close and transient auth flickers so the
+// user never has to re-enter what they've already typed in.
+const DRAFT_KEY = "sama_onboarding_draft_v1";
+
+interface Draft {
+  data: OnboardingData;
+  step: number;
+}
+
+function loadDraft(): Draft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Draft> | null;
+    if (!parsed || typeof parsed !== "object" || !parsed.data) return null;
+    return {
+      data: { ...INITIAL, ...parsed.data },
+      step: typeof parsed.step === "number" ? parsed.step : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: Draft) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch { /* quota / private mode — fine to swallow */ }
+}
+
+function clearDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch { /* ignore */ }
+}
+
+// Pull defaults from a site we already have on file so users who revisit
+// onboarding don't see an empty form when they've already configured things.
+function fromSiteSettings(settings: Record<string, unknown> | null | undefined): Partial<OnboardingData> {
+  if (!settings || typeof settings !== "object") return {};
+  const s = settings as Record<string, unknown>;
+  const strategy = (s.strategy_goals as Record<string, unknown> | undefined) ?? {};
+  const out: Partial<OnboardingData> = {};
+  if (typeof s.brand_name === "string") out.brand_name = s.brand_name;
+  if (typeof s.domain === "string") out.domain = s.domain;
+  if (typeof s.brand_description === "string") out.brand_description = s.brand_description;
+  if (typeof s.target_audience === "string") out.target_audience = s.target_audience;
+  if (typeof s.content_language === "string") out.content_language = s.content_language;
+  if (typeof s.business_type === "string") out.business_type = s.business_type;
+  if (typeof s.unique_selling_points === "string") out.unique_selling_points = s.unique_selling_points;
+  if (typeof s.tone_of_voice === "string") out.tone_of_voice = s.tone_of_voice;
+  if (Array.isArray(s.competitors)) out.competitors = s.competitors.filter((x): x is string => typeof x === "string");
+  if (Array.isArray(s.geo_queries)) out.geo_queries = s.geo_queries.filter((x): x is string => typeof x === "string");
+  if (Array.isArray(s.team_members)) out.team_members = s.team_members.filter((x): x is string => typeof x === "string");
+  if (typeof strategy.primary_goal === "string") {
+    const g = strategy.primary_goal;
+    if (PRIMARY_GOALS.some((p) => p.value === g)) out.primary_goal = g as PrimaryGoal;
+  }
+  if (Array.isArray(strategy.content_types)) {
+    const valid: ContentType[] = ["blog_post", "linkedin", "epost"];
+    out.content_types = strategy.content_types.filter((x): x is ContentType =>
+      typeof x === "string" && valid.includes(x as ContentType)
+    );
+  }
+  if (typeof strategy.posts_per_week_blog === "number") out.posts_per_week_blog = strategy.posts_per_week_blog;
+  if (typeof strategy.posts_per_week_linkedin === "number") out.posts_per_week_linkedin = strategy.posts_per_week_linkedin;
+  if (typeof strategy.newsletters_per_month === "number") out.newsletters_per_month = strategy.newsletters_per_month;
+  return out;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { activeSite, reloadSites } = useSite();
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState<OnboardingData>(INITIAL);
+
+  // Lazy initialiser so a draft is restored synchronously on first paint —
+  // no flash of empty fields before a useEffect has a chance to hydrate.
+  const initialDraft = typeof window !== "undefined" ? loadDraft() : null;
+  const [step, setStep] = useState(initialDraft?.step ?? 0);
+  const [data, setData] = useState<OnboardingData>(initialDraft?.data ?? INITIAL);
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState("");
@@ -110,10 +187,55 @@ export default function OnboardingPage() {
   const [newMember, setNewMember] = useState("");
   const [activatingAgents, setActivatingAgents] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAndDone, setSavedAndDone] = useState(false);
+
+  // Tracks whether we've already pre-filled the form from existing site
+  // settings. Only do it once per mount so the user's edits don't get
+  // overwritten when activeSite re-emits.
+  const hydratedFromSite = useRef<boolean>(initialDraft !== null);
 
   useEffect(() => {
     if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
+
+  // Pull defaults from an existing site on first availability — only when
+  // we don't already have a local draft (otherwise we'd clobber the user's
+  // in-progress edits).
+  useEffect(() => {
+    if (hydratedFromSite.current) return;
+    if (!activeSite) return;
+    const seed = fromSiteSettings(activeSite.settings as Record<string, unknown>);
+    if (Object.keys(seed).length === 0) {
+      hydratedFromSite.current = true;
+      return;
+    }
+    setData((prev) => ({ ...prev, ...seed }));
+    hydratedFromSite.current = true;
+  }, [activeSite]);
+
+  // Persist draft on every change. localStorage writes are synchronous and
+  // cheap so debouncing buys nothing here — and skipping a write is exactly
+  // what caused the data-loss bug we're fixing.
+  useEffect(() => {
+    if (savedAndDone) return;
+    saveDraft({ data, step });
+  }, [data, step, savedAndDone]);
+
+  // Browser-level "are you sure?" if the user tries to close the tab while
+  // they have unsaved work in the form.
+  useEffect(() => {
+    const isDirty = () => {
+      if (savedAndDone) return false;
+      return JSON.stringify(data) !== JSON.stringify(INITIAL);
+    };
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirty()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [data, savedAndDone]);
 
   const update = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) =>
     setData((prev) => ({ ...prev, [field]: value }));
@@ -197,6 +319,20 @@ export default function OnboardingPage() {
     return null;
   };
 
+  const handleSkip = () => {
+    const dirty = JSON.stringify(data) !== JSON.stringify(INITIAL);
+    if (dirty) {
+      const ok = window.confirm(
+        "Hoppa över onboarding? Det du har fyllt i sparas så att du kan fortsätta senare."
+      );
+      if (!ok) return;
+    }
+    // Keep the draft around so revisiting /c/onboarding picks up where the
+    // user left off. They can still discard it manually from the form.
+    setSavedAndDone(true);
+    router.push("/c/dashboard");
+  };
+
   const handleFinish = async () => {
     if (!user) return;
     setSaveError(null);
@@ -252,6 +388,11 @@ export default function OnboardingPage() {
         setActivatingAgents(false);
       }
 
+      // Settings are now persisted server-side — we no longer need the
+      // local draft, and we don't want the beforeunload guard firing on
+      // the way to /c/dashboard.
+      setSavedAndDone(true);
+      clearDraft();
       router.push("/c/dashboard");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Kunde inte spara dina uppgifter");
@@ -275,11 +416,11 @@ export default function OnboardingPage() {
         {/* Header */}
         <div className="relative text-center mb-10">
           <button
-            onClick={() => router.push("/c/dashboard")}
-            className="absolute right-0 top-0 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
-            title="Hoppa över"
+            onClick={handleSkip}
+            className="absolute right-0 top-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
           >
-            <X className="h-5 w-5" />
+            Hoppa över
+            <X className="h-4 w-4" />
           </button>
           <h1 className="text-3xl font-bold">Konfigurera SAMA</h1>
           <p className="mt-2 text-zinc-400">Sätt upp dina marknads-AI-agenter på några minuter</p>
@@ -598,6 +739,20 @@ export default function OnboardingPage() {
               {activatingAgents ? "Konfigurerar agenterna…" : saving ? "Sparar…" : "Starta SAMA"}
             </button>
           )}
+        </div>
+
+        {/* Persistent skip-onboarding affordance: visible on every step,
+            never blocked by validation, and clearly labelled. */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={handleSkip}
+            className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 transition-colors"
+          >
+            Hoppa över onboarding
+          </button>
+          <p className="mt-1 text-xs text-zinc-600">
+            Det du har fyllt i sparas så att du kan fortsätta senare.
+          </p>
         </div>
       </div>
     </div>
