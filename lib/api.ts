@@ -282,3 +282,73 @@ export async function pollAgentRun(
   }
   return last ?? ({ id: runId, agent_name: '', status: 'running', started_at: new Date().toISOString(), completed_at: null, summary: null } as AgentRun);
 }
+
+/**
+ * Stream agent run status via Server-Sent Events when AGENT_RUN_STREAM is on,
+ * falling back to polling otherwise. The SSE endpoint emits one JSON message
+ * per status change ({status, completed_at, summary, error}); the caller
+ * resolves with the final AgentRun.
+ *
+ * If the SSE endpoint returns 404/501 (backend hasn't deployed it yet) we
+ * silently fall back to ``pollAgentRun``. Same for Safari < 17 / older
+ * browsers without ``EventSource`` support.
+ */
+export async function watchAgentRun(
+  tenantId: string,
+  runId: string,
+  options: {
+    timeoutMs?: number;
+    onUpdate?: (run: AgentRun) => void;
+  } = {},
+): Promise<AgentRun> {
+  const streamEnabled =
+    typeof window !== "undefined" &&
+    "EventSource" in window &&
+    process.env.NEXT_PUBLIC_AGENT_RUN_STREAM !== "0";
+  if (!streamEnabled) {
+    return pollAgentRun(tenantId, runId, options);
+  }
+  const timeout = options.timeoutMs ?? 15 * 60 * 1000;
+  const url = `/api/sama/api/tenant/agent-runs/${encodeURIComponent(runId)}/stream`;
+
+  return new Promise<AgentRun>((resolve) => {
+    const es = new EventSource(url, { withCredentials: true });
+    let last: AgentRun | null = null;
+    let resolved = false;
+
+    const finish = (run: AgentRun) => {
+      if (resolved) return;
+      resolved = true;
+      es.close();
+      resolve(run);
+    };
+
+    const fallback = async () => {
+      es.close();
+      const run = await pollAgentRun(tenantId, runId, options);
+      finish(run);
+    };
+
+    es.onmessage = (ev) => {
+      try {
+        const run = JSON.parse(ev.data) as AgentRun;
+        last = run;
+        options.onUpdate?.(run);
+        if (run.status !== "running") finish(run);
+      } catch {
+        // ignore malformed events
+      }
+    };
+    es.onerror = () => {
+      // EventSource auto-reconnects on transient errors; only fall back if
+      // the server returned a hard 4xx/5xx by closing immediately.
+      if (es.readyState === EventSource.CLOSED) {
+        if (last) finish(last);
+        else void fallback();
+      }
+    };
+    setTimeout(() => {
+      if (!resolved) finish(last ?? ({ id: runId, agent_name: "", status: "running", started_at: new Date().toISOString(), completed_at: null, summary: null } as AgentRun));
+    }, timeout);
+  });
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { savePublicAudit } from "@/lib/public-audit-store";
+import { rateLimit, clientIp } from "@/lib/auth/rateLimit";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
 export const runtime = "nodejs";
@@ -9,6 +10,38 @@ export const maxDuration = 60;
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 const PUBLIC_TENANT_ID = process.env.PUBLIC_AUDIT_TENANT_ID || "public";
 const PUBLIC_MAX_PAGES = Number(process.env.PUBLIC_AUDIT_MAX_PAGES || "5");
+
+// Public audit fires LLM + scraper jobs and is unauthenticated, so it's the
+// most attractive cost-burning vector on the platform. Two layers of defence:
+//   1. Cloudflare Turnstile token verification (when CAPTCHA enforcement is on).
+//   2. Per-IP rate limit (3 audits / hour by default).
+const REQUIRE_CAPTCHA = process.env.PUBLIC_AUDIT_REQUIRE_CAPTCHA === "1";
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY || "";
+
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  if (!REQUIRE_CAPTCHA) return true;
+  if (!TURNSTILE_SECRET) {
+    console.warn("[public-audit] PUBLIC_AUDIT_REQUIRE_CAPTCHA=1 but TURNSTILE_SECRET_KEY missing");
+    return false;
+  }
+  if (!token) return false;
+  try {
+    const form = new URLSearchParams({
+      secret: TURNSTILE_SECRET,
+      response: token,
+      remoteip: ip,
+    });
+    const res = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      { method: "POST", body: form, signal: AbortSignal.timeout(5000) },
+    );
+    if (!res.ok) return false;
+    const data = (await res.json()) as { success?: boolean };
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
 
 const POLL_INTERVAL_MS = 2_000;
 const POLL_TIMEOUT_MS = 50_000;
@@ -98,10 +131,37 @@ function suggestQueries(audit: SiteAuditRun, host: string): string[] {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+
+  // Per-IP rate limit. 3 audits / hour by default; override with
+  // PUBLIC_AUDIT_RATE_LIMIT (count) and PUBLIC_AUDIT_RATE_WINDOW_MS.
+  const rl = await rateLimit({
+    key: `public-audit:${ip}`,
+    limit: Number(process.env.PUBLIC_AUDIT_RATE_LIMIT || "3"),
+    windowMs: Number(process.env.PUBLIC_AUDIT_RATE_WINDOW_MS || `${60 * 60 * 1000}`),
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "För många försök. Försök igen senare." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const target = normalizeDomain((body?.domain || "").toString());
   if (!target) {
     return NextResponse.json({ error: "Ogiltig domän. Ange t.ex. exempel.se" }, { status: 400 });
+  }
+
+  // Captcha gating. Off by default so existing UI keeps working until the
+  // Turnstile widget is wired up; flip PUBLIC_AUDIT_REQUIRE_CAPTCHA=1 to enforce.
+  const captchaToken = (body?.captcha_token ?? body?.["cf-turnstile-response"] ?? "").toString();
+  const captchaOk = await verifyTurnstile(captchaToken, ip);
+  if (!captchaOk) {
+    return NextResponse.json(
+      { error: "Captcha krävs. Ladda om sidan och försök igen." },
+      { status: 403 },
+    );
   }
 
   if (!SAMA_API_URL) {
