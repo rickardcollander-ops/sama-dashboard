@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Sparkles, Clock, ArrowRight, Plus, Trash2, FileText, MessageSquare, Mail, BarChart3, Lightbulb, RefreshCw,
-  Wand2, Search, Crosshair, UserSquare2, Calendar,
+  Wand2, Search, Crosshair, UserSquare2, Calendar, Bot, CalendarPlus,
 } from "lucide-react";
+import PlanOutModal from "./PlanOutModal";
 
 const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : "/api/sama";
@@ -47,13 +48,14 @@ const STATUS_BADGE: Record<string, string> = {
 
 interface SourceMeta { label: string; cls: string; icon: React.ReactNode }
 const SOURCE_META: Record<string, SourceMeta> = {
-  manual:         { label: "Manual",      cls: "bg-slate-100 text-slate-600",     icon: <UserSquare2 className="h-3 w-3" /> },
-  ai_generated:   { label: "AI",          cls: "bg-purple-100 text-purple-700",   icon: <Wand2 className="h-3 w-3" /> },
-  analysis_gap:   { label: "Gap",         cls: "bg-amber-100 text-amber-700",     icon: <Search className="h-3 w-3" /> },
-  competitor_gap: { label: "Competitor",  cls: "bg-rose-100 text-rose-700",       icon: <Crosshair className="h-3 w-3" /> },
+  manual:             { label: "Manual",      cls: "bg-slate-100 text-slate-600",     icon: <UserSquare2 className="h-3 w-3" /> },
+  ai_generated:       { label: "AI",          cls: "bg-purple-100 text-purple-700",   icon: <Wand2 className="h-3 w-3" /> },
+  analysis_gap:       { label: "Gap",         cls: "bg-amber-100 text-amber-700",     icon: <Search className="h-3 w-3" /> },
+  competitor_gap:     { label: "Competitor",  cls: "bg-rose-100 text-rose-700",       icon: <Crosshair className="h-3 w-3" /> },
+  ai_visibility_gap:  { label: "AI gap",      cls: "bg-cyan-100 text-cyan-700",       icon: <Bot className="h-3 w-3" /> },
 };
 
-type SourceFilter = "all" | "ai_generated" | "analysis_gap" | "competitor_gap" | "manual";
+type SourceFilter = "all" | "ai_generated" | "analysis_gap" | "competitor_gap" | "manual" | "ai_visibility_gap";
 
 function typeIcon(t: string) {
   if (t === "blog_article" || t === "blog_post") return <FileText className="h-4 w-4 text-blue-600" />;
@@ -95,13 +97,22 @@ export default function ContentPlanTab({ apiUrl }: Props) {
   useEffect(() => { fetchItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const sourceCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: items.length, manual: 0, ai_generated: 0, analysis_gap: 0, competitor_gap: 0 };
+    const counts: Record<string, number> = {
+      all: items.length, manual: 0, ai_generated: 0,
+      analysis_gap: 0, competitor_gap: 0, ai_visibility_gap: 0,
+    };
     for (const it of items) {
       const s = it.source || "manual";
       counts[s] = (counts[s] || 0) + 1;
     }
     return counts;
   }, [items]);
+
+  const [showPlanOut, setShowPlanOut] = useState(false);
+  const unscheduledIdeas = useMemo(
+    () => items.filter(i => i.status === "idea" && !i.scheduled_for),
+    [items],
+  );
 
   const scheduledCount = useMemo(() =>
     items.filter(i => i.scheduled_for && i.status !== "published").length
@@ -212,6 +223,18 @@ export default function ContentPlanTab({ apiUrl }: Props) {
                 <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">{scheduledCount}</span>
               )}
             </Link>
+            <button
+              onClick={() => setShowPlanOut(true)}
+              disabled={unscheduledIdeas.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Schedule multiple ideas at once"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Plan out</span>
+              {unscheduledIdeas.length > 0 && (
+                <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">{unscheduledIdeas.length}</span>
+              )}
+            </button>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -255,6 +278,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           <SourceChip value="ai_generated" label="AI" />
           <SourceChip value="analysis_gap" label="Gap" />
           <SourceChip value="competitor_gap" label="Competitor" />
+          <SourceChip value="ai_visibility_gap" label="AI gap" />
           <SourceChip value="manual" label="Manual" />
         </div>
 
@@ -352,6 +376,18 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           )}
         </div>
       </div>
+
+      {showPlanOut && (
+        <PlanOutModal
+          apiBase={base}
+          items={unscheduledIdeas}
+          onClose={() => setShowPlanOut(false)}
+          onScheduled={() => {
+            setShowPlanOut(false);
+            fetchItems();
+          }}
+        />
+      )}
     </div>
   );
 }
