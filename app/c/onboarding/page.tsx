@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Globe, Star, Rocket, ChevronRight, ChevronLeft,
@@ -97,12 +97,89 @@ const INITIAL: OnboardingData = {
   posts_per_week_blog: 1, posts_per_week_linkedin: 3, newsletters_per_month: 1,
 };
 
+// Survives refresh, accidental tab close and transient auth flickers so the
+// user never has to re-enter what they've already typed in.
+const DRAFT_KEY = "sama_onboarding_draft_v1";
+
+interface Draft {
+  data: OnboardingData;
+  step: number;
+}
+
+function loadDraft(): Draft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Draft> | null;
+    if (!parsed || typeof parsed !== "object" || !parsed.data) return null;
+    return {
+      data: { ...INITIAL, ...parsed.data },
+      step: typeof parsed.step === "number" ? parsed.step : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: Draft) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch { /* quota / private mode — fine to swallow */ }
+}
+
+function clearDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch { /* ignore */ }
+}
+
+// Pull defaults from a site we already have on file so users who revisit
+// onboarding don't see an empty form when they've already configured things.
+function fromSiteSettings(settings: Record<string, unknown> | null | undefined): Partial<OnboardingData> {
+  if (!settings || typeof settings !== "object") return {};
+  const s = settings as Record<string, unknown>;
+  const strategy = (s.strategy_goals as Record<string, unknown> | undefined) ?? {};
+  const out: Partial<OnboardingData> = {};
+  if (typeof s.brand_name === "string") out.brand_name = s.brand_name;
+  if (typeof s.domain === "string") out.domain = s.domain;
+  if (typeof s.brand_description === "string") out.brand_description = s.brand_description;
+  if (typeof s.target_audience === "string") out.target_audience = s.target_audience;
+  if (typeof s.content_language === "string") out.content_language = s.content_language;
+  if (typeof s.business_type === "string") out.business_type = s.business_type;
+  if (typeof s.unique_selling_points === "string") out.unique_selling_points = s.unique_selling_points;
+  if (typeof s.tone_of_voice === "string") out.tone_of_voice = s.tone_of_voice;
+  if (Array.isArray(s.competitors)) out.competitors = s.competitors.filter((x): x is string => typeof x === "string");
+  if (Array.isArray(s.geo_queries)) out.geo_queries = s.geo_queries.filter((x): x is string => typeof x === "string");
+  if (Array.isArray(s.team_members)) out.team_members = s.team_members.filter((x): x is string => typeof x === "string");
+  if (typeof strategy.primary_goal === "string") {
+    const g = strategy.primary_goal;
+    if (PRIMARY_GOALS.some((p) => p.value === g)) out.primary_goal = g as PrimaryGoal;
+  }
+  if (Array.isArray(strategy.content_types)) {
+    const valid: ContentType[] = ["blog_post", "linkedin", "epost"];
+    out.content_types = strategy.content_types.filter((x): x is ContentType =>
+      typeof x === "string" && valid.includes(x as ContentType)
+    );
+  }
+  if (typeof strategy.posts_per_week_blog === "number") out.posts_per_week_blog = strategy.posts_per_week_blog;
+  if (typeof strategy.posts_per_week_linkedin === "number") out.posts_per_week_linkedin = strategy.posts_per_week_linkedin;
+  if (typeof strategy.newsletters_per_month === "number") out.newsletters_per_month = strategy.newsletters_per_month;
+  return out;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { activeSite, reloadSites } = useSite();
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState<OnboardingData>(INITIAL);
+
+  // Lazy initialiser so a draft is restored synchronously on first paint —
+  // no flash of empty fields before a useEffect has a chance to hydrate.
+  const initialDraft = typeof window !== "undefined" ? loadDraft() : null;
+  const [step, setStep] = useState(initialDraft?.step ?? 0);
+  const [data, setData] = useState<OnboardingData>(initialDraft?.data ?? INITIAL);
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState("");
@@ -110,10 +187,55 @@ export default function OnboardingPage() {
   const [newMember, setNewMember] = useState("");
   const [activatingAgents, setActivatingAgents] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAndDone, setSavedAndDone] = useState(false);
+
+  // Tracks whether we've already pre-filled the form from existing site
+  // settings. Only do it once per mount so the user's edits don't get
+  // overwritten when activeSite re-emits.
+  const hydratedFromSite = useRef<boolean>(initialDraft !== null);
 
   useEffect(() => {
     if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
+
+  // Pull defaults from an existing site on first availability — only when
+  // we don't already have a local draft (otherwise we'd clobber the user's
+  // in-progress edits).
+  useEffect(() => {
+    if (hydratedFromSite.current) return;
+    if (!activeSite) return;
+    const seed = fromSiteSettings(activeSite.settings as Record<string, unknown>);
+    if (Object.keys(seed).length === 0) {
+      hydratedFromSite.current = true;
+      return;
+    }
+    setData((prev) => ({ ...prev, ...seed }));
+    hydratedFromSite.current = true;
+  }, [activeSite]);
+
+  // Persist draft on every change. localStorage writes are synchronous and
+  // cheap so debouncing buys nothing here — and skipping a write is exactly
+  // what caused the data-loss bug we're fixing.
+  useEffect(() => {
+    if (savedAndDone) return;
+    saveDraft({ data, step });
+  }, [data, step, savedAndDone]);
+
+  // Browser-level "are you sure?" if the user tries to close the tab while
+  // they have unsaved work in the form.
+  useEffect(() => {
+    const isDirty = () => {
+      if (savedAndDone) return false;
+      return JSON.stringify(data) !== JSON.stringify(INITIAL);
+    };
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirty()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [data, savedAndDone]);
 
   const update = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) =>
     setData((prev) => ({ ...prev, [field]: value }));
@@ -197,6 +319,20 @@ export default function OnboardingPage() {
     return null;
   };
 
+  const handleSkip = () => {
+    const dirty = JSON.stringify(data) !== JSON.stringify(INITIAL);
+    if (dirty) {
+      const ok = window.confirm(
+        "Hoppa över onboarding? Det du har fyllt i sparas så att du kan fortsätta senare."
+      );
+      if (!ok) return;
+    }
+    // Keep the draft around so revisiting /c/onboarding picks up where the
+    // user left off. They can still discard it manually from the form.
+    setSavedAndDone(true);
+    router.push("/c/dashboard");
+  };
+
   const handleFinish = async () => {
     if (!user) return;
     setSaveError(null);
@@ -252,6 +388,11 @@ export default function OnboardingPage() {
         setActivatingAgents(false);
       }
 
+      // Settings are now persisted server-side — we no longer need the
+      // local draft, and we don't want the beforeunload guard firing on
+      // the way to /c/dashboard.
+      setSavedAndDone(true);
+      clearDraft();
       router.push("/c/dashboard");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Kunde inte spara dina uppgifter");
@@ -263,26 +404,26 @@ export default function OnboardingPage() {
 
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 text-slate-900">
       <div className="mx-auto max-w-2xl px-4 py-12">
         {/* Header */}
         <div className="relative text-center mb-10">
           <button
-            onClick={() => router.push("/c/dashboard")}
-            className="absolute right-0 top-0 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
-            title="Hoppa över"
+            onClick={handleSkip}
+            className="absolute right-0 top-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
-            <X className="h-5 w-5" />
+            Hoppa över
+            <X className="h-4 w-4" />
           </button>
-          <h1 className="text-3xl font-bold">Konfigurera SAMA</h1>
-          <p className="mt-2 text-zinc-400">Sätt upp dina marknads-AI-agenter på några minuter</p>
+          <h1 className="text-3xl font-bold text-slate-900">Konfigurera SAMA</h1>
+          <p className="mt-2 text-slate-600">Sätt upp dina marknads-AI-agenter på några minuter</p>
         </div>
 
         {/* Progress */}
@@ -292,57 +433,57 @@ export default function OnboardingPage() {
               <button
                 onClick={() => i < step && setStep(i)}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  i === step ? "bg-blue-500 text-white"
-                  : i < step ? "bg-emerald-500/20 text-emerald-400"
-                  : "bg-zinc-800 text-zinc-500"
+                  i === step ? "bg-blue-600 text-white"
+                  : i < step ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-200 text-slate-500"
                 }`}
               >
                 {i < step ? <CheckCircle className="h-3.5 w-3.5" /> : <s.icon className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={`h-px w-4 ${i < step ? "bg-emerald-500" : "bg-zinc-800"}`} />
+                <div className={`h-px w-4 ${i < step ? "bg-emerald-500" : "bg-slate-200"}`} />
               )}
             </div>
           ))}
         </div>
 
         {/* Step content */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
 
           {step === 0 && (
             <div className="space-y-5">
               <StepHeader title="Varumärke" desc="Ange domänen först — SAMA hämtar varumärkesinfo automatiskt." />
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Domän *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Domän *</label>
                 <input
                   type="text"
                   value={data.domain}
                   onChange={(e) => update("domain", e.target.value)}
                   onBlur={() => void handleDomainBlur()}
                   placeholder="acme.se"
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Varumärkesnamn *
-                  {prefilling && <Loader2 className="inline ml-2 h-3 w-3 animate-spin text-zinc-400" />}
+                  {prefilling && <Loader2 className="inline ml-2 h-3 w-3 animate-spin text-slate-400" />}
                 </label>
                 <input
                   type="text"
                   value={data.brand_name}
                   onChange={(e) => update("brand_name", e.target.value)}
                   placeholder="Acme AB"
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Typ av verksamhet</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Typ av verksamhet</label>
                 <select
                   value={data.business_type}
                   onChange={(e) => update("business_type", e.target.value)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 >
                   {BUSINESS_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
                 </select>
@@ -350,11 +491,11 @@ export default function OnboardingPage() {
               <FieldTextarea label="Beskrivning" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="Vad gör ert företag?" />
               <FieldTextarea label="Målgrupp" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag…" />
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Språk för content</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Språk för content</label>
                 <select
                   value={data.content_language}
                   onChange={(e) => update("content_language", e.target.value)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 >
                   {CONTENT_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
                 </select>
@@ -372,7 +513,7 @@ export default function OnboardingPage() {
                 placeholder="Personlig service, snabbast i branschen, 30 års erfarenhet…"
               />
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">Ton i kommunikationen</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Ton i kommunikationen</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {TONE_OPTIONS.map((t) => (
                     <button
@@ -380,8 +521,8 @@ export default function OnboardingPage() {
                       onClick={() => update("tone_of_voice", t.code)}
                       className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors ${
                         data.tone_of_voice === t.code
-                          ? "border-blue-500 bg-blue-500/20 text-blue-300"
-                          : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-600"
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                       }`}
                     >
                       {t.label}
@@ -402,19 +543,19 @@ export default function OnboardingPage() {
                   onChange={(e) => setNewCompetitor(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
                   placeholder="konkurrent.se"
-                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <button onClick={addCompetitor} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
+                <button onClick={addCompetitor} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.competitors.length === 0
-                  ? <p className="text-sm text-zinc-500">Inga konkurrenter tillagda än</p>
+                  ? <p className="text-sm text-slate-500">Inga konkurrenter tillagda än</p>
                   : data.competitors.map((c) => (
-                    <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-sm text-blue-300 border border-blue-500/30">
+                    <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700 border border-blue-200">
                       {c}
-                      <button onClick={() => update("competitors", data.competitors.filter((x) => x !== c))} className="hover:text-red-400"><X className="h-3 w-3" /></button>
+                      <button onClick={() => update("competitors", data.competitors.filter((x) => x !== c))} className="hover:text-red-600"><X className="h-3 w-3" /></button>
                     </span>
                   ))}
               </div>
@@ -431,19 +572,19 @@ export default function OnboardingPage() {
                   onChange={(e) => setNewGeoQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addGeoQuery())}
                   placeholder='"bästa frisören i Stockholm"'
-                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <button onClick={addGeoQuery} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
+                <button onClick={addGeoQuery} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="space-y-2">
                 {data.geo_queries.length === 0
-                  ? <p className="text-sm text-zinc-500">Inga frågor tillagda. Du kan lägga till dem senare.</p>
+                  ? <p className="text-sm text-slate-500">Inga frågor tillagda. Du kan lägga till dem senare.</p>
                   : data.geo_queries.map((q) => (
-                    <div key={q} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2">
-                      <span className="text-sm text-zinc-300">&ldquo;{q}&rdquo;</span>
-                      <button onClick={() => update("geo_queries", data.geo_queries.filter((x) => x !== q))} className="text-zinc-500 hover:text-red-400"><X className="h-3 w-3" /></button>
+                    <div key={q} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
+                      <span className="text-sm text-slate-700">&ldquo;{q}&rdquo;</span>
+                      <button onClick={() => update("geo_queries", data.geo_queries.filter((x) => x !== q))} className="text-slate-400 hover:text-red-600"><X className="h-3 w-3" /></button>
                     </div>
                   ))}
               </div>
@@ -454,7 +595,7 @@ export default function OnboardingPage() {
             <div className="space-y-6">
               <StepHeader title="Strategimål" desc="Vad är ert primära mål och vilket innehåll ska SAMA hjälpa er skapa?" />
               <div>
-                <p className="text-sm font-medium text-zinc-300 mb-3">Primärt mål</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">Primärt mål</p>
                 <div className="grid grid-cols-2 gap-2">
                   {PRIMARY_GOALS.map(({ value, label, desc }) => (
                     <button
@@ -462,32 +603,32 @@ export default function OnboardingPage() {
                       onClick={() => update("primary_goal", value)}
                       className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         data.primary_goal === value
-                          ? "border-emerald-500 bg-emerald-500/20"
-                          : "border-zinc-700 bg-zinc-800 hover:border-zinc-600"
+                          ? "border-emerald-500 bg-emerald-50"
+                          : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
                     >
-                      <div className={`text-sm font-medium ${data.primary_goal === value ? "text-emerald-300" : "text-zinc-200"}`}>{label}</div>
-                      <div className="text-xs text-zinc-500 mt-0.5">{desc}</div>
+                      <div className={`text-sm font-medium ${data.primary_goal === value ? "text-emerald-700" : "text-slate-900"}`}>{label}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-zinc-300 mb-3">Vilket innehåll ska skapas?</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">Vilket innehåll ska skapas?</p>
                 <div className="space-y-2">
                   {CONTENT_TYPES.map(({ type, label, icon: Icon }) => {
                     const selected = data.content_types.includes(type);
                     return (
-                      <div key={type} className={`rounded-lg border transition-colors ${selected ? "border-blue-500/50 bg-blue-500/10" : "border-zinc-700 bg-zinc-800"}`}>
+                      <div key={type} className={`rounded-lg border transition-colors ${selected ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white"}`}>
                         <button onClick={() => toggleContentType(type)} className="flex w-full items-center gap-3 px-4 py-3">
-                          <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? "text-blue-400" : "text-zinc-500"}`} />
-                          <span className={`text-sm font-medium ${selected ? "text-blue-300" : "text-zinc-300"}`}>{label}</span>
-                          <div className={`ml-auto h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? "border-blue-500 bg-blue-500" : "border-zinc-600"}`}>
+                          <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? "text-blue-600" : "text-slate-400"}`} />
+                          <span className={`text-sm font-medium ${selected ? "text-blue-700" : "text-slate-700"}`}>{label}</span>
+                          <div className={`ml-auto h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? "border-blue-500 bg-blue-500" : "border-slate-300"}`}>
                             {selected && <CheckCircle className="h-3 w-3 text-white" />}
                           </div>
                         </button>
                         {selected && (
-                          <div className="border-t border-zinc-700 px-4 pb-3 pt-2">
+                          <div className="border-t border-blue-200 px-4 pb-3 pt-2">
                             {type === "blog_post" && (
                               <FreqRow label="Blogginlägg per vecka" value={data.posts_per_week_blog} min={1} max={7} onChange={(v) => update("posts_per_week_blog", v)} />
                             )}
@@ -504,7 +645,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
                 {data.content_types.length === 0 && (
-                  <p className="mt-2 text-xs text-red-400">Välj minst en innehållstyp.</p>
+                  <p className="mt-2 text-xs text-red-600">Välj minst en innehållstyp.</p>
                 )}
               </div>
             </div>
@@ -520,19 +661,19 @@ export default function OnboardingPage() {
                   onChange={(e) => setNewMember(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMember())}
                   placeholder="Anna Svensson"
-                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <button onClick={addMember} className="rounded-lg bg-zinc-700 px-3 py-2 hover:bg-zinc-600">
+                <button onClick={addMember} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.team_members.length === 0
-                  ? <p className="text-sm text-zinc-500">Inga teammedlemmar tillagda — du kan hoppa över detta.</p>
+                  ? <p className="text-sm text-slate-500">Inga teammedlemmar tillagda — du kan hoppa över detta.</p>
                   : data.team_members.map((m) => (
-                    <span key={m} className="flex items-center gap-1.5 rounded-full bg-violet-500/20 px-3 py-1 text-sm text-violet-300 border border-violet-500/30">
+                    <span key={m} className="flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-sm text-violet-700 border border-violet-200">
                       {m}
-                      <button onClick={() => update("team_members", data.team_members.filter((x) => x !== m))} className="hover:text-red-400"><X className="h-3 w-3" /></button>
+                      <button onClick={() => update("team_members", data.team_members.filter((x) => x !== m))} className="hover:text-red-600"><X className="h-3 w-3" /></button>
                     </span>
                   ))}
               </div>
@@ -541,16 +682,16 @@ export default function OnboardingPage() {
 
           {step === 6 && (
             <div className="space-y-6 text-center py-6">
-              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <Rocket className="h-8 w-8 text-emerald-400" />
+              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Rocket className="h-8 w-8 text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2">Klart att starta!</h2>
-                <p className="text-sm text-zinc-400 max-w-md mx-auto">
+                <h2 className="text-xl font-semibold mb-2 text-slate-900">Klart att starta!</h2>
+                <p className="text-sm text-slate-600 max-w-md mx-auto">
                   SAMA börjar nu bevaka ert varumärke i Google, AI-assistenter och sociala medier.
                 </p>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-800/50 p-6 text-left max-w-sm mx-auto space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-left max-w-sm mx-auto space-y-3">
                 <SummaryRow label="Varumärke" value={data.brand_name} />
                 <SummaryRow label="Domän" value={data.domain} />
                 <SummaryRow label="Typ" value={BUSINESS_TYPES.find((t) => t.code === data.business_type)?.label ?? "—"} />
@@ -566,7 +707,7 @@ export default function OnboardingPage() {
         </div>
 
         {(validationHint() || saveError) && (
-          <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             {saveError ?? validationHint()}
           </div>
         )}
@@ -575,7 +716,7 @@ export default function OnboardingPage() {
           <button
             onClick={() => setStep((s) => s - 1)}
             disabled={step === 0}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="h-4 w-4" /> Tillbaka
           </button>
@@ -584,7 +725,7 @@ export default function OnboardingPage() {
             <button
               onClick={() => setStep((s) => s + 1)}
               disabled={!canAdvance()}
-              className="flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               Nästa <ChevronRight className="h-4 w-4" />
             </button>
@@ -592,12 +733,26 @@ export default function OnboardingPage() {
             <button
               onClick={() => void handleFinish()}
               disabled={saving || activatingAgents}
-              className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors shadow-sm"
             >
               {(saving || activatingAgents) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
               {activatingAgents ? "Konfigurerar agenterna…" : saving ? "Sparar…" : "Starta SAMA"}
             </button>
           )}
+        </div>
+
+        {/* Persistent skip-onboarding affordance: visible on every step,
+            never blocked by validation, and clearly labelled. */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={handleSkip}
+            className="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-4 transition-colors"
+          >
+            Hoppa över onboarding
+          </button>
+          <p className="mt-1 text-xs text-slate-400">
+            Det du har fyllt i sparas så att du kan fortsätta senare.
+          </p>
         </div>
       </div>
     </div>
@@ -607,8 +762,8 @@ export default function OnboardingPage() {
 function StepHeader({ title, desc }: { title: string; desc: string }) {
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-1">{title}</h2>
-      <p className="text-sm text-zinc-400">{desc}</p>
+      <h2 className="text-xl font-semibold mb-1 text-slate-900">{title}</h2>
+      <p className="text-sm text-slate-600">{desc}</p>
     </div>
   );
 }
@@ -618,13 +773,13 @@ function FieldTextarea({ label, value, onChange, placeholder }: {
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={3}
-        className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
       />
     </div>
   );
@@ -634,12 +789,12 @@ function FreqRow({ label, value, min, max, onChange }: {
   label: string; value: number; min: number; max: number; onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between text-sm text-zinc-300">
+    <div className="flex items-center justify-between text-sm text-slate-700">
       <span>{label}</span>
       <div className="flex items-center gap-2">
-        <button onClick={() => onChange(Math.max(min, value - 1))} className="h-6 w-6 rounded border border-zinc-600 bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center">−</button>
-        <span className="w-5 text-center font-semibold">{value}</span>
-        <button onClick={() => onChange(Math.min(max, value + 1))} className="h-6 w-6 rounded border border-zinc-600 bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center">+</button>
+        <button onClick={() => onChange(Math.max(min, value - 1))} className="h-6 w-6 rounded border border-slate-300 bg-white hover:bg-slate-100 flex items-center justify-center">−</button>
+        <span className="w-5 text-center font-semibold text-slate-900">{value}</span>
+        <button onClick={() => onChange(Math.min(max, value + 1))} className="h-6 w-6 rounded border border-slate-300 bg-white hover:bg-slate-100 flex items-center justify-center">+</button>
       </div>
     </div>
   );
@@ -648,8 +803,8 @@ function FreqRow({ label, value, min, max, onChange }: {
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-zinc-400">{label}</span>
-      <span className="text-white font-medium truncate ml-4 max-w-[200px]">{value}</span>
+      <span className="text-slate-500">{label}</span>
+      <span className="text-slate-900 font-medium truncate ml-4 max-w-[200px]">{value}</span>
     </div>
   );
 }
