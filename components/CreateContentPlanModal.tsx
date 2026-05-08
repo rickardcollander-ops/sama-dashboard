@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 import { Loader2, X, Calendar, Linkedin, Twitter, Instagram, Facebook, CheckCircle2, AlertTriangle } from "lucide-react";
-import { SAMA_API_URL } from "@/lib/api";
 import type { AnalysisRun } from "@/app/c/analysis/types";
+
+// Always go through the /api/sama proxy so the dashboard's Supabase session
+// is validated server-side and X-Sama-Account-Id is injected from the
+// authenticated user. Hitting the railway URL directly bypasses that and
+// trips the backend's "missing tenant context" 401 guard.
+const PROXY_BASE = "/api/sama";
 
 export interface CreateContentPlanModalProps {
   analysisRunId: string;
@@ -76,7 +81,8 @@ export default function CreateContentPlanModal({
           body: JSON.stringify({
             analysis_run_id: analysisRunId,
             articles_per_week: articlesPerWeek,
-            social_platforms: Array.from(platforms),
+            social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
+            social_platforms: includeSocial ? Array.from(platforms) : [],
             // Forward the run inline so the backend can use it directly when
             // its own analysis_runs table doesn't have the row (e.g. saved
             // history that survived a backend rotation).
