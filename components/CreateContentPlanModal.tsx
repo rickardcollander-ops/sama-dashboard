@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, X, Calendar, Linkedin, Twitter, Instagram, Facebook, CheckCircle2, AlertTriangle } from "lucide-react";
-
-const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
-const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : "/api/sama";
+import { SAMA_API_URL } from "@/lib/api";
 
 export interface CreateContentPlanModalProps {
   analysisRunId: string;

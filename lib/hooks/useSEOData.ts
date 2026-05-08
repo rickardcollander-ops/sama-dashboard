@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SAMA_API_URL } from '@/lib/api';
 
 interface SEOStats {
   avgPosition: number;
@@ -29,8 +30,7 @@ export function useSEOData() {
 
     async function fetchData() {
       try {
-        const SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
-        const response = await fetch(`${SAMA_API}/api/seo/keywords`, {
+        const response = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
           signal: AbortSignal.timeout(5000)
         });
 

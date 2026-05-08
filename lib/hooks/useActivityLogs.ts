@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || 'https://web-production-5324a.up.railway.app';
+import { SAMA_API_URL } from '@/lib/api';
 
 interface LogEntry {
   id: string;
