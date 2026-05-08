@@ -12,7 +12,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useLanguage } from "@/lib/hooks/useLanguage";
-import { api, tenantApi, pollAgentRun } from "@/lib/api";
+import { api, tenantApi, watchAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 import PublishingDestinations from "@/components/PublishingDestinations";
 import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
@@ -311,7 +311,7 @@ function CustomerSettingsPageInner() {
       await loadAgentStatus();
       if (resp?.run_id && resp?.status === "running") {
         const tenantId = activeSite?.id ?? user.id;
-        pollAgentRun(tenantId, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
+        watchAgentRun(tenantId, resp.run_id).then(() => loadAgentStatus()).catch(() => {});
       }
     } catch { setError(`Could not run the ${agentName} agent`); }
     setTriggeringAgent(null);
