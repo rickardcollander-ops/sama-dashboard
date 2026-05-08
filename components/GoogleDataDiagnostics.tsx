@@ -7,7 +7,7 @@ import {
   Download, Clock, AlertTriangle, X,
 } from "lucide-react";
 import Link from "next/link";
-import { api, tenantApi, pollAgentRun, ApiError } from "@/lib/api";
+import { api, tenantApi, watchAgentRun, ApiError } from "@/lib/api";
 
 type Service = "search_console" | "analytics" | "ads";
 
@@ -173,7 +173,7 @@ export default function GoogleDataDiagnostics(props: Props) {
       );
       if (resp?.run_id && resp?.status === "running") {
         setFeedback("Sync started — running in background…");
-        pollAgentRun(tenantId, resp.run_id)
+        watchAgentRun(tenantId, resp.run_id)
           .then(async (run) => {
             await refresh();
             if (run.status === "completed") {
@@ -216,7 +216,7 @@ export default function GoogleDataDiagnostics(props: Props) {
         setFeedback("No direct import endpoint — triggered SEO agent. Fetching GSC data in background…");
         await refresh();
         try {
-          const run = await pollAgentRun(tenantId, data.run_id);
+          const run = await watchAgentRun(tenantId, data.run_id);
           if (run.status === "completed") {
             setFeedback(run.summary || "GSC import completed");
             await refresh();

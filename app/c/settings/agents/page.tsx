@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
-import { pollAgentRun, tenantApi } from "@/lib/api";
+import { watchAgentRun, tenantApi } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 
 interface AgentConfig {
@@ -103,7 +103,7 @@ export default function AgentsSettingsPage() {
         { headers: { "X-Sama-Intent": "user-action" } },
       );
       if (resp?.run_id && resp?.status === "running") {
-        pollAgentRun(user.id, resp.run_id).then(() => load()).catch(() => {});
+        watchAgentRun(user.id, resp.run_id).then(() => load()).catch(() => {});
       }
       await load();
     } catch {

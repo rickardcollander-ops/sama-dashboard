@@ -15,7 +15,7 @@ import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
-import { tenantApi, pollAgentRun } from "@/lib/api";
+import { tenantApi, watchAgentRun } from "@/lib/api";
 import { IS_DEMO, demoAnalytics } from "@/lib/demo-data";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import TrendBadge from "@/components/dashboard/TrendBadge";
@@ -111,7 +111,7 @@ export default function CustomerAnalyticsPage() {
         { headers: { "X-Sama-Intent": "user-action" } },
       );
       if (resp?.run_id && resp?.status === "running") {
-        const run = await pollAgentRun(user.id, resp.run_id);
+        const run = await watchAgentRun(user.id, resp.run_id);
         if (run.status === "failed") {
           setError(run.error || run.summary || "Sync failed");
         }
