@@ -8,7 +8,9 @@ import {
   Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import CreateContentPlanModal from "@/components/CreateContentPlanModal";
 import { SAMA_API_URL } from "@/lib/api";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface PlanItem {
   id: string;
@@ -279,6 +281,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
 
 export default function ContentCalendarPage() {
   const router = useRouter();
+  const { effectiveTenantId } = useSite();
   const today = new Date();
   const [year, setYear] = useState(today.getUTCFullYear());
   const [month, setMonth] = useState(today.getUTCMonth());
@@ -287,6 +290,8 @@ export default function ContentCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [addDate, setAddDate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [latestAnalysisId, setLatestAnalysisId] = useState<string | null>(null);
+  const [showPlanModal, setShowPlanModal] = useState(false);
 
   const days = useMemo(() => buildMonthGrid(year, month), [year, month]);
   const start = days[0];
@@ -310,6 +315,31 @@ export default function ContentCalendarPage() {
   };
 
   useEffect(() => { fetchRange(); /* eslint-disable-next-line */ }, [year, month]);
+
+  // Look up the most recent completed analysis run so the "Skapa plan från
+  // analys" button knows which run to pass into CreateContentPlanModal.
+  // Goes through /api/analysis/runs (Next.js route) which already merges
+  // backend + locally-saved runs, so this works even when the agent
+  // backend is paused.
+  useEffect(() => {
+    if (!effectiveTenantId) return;
+    const ctrl = new AbortController();
+    fetch(`/api/analysis/runs?limit=20`, {
+      headers: { "X-Tenant-ID": effectiveTenantId },
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const runs = Array.isArray(data?.runs) ? data.runs : [];
+        const completed = runs.find(
+          (r: { id?: string; status?: string }) =>
+            r?.id && (r.status === "completed" || !r.status),
+        );
+        if (completed?.id) setLatestAnalysisId(completed.id as string);
+      })
+      .catch(() => { /* offline / unauth — button stays disabled */ });
+    return () => ctrl.abort();
+  }, [effectiveTenantId]);
 
   // Bucket items by YYYY-MM-DD so each cell can do an O(1) lookup.
   const itemsByDay = useMemo(() => {
@@ -383,6 +413,25 @@ export default function ContentCalendarPage() {
             <Link href="/c/content" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               ← Back to content
             </Link>
+            {latestAnalysisId ? (
+              <button
+                onClick={() => setShowPlanModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:from-violet-700 hover:to-blue-700"
+                title="Skapa hela 90-dagarsplanen från senaste analys"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Skapa plan från analys
+              </button>
+            ) : (
+              <Link
+                href="/c/analysis"
+                className="inline-flex items-center gap-1.5 rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+                title="Kör en analys först för att kunna skapa en plan"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Kör analys först
+              </Link>
+            )}
             <button onClick={goToday} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               Today
             </button>
@@ -525,6 +574,21 @@ export default function ContentCalendarPage() {
           onClose={() => setAddDate(null)}
           onAdded={(item) => {
             setScheduled(prev => [...prev, item]);
+          }}
+        />
+      )}
+
+      {showPlanModal && latestAnalysisId && effectiveTenantId && (
+        <CreateContentPlanModal
+          analysisRunId={latestAnalysisId}
+          tenantId={effectiveTenantId}
+          onClose={() => setShowPlanModal(false)}
+          onSuccess={() => {
+            // Plan items land in agent_runs and get inserted asynchronously.
+            // Re-poll the calendar so they show up as soon as the background
+            // task starts writing rows. The user lands on a "Plan skapas!"
+            // success state inside the modal.
+            void fetchRange();
           }}
         />
       )}
