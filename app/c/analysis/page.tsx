@@ -528,6 +528,7 @@ export default function AnalysisPage() {
       {showPlanModal && visibilityRun?.id && effectiveTenantId && (
         <CreateContentPlanModal
           analysisRunId={visibilityRun.id}
+          analysisRun={visibilityRun}
           tenantId={effectiveTenantId}
           onClose={() => setShowPlanModal(false)}
           onSuccess={(result) => {

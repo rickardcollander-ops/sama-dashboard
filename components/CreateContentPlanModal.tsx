@@ -2,16 +2,20 @@
 
 import { useState } from "react";
 import { Loader2, X, Calendar, Linkedin, Twitter, Instagram, Facebook, CheckCircle2, AlertTriangle } from "lucide-react";
-
-// Always go through the /api/sama proxy so the dashboard's Supabase session
-// is validated server-side and X-Sama-Account-Id is injected from the
-// authenticated user. Hitting the railway URL directly bypasses that and
-// trips the backend's "missing tenant context" 401 guard.
-const PROXY_BASE = "/api/sama";
+import { SAMA_API_URL } from "@/lib/api";
+import type { AnalysisRun } from "@/app/c/analysis/types";
 
 export interface CreateContentPlanModalProps {
   analysisRunId: string;
   tenantId: string;
+  /**
+   * The full AnalysisRun the user is operating on. We forward its payload
+   * (query_results, overview) and brand context inline so the agent backend
+   * doesn't have to look the run up in its own analysis_runs table — that
+   * lookup fails for runs the dashboard restored from local cache
+   * (user_settings.saved_analyses_by_tenant).
+   */
+  analysisRun?: AnalysisRun | null;
   onClose: () => void;
   onSuccess?: (result: {
     articles_per_week: number;
@@ -34,6 +38,7 @@ const PLATFORM_OPTIONS: { id: Platform; label: string; Icon: typeof Linkedin }[]
 export default function CreateContentPlanModal({
   analysisRunId,
   tenantId,
+  analysisRun,
   onClose,
   onSuccess,
 }: CreateContentPlanModalProps) {
@@ -71,8 +76,20 @@ export default function CreateContentPlanModal({
           body: JSON.stringify({
             analysis_run_id: analysisRunId,
             articles_per_week: articlesPerWeek,
-            social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
-            social_platforms: includeSocial ? Array.from(platforms) : [],
+            social_platforms: Array.from(platforms),
+            // Forward the run inline so the backend can use it directly when
+            // its own analysis_runs table doesn't have the row (e.g. saved
+            // history that survived a backend rotation).
+            ...(analysisRun
+              ? {
+                  analysis_payload: {
+                    query_results: analysisRun.query_results,
+                    overview: analysisRun.overview,
+                  },
+                  analysis_domain: analysisRun.domain,
+                  analysis_brand_name: analysisRun.brand_name,
+                }
+              : {}),
           }),
         },
       );
