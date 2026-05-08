@@ -7,6 +7,7 @@ import {
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
   ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Target,
+  CalendarPlus,
 } from "lucide-react";
 import Link from "next/link";
 import CustomerNav from "@/components/CustomerNav";
@@ -70,7 +71,6 @@ function CustomerContentInner() {
   const searchParams = useSearchParams();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Sprint 1 (C-5) — collapsed status tabs to four logical buckets:
   // "to_review" covers both draft and review (everything pre-approval),
@@ -97,6 +97,14 @@ function CustomerContentInner() {
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   const [refineId, setRefineId] = useState<string | null>(null);
+  // Calendar scheduling: when set, the date-picker dialog is open for this
+  // piece. Saving creates a content_plan_items row that links to the piece
+  // so it shows up in /c/content/plan.
+  const [schedulingPiece, setSchedulingPiece] = useState<ContentPiece | null>(null);
+  const [scheduleDate, setScheduleDate] = useState<string>("");
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
 
   const TYPE_LABELS: Record<string, string> = {
     linkedin_post: t.content.typeLinkedin,
@@ -234,42 +242,6 @@ function CustomerContentInner() {
     setLoading(false);
   };
 
-  const generateContent = async () => {
-    if (!user) return;
-    setGenerating(true);
-    try {
-      const client = tenantClient;
-      const gen = await client.post<{
-        title?: string;
-        body?: string;
-        content?: string;
-        suggestions?: string[];
-      }>(
-        "/api/content/generate",
-        { type: "linkedin_post" },
-        { headers: { "X-Sama-Intent": "user-action" } },
-      );
-      const body = gen.body || gen.content || "";
-      if (!body) {
-        const detail = gen.suggestions?.[0] || "Inget innehåll returnerades från AI:n.";
-        throw new Error(detail);
-      }
-      const title = gen.title || "Nytt LinkedIn-utkast";
-      await client.post("/api/content/pieces", {
-        title,
-        content_type: "linkedin_post",
-        content: body,
-        status: "draft",
-        word_count: body.split(/\s+/).filter(Boolean).length,
-      });
-      await fetchContent();
-    } catch (err: any) {
-      console.error("Failed to trigger content generation:", err);
-      setError(`Kunde inte generera content: ${err?.message || err}`);
-    }
-    setGenerating(false);
-  };
-
   const generateInModal = async () => {
     if (!user || !modalTopic.trim()) return;
     setModalGenerating(true);
@@ -394,6 +366,70 @@ function CustomerContentInner() {
     await updateStatus(pieceId, "archived");
   };
 
+  // Default the date picker to "tomorrow at 09:00 local" when the dialog
+  // opens, and reset all transient state on close.
+  const openScheduleDialog = (piece: ContentPiece) => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setScheduleDate(local);
+    setScheduleError(null);
+    setSchedulingPiece(piece);
+  };
+
+  const closeScheduleDialog = () => {
+    setSchedulingPiece(null);
+    setScheduleDate("");
+    setScheduleError(null);
+    setScheduleSaving(false);
+  };
+
+  const submitSchedule = async () => {
+    if (!schedulingPiece || !scheduleDate) return;
+    setScheduleSaving(true);
+    setScheduleError(null);
+    try {
+      // POST through tenantClient (proxy validates session and tenant).
+      const client = tenantClient;
+      const dbType =
+        schedulingPiece.content_type ||
+        schedulingPiece.type ||
+        "blog_article";
+      // Local datetime-local input → UTC ISO so the backend stores tz-aware.
+      const scheduledIso = new Date(scheduleDate).toISOString();
+      const res = await client.post<{ success: boolean; error?: string }>(
+        "/api/content/plan",
+        {
+          title: schedulingPiece.title,
+          content_type: dbType,
+          target_keyword: schedulingPiece.target_keyword || undefined,
+          content_piece_id: schedulingPiece.id.startsWith("local-")
+            ? undefined
+            : schedulingPiece.id,
+          source: "manual",
+          status: "draft",
+          scheduled_for: scheduledIso,
+        },
+      );
+      if (res && res.success === false) {
+        throw new Error(res.error || "Kunde inte schemalägga");
+      }
+      setScheduleSuccess(
+        `"${schedulingPiece.title}" lades på kalendern ${new Date(
+          scheduledIso,
+        ).toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}.`,
+      );
+      closeScheduleDialog();
+      setTimeout(() => setScheduleSuccess(null), 6000);
+    } catch (e: any) {
+      setScheduleError(e?.message || "Kunde inte schemalägga");
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
   // Sprint 3 (C-6 / SET-4) — "Skicka via mail" handoff.
   const sendByMail = async (piece: ContentPiece) => {
     if (!user) return;
@@ -483,6 +519,14 @@ function CustomerContentInner() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/c/content/plan"
+              className="flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+              title="Visa kalendern med planerade artiklar och inlägg."
+            >
+              <Calendar className="h-4 w-4" />
+              {t.content.viewCalendar}
+            </Link>
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
@@ -490,31 +534,6 @@ function CustomerContentInner() {
             >
               <Plus className="h-4 w-4" />
               {t.content.createNew}
-            </button>
-            <button
-              onClick={() => {
-                document
-                  .getElementById("ideas")
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-              className="flex items-center gap-2 rounded-lg bg-white border border-purple-200 px-4 py-2.5 text-sm font-medium text-purple-700 hover:bg-purple-50 shadow-sm transition-colors"
-              title="Visa AI-förslag baserat på er strategi och era luckor i Insikter."
-            >
-              <Sparkles className="h-4 w-4" />
-              {t.content.getIdeas}
-            </button>
-            <button
-              onClick={generateContent}
-              disabled={generating}
-              className="flex items-center gap-2 rounded-lg bg-slate-100 border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:text-slate-400 shadow-sm transition-colors"
-              title="Skapar ett LinkedIn-utkast direkt från er profil."
-            >
-              {generating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4" />
-              )}
-              {generating ? t.content.generating : t.content.autoGenerate}
             </button>
           </div>
         </div>
@@ -788,6 +807,18 @@ function CustomerContentInner() {
                       </button>
                     )}
 
+                    {/* Schedule onto the calendar — for unpublished drafts */}
+                    {piece.status !== "published" && piece.status !== "archived" && (
+                      <button
+                        onClick={() => openScheduleDialog(piece)}
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                        title={t.content.scheduleAction}
+                      >
+                        <CalendarPlus className="h-3.5 w-3.5" />
+                        {t.content.scheduleAction}
+                      </button>
+                    )}
+
                     {/* Toggle performance (C6) */}
                     {(piece.status === "approved" || piece.status === "published") && (
                       <button
@@ -910,6 +941,96 @@ function CustomerContentInner() {
             pieceId={refineId}
             onSaved={() => fetchContent()}
           />
+        )}
+
+        {/* Schedule dialog: drop a draft onto the calendar */}
+        {schedulingPiece && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40"
+              onClick={closeScheduleDialog}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-2xl border bg-white shadow-2xl">
+                <div className="flex items-center justify-between border-b px-5 py-4">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <CalendarPlus className="h-5 w-5 text-purple-500" />
+                    {t.content.scheduleDialogTitle}
+                  </h3>
+                  <button
+                    onClick={closeScheduleDialog}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    aria-label="Stäng"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-4 p-5">
+                  <p className="text-sm text-slate-700">
+                    <span className="font-medium text-slate-900">
+                      {schedulingPiece.title}
+                    </span>
+                  </p>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-600">
+                      {t.content.scheduleWhen}
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </label>
+                  <p className="text-xs text-slate-500">{t.content.scheduleHint}</p>
+                  {scheduleError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {scheduleError}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+                  <button
+                    onClick={closeScheduleDialog}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {t.suggestionsPanel.cancel}
+                  </button>
+                  <button
+                    onClick={submitSchedule}
+                    disabled={scheduleSaving || !scheduleDate}
+                    className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {scheduleSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CalendarPlus className="h-4 w-4" />
+                    )}
+                    {scheduleSaving
+                      ? t.content.scheduleSaving
+                      : t.content.scheduleSave}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Confirmation banner after a successful schedule */}
+        {scheduleSuccess && (
+          <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 transform rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+              <span>{scheduleSuccess}</span>
+              <Link
+                href="/c/content/plan"
+                className="ml-2 inline-flex items-center gap-1 font-semibold text-emerald-700 underline hover:text-emerald-900"
+              >
+                {t.content.viewCalendar}
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
         )}
 
         {/* CMS publish dialog */}
