@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { Loader2, X, Calendar, Linkedin, Twitter, Instagram, Facebook, CheckCircle2, AlertTriangle } from "lucide-react";
 
-const _RAW_SAMA_API = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
-const SAMA_API_URL = /^https?:\/\//.test(_RAW_SAMA_API) ? _RAW_SAMA_API : "/api/sama";
+// Always go through the /api/sama proxy so the dashboard's Supabase session
+// is validated server-side and X-Sama-Account-Id is injected from the
+// authenticated user. Hitting the railway URL directly bypasses that and
+// trips the backend's "missing tenant context" 401 guard.
+const PROXY_BASE = "/api/sama";
 
 export interface CreateContentPlanModalProps {
   analysisRunId: string;
@@ -12,6 +15,7 @@ export interface CreateContentPlanModalProps {
   onClose: () => void;
   onSuccess?: (result: {
     articles_per_week: number;
+    social_posts_per_week: number;
     social_platforms: string[];
     message: string;
     run_id?: string;
@@ -34,6 +38,7 @@ export default function CreateContentPlanModal({
   onSuccess,
 }: CreateContentPlanModalProps) {
   const [articlesPerWeek, setArticlesPerWeek] = useState<number>(2);
+  const [socialPostsPerWeek, setSocialPostsPerWeek] = useState<number>(2);
   const [platforms, setPlatforms] = useState<Set<Platform>>(
     new Set(["linkedin"]),
   );
@@ -52,19 +57,22 @@ export default function CreateContentPlanModal({
     setSubmitting(true);
     setError(null);
     try {
+      const includeSocial = socialPostsPerWeek > 0 && platforms.size > 0;
       const res = await fetch(
-        `${SAMA_API_URL}/api/content/plan/create-from-analysis`,
+        `${PROXY_BASE}/api/content/plan/create-from-analysis`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Tenant-ID": tenantId,
             "X-Sama-Site-Id": tenantId,
+            "X-Sama-Intent": "user-action",
           },
           body: JSON.stringify({
             analysis_run_id: analysisRunId,
             articles_per_week: articlesPerWeek,
-            social_platforms: Array.from(platforms),
+            social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
+            social_platforms: includeSocial ? Array.from(platforms) : [],
           }),
         },
       );
@@ -76,7 +84,8 @@ export default function CreateContentPlanModal({
       setDone(data.message || "Plan skapas i bakgrunden.");
       onSuccess?.({
         articles_per_week: articlesPerWeek,
-        social_platforms: Array.from(platforms),
+        social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
+        social_platforms: includeSocial ? Array.from(platforms) : [],
         message: data.message || "",
         run_id: typeof data.run_id === "string" ? data.run_id : undefined,
       });
@@ -88,7 +97,7 @@ export default function CreateContentPlanModal({
   };
 
   const totalArticles = articlesPerWeek * 13;
-  const totalSocial = totalArticles * platforms.size;
+  const totalSocial = socialPostsPerWeek * 13 * platforms.size;
 
   return (
     <div
@@ -164,22 +173,52 @@ export default function CreateContentPlanModal({
 
               <div>
                 <span className="text-sm font-medium text-slate-700">
+                  Sociala inlägg per vecka
+                </span>
+                <p className="mt-1 text-xs text-slate-500">
+                  Hur ofta vi schemalägger inlägg per vald plattform. Sätt 0 för
+                  att hoppa över social helt.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setSocialPostsPerWeek(n)}
+                      className={`flex h-12 w-12 items-center justify-center rounded-lg border text-base font-semibold transition ${
+                        socialPostsPerWeek === n
+                          ? "border-violet-600 bg-violet-50 text-violet-700"
+                          : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-slate-700">
                   Inkludera social media
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  För varje artikel skapas matchande inlägg som schemaläggs dagen
-                  efter publicering. Du får dem mailade för manuell publicering.
+                  Inläggen länkar till närmaste artikel och du får dem mailade för
+                  manuell publicering.
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {PLATFORM_OPTIONS.map(({ id, label, Icon }) => {
                     const active = platforms.has(id);
+                    const disabled = socialPostsPerWeek === 0;
                     return (
                       <button
                         key={id}
                         type="button"
                         onClick={() => togglePlatform(id)}
+                        disabled={disabled}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition ${
-                          active
+                          disabled
+                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                            : active
                             ? "border-violet-600 bg-violet-50 text-violet-700"
                             : "border-slate-300 text-slate-700 hover:bg-slate-50"
                         }`}
@@ -188,20 +227,20 @@ export default function CreateContentPlanModal({
                         <span className="flex-1 font-medium">{label}</span>
                         <span
                           className={`flex h-4 w-4 items-center justify-center rounded border ${
-                            active
+                            active && !disabled
                               ? "border-violet-600 bg-violet-600 text-white"
                               : "border-slate-300 bg-white"
                           }`}
                         >
-                          {active && <CheckCircle2 className="h-3 w-3" />}
+                          {active && !disabled && <CheckCircle2 className="h-3 w-3" />}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                {platforms.size > 0 && (
+                {socialPostsPerWeek > 0 && platforms.size > 0 && (
                   <p className="mt-2 text-xs text-slate-500">
-                    Cirka {totalSocial} sociala inlägg totalt ({totalArticles} × {platforms.size}).
+                    Cirka {totalSocial} sociala inlägg totalt ({socialPostsPerWeek} × 13 veckor × {platforms.size} plattform{platforms.size === 1 ? "" : "ar"}).
                   </p>
                 )}
               </div>
@@ -230,7 +269,7 @@ export default function CreateContentPlanModal({
               </button>
               <button
                 onClick={submit}
-                disabled={submitting || platforms.size === 0}
+                disabled={submitting}
                 className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2 text-sm font-semibold text-white hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
               >
                 {submitting ? (
