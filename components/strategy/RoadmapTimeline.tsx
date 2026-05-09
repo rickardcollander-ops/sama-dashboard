@@ -58,7 +58,7 @@ export default function RoadmapTimeline({ milestones }: RoadmapTimelineProps) {
   return (
     <section>
       <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Plan framåt
+        Plan ahead
       </h3>
 
       <div className="relative">
@@ -111,7 +111,7 @@ export default function RoadmapTimeline({ milestones }: RoadmapTimelineProps) {
                       </ul>
                     )}
                     {!m.title && !m.description && (!m.items || m.items.length === 0) && (
-                      <p className="text-sm text-slate-400">Inget planerat för denna horisont än.</p>
+                      <p className="text-sm text-slate-400">Nothing planned for this horizon yet.</p>
                     )}
                   </div>
                 </div>

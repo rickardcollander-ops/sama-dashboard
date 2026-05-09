@@ -28,7 +28,7 @@ export default function CustomerLoginPage() {
     try {
       if (mode === "signup") {
         if (password.length < 6) {
-          setError("Lösenordet måste vara minst 6 tecken");
+          setError("Password must be at least 6 characters");
           return;
         }
         const { error: signUpError } = await supabase.auth.signUp({
@@ -38,7 +38,7 @@ export default function CustomerLoginPage() {
         if (signUpError) {
           setError(signUpError.message);
         } else {
-          setMessage("Konto skapat! Du kan nu logga in.");
+          setMessage("Account created! You can now sign in.");
           setMode("login");
         }
       } else if (mode === "forgot") {
@@ -54,7 +54,7 @@ export default function CustomerLoginPage() {
           setError(resetError.message);
         } else {
           setMessage(
-            "Om kontot finns har en återställningslänk skickats till mejlen."
+            "If the account exists, a reset link has been sent to the email."
           );
         }
       } else {
@@ -65,7 +65,7 @@ export default function CustomerLoginPage() {
         if (signInError) {
           setError(
             signInError.message === "Invalid login credentials"
-              ? "Fel e-post eller lösenord"
+              ? "Wrong email or password"
               : signInError.message
           );
         } else {
@@ -74,7 +74,7 @@ export default function CustomerLoginPage() {
         }
       }
     } catch {
-      setError("Kunde inte ansluta");
+      setError("Could not connect");
     } finally {
       setLoading(false);
     }
@@ -82,22 +82,22 @@ export default function CustomerLoginPage() {
 
   const headline =
     mode === "login"
-      ? "Logga in på din portal"
+      ? "Sign in to your portal"
       : mode === "signup"
-        ? "Skapa ett konto"
-        : "Återställ ditt lösenord";
+        ? "Create an account"
+        : "Reset your password";
 
   const submitLabel = loading
     ? mode === "login"
-      ? "Loggar in…"
+      ? "Signing in…"
       : mode === "signup"
-        ? "Skapar konto…"
-        : "Skickar mejl…"
+        ? "Creating account…"
+        : "Sending email…"
     : mode === "login"
-      ? "Logga in"
+      ? "Sign in"
       : mode === "signup"
-        ? "Skapa konto"
-        : "Skicka återställningslänk";
+        ? "Create account"
+        : "Send reset link";
 
   const submitDisabled =
     loading || !email || (mode !== "forgot" && !password);
@@ -123,7 +123,7 @@ export default function CustomerLoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="E-post"
+              placeholder="Email"
               autoFocus
               className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -137,7 +137,7 @@ export default function CustomerLoginPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Lösenord"
+                  placeholder="Password"
                   className="w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-10 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button
@@ -154,7 +154,7 @@ export default function CustomerLoginPage() {
               </div>
               {mode === "signup" ? (
                 <p className="text-xs text-slate-500 mb-4 ml-1">
-                  Minst 6 tecken
+                  At least 6 characters
                 </p>
               ) : (
                 <div className="mb-2 flex justify-end">
@@ -167,7 +167,7 @@ export default function CustomerLoginPage() {
                     }}
                     className="text-xs text-slate-400 hover:text-white"
                   >
-                    Glömt lösenord?
+                    Forgot password?
                   </button>
                 </div>
               )}
@@ -200,10 +200,10 @@ export default function CustomerLoginPage() {
             className="w-full mt-3 text-sm text-slate-400 hover:text-white transition-colors"
           >
             {mode === "login"
-              ? "Inget konto? Skapa ett"
+              ? "No account? Create one"
               : mode === "signup"
-                ? "Har du redan ett konto? Logga in"
-                : "Tillbaka till login"}
+                ? "Already have an account? Sign in"
+                : "Back to sign in"}
           </button>
           {mode === "forgot" && (
             <button
@@ -215,7 +215,7 @@ export default function CustomerLoginPage() {
               }}
               className="w-full mt-2 text-sm text-slate-500 hover:text-white"
             >
-              Tillbaka till login
+              Back to sign in
             </button>
           )}
         </form>

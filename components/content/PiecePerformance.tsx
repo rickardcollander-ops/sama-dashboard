@@ -64,17 +64,17 @@ const VERDICT_META: Record<
     icon: TrendingUp,
   },
   mixed: {
-    label: "Blandat",
+    label: "Mixed",
     tone: "border-amber-200 bg-amber-50/60 text-amber-700",
     icon: MinusCircle,
   },
   lagging: {
-    label: "Bakåt",
+    label: "Behind",
     tone: "border-red-200 bg-red-50/60 text-red-700",
     icon: TrendingDown,
   },
   untracked: {
-    label: "Inget mätt än",
+    label: "Nothing measured yet",
     tone: "border-slate-200 bg-slate-50 text-slate-500",
     icon: AlertCircle,
   },
@@ -101,7 +101,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
         );
         if (!cancelled) setData(res);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Kunde inte hämta utfall");
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not fetch outcomes");
       }
       if (!cancelled) setLoading(false);
     })();
@@ -113,7 +113,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
   if (loading) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-500 flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" /> Hämtar utfall…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading outcomes…
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-slate-700">Utfall</h4>
+        <h4 className="text-sm font-semibold text-slate-700">Outcomes</h4>
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${v.tone}`}
         >
@@ -145,7 +145,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Kpi
-          label="Google-position"
+          label="Google position"
           icon={<Search className="h-3.5 w-3.5 text-slate-400" />}
           value={
             data.seo.avg_position && data.seo.avg_position > 0
@@ -154,27 +154,27 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
           }
           hint={
             data.seo.keywords.length > 0
-              ? `${data.seo.keywords.length} matchande sökord`
-              : "Inga matchande sökord"
+              ? `${data.seo.keywords.length} matching keywords`
+              : "No matching keywords"
           }
         />
         <Kpi
-          label="AI-omnämnande"
+          label="AI mentions"
           icon={<Bot className="h-3.5 w-3.5 text-slate-400" />}
           value={fmtPct(data.ai.mention_rate)}
           hint={
             data.ai.checks.length > 0
-              ? `${data.ai.checks.length} matchande kontroller`
-              : "Inga matchande kontroller"
+              ? `${data.ai.checks.length} matching checks`
+              : "No matching checks"
           }
         />
         <Kpi
-          label="Klick (30d)"
+          label="Clicks (30d)"
           icon={<MousePointerClick className="h-3.5 w-3.5 text-slate-400" />}
           value={(data.traffic.clicks_30d ?? 0).toLocaleString()}
           hint={
             (data.traffic.impressions_30d ?? 0) > 0
-              ? `${data.traffic.impressions_30d.toLocaleString()} visningar`
+              ? `${data.traffic.impressions_30d.toLocaleString()} impressions`
               : undefined
           }
         />
@@ -183,7 +183,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
       {data.seo.keywords.length > 0 && (
         <details className="mt-3 group">
           <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-700">
-            Sökord som drar trafik ({data.seo.keywords.length})
+            Keywords driving traffic ({data.seo.keywords.length})
           </summary>
           <ul className="mt-2 space-y-1 text-xs">
             {data.seo.keywords.slice(0, 6).map((k, i) => (
@@ -196,7 +196,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
                   {k.position && k.position > 0 ? (
                     <span>#{k.position.toFixed(1)}</span>
                   ) : null}
-                  {(k.clicks ?? 0) > 0 ? <span>{k.clicks} klick</span> : null}
+                  {(k.clicks ?? 0) > 0 ? <span>{k.clicks} clicks</span> : null}
                 </span>
               </li>
             ))}
@@ -207,7 +207,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
       {data.ai.checks.length > 0 && (
         <details className="mt-2 group">
           <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-700">
-            Senaste AI-kontroller ({data.ai.checks.length})
+            Recent AI checks ({data.ai.checks.length})
           </summary>
           <ul className="mt-2 space-y-1 text-xs">
             {data.ai.checks.slice(0, 6).map((c, i) => (
@@ -236,7 +236,7 @@ export default function PiecePerformance({ tenantId, pieceId }: Props) {
         <div className="mt-3 flex items-start gap-2 rounded-md border border-red-100 bg-red-50/60 p-2 text-xs text-red-800">
           <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0" />
           <span>
-            Synligheten är låg. Pröva en revidering med AI — kort på &quot;Förbättra med AI&quot; på utkastet.
+            Visibility is low. Try a revision with AI — click "Refine with AI" on the draft.
           </span>
         </div>
       )}

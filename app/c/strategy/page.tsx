@@ -563,7 +563,7 @@ export default function StrategyPage() {
                     }
                     return (
                       <div className="mt-3 text-xs text-slate-400">
-                        Senast uppdaterad för {days === 0 ? t.strategy.ageJustNow : days === 1 ? t.strategy.ageDay : `${days} ${t.strategy.ageDaysSuffix}`} {t.strategy.ageSuffix}
+                        Last updated {days === 0 ? t.strategy.ageJustNow : days === 1 ? t.strategy.ageDay : `${days} ${t.strategy.ageDaysSuffix}`} {t.strategy.ageSuffix}
                       </div>
                     );
                   })()}
@@ -638,7 +638,7 @@ export default function StrategyPage() {
                               {!isPaused && !hasData && (
                                 <p className="mt-2 text-sm text-slate-500">
                                   {t.strategy.noDataChannel}{" "}
-                                  <a href="/c/analysis" className="font-medium text-violet-700 underline hover:text-violet-900">Gå till Insikter</a>
+                                  <a href="/c/analysis" className="font-medium text-violet-700 underline hover:text-violet-900">Go to Insights</a>
                                 </p>
                               )}
                               {isPaused && <p className="mt-2 text-sm text-slate-500">{t.strategy.pausedChannel}</p>}

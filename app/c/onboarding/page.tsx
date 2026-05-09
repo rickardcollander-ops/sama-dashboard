@@ -9,64 +9,26 @@ import {
 } from "lucide-react";
 import { useSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import { tenantApi } from "@/lib/api";
 
-const STEPS = [
-  { label: "Varumärke",    icon: Building2 },
-  { label: "Er profil",    icon: Star },
-  { label: "Konkurrenter", icon: Globe },
-  { label: "AI-bevakning", icon: Search },
-  { label: "Strategi",     icon: Target },
-  { label: "Team",         icon: Users },
-  { label: "Klart",        icon: Rocket },
-];
+const STEP_ICONS = [Building2, Star, Globe, Search, Target, Users, Rocket];
 
-const CONTENT_LANGUAGES = [
-  { code: "en", label: "Engelska" },
-  { code: "sv", label: "Svenska" },
-  { code: "de", label: "Tyska" },
-  { code: "fr", label: "Franska" },
-  { code: "es", label: "Spanska" },
-  { code: "no", label: "Norska" },
-  { code: "da", label: "Danska" },
-  { code: "fi", label: "Finska" },
-  { code: "nl", label: "Nederländska" },
-];
+const CONTENT_LANGUAGE_CODES = ["en", "sv", "de", "fr", "es", "no", "da", "fi", "nl"] as const;
 
-const BUSINESS_TYPES = [
-  { code: "", label: "Välj typ…" },
-  { code: "ecommerce", label: "E-handel" },
-  { code: "local", label: "Lokal näring" },
-  { code: "services", label: "Tjänsteföretag" },
-  { code: "software", label: "Programvara / SaaS" },
-  { code: "media", label: "Media / publicist" },
-  { code: "other", label: "Annat" },
-];
+const BUSINESS_TYPE_CODES = ["", "ecommerce", "local", "services", "software", "media", "other"] as const;
 
-const TONE_OPTIONS = [
-  { code: "professional", label: "Professionell" },
-  { code: "friendly",     label: "Vänlig & personlig" },
-  { code: "authoritative",label: "Auktoritativ / expert" },
-  { code: "playful",      label: "Lekfull & kreativ" },
-  { code: "neutral",      label: "Neutral / informativ" },
-];
+const TONE_CODES = ["professional", "friendly", "authoritative", "playful", "neutral"] as const;
 
-const PRIMARY_GOALS = [
-  { value: "traffic", label: "Öka trafik",       desc: "Fler besökare via SEO & content" },
-  { value: "leads",   label: "Generera leads",    desc: "Fler förfrågningar & konverteringar" },
-  { value: "brand",   label: "Bygga varumärke",   desc: "Stärk kännedom och trovärdighet" },
-  { value: "seo",     label: "Förbättra SEO",     desc: "Bättre positioner i Google" },
-  { value: "social",  label: "Sociala medier",    desc: "Bygga följarskap och engagemang" },
-  { value: "custom",  label: "Eget mål",          desc: "Beskriv ditt specifika mål" },
-] as const;
+const PRIMARY_GOAL_VALUES = ["traffic", "leads", "brand", "seo", "social", "custom"] as const;
 
-type PrimaryGoal = typeof PRIMARY_GOALS[number]["value"];
+type PrimaryGoal = typeof PRIMARY_GOAL_VALUES[number];
 type ContentType = "blog_post" | "linkedin" | "epost";
 
-const CONTENT_TYPES: { type: ContentType; label: string; icon: typeof FileText }[] = [
-  { type: "blog_post", label: "Blogginlägg",         icon: FileText },
-  { type: "linkedin",  label: "LinkedIn-inlägg",      icon: Linkedin },
-  { type: "epost",     label: "E-post / nyhetsbrev",  icon: Mail },
+const CONTENT_TYPE_ITEMS: { type: ContentType; icon: typeof FileText }[] = [
+  { type: "blog_post", icon: FileText },
+  { type: "linkedin",  icon: Linkedin },
+  { type: "epost",     icon: Mail },
 ];
 
 interface OnboardingData {
@@ -175,7 +137,7 @@ function fromSiteSettings(settings: Record<string, unknown> | null | undefined):
   if (Array.isArray(s.team_members)) out.team_members = s.team_members.filter((x): x is string => typeof x === "string");
   if (typeof strategy.primary_goal === "string") {
     const g = strategy.primary_goal;
-    if (PRIMARY_GOALS.some((p) => p.value === g)) out.primary_goal = g as PrimaryGoal;
+    if (PRIMARY_GOAL_VALUES.includes(g as PrimaryGoal)) out.primary_goal = g as PrimaryGoal;
   }
   if (Array.isArray(strategy.content_types)) {
     const valid: ContentType[] = ["blog_post", "linkedin", "epost"];
@@ -189,10 +151,74 @@ function fromSiteSettings(settings: Record<string, unknown> | null | undefined):
   return out;
 }
 
+function primaryGoalLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], v: PrimaryGoal) {
+  switch (v) {
+    case "traffic": return { label: o.goalTrafficLabel, desc: o.goalTrafficDesc };
+    case "leads": return { label: o.goalLeadsLabel, desc: o.goalLeadsDesc };
+    case "brand": return { label: o.goalBrandLabel, desc: o.goalBrandDesc };
+    case "seo": return { label: o.goalSeoLabel, desc: o.goalSeoDesc };
+    case "social": return { label: o.goalSocialLabel, desc: o.goalSocialDesc };
+    case "custom": return { label: o.goalCustomLabel, desc: o.goalCustomDesc };
+  }
+}
+
+function contentTypeLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], t: ContentType) {
+  switch (t) {
+    case "blog_post": return o.contentBlogPost;
+    case "linkedin": return o.contentLinkedin;
+    case "epost": return o.contentEmail;
+  }
+}
+
+function businessTypeLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], code: string) {
+  switch (code) {
+    case "": return o.bizSelect;
+    case "ecommerce": return o.bizEcommerce;
+    case "local": return o.bizLocal;
+    case "services": return o.bizServices;
+    case "software": return o.bizSoftware;
+    case "media": return o.bizMedia;
+    case "other": return o.bizOther;
+    default: return code;
+  }
+}
+
+function toneLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], code: string) {
+  switch (code) {
+    case "professional": return o.toneProfessional;
+    case "friendly": return o.toneFriendly;
+    case "authoritative": return o.toneAuthoritative;
+    case "playful": return o.tonePlayful;
+    case "neutral": return o.toneNeutral;
+    default: return code;
+  }
+}
+
+function contentLanguageLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], code: string) {
+  switch (code) {
+    case "en": return o.langEn;
+    case "sv": return o.langSv;
+    case "de": return o.langDe;
+    case "fr": return o.langFr;
+    case "es": return o.langEs;
+    case "no": return o.langNo;
+    case "da": return o.langDa;
+    case "fi": return o.langFi;
+    case "nl": return o.langNl;
+    default: return code;
+  }
+}
+
+function stepLabel(o: typeof import("@/lib/locales/translations").translations.sv["onboardingFlow"], idx: number) {
+  return [o.stepBrand, o.stepProfile, o.stepCompetitors, o.stepGeo, o.stepStrategy, o.stepTeam, o.stepDone][idx] ?? "";
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { activeSite, reloadSites } = useSite();
+  const { t } = useLanguage();
+  const o = t.onboardingFlow;
 
   // Lazy initialiser so a draft is restored synchronously on first paint —
   // no flash of empty fields before a useEffect has a chance to hydrate.
@@ -328,22 +354,20 @@ export default function OnboardingPage() {
 
   const validationHint = () => {
     if (step === 0) {
-      if (!data.brand_name.trim()) return "Varumärkesnamn krävs";
+      if (!data.brand_name.trim()) return o.valBrandRequired;
       if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(data.domain.trim()))
-        return "Ange en giltig domän (t.ex. exempel.se)";
+        return o.valDomainInvalid;
       return null;
     }
-    if (step === 2 && data.competitors.length < 1) return "Lägg till minst en konkurrent";
-    if (step === 4 && data.content_types.length < 1) return "Välj minst en innehållstyp";
+    if (step === 2 && data.competitors.length < 1) return o.valCompetitorMin;
+    if (step === 4 && data.content_types.length < 1) return o.valContentTypeMin;
     return null;
   };
 
   const handleSkip = () => {
     const dirty = JSON.stringify(data) !== JSON.stringify(INITIAL);
     if (dirty) {
-      const ok = window.confirm(
-        "Hoppa över onboarding? Det du har fyllt i sparas så att du kan fortsätta senare."
-      );
+      const ok = window.confirm(o.skipConfirm);
       if (!ok) return;
     }
     // Keep the draft around so revisiting /c/onboarding picks up where the
@@ -418,7 +442,7 @@ export default function OnboardingPage() {
       clearSkipped();
       router.push("/c/dashboard");
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Kunde inte spara dina uppgifter");
+      setSaveError(err instanceof Error ? err.message : o.saveError);
     } finally {
       setSaving(false);
       setActivatingAgents(false);
@@ -442,17 +466,17 @@ export default function OnboardingPage() {
             onClick={handleSkip}
             className="absolute right-0 top-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
-            Hoppa över
+            {o.skip}
             <X className="h-4 w-4" />
           </button>
-          <h1 className="text-3xl font-bold text-slate-900">Konfigurera SAMA</h1>
-          <p className="mt-2 text-slate-600">Sätt upp dina marknads-AI-agenter på några minuter</p>
+          <h1 className="text-3xl font-bold text-slate-900">{o.title}</h1>
+          <p className="mt-2 text-slate-600">{o.subtitle}</p>
         </div>
 
         {/* Progress */}
         <div className="flex items-center justify-center gap-1.5 mb-10 flex-wrap">
-          {STEPS.map((s, i) => (
-            <div key={s.label} className="flex items-center gap-1.5">
+          {STEP_ICONS.map((Icon, i) => (
+            <div key={i} className="flex items-center gap-1.5">
               <button
                 onClick={() => i < step && setStep(i)}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -461,10 +485,10 @@ export default function OnboardingPage() {
                   : "bg-slate-200 text-slate-500"
                 }`}
               >
-                {i < step ? <CheckCircle className="h-3.5 w-3.5" /> : <s.icon className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{s.label}</span>
+                {i < step ? <CheckCircle className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{stepLabel(o, i)}</span>
               </button>
-              {i < STEPS.length - 1 && (
+              {i < STEP_ICONS.length - 1 && (
                 <div className={`h-px w-4 ${i < step ? "bg-emerald-500" : "bg-slate-200"}`} />
               )}
             </div>
@@ -476,51 +500,51 @@ export default function OnboardingPage() {
 
           {step === 0 && (
             <div className="space-y-5">
-              <StepHeader title="Varumärke" desc="Ange domänen först — SAMA hämtar varumärkesinfo automatiskt." />
+              <StepHeader title={o.brandTitle} desc={o.brandDesc} />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Domän *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{o.domainLabel}</label>
                 <input
                   type="text"
                   value={data.domain}
                   onChange={(e) => update("domain", e.target.value)}
                   onBlur={() => void handleDomainBlur()}
-                  placeholder="acme.se"
+                  placeholder={o.domainPlaceholder}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Varumärkesnamn *
+                  {o.brandNameLabel}
                   {prefilling && <Loader2 className="inline ml-2 h-3 w-3 animate-spin text-slate-400" />}
                 </label>
                 <input
                   type="text"
                   value={data.brand_name}
                   onChange={(e) => update("brand_name", e.target.value)}
-                  placeholder="Acme AB"
+                  placeholder={o.brandNamePlaceholder}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Typ av verksamhet</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{o.businessTypeLabel}</label>
                 <select
                   value={data.business_type}
                   onChange={(e) => update("business_type", e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 >
-                  {BUSINESS_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                  {BUSINESS_TYPE_CODES.map((c) => <option key={c} value={c}>{businessTypeLabel(o, c)}</option>)}
                 </select>
               </div>
-              <FieldTextarea label="Beskrivning" value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder="Vad gör ert företag?" />
-              <FieldTextarea label="Målgrupp" value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder="Lokala småföretag, e-handelsbolag…" />
+              <FieldTextarea label={o.descriptionLabel} value={data.brand_description} onChange={(v) => update("brand_description", v)} placeholder={o.descriptionPlaceholder} />
+              <FieldTextarea label={o.audienceLabel} value={data.target_audience} onChange={(v) => update("target_audience", v)} placeholder={o.audiencePlaceholder} />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Språk för content</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{o.contentLanguageLabel}</label>
                 <select
                   value={data.content_language}
                   onChange={(e) => update("content_language", e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 >
-                  {CONTENT_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+                  {CONTENT_LANGUAGE_CODES.map((c) => <option key={c} value={c}>{contentLanguageLabel(o, c)}</option>)}
                 </select>
               </div>
             </div>
@@ -528,27 +552,27 @@ export default function OnboardingPage() {
 
           {step === 1 && (
             <div className="space-y-5">
-              <StepHeader title="Er profil" desc="Vad gör er unika och hur vill ni kommunicera?" />
+              <StepHeader title={o.profileTitle} desc={o.profileDesc} />
               <FieldTextarea
-                label="Det som gör er unika (USP)"
+                label={o.uspLabel}
                 value={data.unique_selling_points}
                 onChange={(v) => update("unique_selling_points", v)}
-                placeholder="Personlig service, snabbast i branschen, 30 års erfarenhet…"
+                placeholder={o.uspPlaceholder}
               />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Ton i kommunikationen</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">{o.toneLabel}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {TONE_OPTIONS.map((t) => (
+                  {TONE_CODES.map((code) => (
                     <button
-                      key={t.code}
-                      onClick={() => update("tone_of_voice", t.code)}
+                      key={code}
+                      onClick={() => update("tone_of_voice", code)}
                       className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors ${
-                        data.tone_of_voice === t.code
+                        data.tone_of_voice === code
                           ? "border-blue-500 bg-blue-50 text-blue-700"
                           : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                       }`}
                     >
-                      {t.label}
+                      {toneLabel(o, code)}
                     </button>
                   ))}
                 </div>
@@ -558,14 +582,14 @@ export default function OnboardingPage() {
 
           {step === 2 && (
             <div className="space-y-5">
-              <StepHeader title="Konkurrenter" desc="Lägg till 3–5 konkurrenter via domän. SAMA jämför er mot dem." />
+              <StepHeader title={o.competitorsTitle} desc={o.competitorsDesc} />
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newCompetitor}
                   onChange={(e) => setNewCompetitor(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCompetitor())}
-                  placeholder="konkurrent.se"
+                  placeholder={o.competitorPlaceholder}
                   className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button onClick={addCompetitor} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
@@ -574,7 +598,7 @@ export default function OnboardingPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.competitors.length === 0
-                  ? <p className="text-sm text-slate-500">Inga konkurrenter tillagda än</p>
+                  ? <p className="text-sm text-slate-500">{o.competitorsEmpty}</p>
                   : data.competitors.map((c) => (
                     <span key={c} className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700 border border-blue-200">
                       {c}
@@ -587,14 +611,14 @@ export default function OnboardingPage() {
 
           {step === 3 && (
             <div className="space-y-5">
-              <StepHeader title="AI-bevakningsfrågor" desc="Frågor ni vill bevaka i ChatGPT, Claude, Perplexity m.fl. Föreslagna frågor är auto-hämtade från er domän." />
+              <StepHeader title={o.geoTitle} desc={o.geoDesc} />
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newGeoQuery}
                   onChange={(e) => setNewGeoQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addGeoQuery())}
-                  placeholder='"bästa frisören i Stockholm"'
+                  placeholder={o.geoPlaceholder}
                   className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button onClick={addGeoQuery} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
@@ -603,7 +627,7 @@ export default function OnboardingPage() {
               </div>
               <div className="space-y-2">
                 {data.geo_queries.length === 0
-                  ? <p className="text-sm text-slate-500">Inga frågor tillagda. Du kan lägga till dem senare.</p>
+                  ? <p className="text-sm text-slate-500">{o.geoEmpty}</p>
                   : data.geo_queries.map((q) => (
                     <div key={q} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
                       <span className="text-sm text-slate-700">&ldquo;{q}&rdquo;</span>
@@ -616,31 +640,35 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <div className="space-y-6">
-              <StepHeader title="Strategimål" desc="Vad är ert primära mål och vilket innehåll ska SAMA hjälpa er skapa?" />
+              <StepHeader title={o.strategyTitle} desc={o.strategyDesc} />
               <div>
-                <p className="text-sm font-medium text-slate-700 mb-3">Primärt mål</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">{o.primaryGoalLabel}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {PRIMARY_GOALS.map(({ value, label, desc }) => (
-                    <button
-                      key={value}
-                      onClick={() => update("primary_goal", value)}
-                      className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                        data.primary_goal === value
-                          ? "border-emerald-500 bg-emerald-50"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <div className={`text-sm font-medium ${data.primary_goal === value ? "text-emerald-700" : "text-slate-900"}`}>{label}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
-                    </button>
-                  ))}
+                  {PRIMARY_GOAL_VALUES.map((value) => {
+                    const { label, desc } = primaryGoalLabel(o, value);
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => update("primary_goal", value)}
+                        className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                          data.primary_goal === value
+                            ? "border-emerald-500 bg-emerald-50"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${data.primary_goal === value ? "text-emerald-700" : "text-slate-900"}`}>{label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-700 mb-3">Vilket innehåll ska skapas?</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">{o.contentTypeLabel}</p>
                 <div className="space-y-2">
-                  {CONTENT_TYPES.map(({ type, label, icon: Icon }) => {
+                  {CONTENT_TYPE_ITEMS.map(({ type, icon: Icon }) => {
                     const selected = data.content_types.includes(type);
+                    const label = contentTypeLabel(o, type);
                     return (
                       <div key={type} className={`rounded-lg border transition-colors ${selected ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white"}`}>
                         <button onClick={() => toggleContentType(type)} className="flex w-full items-center gap-3 px-4 py-3">
@@ -653,13 +681,13 @@ export default function OnboardingPage() {
                         {selected && (
                           <div className="border-t border-blue-200 px-4 pb-3 pt-2">
                             {type === "blog_post" && (
-                              <FreqRow label="Blogginlägg per vecka" value={data.posts_per_week_blog} min={1} max={7} onChange={(v) => update("posts_per_week_blog", v)} />
+                              <FreqRow label={o.blogPerWeek} value={data.posts_per_week_blog} min={1} max={7} onChange={(v) => update("posts_per_week_blog", v)} />
                             )}
                             {type === "linkedin" && (
-                              <FreqRow label="LinkedIn-inlägg per vecka" value={data.posts_per_week_linkedin} min={1} max={7} onChange={(v) => update("posts_per_week_linkedin", v)} />
+                              <FreqRow label={o.linkedinPerWeek} value={data.posts_per_week_linkedin} min={1} max={7} onChange={(v) => update("posts_per_week_linkedin", v)} />
                             )}
                             {type === "epost" && (
-                              <FreqRow label="Nyhetsbrev per månad" value={data.newsletters_per_month} min={1} max={8} onChange={(v) => update("newsletters_per_month", v)} />
+                              <FreqRow label={o.newslettersPerMonth} value={data.newsletters_per_month} min={1} max={8} onChange={(v) => update("newsletters_per_month", v)} />
                             )}
                           </div>
                         )}
@@ -668,7 +696,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
                 {data.content_types.length === 0 && (
-                  <p className="mt-2 text-xs text-red-600">Välj minst en innehållstyp.</p>
+                  <p className="mt-2 text-xs text-red-600">{o.needContentType}</p>
                 )}
               </div>
             </div>
@@ -676,14 +704,14 @@ export default function OnboardingPage() {
 
           {step === 5 && (
             <div className="space-y-5">
-              <StepHeader title="Teammedlemmar" desc="Valfritt — lägg till namn på de som ska skapa innehåll. SAMA kan tilldela dem uppgifter i strategiplanen." />
+              <StepHeader title={o.teamTitle} desc={o.teamDesc} />
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newMember}
                   onChange={(e) => setNewMember(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMember())}
-                  placeholder="Anna Svensson"
+                  placeholder={o.teamPlaceholder}
                   className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button onClick={addMember} className="rounded-lg bg-slate-100 text-slate-700 px-3 py-2 hover:bg-slate-200 border border-slate-200">
@@ -692,7 +720,7 @@ export default function OnboardingPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.team_members.length === 0
-                  ? <p className="text-sm text-slate-500">Inga teammedlemmar tillagda — du kan hoppa över detta.</p>
+                  ? <p className="text-sm text-slate-500">{o.teamEmpty}</p>
                   : data.team_members.map((m) => (
                     <span key={m} className="flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-sm text-violet-700 border border-violet-200">
                       {m}
@@ -709,21 +737,21 @@ export default function OnboardingPage() {
                 <Rocket className="h-8 w-8 text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2 text-slate-900">Klart att starta!</h2>
+                <h2 className="text-xl font-semibold mb-2 text-slate-900">{o.doneTitle}</h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
-                  SAMA börjar nu bevaka ert varumärke i Google, AI-assistenter och sociala medier.
+                  {o.doneDesc}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-left max-w-sm mx-auto space-y-3">
-                <SummaryRow label="Varumärke" value={data.brand_name} />
-                <SummaryRow label="Domän" value={data.domain} />
-                <SummaryRow label="Typ" value={BUSINESS_TYPES.find((t) => t.code === data.business_type)?.label ?? "—"} />
-                <SummaryRow label="Ton" value={TONE_OPTIONS.find((t) => t.code === data.tone_of_voice)?.label ?? "—"} />
-                <SummaryRow label="Konkurrenter" value={data.competitors.length > 0 ? data.competitors.join(", ") : "Inga"} />
-                <SummaryRow label="AI-frågor" value={data.geo_queries.length > 0 ? `${data.geo_queries.length} st` : "Inga"} />
-                <SummaryRow label="Mål" value={PRIMARY_GOALS.find((g) => g.value === data.primary_goal)?.label ?? "—"} />
-                <SummaryRow label="Content" value={data.content_types.map((t) => CONTENT_TYPES.find((c) => c.type === t)?.label ?? t).join(", ") || "—"} />
-                {data.team_members.length > 0 && <SummaryRow label="Team" value={data.team_members.join(", ")} />}
+                <SummaryRow label={o.summaryBrand} value={data.brand_name} />
+                <SummaryRow label={o.summaryDomain} value={data.domain} />
+                <SummaryRow label={o.summaryType} value={data.business_type ? businessTypeLabel(o, data.business_type) : "—"} />
+                <SummaryRow label={o.summaryTone} value={toneLabel(o, data.tone_of_voice)} />
+                <SummaryRow label={o.summaryCompetitors} value={data.competitors.length > 0 ? data.competitors.join(", ") : o.summaryNone} />
+                <SummaryRow label={o.summaryGeo} value={data.geo_queries.length > 0 ? `${data.geo_queries.length} ${o.summaryCount}` : o.summaryNone} />
+                <SummaryRow label={o.summaryGoal} value={primaryGoalLabel(o, data.primary_goal).label} />
+                <SummaryRow label={o.summaryContent} value={data.content_types.map((t) => contentTypeLabel(o, t)).join(", ") || "—"} />
+                {data.team_members.length > 0 && <SummaryRow label={o.summaryTeam} value={data.team_members.join(", ")} />}
               </div>
             </div>
           )}
@@ -741,16 +769,16 @@ export default function OnboardingPage() {
             disabled={step === 0}
             className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronLeft className="h-4 w-4" /> Tillbaka
+            <ChevronLeft className="h-4 w-4" /> {o.back}
           </button>
 
-          {step < STEPS.length - 1 ? (
+          {step < STEP_ICONS.length - 1 ? (
             <button
               onClick={() => setStep((s) => s + 1)}
               disabled={!canAdvance()}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
-              Nästa <ChevronRight className="h-4 w-4" />
+              {o.next} <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
             <button
@@ -759,7 +787,7 @@ export default function OnboardingPage() {
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors shadow-sm"
             >
               {(saving || activatingAgents) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              {activatingAgents ? "Konfigurerar agenterna…" : saving ? "Sparar…" : "Starta SAMA"}
+              {activatingAgents ? o.configuring : saving ? o.saving : o.start}
             </button>
           )}
         </div>
@@ -771,10 +799,10 @@ export default function OnboardingPage() {
             onClick={handleSkip}
             className="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-4 transition-colors"
           >
-            Hoppa över onboarding
+            {o.skipFooter}
           </button>
           <p className="mt-1 text-xs text-slate-400">
-            Det du har fyllt i sparas så att du kan fortsätta senare.
+            {o.skipFooterHint}
           </p>
         </div>
       </div>

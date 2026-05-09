@@ -52,7 +52,7 @@ function formatDate(date: Date): string {
 
 function formatMonthLabel(isoMonth: string): string {
   const d = new Date(isoMonth + "-01");
-  return d.toLocaleDateString("sv-SE", { month: "long", year: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] {
@@ -81,7 +81,7 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
     for (let i = 0; i < total; i++) {
       const weekIndex = Math.floor(i / goals.posts_per_week_blog);
       const dayOffset = weekIndex * 7 + (i % goals.posts_per_week_blog) * Math.floor(7 / goals.posts_per_week_blog);
-      const topic = topics[i % topics.length] || `Blogginlägg ${i + 1}`;
+      const topic = topics[i % topics.length] || `Blog post ${i + 1}`;
       items.push({
         id: uid(),
         title: topic.length > 80 ? topic.slice(0, 77) + "…" : topic,
@@ -101,7 +101,7 @@ function buildPlan(goals: StrategyGoals, strategy: Strategy): ContentPlanItem[] 
     for (let i = 0; i < total; i++) {
       const weekIndex = Math.floor(i / goals.posts_per_week_linkedin);
       const dayOffset = weekIndex * 7 + (i % goals.posts_per_week_linkedin) * Math.floor(7 / goals.posts_per_week_linkedin) + 1;
-      const topic = topics[(topicOffset + i) % (topics.length || 1)] || `LinkedIn-inlägg ${i + 1}`;
+      const topic = topics[(topicOffset + i) % (topics.length || 1)] || `LinkedIn post ${i + 1}`;
       items.push({
         id: uid(),
         title: topic.length > 80 ? topic.slice(0, 77) + "…" : topic,

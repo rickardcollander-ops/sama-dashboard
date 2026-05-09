@@ -196,10 +196,10 @@ export default function CustomerAnalyticsPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <TrendingUp className="h-7 w-7 text-emerald-500" />
-              Trafik
+              Traffic
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Trafik och konvertering över alla kanaler
+              Traffic and conversions across all channels
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -211,7 +211,7 @@ export default function CustomerAnalyticsPage() {
                 onChange={(e) => setCompare(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
-              Jämför med föregående
+              Compare with previous
             </label>
             <button
               onClick={handleExportCsv}
@@ -219,7 +219,7 @@ export default function CustomerAnalyticsPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Exportera
+              Export
             </button>
             <button
               onClick={handleRefresh}
@@ -231,7 +231,7 @@ export default function CustomerAnalyticsPage() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {refreshing ? "Hämtar…" : "Uppdatera"}
+              {refreshing ? "Fetching…" : "Refresh"}
             </button>
           </div>
         </div>
@@ -239,25 +239,25 @@ export default function CustomerAnalyticsPage() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-4 mb-8">
           <MetricCard
-            label="Klick"
+            label="Clicks"
             value={(totals.clicks ?? 0).toLocaleString()}
             icon={<MousePointerClick className="h-5 w-5 text-blue-500" />}
             delta={delta(totals.clicks, prev?.clicks)}
           />
           <MetricCard
-            label="Visningar"
+            label="Impressions"
             value={(totals.impressions ?? 0).toLocaleString()}
             icon={<Eye className="h-5 w-5 text-violet-500" />}
             delta={delta(totals.impressions, prev?.impressions)}
           />
           <MetricCard
-            label="Konverteringar"
+            label="Conversions"
             value={(totals.conversions ?? 0).toLocaleString()}
             icon={<Users className="h-5 w-5 text-emerald-500" />}
             delta={delta(totals.conversions, prev?.conversions)}
           />
           <MetricCard
-            label="Spendering"
+            label="Spend"
             value={`$${(totals.spend ?? 0).toLocaleString()}`}
             icon={<DollarSign className="h-5 w-5 text-amber-500" />}
             delta={delta(totals.spend, prev?.spend)}
@@ -287,7 +287,7 @@ export default function CustomerAnalyticsPage() {
             {/* Daily Trend */}
             {data.daily && data.daily.length > 0 && (
               <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900 mb-4">Dag för dag</h2>
+                <h2 className="font-semibold text-slate-900 mb-4">Day by day</h2>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <LineChart data={data.daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -321,9 +321,9 @@ export default function CustomerAnalyticsPage() {
             {/* SEO daily (GSC) — clicks + impressions per day */}
             {data.seo_daily && data.seo_daily.length > 0 && (
               <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900 mb-1">SEO – dag för dag</h2>
+                <h2 className="font-semibold text-slate-900 mb-1">SEO – day by day</h2>
                 <p className="text-xs text-slate-500 mb-4">
-                  Klick och visningar per dag från Google Search Console.
+                  Clicks and impressions per day from Google Search Console.
                 </p>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -347,8 +347,8 @@ export default function CustomerAnalyticsPage() {
                           fontSize: "12px",
                         }}
                       />
-                      <Line type="monotone" dataKey="clicks" name="Klick" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="impressions" name="Visningar" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="clicks" name="Clicks" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="impressions" name="Impressions" stroke="#8b5cf6" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -358,7 +358,7 @@ export default function CustomerAnalyticsPage() {
             {/* Channel Breakdown */}
             {data.channels && data.channels.length > 0 ? (
               <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="font-semibold text-slate-900 mb-4">Per kanal</h2>
+                <h2 className="font-semibold text-slate-900 mb-4">Per channel</h2>
                 <div className="h-64 mb-6">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={data.channels} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -385,11 +385,11 @@ export default function CustomerAnalyticsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50 text-left">
-                        <th className="px-4 py-3 font-medium text-slate-500">Kanal</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Klick</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Visningar</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Konverteringar</th>
-                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Spendering</th>
+                        <th className="px-4 py-3 font-medium text-slate-500">Channel</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Clicks</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Impressions</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Conversions</th>
+                        <th className="px-4 py-3 font-medium text-slate-500 text-right">Spend</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -409,9 +409,9 @@ export default function CustomerAnalyticsPage() {
             ) : (
               <div className="rounded-xl border bg-white p-16 shadow-sm text-center">
                 <BarChart2 className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Ingen trafikdata än.</p>
+                <p className="text-sm text-slate-500">No traffic data yet.</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Data dyker upp här när SAMAs agenter har samlat in mätvärden.
+                  Data appears here once SAMA's agents have collected metrics.
                 </p>
               </div>
             )}

@@ -129,9 +129,9 @@ export default function TechAgentPage() {
         "/api/tech/suggest", {}
       );
       setSuggestions(res.suggestions || []);
-      if ((res.suggestions || []).length === 0) setError("Inga förslag returnerades. Försök igen.");
+      if ((res.suggestions || []).length === 0) setError("No suggestions returned. Please try again.");
     } catch (err: any) {
-      setError(err?.message || "Kunde inte hämta förslag.");
+      setError(err?.message || "Could not fetch suggestions.");
     }
     setLoadingSuggest(false);
   };
@@ -151,7 +151,7 @@ export default function TechAgentPage() {
       setSuggestions((prev) => prev.filter((s) => s !== pending));
       setPending(null);
     } catch (err: any) {
-      setExecuteError(err?.message || "Kunde inte skapa PR.");
+      setExecuteError(err?.message || "Could not create PR.");
     }
     setExecuting(false);
   };
@@ -174,7 +174,7 @@ export default function TechAgentPage() {
         prev.find((i) => i.title === res.title) ? prev : [...prev, res]
       );
     } catch (err: any) {
-      setPreviewError(err?.message || "Kunde inte generera förhandsgranskning.");
+      setPreviewError(err?.message || "Could not generate preview.");
     }
     setLoadingPreview(false);
   };
@@ -208,7 +208,7 @@ export default function TechAgentPage() {
   };
 
   const severityLabel = (s: AuditFinding["severity"]) =>
-    s === "critical" ? "Kritisk" : s === "warning" ? "Varning" : "Info";
+    s === "critical" ? "Critical" : s === "warning" ? "Warning" : "Info";
 
   const criticalFindings = auditFindings.filter((f) => f.severity === "critical");
   const otherFindings = auditFindings.filter((f) => f.severity !== "critical");
@@ -241,10 +241,10 @@ export default function TechAgentPage() {
       {/* PDF export document (hidden on screen, visible on print) */}
       <div id="pdf-export">
         <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
-          Tekniska åtgärder – SAMA
+          Technical actions – SAMA
         </h1>
         <p style={{ color: "#64748b", marginBottom: "2rem", fontSize: "0.875rem" }}>
-          Genererat {new Date().toLocaleDateString("sv-SE")}
+          Generated {new Date().toLocaleDateString()}
         </p>
         {exportItems.map((item, i) => (
           <div key={i} style={{ marginBottom: "2rem", pageBreakInside: "avoid" }}>
@@ -273,7 +273,7 @@ export default function TechAgentPage() {
         ))}
         {exportItems.length === 0 && (
           <p style={{ color: "#94a3b8" }}>
-            Inga förhandsgranskade ändringar. Klicka "Visa kod" på ett förslag och exportera sedan.
+            No previewed changes yet. Click "Show code" on a suggestion and then export.
           </p>
         )}
       </div>
@@ -290,7 +290,7 @@ export default function TechAgentPage() {
                 Tech
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Tekniska fynd och förbättringsförslag för din webbplats.
+                Technical findings and improvement suggestions for your website.
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -300,7 +300,7 @@ export default function TechAgentPage() {
                   className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
                 >
                   <FileDown className="h-4 w-4" />
-                  Exportera PDF ({exportItems.length})
+                  Export PDF ({exportItems.length})
                 </button>
               )}
               <button
@@ -309,7 +309,7 @@ export default function TechAgentPage() {
                 className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50 shadow-sm transition-colors"
               >
                 {loadingSuggest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {loadingSuggest ? "Hämtar..." : suggestions.length > 0 ? "Hämta nya förslag" : "Föreslå förbättringar"}
+                {loadingSuggest ? "Fetching..." : suggestions.length > 0 ? "Fetch new suggestions" : "Suggest improvements"}
               </button>
             </div>
           </div>
@@ -320,17 +320,17 @@ export default function TechAgentPage() {
               <div className="flex items-start gap-4">
                 <Github className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-900">GitHub är inte anslutet – manuellt läge aktivt</p>
+                  <p className="text-sm font-medium text-amber-900">GitHub is not connected — manual mode active</p>
                   <p className="text-xs text-amber-800 mt-1">
-                    Du kan fortfarande förhandsgranska alla kodändringar och exportera dem som PDF att ge till din utvecklare.
-                    Anslut GitHub i Settings för att automatiskt öppna Pull Requests.
+                    You can still preview every code change and export it as a PDF to share with your developer.
+                    Connect GitHub in Settings to open Pull Requests automatically.
                   </p>
                   <Link
                     href="/c/settings"
                     className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-100 border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-200 transition-colors"
                   >
                     <Settings className="h-3.5 w-3.5" />
-                    Anslut GitHub
+                    Connect GitHub
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
@@ -340,7 +340,7 @@ export default function TechAgentPage() {
             <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-3">
               <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
               <div className="text-sm text-emerald-800">
-                Ansluten till <span className="font-mono font-semibold">{ghStatus.repo}</span>
+                Connected to <span className="font-mono font-semibold">{ghStatus.repo}</span>
                 {ghStatus.branch && <> · branch <span className="font-mono">{ghStatus.branch}</span></>}
               </div>
             </div>
@@ -358,17 +358,17 @@ export default function TechAgentPage() {
           {loadingAudit ? (
             <div className="mb-8 flex items-center gap-2 text-sm text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Hämtar fynd från senaste analys...
+              Fetching findings from the latest analysis...
             </div>
           ) : auditFindings.length > 0 ? (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                   <Wrench className="h-4 w-4 text-slate-500" />
-                  Fynd från senaste analys
+                  Findings from the latest analysis
                 </h2>
                 <Link href="/c/analysis" className="text-xs text-blue-600 hover:underline">
-                  Visa i Insikter →
+                  View in Insights →
                 </Link>
               </div>
               <div className="space-y-2">
@@ -398,7 +398,7 @@ export default function TechAgentPage() {
                           : "border border-slate-200 hover:bg-slate-50 text-slate-600"
                       }`}
                     >
-                      {ghStatus?.connected ? "Åtgärda med PR" : <><Eye className="h-3.5 w-3.5" />Visa kod</>}
+                      {ghStatus?.connected ? "Fix with PR" : <><Eye className="h-3.5 w-3.5" />Show code</>}
                     </button>
                   </div>
                 ))}
@@ -407,9 +407,9 @@ export default function TechAgentPage() {
           ) : (
             <div className="mb-8 rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center">
               <Wrench className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-              <p className="text-sm text-slate-500">Inga fynd från analyser ännu.</p>
+              <p className="text-sm text-slate-500">No findings from analyses yet.</p>
               <Link href="/c/analysis" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-                Kör en analys i Insikter →
+                Run an analysis in Insights →
               </Link>
             </div>
           )}
@@ -417,17 +417,17 @@ export default function TechAgentPage() {
           {/* Recent PRs */}
           {results.length > 0 && (
             <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-900 mb-4">Senast skapade Pull Requests</h2>
+              <h2 className="font-semibold text-slate-900 mb-4">Recently created Pull Requests</h2>
               <ul className="space-y-2">
                 {results.map((r) => (
                   <li key={r.pr_url} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-800 truncate">{r.branch}</p>
-                      <p className="text-xs text-slate-500">{r.files_changed.length} fil(er)</p>
+                      <p className="text-xs text-slate-500">{r.files_changed.length} file(s)</p>
                     </div>
                     <a href={r.pr_url} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
-                      Öppna PR <ExternalLink className="h-3 w-3" />
+                      Open PR <ExternalLink className="h-3 w-3" />
                     </a>
                   </li>
                 ))}
@@ -440,7 +440,7 @@ export default function TechAgentPage() {
             <div>
               <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-slate-500" />
-                AI-förslag
+                AI suggestions
               </h2>
               <div className="space-y-3">
                 {suggestions.map((s, idx) => (
@@ -449,7 +449,7 @@ export default function TechAgentPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-semibold uppercase text-slate-700">
-                            {s.change_type === "create" ? "Skapa fil" : "Redigera"}
+                            {s.change_type === "create" ? "Create file" : "Edit"}
                           </span>
                           {s.file_hint && (
                             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{s.file_hint}</code>
@@ -464,14 +464,14 @@ export default function TechAgentPage() {
                           className="flex items-center gap-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                          Visa kod
+                          Show code
                         </button>
                         {ghStatus?.connected && (
                           <button
                             onClick={() => setPending(s)}
                             className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors"
                           >
-                            Skapa PR
+                            Create PR
                           </button>
                         )}
                       </div>
@@ -493,7 +493,7 @@ export default function TechAgentPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                   <Code2 className="h-5 w-5 text-slate-700" />
-                  Skapa Pull Request
+                  Create Pull Request
                 </h3>
                 <button onClick={() => !executing && setPending(null)} className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
                   <X className="h-5 w-5" />
@@ -505,7 +505,7 @@ export default function TechAgentPage() {
                 {pending.file_hint && <p className="text-xs text-slate-500 mt-2 font-mono">{pending.file_hint}</p>}
               </div>
               <p className="text-sm text-slate-600 mb-4">
-                Öppnar en Pull Request mot <span className="font-mono">{ghStatus?.branch || "main"}</span>. Inget mergas automatiskt.
+                Opens a Pull Request against <span className="font-mono">{ghStatus?.branch || "main"}</span>. Nothing is merged automatically.
               </p>
               {executeError && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 flex items-center gap-2">
@@ -514,11 +514,11 @@ export default function TechAgentPage() {
               )}
               <div className="flex items-center justify-end gap-2">
                 <button onClick={() => setPending(null)} disabled={executing} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-                  Avbryt
+                  Cancel
                 </button>
                 <button onClick={executeSuggestion} disabled={executing} className="flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
                   {executing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                  {executing ? "Skapar PR..." : "Skapa PR"}
+                  {executing ? "Creating PR..." : "Create PR"}
                 </button>
               </div>
             </div>
@@ -551,7 +551,7 @@ export default function TechAgentPage() {
                 {loadingPreview && (
                   <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
                     <Loader2 className="h-6 w-6 animate-spin" />
-                    <span className="text-sm">Genererar kodförslag...</span>
+                    <span className="text-sm">Generating code suggestions...</span>
                   </div>
                 )}
                 {previewError && (
@@ -567,7 +567,7 @@ export default function TechAgentPage() {
                         onClick={() => copyToClipboard(f.content, f.path)}
                         className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                       >
-                        {copiedPath === f.path ? <><Check className="h-3.5 w-3.5 text-emerald-500" />Kopierat!</> : <><Copy className="h-3.5 w-3.5" />Kopiera</>}
+                        {copiedPath === f.path ? <><Check className="h-3.5 w-3.5 text-emerald-500" />Copied!</> : <><Copy className="h-3.5 w-3.5" />Copy</>}
                       </button>
                     </div>
                     <pre className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all leading-relaxed text-slate-800 max-h-96">
@@ -582,8 +582,8 @@ export default function TechAgentPage() {
                 <div className="border-t p-4 flex items-center justify-between gap-3 bg-slate-50 rounded-b-2xl">
                   <p className="text-xs text-slate-500">
                     {exportItems.find((i) => i.title === previewResult.title)
-                      ? "✓ Tillagd i PDF-export"
-                      : "Klicka 'Exportera PDF' för att inkludera i rapporten"}
+                      ? "✓ Added to PDF export"
+                      : "Click 'Export PDF' to include in the report"}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -591,14 +591,14 @@ export default function TechAgentPage() {
                       className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                     >
                       <FileDown className="h-3.5 w-3.5" />
-                      Exportera PDF
+                      Export PDF
                     </button>
                     {ghStatus?.connected && (
                       <button
                         onClick={() => { setPreviewing(null); setPending(previewing); }}
                         className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors"
                       >
-                        Skapa PR istället
+                        Create PR instead
                       </button>
                     )}
                   </div>

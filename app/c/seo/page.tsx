@@ -318,7 +318,7 @@ export default function CustomerSeoPage() {
             </button>
             {keywords.length === 0 && (
               <span className="absolute right-0 top-full mt-1 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white shadow-lg z-10">
-                Lägg till sökord först för att köra en kontroll
+                Add a keyword first to run a check
               </span>
             )}
           </div>

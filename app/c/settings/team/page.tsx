@@ -12,7 +12,7 @@ export default function TeamSettingsPage() {
     activeAccount?.brand_name ||
     activeAccount?.domain ||
     activeAccount?.owner_email ||
-    "kontot";
+    "the account";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -24,7 +24,7 @@ export default function TeamSettingsPage() {
             Team
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Hantera vilka som har tillgång till {accountLabel}.
+            Manage who has access to {accountLabel}.
           </p>
         </div>
 

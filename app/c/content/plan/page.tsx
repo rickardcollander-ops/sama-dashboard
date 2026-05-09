@@ -555,19 +555,19 @@ export default function ContentCalendarPage() {
               <button
                 onClick={() => setShowPlanModal(true)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:from-violet-700 hover:to-blue-700"
-                title="Skapa hela 90-dagarsplanen från senaste analys"
+                title="Create the entire 90-day plan from the latest analysis"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                Skapa plan från analys
+                Create plan from analysis
               </button>
             ) : (
               <Link
                 href="/c/analysis"
                 className="inline-flex items-center gap-1.5 rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
-                title="Kör en analys först för att kunna skapa en plan"
+                title="Run an analysis first to create a plan"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                Kör analys först
+                Run analysis first
               </Link>
             )}
             <button onClick={goToday} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
@@ -653,7 +653,7 @@ export default function ContentCalendarPage() {
                           onDragStart={(e) => handleDragStart(it, e)}
                           onDragEnd={handleDragEnd}
                           onClick={(e) => handleItemClick(it, e)}
-                          title={`${it.title}\n(dra för att schemalägga om)`}
+                          title={`${it.title}\n(drag to reschedule)`}
                           className={`group/chip flex w-full cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] active:cursor-grabbing ${
                             STATUS_BADGE[it.status] || STATUS_BADGE.idea
                           } ${isDragging ? "opacity-40" : ""} ${isMoving ? "animate-pulse" : ""}`}
@@ -732,10 +732,10 @@ export default function ContentCalendarPage() {
                 <div>
                   <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                     <Lightbulb className="h-4 w-4 text-amber-500" />
-                    Oschemalagda idéer
+                    Unscheduled ideas
                   </h3>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    Dra in en idé på en dag i kalendern.
+                    Drag an idea onto a day in the calendar.
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
@@ -751,7 +751,7 @@ export default function ContentCalendarPage() {
                 )}
                 {!unscheduledLoading && unscheduled.length === 0 && (
                   <div className="rounded-md border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
-                    Inga oschemalagda idéer. Skapa en plan från en analys, eller schemalägg direkt genom att klicka på en dag.
+                    No unscheduled ideas. Create a plan from an analysis, or schedule directly by clicking on a day.
                   </div>
                 )}
                 {unscheduled.map((it) => {
@@ -764,7 +764,7 @@ export default function ContentCalendarPage() {
                       onDragStart={(e) => handleDragStart(it, e)}
                       onDragEnd={handleDragEnd}
                       onClick={() => setEditingItem(it)}
-                      title={`${it.title}\n(dra till en dag för att schemalägga)`}
+                      title={`${it.title}\n(drag onto a day to schedule)`}
                       className={`group/sidechip flex cursor-grab items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-xs hover:border-blue-300 hover:bg-blue-50/40 active:cursor-grabbing ${
                         isDragging ? "opacity-40" : ""
                       } ${isMoving ? "animate-pulse" : ""}`}

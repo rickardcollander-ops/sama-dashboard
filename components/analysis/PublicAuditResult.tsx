@@ -23,12 +23,12 @@ const TEST_TARGETS = [
   { id: "google", label: "Google AI", url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}&udm=50` },
 ];
 
-const CATEGORY_LABEL_SV: Record<string, string> = {
-  technical: "Tekniskt",
+const CATEGORY_LABEL: Record<string, string> = {
+  technical: "Technical",
   on_page: "On-page",
   geo: "GEO / AI",
-  links: "Länkar",
-  performance: "Prestanda",
+  links: "Links",
+  performance: "Performance",
 };
 
 const SEVERITY_RANK: Record<string, number> = {
@@ -56,10 +56,10 @@ export default function PublicAuditResult({
   const audit = result.audit;
   const overall = audit.scores.overall;
   const grade = useMemo(() => {
-    if (overall >= 80) return { label: "Stark", color: "text-green-600", ring: "#22c55e" };
-    if (overall >= 60) return { label: "OK – kan förbättras", color: "text-amber-600", ring: "#eab308" };
-    if (overall >= 40) return { label: "Svag", color: "text-orange-600", ring: "#f97316" };
-    return { label: "Kritisk – mycket att vinna", color: "text-red-600", ring: "#ef4444" };
+    if (overall >= 80) return { label: "Strong", color: "text-green-600", ring: "#22c55e" };
+    if (overall >= 60) return { label: "OK – room to improve", color: "text-amber-600", ring: "#eab308" };
+    if (overall >= 40) return { label: "Weak", color: "text-orange-600", ring: "#f97316" };
+    return { label: "Critical – lots to gain", color: "text-red-600", ring: "#ef4444" };
   }, [overall]);
 
   const findingsSorted = useMemo(
@@ -95,11 +95,11 @@ export default function PublicAuditResult({
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Audit för</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Audit for</p>
               <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{result.domain}</h2>
               <p className={`mt-1 text-sm font-semibold ${grade.color}`}>{grade.label}</p>
               <p className="mt-1 text-xs text-slate-400">
-                {audit.summary.pages_analyzed} sidor analyserade · {(audit.summary.audit_duration_ms / 1000).toFixed(1)}s
+                {audit.summary.pages_analyzed} pages analysed · {(audit.summary.audit_duration_ms / 1000).toFixed(1)}s
               </p>
             </div>
           </div>
@@ -115,11 +115,11 @@ export default function PublicAuditResult({
 
         {/* 5 score cards — same as admin tool */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <ScoreCard label="Tekniskt" score={audit.scores.technical_seo} icon={Shield} color="text-blue-600" bg="bg-blue-50" />
+          <ScoreCard label="Technical" score={audit.scores.technical_seo} icon={Shield} color="text-blue-600" bg="bg-blue-50" />
           <ScoreCard label="On-page" score={audit.scores.on_page_seo} icon={FileText} color="text-violet-600" bg="bg-violet-50" />
           <ScoreCard label="GEO / AI" score={audit.scores.geo_readiness} icon={Bot} color="text-fuchsia-600" bg="bg-fuchsia-50" />
-          <ScoreCard label="Länkhälsa" score={audit.scores.link_health} icon={LinkIcon} color="text-emerald-600" bg="bg-emerald-50" />
-          <ScoreCard label="Prestanda" score={audit.scores.performance} icon={Activity} color="text-orange-600" bg="bg-orange-50" />
+          <ScoreCard label="Link health" score={audit.scores.link_health} icon={LinkIcon} color="text-emerald-600" bg="bg-emerald-50" />
+          <ScoreCard label="Performance" score={audit.scores.performance} icon={Activity} color="text-orange-600" bg="bg-orange-50" />
         </div>
 
         {/* Share row */}
@@ -129,11 +129,11 @@ export default function PublicAuditResult({
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Findings + page list */}
         <div className="lg:col-span-3 space-y-4">
-          <h3 className="text-lg font-semibold text-slate-900">Vad vi hittade</h3>
+          <h3 className="text-lg font-semibold text-slate-900">What we found</h3>
 
           {critical.length > 0 && (
             <FindingsGroup
-              title="Kritiska problem"
+              title="Critical issues"
               icon={<AlertTriangle className="h-4 w-4 text-red-500" />}
               findings={critical}
               tone="red"
@@ -141,7 +141,7 @@ export default function PublicAuditResult({
           )}
           {warning.length > 0 && (
             <FindingsGroup
-              title="Förbättringsmöjligheter"
+              title="Room to improve"
               icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
               findings={warning}
               tone="amber"
@@ -149,7 +149,7 @@ export default function PublicAuditResult({
           )}
           {info.length > 0 && (
             <FindingsGroup
-              title="Bra att veta"
+              title="Good to know"
               icon={<AlertTriangle className="h-4 w-4 text-slate-400" />}
               findings={info}
               tone="slate"
@@ -157,7 +157,7 @@ export default function PublicAuditResult({
           )}
           {success.length > 0 && (
             <FindingsGroup
-              title="Det här gör du bra"
+              title="What you're doing well"
               icon={<CheckCircle className="h-4 w-4 text-green-500" />}
               findings={success}
               tone="green"
@@ -169,7 +169,7 @@ export default function PublicAuditResult({
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="mb-3 flex items-center gap-2">
                 <GaugeIcon className="h-4 w-4 text-violet-500" />
-                <h4 className="text-sm font-semibold text-slate-700">Prioriterade åtgärder</h4>
+                <h4 className="text-sm font-semibold text-slate-700">Priority actions</h4>
               </div>
               <ul className="space-y-2">
                 {audit.recommendations.slice(0, 5).map((r, i) => (
@@ -181,13 +181,13 @@ export default function PublicAuditResult({
                         "bg-slate-100 text-slate-600"
                       }`}>{r.priority}</span>
                       <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                        {CATEGORY_LABEL_SV[r.category] || r.category}
+                        {CATEGORY_LABEL[r.category] || r.category}
                       </span>
                     </div>
                     <p className="mt-1 text-sm font-medium text-slate-900">{r.title}</p>
                     <p className="mt-0.5 text-xs text-slate-600">{r.description}</p>
                     {r.affected_count > 0 && (
-                      <p className="mt-1 text-[11px] text-slate-400">Berör {r.affected_count} sidor</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Affects {r.affected_count} pages</p>
                     )}
                   </li>
                 ))}
@@ -238,7 +238,7 @@ export default function PublicAuditResult({
           {audit.broken_links.length > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h4 className="mb-3 text-sm font-semibold text-slate-700">
-                Trasiga länkar ({audit.broken_links.length})
+                Broken links ({audit.broken_links.length})
               </h4>
               <ul className="space-y-1.5 text-xs">
                 {audit.broken_links.slice(0, 8).map((l) => (
@@ -257,10 +257,10 @@ export default function PublicAuditResult({
           <div className="rounded-xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-blue-50 p-5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-violet-600" />
-              <h3 className="text-lg font-semibold text-slate-900">5 AI-fraser att testa</h3>
+              <h3 className="text-lg font-semibold text-slate-900">5 AI queries to test</h3>
             </div>
             <p className="mt-1 text-xs text-slate-600">
-              Klicka och se direkt om {result.domain} nämns när dina kunder frågar AI.
+              Click and see immediately whether {result.domain} is mentioned when your customers ask AI.
             </p>
           </div>
 
@@ -291,7 +291,7 @@ export default function PublicAuditResult({
                     className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
                     <Copy className="h-3 w-3" />
-                    {copied === `q-${idx}` ? "Kopierat" : "Kopiera"}
+                    {copied === `q-${idx}` ? "Copied" : "Copy"}
                   </button>
                 </div>
               </div>
@@ -301,17 +301,17 @@ export default function PublicAuditResult({
           <div className="rounded-xl border-2 border-dashed border-violet-300 bg-white p-5">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-violet-600" />
-              <h4 className="text-sm font-bold text-slate-900">Vill du veta exakt var du rankar?</h4>
+              <h4 className="text-sm font-bold text-slate-900">Want to know exactly where you rank?</h4>
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              Vi kör automatiserade tester mot ChatGPT, Perplexity, Claude och Google AI varje vecka
-              — och berättar exakt vad du behöver fixa för att synas.
+              We run automated tests against ChatGPT, Perplexity, Claude and Google AI every week
+              — and tell you exactly what to fix to be visible.
             </p>
             <Link
               href="/c/onboarding"
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
             >
-              Få full rapport gratis
+              Get the full report free
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -387,7 +387,7 @@ function FindingsGroup({
           <li key={i} className={`rounded-md border-l-4 ${border} bg-slate-50/50 p-3`}>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                {CATEGORY_LABEL_SV[f.category] || f.category}
+                {CATEGORY_LABEL[f.category] || f.category}
               </span>
               {f.affected_pages > 0 && (
                 <span className="text-[10px] text-slate-400">· {f.affected_pages} sidor</span>
@@ -412,7 +412,7 @@ function ShareRow({
   const url = typeof window !== "undefined"
     ? `${window.location.origin}/c/audit/r/${id}`
     : `/c/audit/r/${id}`;
-  const text = `${domain} fick ${score}/100 i AI-synlighet. Kör din egen gratis audit:`;
+  const text = `${domain} scored ${score}/100 in AI visibility. Run your own free audit:`;
   const li = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
   const tw = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 
@@ -420,8 +420,8 @@ function ShareRow({
     <div className="mt-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white/70 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2 text-sm text-slate-600">
         <Share2 className="h-4 w-4 text-violet-600" />
-        <span className="font-medium text-slate-700">Dela ditt resultat</span>
-        <span className="hidden text-xs text-slate-400 sm:inline">— eller skicka till kollegan som äger sajten</span>
+        <span className="font-medium text-slate-700">Share your result</span>
+        <span className="hidden text-xs text-slate-400 sm:inline">— or send it to the colleague who owns the site</span>
       </div>
       <div className="flex flex-wrap gap-2">
         <button
@@ -429,7 +429,7 @@ function ShareRow({
           className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           <Link2 className="h-3.5 w-3.5" />
-          {copied === "share-url" ? "Länk kopierad" : "Kopiera länk"}
+          {copied === "share-url" ? "Link copied" : "Copy link"}
         </button>
         <a
           href={li}
@@ -470,13 +470,13 @@ function EmailCapture({ domain, auditId }: { domain: string; auditId?: string })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErrorMsg(data?.error || "Kunde inte spara. Försök igen.");
+        setErrorMsg(data?.error || "Could not save. Please try again.");
         setState("error");
         return;
       }
       setState("ok");
     } catch {
-      setErrorMsg("Nätverksfel. Försök igen.");
+      setErrorMsg("Network error. Please try again.");
       setState("error");
     }
   };
@@ -487,10 +487,10 @@ function EmailCapture({ domain, auditId }: { domain: string; auditId?: string })
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-green-100 text-green-600">
           <CheckCircle className="h-6 w-6" />
         </div>
-        <h3 className="mt-3 text-xl font-bold text-slate-900">Du är på listan</h3>
+        <h3 className="mt-3 text-xl font-bold text-slate-900">You're on the list</h3>
         <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
-          Vi mejlar dig en fullständig 20-sidors rapport och uppdaterar dig varje vecka när din
-          AI-synlighet förändras. Kolla inkorgen om någon minut.
+          We'll email you a full 20-page report and update you every week as your
+          AI visibility changes. Check your inbox in a minute or so.
         </p>
       </div>
     );
@@ -502,31 +502,31 @@ function EmailCapture({ domain, auditId }: { domain: string; auditId?: string })
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
             <Mail className="h-3.5 w-3.5" />
-            Veckovis AI-bevakning
+            Weekly AI monitoring
           </div>
           <h3 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
-            Få en 20-sidors PDF + bevakning varje vecka
+            Get a 20-page PDF + weekly monitoring
           </h3>
           <p className="mt-3 text-sm text-slate-600">
-            Skriv din e-post så skickar vi en fördjupad rapport med konkreta åtgärder, övervakar
-            {" "}{domain} mot ChatGPT/Perplexity/Google AI varje vecka, och larmar när något ändras.
+            Enter your email and we'll send a deep-dive report with concrete actions, monitor
+            {" "}{domain} against ChatGPT/Perplexity/Google AI every week, and alert you when something changes.
           </p>
           <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
-            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Detaljerad PDF (sida för sida)</li>
-            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Veckomejl med ranking-förändringar</li>
-            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Avregistrera när som helst</li>
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Detailed PDF (page by page)</li>
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Weekly email with ranking changes</li>
+            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Unsubscribe at any time</li>
           </ul>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
           <label className="block text-sm font-medium text-slate-700">
-            Din jobb-e-post
+            Your work email
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="namn@foretag.se"
+              placeholder="name@company.com"
               className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base shadow-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
               disabled={state === "loading"}
               autoComplete="email"
@@ -540,11 +540,11 @@ function EmailCapture({ domain, auditId }: { domain: string; auditId?: string })
             {state === "loading" ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Skickar…
+                Sending…
               </>
             ) : (
               <>
-                Skicka mig rapporten
+                Send me the report
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
@@ -556,9 +556,9 @@ function EmailCapture({ domain, auditId }: { domain: string; auditId?: string })
             </p>
           )}
           <p className="text-xs text-slate-400">
-            Genom att skicka godkänner du vår{" "}
-            <Link href="/c/legal/privacy" className="underline hover:text-slate-600">integritetspolicy</Link>.
-            Vi spammar inte.
+            By submitting you agree to our{" "}
+            <Link href="/c/legal/privacy" className="underline hover:text-slate-600">privacy policy</Link>.
+            No spam.
           </p>
         </form>
       </div>
@@ -591,7 +591,7 @@ function CompetitorAudit({
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data?.error || "Kunde inte analysera den domänen.");
+        setErrorMsg(data?.error || "Could not analyse that domain.");
         setState("error");
         return;
       }
@@ -602,7 +602,7 @@ function CompetitorAudit({
         document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
       }, 80);
     } catch {
-      setErrorMsg("Nätverksfel. Försök igen.");
+      setErrorMsg("Network error. Please try again.");
       setState("error");
     }
   };
@@ -615,10 +615,10 @@ function CompetitorAudit({
         </div>
         <div>
           <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
-            Hur står sig konkurrenterna?
+            How do competitors compare?
           </h3>
           <p className="mt-1 text-sm text-slate-600">
-            Kör samma audit på en konkurrent och jämför direkt mot {currentDomain}.
+            Run the same audit on a competitor and compare directly against {currentDomain}.
           </p>
         </div>
       </div>

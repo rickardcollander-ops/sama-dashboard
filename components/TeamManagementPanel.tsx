@@ -72,7 +72,7 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
       const body = (await res.json()) as { members: Member[] };
       setMembers(body.members);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte hämta medlemmar");
+      setError(e instanceof Error ? e.message : "Could not fetch members");
     } finally {
       setFetching(false);
     }
@@ -99,21 +99,21 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
       flash(
         body.invited
-          ? `Inbjudan skickad till ${email}`
-          : `${email} har lagts till — kunde logga in direkt`,
+          ? `Invitation sent to ${email}`
+          : `${email} has been added — they can sign in right away`,
       );
       setInviteEmail("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte bjuda in");
+      setError(e instanceof Error ? e.message : "Could not send invitation");
     } finally {
       setInviting(false);
     }
   };
 
   const handleRemove = async (m: Member) => {
-    const label = m.email || m.invited_email || "denna medlem";
-    if (!confirm(`Ta bort ${label} från kontot?`)) return;
+    const label = m.email || m.invited_email || "this member";
+    if (!confirm(`Remove ${label} from the account?`)) return;
     setPendingId(m.id);
     setError("");
     try {
@@ -124,9 +124,9 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
       setMembers((prev) => prev.filter((x) => x.id !== m.id));
-      flash(`${label} borttagen`);
+      flash(`${label} removed`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte ta bort medlemmen");
+      setError(e instanceof Error ? e.message : "Could not remove the member");
     } finally {
       setPendingId(null);
     }
@@ -135,7 +135,7 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
   if (userLoading || !user) {
     return (
       <div className="flex items-center gap-2 text-slate-500 py-4">
-        <Loader2 className="h-4 w-4 animate-spin" /> Hämtar…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
@@ -167,17 +167,17 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
       >
         {!compact && (
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <UserPlus className="h-4 w-4 text-slate-400" /> Bjud in en medlem
+            <UserPlus className="h-4 w-4 text-slate-400" /> Invite a member
           </div>
         )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1">E-post</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
             <input
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="kollega@foretag.se"
+              placeholder="colleague@company.com"
               required
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -188,11 +188,11 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
             className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-            {inviting ? "Skickar…" : "Bjud in"}
+            {inviting ? "Sending…" : "Invite"}
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Alla medlemmar har full tillgång till kontot — kan se data, ändra inställningar och bjuda in fler.
+          All members have full access to the account — they can see data, change settings and invite more.
         </p>
       </form>
 
@@ -200,10 +200,10 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-              <th className="px-3 py-2">Medlem</th>
+              <th className="px-3 py-2">Member</th>
               <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Tillagd</th>
-              <th className="px-3 py-2 text-right">Åtgärder</th>
+              <th className="px-3 py-2">Added</th>
+              <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -217,7 +217,7 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
             {!fetching && members.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
-                  Inga medlemmar än.
+                  No members yet.
                 </td>
               </tr>
             )}
@@ -232,32 +232,32 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
                       {isOwner && (
                         <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                       )}
-                      <span>{m.email || m.invited_email || "(okänd)"}</span>
+                      <span>{m.email || m.invited_email || "(unknown)"}</span>
                       {isSelf && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                          du
+                          you
                         </span>
                       )}
                       {isOwner && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                          ägare
+                          owner
                         </span>
                       )}
                     </div>
                     {m.last_sign_in_at && (
                       <div className="text-xs text-slate-400">
-                        Senast inloggad {fmtDate(m.last_sign_in_at)}
+                        Last sign-in {fmtDate(m.last_sign_in_at)}
                       </div>
                     )}
                   </td>
                   <td className="px-3 py-2">
                     {m.status === "active" ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" /> Aktiv
+                        <CheckCircle2 className="h-3 w-3" /> Active
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                        <Clock className="h-3 w-3" /> Inbjuden
+                        <Clock className="h-3 w-3" /> Invited
                       </span>
                     )}
                   </td>

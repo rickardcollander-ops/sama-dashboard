@@ -96,7 +96,7 @@ export default async function OG({ params }: { params: Promise<{ id: string }> }
             borderTop: "1px solid #e2e8f0", paddingTop: 24, fontSize: 20, color: "#64748b",
           }}
         >
-          <span>Kör din egen gratis audit på 30 sekunder</span>
+          <span>Run your own free audit in 30 seconds</span>
           <span style={{ fontWeight: 600, color: "#0f172a" }}>sama-ai → /c/audit</span>
         </div>
       </div>

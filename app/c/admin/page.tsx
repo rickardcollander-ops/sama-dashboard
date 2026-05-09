@@ -41,25 +41,25 @@ function isOnline(lastSeen: string | null, now: number): boolean {
 }
 
 const BUSINESS_TYPES = [
-  { code: "", label: "Välj typ…" },
-  { code: "ecommerce", label: "E-handel" },
-  { code: "local", label: "Lokal näring" },
-  { code: "services", label: "Tjänsteföretag" },
-  { code: "software", label: "Programvara / SaaS" },
-  { code: "media", label: "Media / publicist" },
-  { code: "other", label: "Annat" },
+  { code: "", label: "Select type…" },
+  { code: "ecommerce", label: "E-commerce" },
+  { code: "local", label: "Local business" },
+  { code: "services", label: "Service business" },
+  { code: "software", label: "Software / SaaS" },
+  { code: "media", label: "Media / publisher" },
+  { code: "other", label: "Other" },
 ];
 
 const CONTENT_LANGUAGES = [
-  { code: "sv", label: "Svenska" },
-  { code: "en", label: "Engelska" },
-  { code: "de", label: "Tyska" },
-  { code: "fr", label: "Franska" },
-  { code: "es", label: "Spanska" },
-  { code: "no", label: "Norska" },
-  { code: "da", label: "Danska" },
-  { code: "fi", label: "Finska" },
-  { code: "nl", label: "Nederländska" },
+  { code: "sv", label: "Swedish" },
+  { code: "en", label: "English" },
+  { code: "de", label: "German" },
+  { code: "fr", label: "French" },
+  { code: "es", label: "Spanish" },
+  { code: "no", label: "Norwegian" },
+  { code: "da", label: "Danish" },
+  { code: "fi", label: "Finnish" },
+  { code: "nl", label: "Dutch" },
 ];
 
 function fmtDate(iso: string | null | undefined): string {
@@ -82,7 +82,7 @@ function fmtRelative(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
-// ── Ny kund-modal ──────────────────────────────────────────────────────────────
+// ── New customer modal ─────────────────────────────────────────────────────────
 
 interface NewCustomerForm {
   domain: string;
@@ -167,7 +167,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
       const result = await res.json().catch(() => ({}));
       onCreated(form.email.trim() || form.domain, result.invited === true);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Kunde inte skapa kunden");
+      onError(e instanceof Error ? e.message : "Could not create customer");
     } finally {
       setSubmitting(false);
     }
@@ -182,7 +182,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-base font-semibold text-slate-900">
-            {step === 1 ? "Ny kund — Domänanalys" : "Ny kund — Granska & bjud in"}
+            {step === 1 ? "New customer — Domain analysis" : "New customer — Review & invite"}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X className="h-5 w-5" />
@@ -193,7 +193,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
           {step === 1 && (
             <>
               <p className="text-sm text-slate-500">
-                Ange kundens domän så hämtar SAMA varumärke, beskrivning och föreslagna GEO-frågor automatiskt.
+                Enter the customer's domain and SAMA will fetch brand name, description and suggested GEO queries automatically.
               </p>
               <div className="flex gap-2">
                 <input
@@ -201,7 +201,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
                   value={domainInput}
                   onChange={(e) => setDomainInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !analyzing && void handleAnalyze()}
-                  placeholder="exempel.se"
+                  placeholder="example.com"
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   autoFocus
                 />
@@ -211,11 +211,11 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
                   className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-                  {analyzing ? "Analyserar…" : "Analysera"}
+                  {analyzing ? "Analysing…" : "Analyse"}
                 </button>
               </div>
               {analyzing && (
-                <p className="text-xs text-slate-400">Hämtar info från {domainInput.trim()}…</p>
+                <p className="text-xs text-slate-400">Fetching info from {domainInput.trim()}…</p>
               )}
             </>
           )}
@@ -223,27 +223,27 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
           {step === 2 && (
             <>
               <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                <span className="font-medium">Domän:</span> {form.domain}
+                <span className="font-medium">Domain:</span> {form.domain}
                 <button
                   onClick={() => setStep(1)}
                   className="ml-3 text-xs text-blue-600 hover:underline"
                 >
-                  Ändra
+                  Change
                 </button>
               </div>
 
               <div>
-                <Field label="E-post (valfritt)" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="kund@foretag.se" type="email" />
+                <Field label="Email (optional)" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} placeholder="customer@company.com" type="email" />
                 <p className="mt-1 text-xs text-slate-400">
-                  Lämna tomt för att skapa konto utan inbjudan — kunden kan lägga till inloggning senare.
+                  Leave empty to create an account without an invitation — the customer can add a login later.
                 </p>
               </div>
-              <Field label="Varumärkesnamn" value={form.brand_name} onChange={(v) => setForm((p) => ({ ...p, brand_name: v }))} placeholder="Acme AB" />
-              <FieldTextarea label="Beskrivning" value={form.brand_description} onChange={(v) => setForm((p) => ({ ...p, brand_description: v }))} placeholder="Vad gör företaget?" />
+              <Field label="Brand name" value={form.brand_name} onChange={(v) => setForm((p) => ({ ...p, brand_name: v }))} placeholder="Acme Inc." />
+              <FieldTextarea label="Description" value={form.brand_description} onChange={(v) => setForm((p) => ({ ...p, brand_description: v }))} placeholder="What does the company do?" />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Typ av verksamhet</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Business type</label>
                   <select
                     value={form.business_type}
                     onChange={(e) => setForm((p) => ({ ...p, business_type: e.target.value }))}
@@ -253,7 +253,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Språk</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Language</label>
                   <select
                     value={form.content_language}
                     onChange={(e) => setForm((p) => ({ ...p, content_language: e.target.value }))}
@@ -267,7 +267,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
               {suggestedQueries.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-2">
-                    Föreslagna AI-bevakningsfrågor — välj de som ska inkluderas
+                    Suggested AI monitoring queries — pick the ones to include
                   </label>
                   <div className="space-y-1.5">
                     {suggestedQueries.map((q) => (
@@ -291,7 +291,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
           <button onClick={onClose} className="text-sm text-slate-500 hover:text-slate-700">
-            Avbryt
+            Cancel
           </button>
           {step === 1 ? (
             <button
@@ -300,7 +300,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-              Nästa
+              Next
             </button>
           ) : (
             <button
@@ -309,7 +309,7 @@ function NewCustomerModal({ onClose, onCreated, onError }: NewCustomerModalProps
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {submitting ? "Skapar…" : form.email.trim() ? "Skapa kund & skicka inbjudan" : "Skapa kund"}
+              {submitting ? "Creating…" : form.email.trim() ? "Create customer & send invite" : "Create customer"}
             </button>
           )}
         </div>
@@ -513,7 +513,7 @@ export default function AdminPage() {
           onClose={() => setShowNewCustomer(false)}
           onCreated={(label, invited) => {
             setShowNewCustomer(false);
-            setNotice(invited ? `Kund skapad och inbjudan skickad till ${label}` : `Kund skapad för ${label}`);
+            setNotice(invited ? `Customer created and invite sent to ${label}` : `Customer created for ${label}`);
             void load();
           }}
           onError={(msg) => {
@@ -547,7 +547,7 @@ export default function AdminPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               <UserPlus className="h-4 w-4" />
-              Ny kund
+              New customer
             </button>
           </div>
         </div>
@@ -574,7 +574,7 @@ export default function AdminPage() {
             <p className="mt-1 text-2xl font-bold text-slate-900">{accounts.length}</p>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <p className="text-xs text-slate-500">Inloggad nu</p>
+            <p className="text-xs text-slate-500">Online now</p>
             <p className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900">
               <span
                 className={`inline-block h-2.5 w-2.5 rounded-full ${
@@ -601,7 +601,7 @@ export default function AdminPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Sök på e-post, varumärke eller domän…"
+            placeholder="Search by email, brand or domain…"
             className="w-full sm:w-80 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -611,12 +611,12 @@ export default function AdminPage() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-3">Användare</th>
-                <th className="px-4 py-3">Varumärke</th>
-                <th className="px-4 py-3">Skapad</th>
-                <th className="px-4 py-3">Senaste inloggning</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Brand</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3">Last sign-in</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Åtgärder</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -630,7 +630,7 @@ export default function AdminPage() {
               {!fetching && filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                    Inga konton matchar sökningen.
+                    No accounts match your search.
                   </td>
                 </tr>
               )}
@@ -645,12 +645,12 @@ export default function AdminPage() {
                         <span
                           title={
                             online
-                              ? "Inloggad nu"
+                              ? "Online now"
                               : acc.last_seen_at
-                                ? `Senast aktiv ${fmtRelative(acc.last_seen_at)}`
-                                : "Ej aktiv"
+                                ? `Last active ${fmtRelative(acc.last_seen_at)}`
+                                : "Not active"
                           }
-                          aria-label={online ? "Inloggad" : "Ej inloggad"}
+                          aria-label={online ? "Online" : "Offline"}
                           className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
                             online
                               ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)]"
@@ -675,10 +675,10 @@ export default function AdminPage() {
                             </span>
                             {acc.sites.length > 1 && (
                               <span
-                                title={`${acc.sites.length} siter kopplade`}
+                                title={`${acc.sites.length} sites connected`}
                                 className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
                               >
-                                +{acc.sites.length - 1} till
+                                +{acc.sites.length - 1} more
                               </span>
                             )}
                           </div>
@@ -690,7 +690,7 @@ export default function AdminPage() {
                               {acc.sites.slice(1).map((s) => (
                                 <li key={s.id} className="text-xs text-slate-500">
                                   <span className="text-slate-700">
-                                    {s.brand_name || s.site_name || "(namnlös)"}
+                                    {s.brand_name || s.site_name || "(unnamed)"}
                                   </span>
                                   {s.domain && (
                                     <span className="text-slate-400"> · {s.domain}</span>
@@ -701,7 +701,7 @@ export default function AdminPage() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">Ingen onboarding</span>
+                        <span className="text-xs text-slate-400">No onboarding</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
@@ -715,11 +715,11 @@ export default function AdminPage() {
                     <td className="px-4 py-3">
                       {acc.email_confirmed_at ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          <CheckCircle2 className="h-3 w-3" /> Bekräftad
+                          <CheckCircle2 className="h-3 w-3" /> Confirmed
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          Väntar
+                          Pending
                         </span>
                       )}
                     </td>
@@ -728,15 +728,15 @@ export default function AdminPage() {
                         <button
                           onClick={() => handleViewAs(acc)}
                           disabled={busy}
-                          title="Visa kundens dashboard"
+                          title="View the customer's dashboard"
                           className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                         >
-                          <Eye className="h-3 w-3" /> Visa
+                          <Eye className="h-3 w-3" /> View
                         </button>
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
-                          title="Skicka lösenordsåterställning"
+                          title="Send password reset"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                         >
                           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
@@ -761,9 +761,9 @@ export default function AdminPage() {
         </div>
 
         <p className="mt-4 text-xs text-slate-400">
-          Kontodata hämtas från Supabase Auth och user_sites-tabellen.
-          Borttagning sker via Supabase admin-API och tar bort auth-användaren
-          samt alla kopplade rader via ON DELETE CASCADE.
+          Account data is fetched from Supabase Auth and the user_sites table.
+          Deletion uses the Supabase admin API and removes the auth user along
+          with every linked row via ON DELETE CASCADE.
         </p>
       </main>
     </div>

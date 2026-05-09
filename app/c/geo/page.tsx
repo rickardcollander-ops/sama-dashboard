@@ -337,7 +337,7 @@ export default function CustomerGeoPage() {
                 : undefined
             }
             title={t.geo.recommendTitle}
-            description={`AI föreslår nya naturliga frågor att bevaka i ChatGPT, Claude, Perplexity och Gemini. Välj vilka du vill lägga till (max ${MAX_GEO_QUERIES} samtidigt).`}
+            description={`AI suggests new natural-language queries to monitor in ChatGPT, Claude, Perplexity and Gemini. Pick which to add (max ${MAX_GEO_QUERIES} at a time).`}
             geoTrackedCount={trackedQueries.length}
             geoMax={MAX_GEO_QUERIES}
             onAdded={() => loadData()}

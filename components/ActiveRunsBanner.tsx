@@ -39,13 +39,13 @@ export default function ActiveRunsBanner() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-900 truncate">
             {runningCount > 0
-              ? `${runningCount} ${runningCount === 1 ? "agent kör" : "agenter kör"}`
+              ? `${runningCount} ${runningCount === 1 ? "agent running" : "agents running"}`
               : failedCount > 0
-              ? `${failedCount} ${failedCount === 1 ? "agent misslyckades" : "agenter misslyckades"}`
-              : `${completedCount} ${completedCount === 1 ? "agent klar" : "agenter klara"}`}
+              ? `${failedCount} ${failedCount === 1 ? "agent failed" : "agents failed"}`
+              : `${completedCount} ${completedCount === 1 ? "agent done" : "agents done"}`}
           </p>
           <p className="text-xs text-slate-500">
-            {runningCount > 0 ? "Du kan lämna sidan — bevakningen fortsätter." : "Klicka för att se resultat."}
+            {runningCount > 0 ? "You can leave this page — monitoring continues." : "Click to see results."}
           </p>
         </div>
         {expanded ? (
@@ -64,7 +64,7 @@ export default function ActiveRunsBanner() {
               onClick={clearCompleted}
               className="w-full border-t border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50"
             >
-              Stäng alla
+              Close all
             </button>
           )}
         </div>
@@ -89,27 +89,27 @@ function RunRow({ run, onDismiss }: { run: ActiveRun; onDismiss: () => void }) {
           {isRunning && (
             <p className="text-xs text-slate-500 mt-0.5">
               {run.status === "pending"
-                ? "Startar…"
+                ? "Starting…"
                 : hasPageProgress
-                ? `Analyserar ${run.pages_done ?? 0} av ${run.pages_total} sidor`
-                : `Kör… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min kvar`}
+                ? `Analysing ${run.pages_done ?? 0} of ${run.pages_total} pages`
+                : `Running… ~${Math.max(1, Math.round((run.expected_seconds * (1 - pct / 100)) / 60))} min left`}
             </p>
           )}
           {isCompleted && (
             <p className="text-xs text-emerald-600 mt-0.5 truncate" title={run.summary || ""}>
-              {run.summary || "Klar"}
+              {run.summary || "Done"}
             </p>
           )}
           {isFailed && (
             <p className="text-xs text-red-600 mt-0.5 truncate" title={run.error || ""}>
-              {run.error || "Misslyckades"}
+              {run.error || "Failed"}
             </p>
           )}
         </div>
         <button
           onClick={onDismiss}
           className="text-slate-400 hover:text-slate-600 flex-shrink-0"
-          aria-label={`Stäng ${run.label}`}
+          aria-label={`Close ${run.label}`}
         >
           <X className="h-3.5 w-3.5" />
         </button>

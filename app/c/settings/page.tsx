@@ -56,14 +56,14 @@ const CONTENT_LANGUAGES = [
 ];
 
 const BUSINESS_TYPES = [
-  { code: "ecommerce", label: "E-handel" },
-  { code: "local_service", label: "Lokal tjänst" },
+  { code: "ecommerce", label: "E-commerce" },
+  { code: "local_service", label: "Local service" },
   { code: "saas", label: "SaaS" },
   { code: "media", label: "Media" },
-  { code: "agency", label: "Byrå" },
-  { code: "consulting", label: "Konsulting" },
-  { code: "non_profit", label: "Ideell" },
-  { code: "other", label: "Annat" },
+  { code: "agency", label: "Agency" },
+  { code: "consulting", label: "Consulting" },
+  { code: "non_profit", label: "Non-profit" },
+  { code: "other", label: "Other" },
 ];
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -426,7 +426,7 @@ function CustomerSettingsPageInner() {
         language: data.language || prev.language,
         competitors: data.competitors?.length ? data.competitors : prev.competitors,
       }));
-    } catch (e) { setAiFillError(e instanceof Error ? e.message : "Kunde inte hämta AI-data"); }
+    } catch (e) { setAiFillError(e instanceof Error ? e.message : "Could not fetch AI data"); }
     setAiFilling(false);
   };
 
@@ -513,7 +513,7 @@ function CustomerSettingsPageInner() {
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{scheduleLabel}</span>
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              {t.settings.lastRun}: {agent.last_run ? new Date(agent.last_run).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : t.settings.neverRun}
+                              {t.settings.lastRun}: {agent.last_run ? new Date(agent.last_run).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : t.settings.neverRun}
                             </p>
                           </div>
                         </div>
@@ -552,7 +552,7 @@ function CustomerSettingsPageInner() {
                             return (
                               <tr key={run.id} className={`border-t border-slate-100 ${isFailed ? "bg-red-50/40" : ""}`}>
                                 <td className="px-3 py-2 font-medium text-slate-700 capitalize">{run.agent_name}</td>
-                                <td className="px-3 py-2 text-slate-500">{new Date(run.started_at).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+                                <td className="px-3 py-2 text-slate-500">{new Date(run.started_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
                                 <td className="px-3 py-2">
                                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${run.status === "completed" ? "bg-green-100 text-green-700" : isFailed ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
                                     {run.status === "completed" ? <CheckCircle className="h-2.5 w-2.5" /> : null}
@@ -585,7 +585,7 @@ function CustomerSettingsPageInner() {
                     {activationResult ? (
                       <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
                         <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                        <span>SAMA är aktiverat! {activationResult.keywords_added} sökord tillagda, {activationResult.content_created} content-utkast skapade.</span>
+                        <span>SAMA is activated! {activationResult.keywords_added} keywords added, {activationResult.content_created} content drafts created.</span>
                       </div>
                     ) : (
                       <button onClick={handleActivate} disabled={activating} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white hover:from-blue-700 hover:to-violet-700 disabled:opacity-60 shadow-sm transition-all w-full justify-center">
@@ -638,7 +638,7 @@ function CustomerSettingsPageInner() {
                 </select>
                 <p className="text-xs text-slate-400 mt-1">{t.settings.contentLanguageDesc}</p>
               </div>
-              <TextareaField label={t.settings.description} value={settings.brand_description} onChange={(v) => updateField("brand_description", v)} placeholder={"Kort beskrivning av vad ni gör…"} />
+              <TextareaField label={t.settings.description} value={settings.brand_description} onChange={(v) => updateField("brand_description", v)} placeholder={"Short description of what you do…"} />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t.settings.businessType}</label>
                 <select value={settings.business_type} onChange={(e) => updateField("business_type", e.target.value)} className="w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -647,8 +647,8 @@ function CustomerSettingsPageInner() {
                 </select>
                 <p className="text-xs text-slate-400 mt-1">{t.settings.businessTypeDesc}</p>
               </div>
-              <TextareaField label={t.settings.targetAudience} value={settings.target_audience} onChange={(v) => updateField("target_audience", v)} placeholder={"Lokala småföretag, e-handelsbolag…"} />
-              <TextareaField label={t.settings.uniqueSelling} value={settings.unique_selling_points} onChange={(v) => updateField("unique_selling_points", v)} placeholder={"Personlig service, lokal närvaro…"} />
+              <TextareaField label={t.settings.targetAudience} value={settings.target_audience} onChange={(v) => updateField("target_audience", v)} placeholder={"Local SMBs, e-commerce stores…"} />
+              <TextareaField label={t.settings.uniqueSelling} value={settings.unique_selling_points} onChange={(v) => updateField("unique_selling_points", v)} placeholder={"Personal service, local presence…"} />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t.settings.toneOfVoice}</label>
                 <select value={settings.tone_of_voice} onChange={(e) => updateField("tone_of_voice", e.target.value)} className="w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -679,7 +679,7 @@ function CustomerSettingsPageInner() {
           </Section>
 
           {/* ── Team members ── */}
-          <Section icon={Users} title={t.settings.teamTitle} desc="Bjud in kollegor till kontot — de får tillgång till samma sidor, integrationer och rapporter.">
+          <Section icon={Users} title={t.settings.teamTitle} desc="Invite colleagues to the account — they get access to the same sites, integrations and reports.">
             <TeamManagementPanel compact />
           </Section>
 
@@ -870,9 +870,9 @@ function CustomerSettingsPageInner() {
           <Section icon={Megaphone} title={t.settings.adsTitle} desc={t.settings.adsDesc}>
             <div className="space-y-4">
               {([
-                { key: "meta", label: "Meta Ads", tokenField: "meta_ads_token" as const, accountField: "meta_ads_account_id" as const, instructions: ["Gå till developers.facebook.com och skapa en app", "Generera en User Access Token med ads_read-behörighet", "Kopiera ditt Ad Account ID från Ads Manager", "Klistra in båda värdena nedan"] },
-                { key: "linkedin", label: "LinkedIn Ads", tokenField: "linkedin_ads_token" as const, accountField: "linkedin_ads_account_id" as const, instructions: ["Gå till linkedin.com/developers och skapa en app", "Begär åtkomst till Marketing Developer Platform", "Generera en OAuth 2.0-access token", "Hämta ditt Sponsored Account ID från Campaign Manager"] },
-                { key: "google", label: "Google Ads", tokenField: "google_ads_token" as const, accountField: "google_ads_account_id" as const, instructions: ["Gå till console.cloud.google.com och aktivera Google Ads API", "Skapa OAuth2-uppgifter och generera en refresh token", "Hämta ditt Customer ID från Google Ads (xxx-xxx-xxxx)", "Klistra in båda värdena nedan"] },
+                { key: "meta", label: "Meta Ads", tokenField: "meta_ads_token" as const, accountField: "meta_ads_account_id" as const, instructions: t.settings.metaInstructions },
+                { key: "linkedin", label: "LinkedIn Ads", tokenField: "linkedin_ads_token" as const, accountField: "linkedin_ads_account_id" as const, instructions: t.settings.linkedinInstructions },
+                { key: "google", label: "Google Ads", tokenField: "google_ads_token" as const, accountField: "google_ads_account_id" as const, instructions: t.settings.googleAdsInstructions },
               ]).map(({ key, label, tokenField, accountField, instructions }) => {
                 const isConnected = !!(settings[tokenField] && settings[accountField]);
                 const isExpanded = expandedAdPlatform === key;
@@ -958,17 +958,18 @@ function TextareaField({ label, value, onChange, placeholder }: { label: string;
 }
 
 function IntegrationStatusSummary({ gsc, analytics, ads, github }: { gsc: boolean; analytics: boolean; ads: boolean; github: boolean }) {
+  const { t } = useLanguage();
   type Tone = "ok" | "warn" | "off";
   const items: { label: string; tone: Tone; status: string; fix?: string; anchor: string }[] = [
-    { label: "Google Search Console", tone: gsc ? "ok" : "off", status: gsc ? "Ansluten" : "Inte ansluten", fix: gsc ? undefined : "Klicka på Anslut i Google-integrationer nedan.", anchor: "google-integrations" },
-    { label: "Google Analytics", tone: analytics ? "ok" : "warn", status: analytics ? "Ansluten" : "Valfri", fix: analytics ? undefined : "Lägg till om ni vill mäta klick och konverteringar.", anchor: "google-integrations" },
-    { label: "Google Ads", tone: ads ? "ok" : "warn", status: ads ? "Ansluten" : "Valfri", fix: ads ? undefined : "Lägg till om ni kör annonser via SAMA.", anchor: "google-integrations" },
-    { label: "GitHub (publicering)", tone: github ? "ok" : "off", status: github ? "Ansluten" : "Inte ansluten", fix: github ? undefined : "Anslut för att publicera artiklar via Pull Request.", anchor: "publishing" },
+    { label: "Google Search Console", tone: gsc ? "ok" : "off", status: gsc ? t.settings.intGscConnected : t.settings.intGscOff, fix: gsc ? undefined : t.settings.intGscFix, anchor: "google-integrations" },
+    { label: "Google Analytics", tone: analytics ? "ok" : "warn", status: analytics ? t.settings.intGaConnected : t.settings.intGaOptional, fix: analytics ? undefined : t.settings.intGaFix, anchor: "google-integrations" },
+    { label: "Google Ads", tone: ads ? "ok" : "warn", status: ads ? t.settings.intGadsConnected : t.settings.intGadsOptional, fix: ads ? undefined : t.settings.intGadsFix, anchor: "google-integrations" },
+    { label: "GitHub (publishing)", tone: github ? "ok" : "off", status: github ? t.settings.intGhConnected : t.settings.intGhOff, fix: github ? undefined : t.settings.intGhFix, anchor: "publishing" },
   ];
   const toneClass: Record<Tone, string> = { ok: "bg-emerald-500", warn: "bg-amber-400", off: "bg-red-500" };
   return (
     <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Integrationer</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.settings.integrationsTitle}</h2>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2">
         {items.map((it) => (
           <li key={it.label} className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2">
@@ -976,7 +977,7 @@ function IntegrationStatusSummary({ gsc, analytics, ads, github }: { gsc: boolea
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-slate-900">{it.label}</span>
-                <a href={`#${it.anchor}`} className="text-[11px] font-medium text-slate-500 hover:text-slate-800">{it.tone === "ok" ? "Hantera" : "Fixa"}</a>
+                <a href={`#${it.anchor}`} className="text-[11px] font-medium text-slate-500 hover:text-slate-800">{it.tone === "ok" ? t.settings.intManage : t.settings.intFix}</a>
               </div>
               <p className="text-xs text-slate-500">{it.status}{it.fix && <> — {it.fix}</>}</p>
             </div>
