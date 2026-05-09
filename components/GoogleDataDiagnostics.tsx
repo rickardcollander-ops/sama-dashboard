@@ -202,6 +202,12 @@ export default function GoogleDataDiagnostics(props: Props) {
     setError(null);
     setFeedback(null);
     setDiagnostics(null);
+    // Hard ceiling on how long we'll wait for the server route. The route
+    // itself has a 50s budget plus serialization time; 65s gives it room
+    // to return cleanly while still preventing an indefinitely spinning
+    // button if the network or function dies unexpectedly.
+    const abort = new AbortController();
+    const clientTimeout = setTimeout(() => abort.abort(), 65_000);
     try {
       const res = await fetch(`/api/integrations/gsc/import?tenant_id=${tenantId}`, {
         method: "POST",
@@ -209,6 +215,7 @@ export default function GoogleDataDiagnostics(props: Props) {
         // No limit → the route asks the backend to import every GSC query
         // the property has ranked for, not just the top 25.
         body: JSON.stringify({ limit: "all" }),
+        signal: abort.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
@@ -253,9 +260,18 @@ export default function GoogleDataDiagnostics(props: Props) {
         onSynced?.();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
+      const aborted = e instanceof DOMException && e.name === "AbortError";
+      setError(
+        aborted
+          ? "Import is taking longer than expected — the SAMA backend may be slow. Refresh in a few minutes to see if more keywords show up, or try 'Sync now'."
+          : e instanceof Error
+          ? e.message
+          : "Import failed",
+      );
+    } finally {
+      clearTimeout(clientTimeout);
+      setImporting(false);
     }
-    setImporting(false);
   };
 
   const formatTime = (iso?: string | null) => {
