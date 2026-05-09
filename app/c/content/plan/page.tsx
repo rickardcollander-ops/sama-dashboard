@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, FileText, MessageSquare, Mail, BarChart3,
-  Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb,
+  Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb, GripVertical,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import CreateContentPlanModal from "@/components/CreateContentPlanModal";
+import EditChipModal, { type EditableChipItem } from "@/components/content/EditChipModal";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 
@@ -292,6 +293,12 @@ export default function ContentCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [latestAnalysisId, setLatestAnalysisId] = useState<string | null>(null);
   const [showPlanModal, setShowPlanModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const activeRuns = useActiveRuns();
+
   const days = useMemo(() => buildMonthGrid(year, month), [year, month]);
   const start = days[0];
   const end = days[days.length - 1];
@@ -323,7 +330,7 @@ export default function ContentCalendarPage() {
   // the calendar so newly-created idea-rows show up without a manual
   // reload. Also refetch once when the run flips to completed.
   const lastContentRunCompletionRef = useRef<string | null>(null);
-  const hasRunningContentRun = activeRuns.some(
+  const hasRunningContentRun = activeRuns.runs.some(
     (r) => r.agent === "content" && (r.status === "running" || r.status === "pending"),
   );
   useEffect(() => {
@@ -336,7 +343,7 @@ export default function ContentCalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRunningContentRun]);
   useEffect(() => {
-    const justCompleted = activeRuns.find(
+    const justCompleted = activeRuns.runs.find(
       (r) => r.agent === "content" && r.status === "completed",
     );
     if (!justCompleted) return;
@@ -344,7 +351,7 @@ export default function ContentCalendarPage() {
     lastContentRunCompletionRef.current = justCompleted.id;
     fetchRange({ background: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRuns]);
+  }, [activeRuns.runs]);
 
   // Look up the most recent completed analysis run so the "Skapa plan från
   // analys" button knows which run to pass into CreateContentPlanModal.
@@ -407,14 +414,7 @@ export default function ContentCalendarPage() {
 
   const handleItemClick = (it: PlanItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (it.content_piece_id) {
-      router.push(`/c/content/${it.content_piece_id}`);
-    } else {
-      // No body yet — this is an idea waiting for the user to approve it.
-      // Send them straight to the Idéer tab where they can approve/edit/
-      // archive it instead of dropping them on the generic content page.
-      router.push(`/c/content?tab=ideas`);
-    }
+    setEditingItem(it);
   };
 
   const handlePieceClick = (p: PublishedPiece, e: React.MouseEvent) => {
@@ -424,6 +424,75 @@ export default function ContentCalendarPage() {
 
   const handleDayClick = (d: Date) => {
     setAddDate(d);
+  };
+
+  // ── Drag & drop chips between days ─────────────────────────────────────
+  const handleDragStart = (it: PlanItem, e: React.DragEvent) => {
+    e.stopPropagation();
+    setDraggingId(it.id);
+    e.dataTransfer.effectAllowed = "move";
+    // Some browsers require setData to actually fire drop events.
+    try { e.dataTransfer.setData("text/plain", it.id); } catch { /* noop */ }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDropTargetKey(null);
+  };
+
+  const handleDayDragOver = (d: Date, e: React.DragEvent) => {
+    if (!draggingId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const k = ymdKey(d);
+    if (dropTargetKey !== k) setDropTargetKey(k);
+  };
+
+  const handleDayDragLeave = (d: Date) => {
+    if (dropTargetKey === ymdKey(d)) setDropTargetKey(null);
+  };
+
+  const handleDayDrop = async (d: Date, e: React.DragEvent) => {
+    e.preventDefault();
+    const id = draggingId || e.dataTransfer.getData("text/plain");
+    setDropTargetKey(null);
+    setDraggingId(null);
+    if (!id) return;
+
+    const item = scheduled.find((it) => it.id === id);
+    if (!item) return;
+    if (item.scheduled_for && ymdKey(item.scheduled_for) === ymdKey(d)) return;
+
+    // Preserve the original time-of-day; default to 09:00 UTC.
+    const orig = item.scheduled_for ? new Date(item.scheduled_for) : null;
+    const hh = orig ? orig.getUTCHours() : 9;
+    const mm = orig ? orig.getUTCMinutes() : 0;
+    const newIso = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hh, mm),
+    ).toISOString();
+
+    // Optimistic update so the chip moves immediately.
+    const previous = scheduled;
+    setScheduled((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, scheduled_for: newIso } : p)),
+    );
+    setReschedulingId(id);
+    setError(null);
+    try {
+      const data = await tenantClient.patch<{ success: boolean; error?: string; item?: PlanItem }>(
+        `/api/content/plan/${id}`,
+        { scheduled_for: newIso },
+      );
+      if (!data.success) throw new Error(data.error || "Kunde inte flytta");
+      if (data.item) {
+        setScheduled((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.item! } : p)));
+      }
+    } catch (err) {
+      setScheduled(previous);
+      setError(err instanceof Error ? err.message : "Kunde inte flytta idén");
+    } finally {
+      setReschedulingId(null);
+    }
   };
 
   const todayKey = ymdKey(today);
@@ -501,14 +570,20 @@ export default function ContentCalendarPage() {
               const bucket = itemsByDay.get(key);
               const isToday = key === todayKey;
               const isPast = key < todayKey;
+              const isDropTarget = dropTargetKey === key && draggingId !== null;
 
               return (
                 <div
                   key={idx}
                   onClick={() => handleDayClick(d)}
+                  onDragOver={(e) => handleDayDragOver(d, e)}
+                  onDragLeave={() => handleDayDragLeave(d)}
+                  onDrop={(e) => handleDayDrop(d, e)}
                   className={`group min-h-[110px] cursor-pointer border-b border-r p-2 transition-colors ${
                     inMonth ? "bg-white hover:bg-blue-50/40" : "bg-slate-50/50 text-slate-400"
-                  } ${isToday ? "ring-2 ring-inset ring-blue-300" : ""}`}
+                  } ${isToday ? "ring-2 ring-inset ring-blue-300" : ""} ${
+                    isDropTarget ? "bg-blue-100/70 ring-2 ring-inset ring-blue-500" : ""
+                  }`}
                   role="button"
                   tabIndex={0}
                 >
@@ -529,20 +604,30 @@ export default function ContentCalendarPage() {
 
                   {bucket && (
                     <div className="space-y-1">
-                      {bucket.plan.slice(0, 3).map(it => (
-                        <button
+                      {bucket.plan.slice(0, 3).map(it => {
+                        const isDragging = draggingId === it.id;
+                        const isMoving = reschedulingId === it.id;
+                        return (
+                        <div
                           key={it.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(it, e)}
+                          onDragEnd={handleDragEnd}
                           onClick={(e) => handleItemClick(it, e)}
-                          title={it.title}
-                          className={`flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] ${STATUS_BADGE[it.status] || STATUS_BADGE.idea}`}
+                          title={`${it.title}\n(dra för att schemalägga om)`}
+                          className={`group/chip flex w-full cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] active:cursor-grabbing ${
+                            STATUS_BADGE[it.status] || STATUS_BADGE.idea
+                          } ${isDragging ? "opacity-40" : ""} ${isMoving ? "animate-pulse" : ""}`}
                         >
+                          <GripVertical className="h-2.5 w-2.5 flex-shrink-0 opacity-0 group-hover/chip:opacity-60" />
                           {typeIcon(it.content_type)}
                           <span className="truncate">{it.title}</span>
                           {it.auto_publish_on_schedule && (
                             <Rocket className="ml-auto h-2.5 w-2.5 flex-shrink-0" />
                           )}
-                        </button>
-                      ))}
+                        </div>
+                        );
+                      })}
                       {bucket.published.slice(0, 2).map(p => (
                         <button
                           key={p.id}
@@ -625,6 +710,22 @@ export default function ContentCalendarPage() {
           }}
         />
       )}
+
+      <EditChipModal
+        open={!!editingItem}
+        item={editingItem as EditableChipItem | null}
+        tenantClient={tenantClient}
+        onClose={() => setEditingItem(null)}
+        onSaved={(updated) => {
+          setScheduled((prev) =>
+            prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)),
+          );
+          setEditingItem((cur) => (cur && cur.id === updated.id ? { ...cur, ...updated } : cur));
+        }}
+        onDeleted={(id) => {
+          setScheduled((prev) => prev.filter((p) => p.id !== id));
+        }}
+      />
     </div>
   );
 }
