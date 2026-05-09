@@ -282,7 +282,6 @@ function AddModal({ date, onClose, onAdded, tenantClient }: AddModalProps) {
 export default function ContentCalendarPage() {
   const router = useRouter();
   const { effectiveTenantId, tenantClient } = useSite();
-  const { runs: activeRuns } = useActiveRuns();
   const today = new Date();
   const [year, setYear] = useState(today.getUTCFullYear());
   const [month, setMonth] = useState(today.getUTCMonth());
