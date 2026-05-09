@@ -273,10 +273,23 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    const errors: string[] = [];
+    interface CandidateResult {
+      path: string;
+      ok: boolean;
+      status: number | "error";
+      data?: Record<string, unknown>;
+      error?: string;
+    }
+
+    const candidateResults: CandidateResult[] = [];
+    const candidateErrors: string[] = [];
+    let firstSuccess: { path: string; data: Record<string, unknown> } | null = null;
+
     for (const c of candidates) {
       if (deadline.signal.aborted) {
-        errors.push(`${c.path}: request budget exhausted before attempt`);
+        const msg = "request budget exhausted before attempt";
+        candidateResults.push({ path: c.path, ok: false, status: "error", error: msg });
+        candidateErrors.push(`${c.path}: ${msg}`);
         break;
       }
       try {
@@ -287,84 +300,109 @@ export async function POST(req: NextRequest) {
           signal: fetchSignal(PRIMARY_FETCH_TIMEOUT_MS, deadline.signal),
         });
         if (res.status === 404) {
-          errors.push(`${c.path}: 404`);
+          candidateResults.push({ path: c.path, ok: false, status: 404 });
+          candidateErrors.push(`${c.path}: 404`);
           continue;
         }
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          errors.push(`${c.path}: ${res.status} ${text.slice(0, 120)}`);
+          candidateResults.push({ path: c.path, ok: false, status: res.status, error: text.slice(0, 200) });
+          candidateErrors.push(`${c.path}: ${res.status} ${text.slice(0, 120)}`);
           continue;
         }
-        const data = await res.json().catch(() => ({}));
-        // sync-gsc returns {success, inserted, updated, total_gsc}; treat
-        // success=false as a soft failure so we move on to the next candidate.
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
         if (data && data.success === false) {
-          errors.push(`${c.path}: backend reported success=false`);
+          candidateResults.push({ path: c.path, ok: false, status: res.status, data, error: "success=false" });
+          candidateErrors.push(`${c.path}: backend reported success=false`);
           continue;
         }
-        // sync-gsc reports counts but not the actual query strings, and the
-        // backend's tracked-keywords list only contains keywords the tenant
-        // has explicitly added. To surface every GSC query the property
-        // ranks for in "all keywords", pull the strings from the response
-        // (best case), the backend tracked list, and a dedicated GSC-query
-        // endpoint, then persist the union locally and push any new ones
-        // back to the backend tracked list so future GETs return them too.
-        const returnedFromResp = extractKeywordStrings(
-          data?.keywords ?? data?.queries ?? data?.items,
-        );
-        const [fromBackend, fromGsc] = await Promise.all([
-          fetchBackendKeywords(siteId, deadline.signal),
-          fetchBackendGscQueries(siteId, limit, deadline.signal),
-        ]);
-        const allKeywords = Array.from(
-          new Set(
-            [...returnedFromResp, ...fromBackend, ...fromGsc.keywords]
-              .map((k) => k.trim())
-              .filter(Boolean),
-          ),
-        );
-        const persisted = await persistTrackedKeywords(access, allKeywords);
-        // If we discovered queries the backend didn't already have in its
-        // tracked list, register them there too so its `/api/seo/keywords`
-        // GET starts returning them. This runs with bounded concurrency
-        // and respects the request deadline — a slow backend can't make
-        // the route hang anymore.
-        const missingOnBackend = allKeywords.filter(
-          (k) => !fromBackend.some((b) => b.toLowerCase() === k.toLowerCase()),
-        );
-        const backendSynced = missingOnBackend.length
-          ? await syncKeywordsToBackend(siteId, missingOnBackend, deadline.signal)
-          : 0;
-        const backendSyncTruncated =
-          missingOnBackend.length > 0 && backendSynced < missingOnBackend.length;
-        // Prefer the count of keywords we actually added to the user's
-        // tracked list — `data.inserted` reflects backend-internal state
-        // and is often 0 even when 80+ queries are newly visible to the user.
-        const backendInserted = data.inserted ?? data.imported ?? data.count ?? data.added ?? 0;
-        const imported = Math.max(Number(backendInserted) || 0, persisted);
-        const updated = data.updated ?? null;
-        return NextResponse.json({
-          imported,
-          persisted,
-          backend_synced: backendSynced,
-          backend_sync_truncated: backendSyncTruncated,
-          updated,
-          total_gsc: data.total_gsc ?? null,
-          total_tracked: allKeywords.length,
-          keywords: allKeywords,
-          source_endpoint: c.path,
-          diagnostics: {
-            sync_response_keys: Object.keys(data || {}),
-            backend_keywords_count: fromBackend.length,
-            gsc_query_probes: fromGsc.probes,
-          },
-        });
+        candidateResults.push({ path: c.path, ok: true, status: res.status, data });
+        if (!firstSuccess) firstSuccess = { path: c.path, data };
+        // The first succeeding candidate is enough — additional candidates
+        // would just repeat the same sync work upstream.
+        break;
       } catch (e) {
-        errors.push(`${c.path}: ${e instanceof Error ? e.message : "fetch failed"}`);
+        const msg = e instanceof Error ? e.message : "fetch failed";
+        candidateResults.push({ path: c.path, ok: false, status: "error", error: msg });
+        candidateErrors.push(`${c.path}: ${msg}`);
       }
     }
 
-    // Fallback: trigger the SEO agent — it should pull GSC data on first run
+    // Always probe for query strings, even when every candidate POST
+    // failed. The backend may expose a read-only GSC-query endpoint we
+    // can persist from without ever needing the dedicated import path.
+    const [fromBackend, fromGsc] = await Promise.all([
+      fetchBackendKeywords(siteId, deadline.signal),
+      fetchBackendGscQueries(siteId, limit, deadline.signal),
+    ]);
+    const returnedFromResp = firstSuccess
+      ? extractKeywordStrings(
+          (firstSuccess.data?.keywords ??
+            firstSuccess.data?.queries ??
+            firstSuccess.data?.items) as unknown,
+        )
+      : [];
+    const allKeywords = Array.from(
+      new Set(
+        [...returnedFromResp, ...fromBackend, ...fromGsc.keywords]
+          .map((k) => k.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const baseDiagnostics = {
+      candidate_attempts: candidateResults.map((r) => ({
+        path: r.path,
+        ok: r.ok,
+        status: r.status,
+        error: r.error,
+      })),
+      sync_response_keys: firstSuccess ? Object.keys(firstSuccess.data || {}) : [],
+      backend_keywords_count: fromBackend.length,
+      gsc_query_probes: fromGsc.probes,
+    };
+
+    if (allKeywords.length > 0) {
+      const persisted = await persistTrackedKeywords(access, allKeywords);
+      // If we discovered queries the backend didn't already have in its
+      // tracked list, register them there too so its `/api/seo/keywords`
+      // GET starts returning them. This runs with bounded concurrency
+      // and respects the request deadline — a slow backend can't make
+      // the route hang anymore.
+      const missingOnBackend = allKeywords.filter(
+        (k) => !fromBackend.some((b) => b.toLowerCase() === k.toLowerCase()),
+      );
+      const backendSynced = missingOnBackend.length
+        ? await syncKeywordsToBackend(siteId, missingOnBackend, deadline.signal)
+        : 0;
+      const backendSyncTruncated =
+        missingOnBackend.length > 0 && backendSynced < missingOnBackend.length;
+      const data = firstSuccess?.data ?? {};
+      const backendInserted =
+        (data.inserted as number | undefined) ??
+        (data.imported as number | undefined) ??
+        (data.count as number | undefined) ??
+        (data.added as number | undefined) ??
+        0;
+      const imported = Math.max(Number(backendInserted) || 0, persisted);
+      return NextResponse.json({
+        imported,
+        persisted,
+        backend_synced: backendSynced,
+        backend_sync_truncated: backendSyncTruncated,
+        updated: (data.updated as number | undefined) ?? null,
+        total_gsc: (data.total_gsc as number | undefined) ?? null,
+        total_tracked: allKeywords.length,
+        keywords: allKeywords,
+        source_endpoint: firstSuccess?.path ?? "probe-only",
+        attempted: candidateErrors,
+        diagnostics: baseDiagnostics,
+      });
+    }
+
+    // Nothing came back from any read path. As a last resort trigger the
+    // SEO agent — on a fresh tenant it typically pulls GSC top queries on
+    // its first run, after which a follow-up import call will find data.
     if (!deadline.signal.aborted) {
       try {
         const triggerBody: Record<string, unknown> = { reason: "gsc_initial_import" };
@@ -376,12 +414,14 @@ export async function POST(req: NextRequest) {
           signal: fetchSignal(PER_FETCH_TIMEOUT_MS, deadline.signal),
         });
         if (res.ok) {
-          const data = await res.json().catch(() => ({}));
+          const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
           return NextResponse.json({
             imported: null,
             triggered_agent: true,
-            run_id: data.run_id,
-            note: "No direct import endpoint found — triggered SEO agent instead. It will pull GSC data in the background.",
+            run_id: data.run_id ?? null,
+            note: "No direct import endpoint and probes returned 0 keywords — triggered SEO agent. Click 'Import all GSC keywords' again after it finishes; the agent populates the data the probes read from.",
+            attempted: candidateErrors,
+            diagnostics: baseDiagnostics,
           });
         }
       } catch {
@@ -393,8 +433,9 @@ export async function POST(req: NextRequest) {
       {
         error: deadline.signal.aborted
           ? "Import timed out before the SAMA backend responded. Try again, or click 'Sync now'."
-          : "Could not import from GSC. The backend doesn't expose a direct import endpoint and triggering the SEO agent failed. Try clicking 'Sync now' or check the agent runs.",
-        attempted: errors,
+          : "Could not import from GSC. The backend doesn't expose a direct import endpoint, all read probes returned 0 keywords, and triggering the SEO agent failed.",
+        attempted: candidateErrors,
+        diagnostics: baseDiagnostics,
       },
       { status: deadline.signal.aborted ? 504 : 502 },
     );

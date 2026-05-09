@@ -22,6 +22,7 @@ interface AgentRun {
 }
 
 interface ImportDiagnostics {
+  candidate_attempts?: { path: string; ok: boolean; status: number | string; error?: string }[];
   sync_response_keys?: string[];
   backend_keywords_count?: number;
   gsc_query_probes?: { path: string; status: number | string; count: number; sample?: string }[];
@@ -223,14 +224,52 @@ export default function GoogleDataDiagnostics(props: Props) {
         signal: abort.signal,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
+      if (!res.ok) {
+        // Surface diagnostics even on hard failure so the user can see
+        // which probe paths the backend exposes.
+        if (data?.diagnostics) setDiagnostics(data.diagnostics as ImportDiagnostics);
+        throw new Error(data.error || "Import failed");
+      }
       if (data.triggered_agent && data.run_id) {
-        setFeedback("No direct import endpoint — triggered SEO agent. Fetching GSC data in background…");
+        setFeedback(
+          data.note || "No direct import endpoint — triggered SEO agent. Fetching GSC data in background…",
+        );
+        if (data.diagnostics) setDiagnostics(data.diagnostics as ImportDiagnostics);
         await refresh();
         try {
           const run = await watchAgentRun(tenantId, data.run_id);
           if (run.status === "completed") {
-            setFeedback(run.summary || "GSC import completed");
+            // The agent run only populates upstream metrics — it doesn't
+            // add anything to tracked_keywords by itself. Re-call this
+            // route once it finishes; the probes can now read whatever
+            // queries the agent just imported.
+            setFeedback("Agent finished — fetching the keywords it just imported…");
+            try {
+              const followup = await fetch(
+                `/api/integrations/gsc/import?tenant_id=${tenantId}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", ...samaHeaders() },
+                  body: JSON.stringify({ limit: "all" }),
+                },
+              );
+              const followupData = await followup.json();
+              if (followup.ok && !followupData.triggered_agent) {
+                if (followupData.diagnostics) {
+                  setDiagnostics(followupData.diagnostics as ImportDiagnostics);
+                }
+                const tracked = followupData.total_tracked;
+                setFeedback(
+                  tracked != null
+                    ? `${tracked} keyword${tracked === 1 ? "" : "s"} now tracked.`
+                    : run.summary || "GSC import completed",
+                );
+              } else {
+                setFeedback(run.summary || "GSC import completed");
+              }
+            } catch {
+              setFeedback(run.summary || "GSC import completed");
+            }
             await refresh();
             onSynced?.();
           } else if (run.status === "failed") {
@@ -520,6 +559,17 @@ export default function GoogleDataDiagnostics(props: Props) {
                 Import diagnostics — backend probe results
               </summary>
               <div className="mt-2 space-y-1 font-mono">
+                {diagnostics.candidate_attempts && diagnostics.candidate_attempts.length > 0 && (
+                  <div className="pb-1">
+                    <div className="text-slate-500 mb-0.5">Direct import endpoints:</div>
+                    {diagnostics.candidate_attempts.map((c) => (
+                      <div key={c.path} className="pl-2">
+                        {c.ok ? "✓" : "✗"} {c.path} — {c.status}
+                        {c.error ? ` (${c.error.slice(0, 80)})` : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {diagnostics.sync_response_keys && (
                   <div>
                     <span className="text-slate-500">sync response keys: </span>
