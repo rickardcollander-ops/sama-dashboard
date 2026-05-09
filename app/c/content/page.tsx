@@ -553,6 +553,46 @@ function CustomerContentInner() {
     await updateStatus(pieceId, "archived");
   };
 
+  const deletePiece = async (pieceId: string) => {
+    if (!user) return;
+    if (!confirm("Radera detta innehåll permanent? Det går inte att ångra.")) return;
+    setUpdatingStatus(pieceId);
+    setPieces((prev) => prev.filter((p) => p.id !== pieceId));
+    try {
+      const client = tenantClient;
+      if (!pieceId.startsWith("local-")) {
+        await client.delete(`/api/content/pieces/${pieceId}`);
+      }
+    } catch (err: any) {
+      console.error("Failed to delete piece:", err);
+      setError(`Kunde inte radera: ${err?.message || err}`);
+      fetchContent();
+    }
+    setUpdatingStatus(null);
+  };
+
+  const emptyArchive = async () => {
+    if (!user) return;
+    if (!confirm("Töm arkivet? Allt arkiverat material raderas permanent och kan inte återställas.")) return;
+    try {
+      const client = tenantClient;
+      // Hard-delete archived rows in both tables in parallel: pieces
+      // (the visible "Arkiverade"-tab) and plan items (archived ideas
+      // that lingered on the calendar).
+      await Promise.all([
+        client.delete(`/api/content/pieces/archived`),
+        client.delete(`/api/content/plan/archived`),
+      ]);
+      setPieces((prev) => prev.filter((p) => p.status !== "archived"));
+      setIdeaToast("Arkivet är tömt.");
+      setTimeout(() => setIdeaToast(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to empty archive:", err);
+      setError(`Kunde inte tömma arkivet: ${err?.message || err}`);
+      fetchContent();
+    }
+  };
+
   // Default the date picker to "tomorrow at 09:00 local" when the dialog
   // opens, and reset all transient state on close.
   const openScheduleDialog = (piece: ContentPiece) => {
@@ -901,6 +941,25 @@ function CustomerContentInner() {
           ))}
         </div>
 
+        {/* Archive controls — visible only on the "Arkiverade" tab so the
+            destructive bulk action stays out of normal workflows. Hides
+            itself when the archive is already empty. */}
+        {filter === "archived" && archivedCount > 0 && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-red-100 bg-red-50/40 px-4 py-3">
+            <div className="text-sm text-slate-700">
+              <span className="font-medium">{archivedCount}</span> arkiverade — arkiverat material visas inte i planen.
+            </div>
+            <button
+              onClick={emptyArchive}
+              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+              title="Radera allt arkiverat permanent"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Töm arkiv
+            </button>
+          </div>
+        )}
+
         {/* Ideas list — only when this tab is active. Ideas have no body
             yet; the user picks ones to draft. */}
         {filter === "ideas" ? (
@@ -1174,8 +1233,17 @@ function CustomerContentInner() {
                       </button>
                     )}
 
-                    {/* Archive */}
-                    {piece.status !== "archived" && piece.status !== "published" && (
+                    {/* Archive (active pieces) or permanent delete (already-archived). */}
+                    {piece.status === "archived" ? (
+                      <button
+                        onClick={() => deletePiece(piece.id)}
+                        disabled={updatingStatus === piece.id}
+                        className="rounded-lg border border-red-200 bg-white p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        title="Radera permanent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : piece.status !== "published" ? (
                       <button
                         onClick={() => archivePiece(piece.id)}
                         disabled={updatingStatus === piece.id}
@@ -1184,7 +1252,7 @@ function CustomerContentInner() {
                       >
                         <Archive className="h-3.5 w-3.5" />
                       </button>
-                    )}
+                    ) : null}
 
                     {/* Sprint 3 (C-6) — explicit publishing actions */}
                     {(piece.status === "approved" || piece.status === "published") && (
