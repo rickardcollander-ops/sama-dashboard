@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
@@ -17,6 +17,7 @@ import PiecePerformance from "@/components/content/PiecePerformance";
 import RefineDialog from "@/components/content/RefineDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
@@ -92,6 +93,7 @@ function CustomerContentInner() {
   const { t } = useLanguage();
   const { user, loading: userLoading } = useUser();
   const { tenantClient, effectiveTenantId } = useSite();
+  const { runs: activeRuns } = useActiveRuns();
   const searchParams = useSearchParams();
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,6 +178,35 @@ function CustomerContentInner() {
   useEffect(() => {
     if (user && effectiveTenantId) fetchContent();
   }, [user, effectiveTenantId]);
+
+  // While a content_plan run is in flight (e.g. user just clicked
+  // "Skapa content-plan" on /c/analysis and navigated here), keep
+  // refetching ideas so the new rows appear without a manual reload.
+  // Also do one final fetch right when the run flips to completed.
+  const lastContentRunCompletionRef = useRef<string | null>(null);
+  const hasRunningContentRun = activeRuns.some(
+    (r) => r.agent === "content" && (r.status === "running" || r.status === "pending"),
+  );
+  useEffect(() => {
+    if (!user || !effectiveTenantId) return;
+    if (!hasRunningContentRun) return;
+    const id = setInterval(() => {
+      fetchIdeas();
+    }, 5000);
+    return () => clearInterval(id);
+    // fetchIdeas is stable enough for this purpose; intentionally not a dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, effectiveTenantId, hasRunningContentRun]);
+  useEffect(() => {
+    const justCompleted = activeRuns.find(
+      (r) => r.agent === "content" && r.status === "completed",
+    );
+    if (!justCompleted) return;
+    if (lastContentRunCompletionRef.current === justCompleted.id) return;
+    lastContentRunCompletionRef.current = justCompleted.id;
+    if (user && effectiveTenantId) fetchIdeas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRuns, user, effectiveTenantId]);
 
   // Sprint 2 (K-1 / K-4) — when arriving with ?gap=… or ?topic=…, open the
   // modal pre-filled with the brief from the originating surface.

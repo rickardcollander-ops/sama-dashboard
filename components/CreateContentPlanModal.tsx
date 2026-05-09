@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Loader2, X, Calendar, Linkedin, Twitter, Instagram, Facebook, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
@@ -159,18 +160,24 @@ export default function CreateContentPlanModal({
               under Innehåll → Idéer.
             </p>
             <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-              <a
+              {/* next/link does a soft client-side navigation so the
+                  ActiveRunsProvider stays mounted and the bottom-right
+                  "agent kör"-bannern överlever rutbytet. Annars unmountas
+                  hela /c-trädet och bannern blinkar bort.  */}
+              <Link
                 href="/c/content?tab=ideas"
+                onClick={onClose}
                 className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
               >
                 Visa idéer
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/c/content/plan"
+                onClick={onClose}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Visa planen
-              </a>
+              </Link>
             </div>
           </div>
         ) : (

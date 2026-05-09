@@ -153,6 +153,14 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
   const apiTenantId = effectiveTenantId || user?.id || "";
   const [runs, setRuns] = useState<ActiveRun[]>([]);
   const runsRef = useRef<ActiveRun[]>([]);
+  // Track which user we've hydrated state from. The persist effect must
+  // not fire until *after* the load effect has seeded `runs` from
+  // localStorage — otherwise the very first run of the persist effect
+  // sees the initial empty array and overwrites the stored list. That
+  // race wiped the bottom-right "agent kör"-banner whenever the page
+  // remounted (e.g. after a hard <a href> navigation from the
+  // Skapa content-plan modal).
+  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
 
   // Keep the ref in sync so the polling effect always sees the latest list
   useEffect(() => {
@@ -166,13 +174,17 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
     if (!user) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRuns(loadFromStorage(user.id));
+    setHydratedUserId(user.id);
   }, [user]);
 
-  // Persist whenever runs change
+  // Persist whenever runs change — but only after we've actually
+  // hydrated for this user, so we don't clobber storage with the
+  // initial empty array on mount.
   useEffect(() => {
     if (!user) return;
+    if (hydratedUserId !== user.id) return;
     saveToStorage(user.id, runs);
-  }, [runs, user]);
+  }, [runs, user, hydratedUserId]);
 
   const updateRun = useCallback((id: string, patch: Partial<ActiveRun>) => {
     setRuns((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
