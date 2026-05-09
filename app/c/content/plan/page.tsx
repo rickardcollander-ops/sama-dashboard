@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import CreateContentPlanModal from "@/components/CreateContentPlanModal";
-import { samaFetch } from "@/lib/api";
 import { useSite } from "@/lib/hooks/useSite";
 
 interface PlanItem {
@@ -94,9 +93,10 @@ interface AddModalProps {
   date: Date;
   onClose: () => void;
   onAdded: (item: PlanItem) => void;
+  tenantClient: ReturnType<typeof import("@/lib/api").tenantApi>;
 }
 
-function AddModal({ date, onClose, onAdded }: AddModalProps) {
+function AddModal({ date, onClose, onAdded, tenantClient }: AddModalProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
@@ -114,10 +114,9 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await samaFetch(`/api/content/plan/calendar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await tenantClient.post<{ success: boolean; error?: string; item: PlanItem; content_piece_id?: string }>(
+        `/api/content/plan/calendar`,
+        {
           title: title.trim(),
           topic: topic.trim() || undefined,
           target_keyword: keyword.trim() || undefined,
@@ -126,9 +125,8 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
           scheduled_for: isoForDay(date, hour, 0),
           auto_publish_on_schedule: autoPublish,
           draft_now: draftNow,
-        }),
-      });
-      const data = await res.json();
+        },
+      );
       if (!data.success) throw new Error(data.error || "Failed to add to plan");
 
       onAdded(data.item);
@@ -281,7 +279,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
 
 export default function ContentCalendarPage() {
   const router = useRouter();
-  const { effectiveTenantId } = useSite();
+  const { effectiveTenantId, tenantClient } = useSite();
   const today = new Date();
   const [year, setYear] = useState(today.getUTCFullYear());
   const [month, setMonth] = useState(today.getUTCMonth());
@@ -298,13 +296,12 @@ export default function ContentCalendarPage() {
   const end = days[days.length - 1];
 
   const fetchRange = async () => {
+    if (!effectiveTenantId) return;
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/content/plan/calendar?start=${start.toISOString()}&end=${new Date(end.getTime() + 86400_000).toISOString()}`;
-      const res = await samaFetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const url = `/api/content/plan/calendar?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(new Date(end.getTime() + 86400_000).toISOString())}`;
+      const data = await tenantClient.get<{ scheduled?: PlanItem[]; published_pieces?: PublishedPiece[] }>(url);
       setScheduled(Array.isArray(data.scheduled) ? data.scheduled : []);
       setPieces(Array.isArray(data.published_pieces) ? data.published_pieces : []);
     } catch (e) {
@@ -314,7 +311,7 @@ export default function ContentCalendarPage() {
     }
   };
 
-  useEffect(() => { fetchRange(); /* eslint-disable-next-line */ }, [year, month]);
+  useEffect(() => { fetchRange(); /* eslint-disable-next-line */ }, [year, month, effectiveTenantId]);
 
   // Look up the most recent completed analysis run so the "Skapa plan från
   // analys" button knows which run to pass into CreateContentPlanModal.
@@ -577,6 +574,7 @@ export default function ContentCalendarPage() {
           onAdded={(item) => {
             setScheduled(prev => [...prev, item]);
           }}
+          tenantClient={tenantClient}
         />
       )}
 
