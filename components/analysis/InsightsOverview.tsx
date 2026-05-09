@@ -133,7 +133,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         id: "ai_open_gaps",
         title: `${geoData.open_gaps} ${t.insightsOverview.gapAiOpenTitleSuffix}`,
         detail: t.insightsOverview.gapAiOpenDetail,
-        topic: "Frågor där konkurrenter nämns men inte vi",
+        topic: "Queries where competitors are mentioned but not us",
       });
     }
     if (geoData && (geoData.mention_rate ?? 0) < 0.3 && (geoData.total_checks ?? 0) > 0) {
@@ -142,7 +142,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         id: "low_ai_mention",
         title: t.insightsOverview.gapLowAiTitle,
         detail: `${t.insightsOverview.gapLowAiDetailPrefix} ${pct}${t.insightsOverview.gapLowAiDetailSuffix}`,
-        topic: "Branschspecifikt content som lyfter omnämnandegraden",
+        topic: "Industry-specific content that lifts the mention rate",
       });
     }
     const avgPos = seoData?.avg_position ?? seoData?.avgPosition ?? 0;
@@ -151,7 +151,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         id: "low_seo_rank",
         title: t.insightsOverview.gapLowSeoTitle,
         detail: `${t.insightsOverview.gapLowSeoDetailPrefix} ${avgPos.toFixed(1)} ${t.insightsOverview.gapLowSeoDetailSuffix}`,
-        topic: "Sökord-content som matchar sökintention",
+        topic: "Keyword content that matches search intent",
       });
     }
     if (geoData?.top_competitors && geoData.top_competitors.length > 0) {
@@ -162,7 +162,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
           id: `competitor_${slug}`,
           title: `${dominant.name} ${t.insightsOverview.gapCompetitorTitleSuffix}`,
           detail: `${t.insightsOverview.gapCompetitorDetailPrefix} ${dominant.count} ${t.insightsOverview.gapCompetitorDetailMiddle} ${t.insightsOverview.gapCompetitorDetailSuffix}`,
-          topic: `Varför ${dominant.name} inte räcker — vår syn`,
+          topic: `Why ${dominant.name} isn't enough — our take`,
         });
       }
     }
@@ -244,24 +244,24 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
   const stats: ScoreboardStat[] = [
     {
       key: "visibility",
-      label: "Synlighet",
+      label: "Visibility",
       tooltip:
-        "Sammanvägd synlighet 0–100, 50% AI-omnämnandegrad och 50% Google-position. Räknar bara med kanaler där du har data.",
+        "Combined visibility 0–100, 50% AI mention rate and 50% Google position. Only counts channels where you have data.",
       value: `${visibility}`,
-      hint: visibility >= 70 ? "Stark" : visibility >= 40 ? "Okej" : "Behöver lyftas",
+      hint: visibility >= 70 ? "Strong" : visibility >= 40 ? "Okay" : "Needs lifting",
     },
     {
       key: "geo",
-      label: "AI-omnämnandegrad",
-      tooltip: "Andel AI-frågor där ditt varumärke nämns. Mätt över de senaste 30 dagarna.",
+      label: "AI mention rate",
+      tooltip: "Share of AI queries where your brand is mentioned. Measured over the last 30 days.",
       value: haveGeo ? `${Math.round(mentionRate * 100)}%` : "—",
       trend: <TrendBadge delta={mentionDelta} format="percent" />,
     },
     {
       key: "seo",
-      label: "Snittposition i Google",
+      label: "Average Google position",
       tooltip:
-        "Genomsnittlig rankposition för dina spårade sökord. Lägre är bättre.",
+        "Average ranking position for your tracked keywords. Lower is better.",
       value: haveSeo ? avgPos.toFixed(1) : "—",
       trend: <TrendBadge delta={seo?.position_delta ?? seo?.positionDelta ?? null} format="rank" inverted />,
     },
@@ -361,7 +361,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       <div className="text-xs text-slate-400">
         {t.insightsOverview.lastCheck}{" "}
         {geo?.last_check_at
-          ? new Date(geo.last_check_at).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+          ? new Date(geo.last_check_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
           : t.insightsOverview.never}
         {(seo?.total_keywords || seo?.totalKeywords) ? (
           <>

@@ -24,26 +24,26 @@ const TIERS: Tier[] = [
   {
     name: "Starter",
     price: "$149",
-    period: "/mån",
-    blurb: "Grundpaket för växande varumärken",
+    period: "/mo",
+    blurb: "Starter pack for growing brands",
     icon: Zap,
-    highlights: ["SEO-agent", "5 content/mån", "Recensioner"],
+    highlights: ["SEO agent", "5 content/mo", "Reviews"],
   },
   {
     name: "Growth",
     price: "$399",
-    period: "/mån",
-    blurb: "Full marknads-AI för skalande bolag",
+    period: "/mo",
+    blurb: "Full marketing AI for scaling companies",
     icon: Sparkles,
-    highlights: ["Allt i Starter", "Annons-agent", "AI-synlighet", "Full rapportering"],
+    highlights: ["Everything in Starter", "Ad agent", "AI visibility", "Full reporting"],
   },
   {
     name: "Enterprise",
     price: "Custom",
     period: "",
-    blurb: "Skräddarsytt för större organisationer",
+    blurb: "Tailored for larger organisations",
     icon: Building2,
-    highlights: ["Allt i Growth", "API-access", "Dedikerad support"],
+    highlights: ["Everything in Growth", "API access", "Dedicated support"],
   },
 ];
 
@@ -84,9 +84,9 @@ export default function BillingPage() {
 
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Plan & fakturering</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Plan & billing</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Hantera din prenumeration och se hur din plan ligger till.
+            Manage your subscription and see where your plan stands.
           </p>
         </div>
 
@@ -95,7 +95,7 @@ export default function BillingPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Nuvarande plan
+                Current plan
               </p>
               <div className="mt-1 flex items-center gap-3">
                 {loading ? (
@@ -111,7 +111,7 @@ export default function BillingPage() {
                   </>
                 ) : (
                   <>
-                    <h2 className="text-2xl font-bold text-slate-900">Ingen aktiv plan</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">No active plan</h2>
                   </>
                 )}
               </div>
@@ -123,7 +123,7 @@ export default function BillingPage() {
               href="/c/pricing"
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
             >
-              {current ? "Byt plan" : "Välj plan"}
+              {current ? "Change plan" : "Pick a plan"}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -142,7 +142,7 @@ export default function BillingPage() {
 
         {/* Other tiers — quick comparison */}
         <h3 className="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Andra planer
+          Other plans
         </h3>
         <div className="grid gap-4 sm:grid-cols-3">
           {TIERS.filter((t) => t.name !== currentPlan).map((t) => (
@@ -163,7 +163,7 @@ export default function BillingPage() {
                 href="/c/pricing"
                 className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
               >
-                Se detaljer
+                See details
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -172,15 +172,15 @@ export default function BillingPage() {
 
         {/* Billing details placeholder */}
         <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
-          <h3 className="font-semibold text-slate-900">Faktureringsinformation</h3>
+          <h3 className="font-semibold text-slate-900">Billing information</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Faktureringsuppgifter och kvitton hanteras via vår support.
+            Billing details and receipts are handled via our support team.
           </p>
           <a
             href="mailto:hello@successifier.com"
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
           >
-            Kontakta support
+            Contact support
             <ArrowRight className="h-3.5 w-3.5" />
           </a>
         </div>

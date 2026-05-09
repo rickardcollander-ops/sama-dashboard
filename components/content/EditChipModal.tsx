@@ -32,33 +32,33 @@ interface RefineIntent {
 }
 
 const TITLE_INTENTS: RefineIntent[] = [
-  { id: "punchier", label: "Mer slagkraftig", description: "Skarpare, mer klickvänlig titel" },
-  { id: "seo", label: "SEO-optimera", description: "Väv in sökord naturligt" },
-  { id: "shorten", label: "Förkorta", description: "Snålare formulering" },
-  { id: "tone", label: "Justera ton", description: "Mer varumärkesvänlig ton" },
-  { id: "grammar", label: "Polera", description: "Snygga till språket" },
+  { id: "punchier", label: "Punchier", description: "Sharper, more clickable title" },
+  { id: "seo", label: "SEO-optimise", description: "Weave in keywords naturally" },
+  { id: "shorten", label: "Shorten", description: "Tighter phrasing" },
+  { id: "tone", label: "Adjust tone", description: "More on-brand tone" },
+  { id: "grammar", label: "Polish", description: "Tidy up the language" },
 ];
 
 const TOPIC_INTENTS: RefineIntent[] = [
-  { id: "expand", label: "Utveckla", description: "Lägg till en extra mening med skärpa" },
-  { id: "shorten", label: "Förkorta", description: "Komprimera till kärnan" },
-  { id: "tone", label: "Justera ton", description: "Mer varumärkesvänlig ton" },
-  { id: "seo", label: "SEO-optimera", description: "Väv in sökord naturligt" },
-  { id: "grammar", label: "Polera", description: "Snygga till språket" },
+  { id: "expand", label: "Expand", description: "Add an extra sentence with edge" },
+  { id: "shorten", label: "Shorten", description: "Compress to the essentials" },
+  { id: "tone", label: "Adjust tone", description: "More on-brand tone" },
+  { id: "seo", label: "SEO-optimise", description: "Weave in keywords naturally" },
+  { id: "grammar", label: "Polish", description: "Tidy up the language" },
 ];
 
 const PRIORITY_OPTIONS = [
-  { value: "critical", label: "Kritisk" },
-  { value: "high", label: "Hög" },
-  { value: "medium", label: "Medel" },
-  { value: "low", label: "Låg" },
+  { value: "critical", label: "Critical" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
 ];
 
 const CONTENT_TYPE_OPTIONS = [
-  { value: "blog_article", label: "Blogartikel" },
-  { value: "linkedin_post", label: "LinkedIn-inlägg" },
-  { value: "email", label: "E-post" },
-  { value: "comparison", label: "Jämförelsesida" },
+  { value: "blog_article", label: "Blog article" },
+  { value: "linkedin_post", label: "LinkedIn post" },
+  { value: "email", label: "Email" },
+  { value: "comparison", label: "Comparison page" },
 ];
 
 function toDateInputValue(iso: string | null): string {
@@ -200,7 +200,7 @@ export default function EditChipModal({
       const data = await tenantClient.post<{ success: boolean; error?: string; content_piece_id?: string }>(
         `/api/content/plan/${item.id}/draft`,
       );
-      if (!data.success) throw new Error(data.error || "Kunde inte godkänna");
+      if (!data.success) throw new Error(data.error || "Could not approve");
       const pieceId = data.content_piece_id;
       const updated: EditableChipItem = {
         ...item,
@@ -214,14 +214,14 @@ export default function EditChipModal({
       onClose();
       if (pieceId) router.push(`/c/content/${pieceId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte godkänna");
+      setError(e instanceof Error ? e.message : "Could not approve");
     } finally {
       setApproving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Ta bort "${item.title}" från planen?`)) return;
+    if (!confirm(`Remove "${item.title}" from the plan?`)) return;
     setDeleting(true);
     setError(null);
     try {
@@ -229,7 +229,7 @@ export default function EditChipModal({
       onDeleted(item.id);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte ta bort");
+      setError(e instanceof Error ? e.message : "Could not remove");
       setDeleting(false);
     }
   };
@@ -237,7 +237,7 @@ export default function EditChipModal({
   const handleRefine = async (field: RefineField, intent: string) => {
     const text = (field === "title" ? title : topic).trim();
     if (!text) {
-      setError("Det finns ingen text att skriva om.");
+      setError("There's no text to rewrite.");
       return;
     }
     setRefineField(field);
@@ -255,11 +255,11 @@ export default function EditChipModal({
         },
       );
       const refined = (data.refined_text || "").trim();
-      if (!refined) throw new Error("AI returnerade ingen text");
+      if (!refined) throw new Error("AI returned no text");
       if (field === "title") setRefinedTitle(refined);
       else setRefinedTopic(refined);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte skriva om texten");
+      setError(e instanceof Error ? e.message : "Could not rewrite the text");
     } finally {
       setRefining(false);
     }
@@ -294,13 +294,13 @@ export default function EditChipModal({
             <div className="min-w-0 pr-3">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <Wand2 className="h-5 w-5 text-purple-500" />
-                Redigera idé
+                Edit idea
               </h3>
               <p className="mt-0.5 text-xs text-slate-500">
                 Status: <span className="font-medium text-slate-700">{item.status}</span>
                 {item.scheduled_for && (
                   <>
-                    {" · "}schemalagd {new Date(item.scheduled_for).toLocaleDateString()}
+                    {" · "}scheduled {new Date(item.scheduled_for).toLocaleDateString()}
                   </>
                 )}
               </p>
@@ -308,7 +308,7 @@ export default function EditChipModal({
             <button
               onClick={onClose}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              aria-label="Stäng"
+              aria-label="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -325,13 +325,13 @@ export default function EditChipModal({
             {/* Title + AI refine */}
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs font-medium text-slate-600">Titel</label>
+                <label className="text-xs font-medium text-slate-600">Title</label>
                 <button
                   onClick={() => setRefineField(refineField === "title" ? null : "title")}
                   className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700 hover:bg-purple-100"
                 >
                   <Sparkles className="h-3 w-3" />
-                  Skriv om med AI
+                  Rewrite with AI
                 </button>
               </div>
               <input
@@ -357,21 +357,21 @@ export default function EditChipModal({
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <label className="text-xs font-medium text-slate-600">
-                  Vad det handlar om
+                  What it's about
                 </label>
                 <button
                   onClick={() => setRefineField(refineField === "topic" ? null : "topic")}
                   className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700 hover:bg-purple-100"
                 >
                   <Sparkles className="h-3 w-3" />
-                  Skriv om med AI
+                  Rewrite with AI
                 </button>
               </div>
               <textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 rows={3}
-                placeholder="En till två meningar om innehållet"
+                placeholder="One or two sentences about the content"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               {refineField === "topic" && (
@@ -390,7 +390,7 @@ export default function EditChipModal({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-medium text-slate-600">Sökord</span>
+                <span className="text-xs font-medium text-slate-600">Keyword</span>
                 <input
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
@@ -399,7 +399,7 @@ export default function EditChipModal({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-600">Typ</span>
+                <span className="text-xs font-medium text-slate-600">Type</span>
                 <select
                   value={contentType}
                   onChange={(e) => setContentType(e.target.value)}
@@ -411,7 +411,7 @@ export default function EditChipModal({
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-600">Prioritet</span>
+                <span className="text-xs font-medium text-slate-600">Priority</span>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
@@ -425,7 +425,7 @@ export default function EditChipModal({
               <label className="block">
                 <span className="text-xs font-medium text-slate-600">
                   <span className="inline-flex items-center gap-1">
-                    <CalendarIcon className="h-3 w-3" /> Schemalagt datum
+                    <CalendarIcon className="h-3 w-3" /> Scheduled date
                   </span>
                 </span>
                 <input
@@ -447,10 +447,10 @@ export default function EditChipModal({
               <div className="text-sm">
                 <p className="flex items-center gap-1.5 font-medium text-slate-700">
                   <Rocket className="h-3.5 w-3.5 text-blue-600" />
-                  Publicera automatiskt på schemalagt datum
+                  Publish automatically on the scheduled date
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Annars stannar den som draft för manuell godkänning.
+                  Otherwise it stays as a draft for manual approval.
                 </p>
               </div>
             </label>
@@ -463,7 +463,7 @@ export default function EditChipModal({
               className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Ta bort
+              Remove
             </button>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -472,7 +472,7 @@ export default function EditChipModal({
                 disabled={saving || approving}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                Avbryt
+                Cancel
               </button>
               <button
                 onClick={() => handleSave(true)}
@@ -480,13 +480,13 @@ export default function EditChipModal({
                 className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                Spara
+                Save
               </button>
               <button
                 onClick={handleApprove}
                 disabled={saving || approving}
                 className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300"
-                title={isIdea ? "Godkänn idén och skriv en draft" : "Öppna i editorn"}
+                title={isIdea ? "Approve the idea and write a draft" : "Open in the editor"}
               >
                 {approving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -497,11 +497,11 @@ export default function EditChipModal({
                 )}
                 {isIdea
                   ? approving
-                    ? "Skriver draft..."
-                    : "Godkänn → draft"
+                    ? "Writing draft..."
+                    : "Approve → draft"
                   : hasPiece
-                    ? "Öppna editor"
-                    : "Nästa steg"}
+                    ? "Open editor"
+                    : "Next step"}
               </button>
             </div>
           </div>
@@ -553,7 +553,7 @@ function RefinePanel({
           className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:bg-purple-300"
         >
           {refining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-          {refining ? "Skriver om..." : refined ? "Försök igen" : "Skriv om"}
+          {refining ? "Rewriting..." : refined ? "Try again" : "Rewrite"}
         </button>
         {refined && (
           <>
@@ -561,13 +561,13 @@ function RefinePanel({
               onClick={onAccept}
               className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
             >
-              <Check className="h-3 w-3" /> Använd
+              <Check className="h-3 w-3" /> Use
             </button>
             <button
               onClick={onDiscard}
               className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
-              Släng
+              Discard
             </button>
           </>
         )}

@@ -353,20 +353,20 @@ export default function AnalysisPage() {
               disabled={!canCreatePlan}
               title={
                 !canCreatePlan
-                  ? "Kör en analys först för att kunna skapa en plan från den"
-                  : "Skapa en 90-dagars content-plan baserat på analysens gap"
+                  ? "Run an analysis first to create a plan from it"
+                  : "Create a 90-day content plan based on the analysis gaps"
               }
               className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CalendarIcon className="h-4 w-4" />
-              Skapa content-plan
+              Create content plan
             </button>
             <button
               onClick={handleRun}
               disabled={running || noDomain}
               title={
-                noDomain ? "Lägg till domän i Inställningar" :
-                "Kör en ny synlighets- och sajtanalys"
+                noDomain ? "Add a domain in Settings" :
+                "Run a new visibility and site analysis"
               }
               className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-violet-700 hover:to-blue-700 disabled:opacity-50"
             >
@@ -386,16 +386,16 @@ export default function AnalysisPage() {
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <div className="flex-1">
-              <div className="font-medium">Content-plan skapas i bakgrunden</div>
+              <div className="font-medium">Content plan being created in the background</div>
               <div className="mt-0.5 text-xs opacity-80">{planToast}</div>
               <Link href="/c/content/plan" className="mt-1 inline-block text-xs font-semibold underline">
-                Visa planen →
+                Show the plan →
               </Link>
             </div>
             <button
               onClick={() => setPlanToast(null)}
               className="text-emerald-500 hover:text-emerald-700"
-              aria-label="Stäng"
+              aria-label="Close"
             >
               ×
             </button>
@@ -431,10 +431,10 @@ export default function AnalysisPage() {
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   } else {
-                    setError(d?.error || "Kunde inte ladda analysen. Backend kan vara otillgänglig — försök igen om en stund.");
+                    setError(d?.error || "Could not load the analysis. The backend may be unavailable — please try again in a moment.");
                   }
                 } catch {
-                  setError("Kunde inte ladda analysen. Kontrollera din anslutning och försök igen.");
+                  setError("Could not load the analysis. Check your connection and try again.");
                 }
               }}
               onOpenAudit={async (id) => {
@@ -447,10 +447,10 @@ export default function AnalysisPage() {
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   } else {
-                    setError(d?.error || "Kunde inte ladda sajtgenomgången. Backend kan vara otillgänglig — försök igen om en stund.");
+                    setError(d?.error || "Could not load the site audit. The backend may be unavailable — please try again in a moment.");
                   }
                 } catch {
-                  setError("Kunde inte ladda sajtgenomgången. Kontrollera din anslutning och försök igen.");
+                  setError("Could not load the site audit. Check your connection and try again.");
                 }
               }}
             />
@@ -464,11 +464,11 @@ export default function AnalysisPage() {
             <h2 className="text-lg font-semibold text-slate-800">{t.insights.emptyTitle}</h2>
             <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
               {t.insights.emptyHint} <strong>{t.insights.emptyHintRun}</strong> {t.insights.emptyHintSuffix}{" "}
-              {brand.domain || "er sajt"} {t.insights.emptyHintSuffix2}
+              {brand.domain || "your site"} {t.insights.emptyHintSuffix2}
             </p>
             {noDomain && (
               <a href="/c/settings" className="mt-4 inline-block text-sm font-medium text-violet-700 underline">
-                Lägg till domän i Inställningar →
+                Add domain in Settings →
               </a>
             )}
           </div>
@@ -483,7 +483,7 @@ export default function AnalysisPage() {
                 <h2 className="text-sm font-semibold text-slate-800">{t.insights.visibilityTitle}</h2>
                 {visibilityRun.created_at && (
                   <span className="text-xs text-slate-400">
-                    · {new Date(visibilityRun.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })}
+                    · {new Date(visibilityRun.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                   </span>
                 )}
               </div>
@@ -492,7 +492,7 @@ export default function AnalysisPage() {
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <div className="font-medium">Exempeldata — inte en riktig analys.</div>
+                  <div className="font-medium">Sample data — not a real analysis.</div>
                   {visibilityRun._mock_reason && <div className="text-xs opacity-80">{visibilityRun._mock_reason}</div>}
                 </div>
               </div>
@@ -509,7 +509,7 @@ export default function AnalysisPage() {
               <h2 className="text-sm font-semibold text-slate-800">{t.insights.auditTitle}</h2>
               {auditRun.created_at && (
                 <span className="text-xs text-slate-400">
-                  · {new Date(auditRun.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })}
+                  · {new Date(auditRun.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                 </span>
               )}
             </div>
@@ -525,7 +525,7 @@ export default function AnalysisPage() {
         )}
       </div>
 
-      {/* Skapa content-plan modal */}
+      {/* Create content-plan modal */}
       {showPlanModal && visibilityRun?.id && effectiveTenantId && (
         <CreateContentPlanModal
           analysisRunId={visibilityRun.id}
@@ -535,9 +535,9 @@ export default function AnalysisPage() {
           onSuccess={(result) => {
             setPlanToast(
               result.message ||
-                `Cirka ${result.articles_per_week * 13} artiklar och ${
+                `Approximately ${result.articles_per_week * 13} articles and ${
                   result.articles_per_week * 13 * result.social_platforms.length
-                } sociala inlägg genereras.`,
+                } social posts are being generated.`,
             );
             if (result.run_id) {
               const totalArticles = result.articles_per_week * 13;
@@ -549,7 +549,7 @@ export default function AnalysisPage() {
               // not minutes. Keep a 30s floor so the bar doesn't snap to
               // 100% before the agent_runs row gets polled.
               registerRun("content", result.run_id, {
-                label: `Content-plan · ${totalArticles} artiklar + ${totalSocial} inlägg`,
+                label: `Content plan · ${totalArticles} articles + ${totalSocial} posts`,
                 expectedSeconds: 30,
               });
             }
@@ -624,7 +624,7 @@ function CombinedHistory({
             <tbody>
               {visRuns.map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 text-slate-600">{new Date(r.started_at).toLocaleString("sv-SE")}</td>
+                  <td className="px-4 py-2 text-slate-600">{new Date(r.started_at).toLocaleString()}</td>
                   <td className="px-4 py-2 text-slate-600">{r.query_count}</td>
                   <td className="px-4 py-2 text-slate-600">{r.platform_count}</td>
                   <td className="px-4 py-2">
@@ -669,7 +669,7 @@ function CombinedHistory({
               <tbody>
                 {auditRuns.map((r) => (
                   <tr key={r.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 text-slate-600">{new Date(r.started_at).toLocaleString("sv-SE")}</td>
+                    <td className="px-4 py-2 text-slate-600">{new Date(r.started_at).toLocaleString()}</td>
                     <td className="px-4 py-2 text-slate-600">{r.pages_analyzed}</td>
                     <td className="px-4 py-2 text-slate-700">
                       {r.overall_score != null ? <span className="font-semibold">{r.overall_score}/100</span> : "—"}
@@ -706,7 +706,7 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
     .map((r) => ({
       ts: new Date(r.started_at).getTime(),
       score: r.overall_score as number,
-      label: new Date(r.started_at).toLocaleDateString("sv-SE", {
+      label: new Date(r.started_at).toLocaleDateString(undefined, {
         day: "numeric",
         month: "short",
       }),
@@ -755,7 +755,7 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
             }`}
           >
             {delta > 0 ? "+" : ""}
-            {delta} {t.insights.firstVs} första
+            {delta} {t.insights.firstVs} first
           </span>
         </div>
       </div>
@@ -764,7 +764,7 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
         className="h-32 w-full"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Audit-score över tid"
+        aria-label="Audit score over time"
       >
         <line x1={PAD_X} x2={W - PAD_X} y1={yFor(80)} y2={yFor(80)} stroke="#e2e8f0" strokeDasharray="2 4" />
         <line x1={PAD_X} x2={W - PAD_X} y1={yFor(60)} y2={yFor(60)} stroke="#e2e8f0" strokeDasharray="2 4" />
@@ -834,8 +834,8 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
         <KeywordGeoRecommendations
           existingKeywords={existingKeywords}
           gapSummary={gapSummary}
-          title="Rekommenderade tillägg att spåra"
-          description="Baserat på dina gap föreslår AI nya sökord och AI-frågor som du kan lägga till."
+          title="Recommended additions to track"
+          description="Based on your gaps, AI suggests new keywords and AI queries to add."
         />
       )}
     </div>

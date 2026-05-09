@@ -5,11 +5,11 @@ import {
 } from "lucide-react";
 
 const SUGGESTIONS = [
-  { href: "/c/dashboard", label: "Hem", description: "Status och nästa steg", icon: BarChart2 },
-  { href: "/c/tech", label: "Tech", description: "Tekniska åtgärder och förbättringar", icon: Code2 },
-  { href: "/c/analysis", label: "Insikter", description: "Synlighet i Google och AI-assistenter", icon: Sparkles },
-  { href: "/c/content", label: "Content", description: "Skapa, planera, publicera", icon: FileText },
-  { href: "/c/settings", label: "Inställningar", description: "Konto, varumärke, integrationer", icon: Settings },
+  { href: "/c/dashboard", label: "Home", description: "Status and next steps", icon: BarChart2 },
+  { href: "/c/tech", label: "Tech", description: "Technical actions and improvements", icon: Code2 },
+  { href: "/c/analysis", label: "Insights", description: "Visibility in Google and AI assistants", icon: Sparkles },
+  { href: "/c/content", label: "Content", description: "Create, plan, publish", icon: FileText },
+  { href: "/c/settings", label: "Settings", description: "Account, brand, integrations", icon: Settings },
 ];
 
 export default function CustomerNotFound() {
@@ -24,10 +24,10 @@ export default function CustomerNotFound() {
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-16">
         <p className="text-sm font-semibold text-blue-600">404</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-900">Sidan finns inte</h1>
+        <h1 className="mt-2 text-3xl font-bold text-slate-900">Page not found</h1>
         <p className="mt-2 text-slate-500">
-          Länken du följde fungerar inte längre, eller så har sidan flyttats. Här är vart du
-          kan gå istället.
+          The link you followed no longer works, or the page has moved. Here's where you
+          can go instead.
         </p>
 
         <ul className="mt-8 divide-y divide-slate-200 overflow-hidden rounded-xl border bg-white shadow-sm">

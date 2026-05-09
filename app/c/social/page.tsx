@@ -248,11 +248,11 @@ export default function CustomerSocialPage() {
         {/* AI Suggestions */}
         {user && (
           <SuggestionsPanel<SocialSuggestion>
-            title="Sociala förslag"
-            description="AI föreslår inlägg per plattform. Importera ett förslag så skapas ett utkast som du kan publicera."
+            title="Social suggestions"
+            description="AI suggests posts per platform. Import a suggestion to create a draft you can publish."
             accent="indigo"
-            importButtonLabel="Importera till Social"
-            importLabel="Importera till Social-agenten"
+            importButtonLabel="Import to Social"
+            importLabel="Import to the Social agent"
             fetchSuggestions={async () => {
               const client = tenantClient;
               const res = await client.post<{ suggestions?: SocialSuggestion[] }>("/api/social/suggest-posts", {});
@@ -275,7 +275,7 @@ export default function CustomerSocialPage() {
                 status: "draft",
               });
               await fetchData();
-              return "Inlägget sparades som utkast.";
+              return "Post saved as draft.";
             }}
           />
         )}

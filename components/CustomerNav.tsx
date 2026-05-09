@@ -162,7 +162,7 @@ function AccountSwitcher() {
     active?.brand_name ||
     active?.domain ||
     active?.owner_email ||
-    "Välj konto";
+    "Select account";
 
   const requestSwitch = (id: string) => {
     if (id === activeAccountId) {
@@ -180,18 +180,18 @@ function AccountSwitcher() {
     confirmTarget?.brand_name ||
     confirmTarget?.domain ||
     confirmTarget?.owner_email ||
-    "kontot";
+    "the account";
   const confirmDescription =
     inFlightRuns.length > 0
-      ? `Du har ${inFlightRuns.length} pågående körning${
-          inFlightRuns.length === 1 ? "" : "ar"
-        } (${inFlightRuns
+      ? `You have ${inFlightRuns.length} run${
+          inFlightRuns.length === 1 ? "" : "s"
+        } in progress (${inFlightRuns
           .map((r) => r.label)
           .slice(0, 3)
           .join(
             ", ",
-          )}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`
-      : `All data och inställningar växlas till ${confirmLabel}. Eventuella osparade ändringar förloras.`;
+          )}). The results won't appear automatically once you switch to ${confirmLabel}.`
+      : `All data and settings will switch to ${confirmLabel}. Any unsaved changes will be lost.`;
 
   return (
     <div className="relative px-3 pb-2" ref={ref}>
@@ -245,10 +245,10 @@ function AccountSwitcher() {
 
       <ConfirmDialog
         open={pendingSwitch !== null}
-        title="Byta konto?"
+        title="Switch account?"
         description={confirmDescription}
-        confirmLabel="Byt"
-        cancelLabel="Avbryt"
+        confirmLabel="Switch"
+        cancelLabel="Cancel"
         onConfirm={() => {
           if (pendingSwitch) {
             setActiveAccountId(pendingSwitch);
@@ -293,18 +293,18 @@ function SiteSwitcher() {
   const confirmLabel =
     confirmTarget?.site_name ||
     (confirmTarget?.settings?.brand_name as string | undefined) ||
-    "den nya sidan";
+    "the new site";
   const confirmDescription =
     inFlightRuns.length > 0
-      ? `Du har ${inFlightRuns.length} pågående körning${
-          inFlightRuns.length === 1 ? "" : "ar"
-        } (${inFlightRuns
+      ? `You have ${inFlightRuns.length} run${
+          inFlightRuns.length === 1 ? "" : "s"
+        } in progress (${inFlightRuns
           .map((r) => r.label)
           .slice(0, 3)
           .join(
             ", ",
-          )}). Resultatet visas inte automatiskt när du byter till ${confirmLabel}.`
-      : `Vyn växlas till ${confirmLabel}. Sidor laddas om så att du ser rätt data för den valda webbplatsen.`;
+          )}). The results won't appear automatically once you switch to ${confirmLabel}.`
+      : `The view will switch to ${confirmLabel}. Pages will reload to show the right data for the selected site.`;
 
   return (
     <div className="relative px-3 pb-3" ref={ref}>

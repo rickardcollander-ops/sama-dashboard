@@ -406,11 +406,11 @@ export default function CustomerAdsPage() {
         {/* AI Suggestions */}
         {user && (
           <SuggestionsPanel<AdSuggestion>
-            title="Annonsförslag"
-            description="AI föreslår nya kreativ baserat på ditt varumärke. Importera ett förslag så sparas det som utkast i Ads-agenten."
+            title="Ad suggestions"
+            description="AI suggests new creatives based on your brand. Import a suggestion to save it as a draft in the Ads agent."
             accent="orange"
-            importButtonLabel="Importera till Ads"
-            importLabel="Importera till Ads-agenten"
+            importButtonLabel="Import to Ads"
+            importLabel="Import to the Ads agent"
             fetchSuggestions={async () => {
               const client = tenantClient;
               const res = await client.post<{ suggestions?: AdSuggestion[] }>("/api/ads/suggest-campaigns", {});
@@ -439,7 +439,7 @@ export default function CustomerAdsPage() {
                 status: "draft",
               });
               await loadDrafts();
-              return `Annonsförslaget sparades som utkast.`;
+              return `Ad suggestion saved as draft.`;
             }}
           />
         )}
@@ -889,7 +889,7 @@ export default function CustomerAdsPage() {
                           {PLATFORM_LABELS[draft.platform as Platform] || draft.platform}
                         </span>
                         <span className="text-xs text-slate-400">
-                          {draft.created_at ? new Date(draft.created_at).toLocaleDateString("sv-SE") : ""}
+                          {draft.created_at ? new Date(draft.created_at).toLocaleDateString() : ""}
                         </span>
                       </div>
                       <h3 className="font-semibold text-slate-900 text-sm truncate">{draft.headline}</h3>

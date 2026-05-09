@@ -14,11 +14,11 @@ export async function generateMetadata(
   const { id } = await params;
   const result = await loadPublicAudit(id);
   if (!result) {
-    return { title: "Audit hittades inte — Sama AI" };
+    return { title: "Audit not found — Sama AI" };
   }
   const score = result.audit.scores.overall;
-  const title = `${result.domain} — ${score}/100 i AI-synlighet`;
-  const description = `Se hela AI-synlighetsrapporten för ${result.domain} och kör din egen gratis audit på 30 sekunder.`;
+  const title = `${result.domain} — ${score}/100 in AI visibility`;
+  const description = `See the full AI visibility report for ${result.domain} and run your own free audit in 30 seconds.`;
   return {
     title,
     description,
@@ -59,13 +59,13 @@ export default async function SharedAuditPage(
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
             >
               <LogIn className="h-4 w-4" />
-              Logga in
+              Sign in
             </Link>
             <Link
               href="/c/audit"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
             >
-              Kör din egen
+              Run your own
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -75,13 +75,13 @@ export default async function SharedAuditPage(
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="mb-6">
           <p className="text-xs font-medium uppercase tracking-wider text-violet-600">
-            Delad audit
+            Shared audit
           </p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
-            AI-synlighetsrapport för {result.domain}
+            AI visibility report for {result.domain}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Skapad {new Date(result.fetched_at).toLocaleDateString("sv-SE", {
+            Created {new Date(result.fetched_at).toLocaleDateString(undefined, {
               year: "numeric", month: "long", day: "numeric",
             })}
           </p>
@@ -90,15 +90,15 @@ export default async function SharedAuditPage(
         <PublicAuditResult result={result} />
 
         <div className="mt-12 rounded-2xl bg-slate-900 p-8 text-center text-white">
-          <h2 className="text-2xl font-bold sm:text-3xl">Få samma rapport för din egen sajt</h2>
+          <h2 className="text-2xl font-bold sm:text-3xl">Get the same report for your own site</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
-            Gratis. Inget kort. Inget konto. 30 sekunder.
+            Free. No card. No account. 30 seconds.
           </p>
           <Link
             href="/c/audit"
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
           >
-            Kör gratis audit
+            Run free audit
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

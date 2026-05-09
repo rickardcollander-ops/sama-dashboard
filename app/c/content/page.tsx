@@ -383,7 +383,7 @@ function CustomerContentInner() {
       setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
       setTimeout(() => setIdeaToast(null), 6000);
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte godkänna idén"}`);
+      setError(`${err?.message || "Could not approve the idea"}`);
     } finally {
       setApprovingId(null);
     }
@@ -488,13 +488,13 @@ function CustomerContentInner() {
       );
       const generated = result.body || result.content || "";
       if (!generated) {
-        const detail = result.suggestions?.[0] || "AI:n returnerade inget innehåll.";
-        setError(`Kunde inte generera: ${detail}`);
+        const detail = result.suggestions?.[0] || "The AI returned no content.";
+        setError(`Could not generate: ${detail}`);
       } else {
         setModalContent(generated);
       }
     } catch (err: any) {
-      setError(`Kunde inte generera: ${err?.message || err}`);
+      setError(`Could not generate: ${err?.message || err}`);
     }
     setModalGenerating(false);
   };
@@ -617,7 +617,7 @@ function CustomerContentInner() {
 
   const deletePiece = async (pieceId: string) => {
     if (!user) return;
-    if (!confirm("Radera detta innehåll permanent? Det går inte att ångra.")) return;
+    if (!confirm("Delete this content permanently? This cannot be undone.")) return;
     setUpdatingStatus(pieceId);
     setPieces((prev) => prev.filter((p) => p.id !== pieceId));
     try {
@@ -627,7 +627,7 @@ function CustomerContentInner() {
       }
     } catch (err: any) {
       console.error("Failed to delete piece:", err);
-      setError(`Kunde inte radera: ${err?.message || err}`);
+      setError(`Could not delete: ${err?.message || err}`);
       fetchContent();
     }
     setUpdatingStatus(null);
@@ -635,7 +635,7 @@ function CustomerContentInner() {
 
   const emptyArchive = async () => {
     if (!user) return;
-    if (!confirm("Töm arkivet? Allt arkiverat material raderas permanent och kan inte återställas.")) return;
+    if (!confirm("Empty the archive? All archived material will be permanently deleted and cannot be restored.")) return;
     try {
       const client = tenantClient;
       // Hard-delete archived rows in both tables in parallel: pieces
@@ -646,11 +646,11 @@ function CustomerContentInner() {
         client.delete(`/api/content/plan/archived`),
       ]);
       setPieces((prev) => prev.filter((p) => p.status !== "archived"));
-      setIdeaToast("Arkivet är tömt.");
+      setIdeaToast("The archive is empty.");
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
       console.error("Failed to empty archive:", err);
-      setError(`Kunde inte tömma arkivet: ${err?.message || err}`);
+      setError(`Could not empty archive: ${err?.message || err}`);
       fetchContent();
     }
   };
@@ -703,12 +703,12 @@ function CustomerContentInner() {
         },
       );
       if (res && res.success === false) {
-        throw new Error(res.error || "Kunde inte schemalägga");
+        throw new Error(res.error || "Could not schedule");
       }
       setScheduleSuccess(
-        `"${schedulingPiece.title}" lades i planen ${new Date(
+        `"${schedulingPiece.title}" was added to the plan on ${new Date(
           scheduledIso,
-        ).toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}.`,
+        ).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`,
       );
       closeScheduleDialog();
       setTimeout(() => setScheduleSuccess(null), 6000);
@@ -717,7 +717,7 @@ function CustomerContentInner() {
       // so the calendar/ideas lists show the new scheduled_for.
       fetchContent();
     } catch (e: any) {
-      setScheduleError(e?.message || "Kunde inte schemalägga");
+      setScheduleError(e?.message || "Could not schedule");
     } finally {
       setScheduleSaving(false);
     }
@@ -753,11 +753,11 @@ function CustomerContentInner() {
     }
     setLoadingBodyId(null);
     const subject = recipientName
-      ? `Hej ${recipientName} — utkast: ${piece.title}`
-      : `Utkast: ${piece.title}`;
+      ? `Hi ${recipientName} — draft: ${piece.title}`
+      : `Draft: ${piece.title}`;
     const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(
       subject,
-    )}&body=${encodeURIComponent(body || `Hej!\n\nHär kommer ett utkast: ${piece.title}`)}`;
+    )}&body=${encodeURIComponent(body || `Hi!\n\nHere's a draft: ${piece.title}`)}`;
     const a = document.createElement("a");
     a.href = mailto;
     a.rel = "noopener";
@@ -815,7 +815,7 @@ function CustomerContentInner() {
             <Link
               href="/c/content/plan"
               className="flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
-              title="Visa planen med planerade artiklar och inlägg."
+              title="Show the plan with scheduled articles and posts."
             >
               <Calendar className="h-4 w-4" />
               {t.content.viewCalendar}
@@ -823,7 +823,7 @@ function CustomerContentInner() {
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
-              title="Skriv eget ämne och låt SAMA generera ett utkast."
+              title="Write your own topic and let SAMA generate a draft."
             >
               <Plus className="h-4 w-4" />
               {t.content.createNew}
@@ -921,7 +921,7 @@ function CustomerContentInner() {
                 <p className="font-semibold text-slate-900 text-sm">{item.topic}</p>
                 {item.reason && (
                   <p className="text-xs text-slate-600 mt-1">
-                    <span className="font-medium text-slate-700">Varför: </span>
+                    <span className="font-medium text-slate-700">Why: </span>
                     {item.reason}
                   </p>
                 )}
@@ -936,7 +936,7 @@ function CustomerContentInner() {
               }>("/api/content/pieces", {
                 title: item.topic,
                 content_type: item.type,
-                content: `# ${item.topic}\n\n_Innehållet genereras av Content-agenten — använd "Förbättra med AI" för att bearbeta utkastet._`,
+                content: `# ${item.topic}\n\n_Content is generated by the Content agent — use "Refine with AI" to edit the draft._`,
                 status: "draft",
               });
               if (saved && saved.success === false) {
@@ -972,7 +972,7 @@ function CustomerContentInner() {
                   }
                 })();
               }
-              return `"${item.topic}" sparades som utkast — innehållet fylls på i bakgrunden.`;
+              return `"${item.topic}" was saved as a draft — content is being filled in in the background.`;
             }}
           />
         )}
@@ -1009,15 +1009,15 @@ function CustomerContentInner() {
         {filter === "archived" && archivedCount > 0 && (
           <div className="mb-4 flex items-center justify-between rounded-lg border border-red-100 bg-red-50/40 px-4 py-3">
             <div className="text-sm text-slate-700">
-              <span className="font-medium">{archivedCount}</span> arkiverade — arkiverat material visas inte i planen.
+              <span className="font-medium">{archivedCount}</span> archived — archived material isn't shown in the plan.
             </div>
             <button
               onClick={emptyArchive}
               className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
-              title="Radera allt arkiverat permanent"
+              title="Permanently delete everything archived"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Töm arkiv
+              Empty archive
             </button>
           </div>
         )}
@@ -1056,7 +1056,7 @@ function CustomerContentInner() {
                     : Mail)
                   : FileText;
                 const typeLabel = isSocial
-                  ? `${(platform || "social").charAt(0).toUpperCase()}${(platform || "").slice(1)}-inlägg`
+                  ? `${(platform || "social").charAt(0).toUpperCase()}${(platform || "").slice(1)} post`
                   : formatTypeLabel(idea.content_type);
                 const sched = idea.scheduled_for ? new Date(idea.scheduled_for) : null;
                 return (
@@ -1083,7 +1083,7 @@ function CustomerContentInner() {
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             {sched
-                              ? `${t.content.ideaScheduledOn} ${sched.toLocaleDateString("sv-SE", { dateStyle: "medium" })}`
+                              ? `${t.content.ideaScheduledOn} ${sched.toLocaleDateString(undefined, { dateStyle: "medium" })}`
                               : t.content.ideaUnscheduled}
                           </span>
                           {idea.target_keyword && (
@@ -1247,7 +1247,7 @@ function CustomerContentInner() {
                       <button
                         onClick={() => setRefineId(piece.id)}
                         className="rounded-lg border border-slate-200 bg-white p-1.5 text-purple-600 hover:bg-purple-50 transition-colors"
-                        title="Förbättra med AI"
+                        title="Refine with AI"
                       >
                         <Wand2 className="h-3.5 w-3.5" />
                       </button>
@@ -1260,7 +1260,7 @@ function CustomerContentInner() {
                         and on top of that crashed with a duplicate-key
                         error against uniq_content_plan_keyword_per_tenant.
                         Restricting it to approved pieces makes the row
-                        Skicka → Godkänn → Schemalägg → Publicera readable
+                        Send → Approve → Schedule → Publish readable
                         left-to-right. */}
                     {piece.status === "approved" && (
                       <button
@@ -1289,7 +1289,7 @@ function CustomerContentInner() {
                             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                             : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                         }`}
-                        title="Visa utfall"
+                        title="Show outcomes"
                       >
                         <BarChart2 className="h-3.5 w-3.5" />
                       </button>
@@ -1301,7 +1301,7 @@ function CustomerContentInner() {
                         onClick={() => deletePiece(piece.id)}
                         disabled={updatingStatus === piece.id}
                         className="rounded-lg border border-red-200 bg-white p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                        title="Radera permanent"
+                        title="Delete permanently"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1310,7 +1310,7 @@ function CustomerContentInner() {
                         onClick={() => archivePiece(piece.id)}
                         disabled={updatingStatus === piece.id}
                         className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 transition-colors"
-                        title="Arkivera"
+                        title="Archive"
                       >
                         <Archive className="h-3.5 w-3.5" />
                       </button>
@@ -1323,7 +1323,7 @@ function CustomerContentInner() {
                           onClick={() => openCmsDialog(piece)}
                           disabled={loadingBodyId === piece.id}
                           className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                          title="Publicera till WordPress, Webflow, Ghost, Notion eller webhook"
+                          title="Publish to WordPress, Webflow, Ghost, Notion or webhook"
                         >
                           {loadingBodyId === piece.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1336,7 +1336,7 @@ function CustomerContentInner() {
                           onClick={() => sendByMail(piece)}
                           disabled={loadingBodyId === piece.id}
                           className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                          title="Skicka via mail till mottagaren från Inställningar"
+                          title="Send by email to the recipient from Settings"
                         >
                           <Send className="h-3.5 w-3.5" />
                           {t.content.sendByMail}
@@ -1372,7 +1372,7 @@ function CustomerContentInner() {
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-slate-400" title="Anslut GitHub i Inställningar för att publicera">
+                        <span className="text-xs text-slate-400" title="Connect GitHub in Settings to publish">
                           <Code2 className="h-3.5 w-3.5 inline mr-1" />
                           {t.content.connectGitHub}
                         </span>
@@ -1423,7 +1423,7 @@ function CustomerContentInner() {
                   <button
                     onClick={closeEditIdea}
                     className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    aria-label="Stäng"
+                    aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1528,7 +1528,7 @@ function CustomerContentInner() {
                   <button
                     onClick={closeScheduleDialog}
                     className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    aria-label="Stäng"
+                    aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1628,7 +1628,7 @@ function CustomerContentInner() {
                     <button
                       onClick={() => setModalFullscreen(!modalFullscreen)}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                      title={modalFullscreen ? "Minimera" : "Helskärm"}
+                      title={modalFullscreen ? "Minimise" : "Fullscreen"}
                     >
                       {modalFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                     </button>

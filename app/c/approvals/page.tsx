@@ -48,7 +48,7 @@ export default function ApprovalsPage() {
       const data = (await res.json()) as { approvals: Approval[] };
       setApprovals(data.approvals || []);
     } catch {
-      setError("Kunde inte hämta utkast.");
+      setError("Could not fetch drafts.");
       setApprovals([]);
     }
   };
@@ -73,7 +73,7 @@ export default function ApprovalsPage() {
       if (!res.ok) throw new Error("decide failed");
       await load();
     } catch {
-      setError(action === "approve" ? "Kunde inte godkänna utkastet." : "Kunde inte avvisa utkastet.");
+      setError(action === "approve" ? "Could not approve the draft." : "Could not reject the draft.");
     }
     setWorking(null);
   };
@@ -90,7 +90,7 @@ export default function ApprovalsPage() {
       setEditing(null);
       await load();
     } catch {
-      setError("Kunde inte spara ändringen.");
+      setError("Could not save the changes.");
     }
     setWorking(null);
   };
@@ -113,16 +113,16 @@ export default function ApprovalsPage() {
         <div className="mb-6">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
             <ShieldCheck className="h-6 w-6 text-emerald-600" />
-            Att godkänna
+            To approve
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Utkast som dina agenter har förberett — granska innan publicering.
+            Drafts your agents have prepared — review before publishing.
           </p>
         </div>
 
         <div className="mb-4 flex gap-1 border-b border-slate-200">
           {(["pending", "approved", "rejected"] as const).map((t) => {
-            const label = t === "pending" ? "Väntar" : t === "approved" ? "Godkända" : "Avvisade";
+            const label = t === "pending" ? "Pending" : t === "approved" ? "Approved" : "Rejected";
             return (
               <button
                 key={t}
@@ -153,10 +153,10 @@ export default function ApprovalsPage() {
             <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-slate-300" />
             <p className="text-sm">
               {tab === "pending"
-                ? "Inga utkast väntar på granskning."
+                ? "No drafts waiting for review."
                 : tab === "approved"
-                  ? "Inga godkända utkast."
-                  : "Inga avvisade utkast."}
+                  ? "No approved drafts."
+                  : "No rejected drafts."}
             </p>
           </div>
         ) : (
@@ -201,7 +201,7 @@ export default function ApprovalsPage() {
                         </>
                       )}
                       {a.reviewer_note && (
-                        <p className="mt-2 text-xs italic text-slate-500">Notering: {a.reviewer_note}</p>
+                        <p className="mt-2 text-xs italic text-slate-500">Note: {a.reviewer_note}</p>
                       )}
                     </div>
                   </div>
@@ -216,7 +216,7 @@ export default function ApprovalsPage() {
                             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
                             {working === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                            Godkänn & publicera
+                            Approve & publish
                           </button>
                           <button
                             onClick={() => decide(a.id, "reject")}
@@ -224,7 +224,7 @@ export default function ApprovalsPage() {
                             className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                           >
                             <XCircle className="h-3.5 w-3.5" />
-                            Avvisa
+                            Reject
                           </button>
                           <button
                             onClick={() => {
@@ -233,7 +233,7 @@ export default function ApprovalsPage() {
                             }}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            Redigera
+                            Edit
                           </button>
                         </>
                       ) : (
@@ -243,13 +243,13 @@ export default function ApprovalsPage() {
                             disabled={working === a.id}
                             className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
                           >
-                            Spara
+                            Save
                           </button>
                           <button
                             onClick={() => setEditing(null)}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                           >
-                            Avbryt
+                            Cancel
                           </button>
                         </>
                       )}

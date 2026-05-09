@@ -105,7 +105,7 @@ export default function CreateContentPlanModal({
         throw new Error(text.slice(0, 200) || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      setDone(data.message || "Idélista skapas i bakgrunden.");
+      setDone(data.message || "Idea list being created in the background.");
       onSuccess?.({
         articles_per_week: articlesPerWeek,
         social_posts_per_week: includeSocial ? socialPostsPerWeek : 0,
@@ -114,7 +114,7 @@ export default function CreateContentPlanModal({
         run_id: typeof data.run_id === "string" ? data.run_id : undefined,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte skapa content-plan");
+      setError(e instanceof Error ? e.message : "Could not create content plan");
     } finally {
       setSubmitting(false);
     }
@@ -136,13 +136,13 @@ export default function CreateContentPlanModal({
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-violet-600" />
             <h3 className="text-lg font-semibold text-slate-900">
-              Skapa content-plan
+              Create content plan
             </h3>
           </div>
           <button
             onClick={onClose}
             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Stäng"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -152,12 +152,12 @@ export default function CreateContentPlanModal({
           <div className="p-6 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
             <h4 className="mt-3 text-base font-semibold text-slate-900">
-              Idélista skapas!
+              Idea list being created!
             </h4>
             <p className="mt-1 text-sm text-slate-600">{done}</p>
             <p className="mt-2 text-xs text-slate-500">
-              Vi skriver inte texten ännu — du godkänner idéerna en i taget
-              under Innehåll → Idéer.
+              We don't write the text yet — you approve ideas one at a time
+              under Content → Ideas.
             </p>
             <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
               {/* next/link does a soft client-side navigation so the
@@ -169,14 +169,14 @@ export default function CreateContentPlanModal({
                 onClick={onClose}
                 className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
               >
-                Visa idéer
+                Show ideas
               </Link>
               <Link
                 href="/c/content/plan"
                 onClick={onClose}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Visa planen
+                Show the plan
               </Link>
             </div>
           </div>
@@ -184,14 +184,14 @@ export default function CreateContentPlanModal({
           <>
             <div className="space-y-5 p-5">
               <p className="text-sm text-slate-600">
-                Vi gör en lista med artikel- och inlägg-idéer för de kommande
-                90 dagarna baserat på era luckor i Insikter. Texterna skrivs
-                först när du godkänner idéerna en i taget.
+                We generate a list of article and post ideas for the next
+                90 days based on your gaps in Insights. The text is only
+                written once you approve ideas one at a time.
               </p>
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">
-                  Artiklar per vecka
+                  Articles per week
                 </span>
                 <div className="mt-2 flex gap-2">
                   {[1, 2, 3, 4, 5].map((n) => (
@@ -210,17 +210,17 @@ export default function CreateContentPlanModal({
                   ))}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Cirka {totalArticles} artiklar totalt under 90 dagar.
+                  Approximately {totalArticles} articles over 90 days.
                 </p>
               </label>
 
               <div>
                 <span className="text-sm font-medium text-slate-700">
-                  Sociala inlägg per vecka
+                  Social posts per week
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Hur ofta vi schemalägger inlägg per vald plattform. Sätt 0 för
-                  att hoppa över social helt.
+                  How often we schedule posts per selected platform. Set 0 to
+                  skip social entirely.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
@@ -242,11 +242,11 @@ export default function CreateContentPlanModal({
 
               <div>
                 <span className="text-sm font-medium text-slate-700">
-                  Inkludera social media
+                  Include social media
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Inläggen länkar till närmaste artikel och du får dem mailade för
-                  manuell publicering.
+                  Posts link to the nearest article and you'll get them emailed for
+                  manual publishing.
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {PLATFORM_OPTIONS.map(({ id, label, Icon }) => {
@@ -283,17 +283,17 @@ export default function CreateContentPlanModal({
                 </div>
                 {socialPostsPerWeek > 0 && platforms.size > 0 && (
                   <p className="mt-2 text-xs text-slate-500">
-                    Cirka {totalSocial} sociala inlägg totalt ({socialPostsPerWeek} × 13 veckor × {platforms.size} plattform{platforms.size === 1 ? "" : "ar"}).
+                    Approximately {totalSocial} social posts in total ({socialPostsPerWeek} × 13 weeks × {platforms.size} platform{platforms.size === 1 ? "" : "s"}).
                   </p>
                 )}
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                <strong className="font-semibold text-slate-700">Så fungerar det:</strong>{" "}
-                Vi skapar idé-listan direkt. När du godkänner en artikel-idé
-                skrivs hela texten (i er ton, utan AI-tells som em-dash, „delve”
-                eller „moreover”) och de tillhörande sociala inläggen automatiskt
-                i samma steg.
+                <strong className="font-semibold text-slate-700">How it works:</strong>{" "}
+                We create the idea list immediately. When you approve an article idea,
+                the full text is written (in your tone, without AI tells like em-dash,
+                "delve" or "moreover") along with the matching social posts — all in the
+                same step.
               </div>
 
               {error && (
@@ -309,7 +309,7 @@ export default function CreateContentPlanModal({
                 onClick={onClose}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                Avbryt
+                Cancel
               </button>
               <button
                 onClick={submit}
@@ -321,7 +321,7 @@ export default function CreateContentPlanModal({
                 ) : (
                   <Calendar className="h-4 w-4" />
                 )}
-                Skapa plan
+                Create plan
               </button>
             </div>
           </>

@@ -35,7 +35,7 @@ export default function SitesSettingsPage() {
     e.preventDefault();
     if (!user || !newName.trim() || !newDomain.trim()) return;
     if (!isAdmin) {
-      setError("Endast admin kan lägga till sidor. Kontakta admin.");
+      setError("Only admins can add sites. Please contact your admin.");
       return;
     }
     const ownerId = effectiveOwnerId || user.id;
@@ -66,9 +66,9 @@ export default function SitesSettingsPage() {
       setShowAdd(false);
       setNewName("");
       setNewDomain("");
-      flash("Sidan är tillagd!");
+      flash("Site added!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte lägga till sidan");
+      setError(err instanceof Error ? err.message : "Could not add the site");
     }
     setAdding(false);
   };
@@ -96,9 +96,9 @@ export default function SitesSettingsPage() {
       }
       await reloadSites();
       setEditingId(null);
-      flash("Namn sparat!");
+      flash("Name saved!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte byta namn");
+      setError(err instanceof Error ? err.message : "Could not rename");
     }
     setBusy(null);
   };
@@ -106,10 +106,10 @@ export default function SitesSettingsPage() {
   const handleDelete = async (site: UserSite) => {
     if (!user) return;
     if (sites.length <= 1) {
-      setError("Du kan inte ta bort den sista sidan.");
+      setError("You can't remove the last site.");
       return;
     }
-    if (!confirm(`Ta bort "${site.site_name}"? Det går inte att ångra.`)) return;
+    if (!confirm(`Remove "${site.site_name}"? This cannot be undone.`)) return;
     setBusy(site.id);
     setError("");
     try {
@@ -135,9 +135,9 @@ export default function SitesSettingsPage() {
         if (remaining.length > 0) setActiveSiteId(remaining[0].id);
       }
       await reloadSites();
-      flash("Sidan är borttagen.");
+      flash("Site removed.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte ta bort sidan");
+      setError(err instanceof Error ? err.message : "Could not remove the site");
     }
     setBusy(null);
   };
@@ -150,10 +150,10 @@ export default function SitesSettingsPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
               <Globe className="h-6 w-6 text-slate-400" />
-              Sidor
+              Sites
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Hantera webbsidor kopplade till det här kontot. Varje sida har egna inställningar och agenter.
+              Manage websites linked to this account. Each site has its own settings and agents.
             </p>
           </div>
           {isAdmin ? (
@@ -161,15 +161,15 @@ export default function SitesSettingsPage() {
               onClick={() => setShowAdd(true)}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
-              <Plus className="h-4 w-4" /> Lägg till sida
+              <Plus className="h-4 w-4" /> Add site
             </button>
           ) : (
             <div
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
-              title="Endast admin kan lägga till sidor"
+              title="Only admins can add sites"
             >
               <Lock className="h-3.5 w-3.5" />
-              <span>Kontakta admin för att lägga till fler sidor</span>
+              <span>Contact your admin to add more sites</span>
             </div>
           )}
         </div>
@@ -192,27 +192,27 @@ export default function SitesSettingsPage() {
             onSubmit={handleAdd}
             className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3"
           >
-            <h3 className="text-sm font-semibold text-slate-900">Ny sida</h3>
+            <h3 className="text-sm font-semibold text-slate-900">New site</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Sidnamn *</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Site name *</label>
                 <input
                   type="text"
                   required
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Acme Blogg"
+                  placeholder="Acme Blog"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Domän *</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Domain *</label>
                 <input
                   type="text"
                   required
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
-                  placeholder="blogg.acme.se"
+                  placeholder="blog.acme.com"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -224,14 +224,14 @@ export default function SitesSettingsPage() {
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Skapa
+                Create
               </button>
               <button
                 type="button"
                 onClick={() => { setShowAdd(false); setNewName(""); setNewDomain(""); }}
                 className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
               >
-                Avbryt
+                Cancel
               </button>
             </div>
           </form>
@@ -272,7 +272,7 @@ export default function SitesSettingsPage() {
                             className="flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                           >
                             {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                            Spara
+                            Save
                           </button>
                           <button
                             onClick={() => setEditingId(null)}
@@ -283,10 +283,10 @@ export default function SitesSettingsPage() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-slate-900">{site.site_name || "Namnlös sida"}</span>
+                          <span className="font-medium text-slate-900">{site.site_name || "Unnamed site"}</span>
                           {isActive && (
                             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                              Aktiv
+                              Active
                             </span>
                           )}
                         </div>
@@ -303,14 +303,14 @@ export default function SitesSettingsPage() {
                         onClick={() => setActiveSiteId(site.id)}
                         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                       >
-                        Välj
+                        Select
                       </button>
                     )}
                     {!isEditing && (
                       <button
                         onClick={() => { setEditingId(site.id); setEditName(site.site_name); }}
                         className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
-                        title="Byt namn"
+                        title="Rename"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
@@ -318,7 +318,7 @@ export default function SitesSettingsPage() {
                     <button
                       onClick={() => handleDelete(site)}
                       disabled={isBusy || sites.length <= 1}
-                      title={sites.length <= 1 ? "Kan inte ta bort den sista sidan" : "Ta bort sida"}
+                      title={sites.length <= 1 ? "Cannot remove the last site" : "Remove site"}
                       className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -331,7 +331,7 @@ export default function SitesSettingsPage() {
         </div>
 
         <p className="mt-6 text-xs text-slate-400">
-          Varje sida har egna inställningar, konkurrenter och agenter. Välj en sida via dropdownen i navigationen för att se dess data.
+          Each site has its own settings, competitors and agents. Pick a site via the dropdown in the navigation to see its data.
         </p>
       </main>
     </div>
