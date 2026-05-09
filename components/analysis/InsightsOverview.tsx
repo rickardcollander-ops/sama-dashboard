@@ -35,6 +35,12 @@ interface SeoStats {
   top_keywords?: { keyword: string; position: number; clicks?: number }[];
 }
 
+interface AIReadabilitySummary {
+  overall_score?: number | null;
+  page_count?: number;
+  last_run_at?: string | null;
+}
+
 interface Strength {
   title: string;
   detail: string;
@@ -83,11 +89,16 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
   const { t } = useLanguage();
   const [geo, setGeo] = useState<GeoSummary | null>(null);
   const [seo, setSeo] = useState<SeoStats | null>(null);
+  const [aiReadability, setAiReadability] = useState<AIReadabilitySummary | null>(null);
   const [pieces, setPieces] = useState<PieceLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  const buildStrengths = (geoData: GeoSummary | null, seoData: SeoStats | null): Strength[] => {
+  const buildStrengths = (
+    geoData: GeoSummary | null,
+    seoData: SeoStats | null,
+    arData: AIReadabilitySummary | null,
+  ): Strength[] => {
     const out: Strength[] = [];
     if (geoData && (geoData.mention_rate ?? 0) >= 0.5) {
       const pct = Math.round((geoData.mention_rate ?? 0) * 100);
@@ -123,10 +134,24 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         });
       }
     }
+    // AI-readability is a strength when the audited pages score ≥ 80.
+    // We surface it as a strength even when GEO/SEO already filled the
+    // first three slots — it's a different dimension and worth showing.
+    const ar = arData?.overall_score;
+    if (ar != null && ar >= 80) {
+      out.push({
+        title: "AI-readable site structure",
+        detail: `Audited pages score ${ar}/100 for AI ingestion.`,
+      });
+    }
     return out.slice(0, 3);
   };
 
-  const buildGaps = (geoData: GeoSummary | null, seoData: SeoStats | null): Gap[] => {
+  const buildGaps = (
+    geoData: GeoSummary | null,
+    seoData: SeoStats | null,
+    arData: AIReadabilitySummary | null,
+  ): Gap[] => {
     const out: Gap[] = [];
     if (geoData && (geoData.open_gaps ?? 0) > 0) {
       out.push({
@@ -166,6 +191,18 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
         });
       }
     }
+    // AI-readability becomes a gap when the audited pages score below 60.
+    // Linking to /c/geo brings the user to the AIReadabilityCard, where
+    // the prioritised action points spell out what to fix.
+    const ar = arData?.overall_score;
+    if (ar != null && ar < 60) {
+      out.push({
+        id: "ai_readability_low",
+        title: "Pages aren't AI-friendly enough",
+        detail: `AI-readability score ${ar}/100. Open AI-synlighet to see the prioritised fixes.`,
+        topic: "Improve on-page structure for AI ingestion",
+      });
+    }
     if (out.length === 0) {
       out.push({
         id: "no_gaps",
@@ -187,14 +224,16 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       // user paid for on every visit to /c/analysis.
       const client = tenantApi(tenantId);
       try {
-        const [g, s, p] = await Promise.allSettled([
+        const [g, s, a, p] = await Promise.allSettled([
           client.get<GeoSummary>("/api/ai-visibility/summary?days=30"),
           client.get<SeoStats>("/api/seo/stats?days=30"),
+          client.get<AIReadabilitySummary>("/api/ai-readability/summary?days=30"),
           client.get<{ pieces?: PieceLink[] }>("/api/content/pieces?limit=50"),
         ]);
         if (cancelled) return;
         if (g.status === "fulfilled" && g.value) setGeo(g.value);
         if (s.status === "fulfilled" && s.value) setSeo(s.value);
+        if (a.status === "fulfilled" && a.value) setAiReadability(a.value);
         if (p.status === "fulfilled" && p.value?.pieces) setPieces(p.value.pieces);
         if (g.status === "rejected" && s.status === "rejected") setHasError(true);
       } catch {
@@ -217,7 +256,10 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
   }
 
   const noData =
-    !geo?.total_checks && !(seo?.total_keywords || seo?.totalKeywords) && !hasError;
+    !geo?.total_checks &&
+    !(seo?.total_keywords || seo?.totalKeywords) &&
+    aiReadability?.overall_score == null &&
+    !hasError;
   if (noData) {
     return null;
   }
@@ -229,16 +271,25 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       ? geo.mention_rate - geo.previous_mention_rate
       : null);
   const avgPos = seo?.avg_position ?? seo?.avgPosition ?? 0;
+  const arScore = aiReadability?.overall_score ?? null;
 
   const geoComponent = mentionRate * 100;
   const seoComponent = avgPos > 0 ? clamp(101 - avgPos, 0, 100) : 0;
   const haveGeo = (geo?.total_checks ?? 0) > 0;
   const haveSeo = avgPos > 0;
+  const haveAr = arScore != null;
+  // Visibility is the average of the channels we actually have data for.
+  // AI-readability counts as a third equal-weighted component — a site that
+  // is unfindable in AI search but technically pristine still scores
+  // proportionally. Channels we don't have data for are simply excluded
+  // from the average.
   const visibility = (() => {
-    if (haveGeo && haveSeo) return Math.round((geoComponent + seoComponent) / 2);
-    if (haveGeo) return Math.round(geoComponent);
-    if (haveSeo) return Math.round(seoComponent);
-    return 0;
+    const components: number[] = [];
+    if (haveGeo) components.push(geoComponent);
+    if (haveSeo) components.push(seoComponent);
+    if (haveAr) components.push(arScore as number);
+    if (components.length === 0) return 0;
+    return Math.round(components.reduce((a, b) => a + b, 0) / components.length);
   })();
 
   const stats: ScoreboardStat[] = [
@@ -246,7 +297,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       key: "visibility",
       label: "Visibility",
       tooltip:
-        "Combined visibility 0–100, 50% AI mention rate and 50% Google position. Only counts channels where you have data.",
+        "Combined visibility 0–100, averaged across AI mention rate, Google position and AI-readability. Only counts channels where you have data.",
       value: `${visibility}`,
       hint: visibility >= 70 ? "Strong" : visibility >= 40 ? "Okay" : "Needs lifting",
     },
@@ -265,10 +316,17 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       value: haveSeo ? avgPos.toFixed(1) : "—",
       trend: <TrendBadge delta={seo?.position_delta ?? seo?.positionDelta ?? null} format="rank" inverted />,
     },
+    {
+      key: "ai_readability",
+      label: "AI readability",
+      tooltip:
+        "Score 0–100 for how well your audited pages are structured for AI ingestion. Produced by the latest site audit.",
+      value: haveAr ? `${arScore}` : "—",
+    },
   ];
 
-  const strengths = buildStrengths(geo, seo);
-  const gaps = buildGaps(geo, seo);
+  const strengths = buildStrengths(geo, seo, aiReadability);
+  const gaps = buildGaps(geo, seo, aiReadability);
 
   return (
     <div className="space-y-6">
@@ -315,7 +373,13 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                 params.set("gap", g.id);
                 if (g.topic) params.set("topic", g.topic);
                 params.set("gap_title", g.title);
-                const href = `/c/content?${params.toString()}`;
+                // The AI-readability gap links to the GEO page, where the
+                // AIReadabilityCard surfaces the prioritised action points.
+                // Other gaps go to /c/content where the user can spin up
+                // an article.
+                const href = g.id === "ai_readability_low"
+                  ? "/c/geo"
+                  : `/c/content?${params.toString()}`;
                 const outcome = pickGapOutcome(pieces, g.id);
                 return (
                   <li key={g.id} className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
@@ -338,7 +402,9 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                         href={href}
                         className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
                       >
-                        {t.insightsOverview.createArticle}
+                        {g.id === "ai_readability_low"
+                          ? "Open AI-synlighet"
+                          : t.insightsOverview.createArticle}
                         <ArrowRight className="h-3 w-3" />
                       </Link>
                     )}
