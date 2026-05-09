@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Circle, ArrowRight, X } from "lucide-react";
 import { useState } from "react";
 import { useLanguage } from "@/lib/hooks/useLanguage";
+import WeeklyRhythm from "./WeeklyRhythm";
 
 export interface ChecklistItem {
   id: string;
@@ -27,7 +28,9 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = done === total && total > 0;
 
-  if (allDone) return null;
+  // Setup done — surface the scheduled / autopilot rhythm so the user knows
+  // the dashboard hasn't gone quiet, just shifted from "to do" to "running".
+  if (allDone) return <WeeklyRhythm />;
 
   return (
     <div className="mb-8 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm">
