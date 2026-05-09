@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/integrations/store";
 import {
-  getSiteSettingsAccess,
+  getTenantSettingsAccess,
   resolveSiteId,
   type SiteSettingsAccess,
 } from "@/lib/integrations/site-context";
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
   const siteId = resolveSiteId(req, user.id);
   let access: SiteSettingsAccess;
   try {
-    access = await getSiteSettingsAccess(user, siteId);
+    access = await getTenantSettingsAccess(user, siteId);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Could not load tenant settings" },

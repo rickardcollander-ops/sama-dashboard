@@ -7,7 +7,7 @@ import {
   Download, Clock, AlertTriangle, X,
 } from "lucide-react";
 import Link from "next/link";
-import { api, tenantApi, watchAgentRun, ApiError } from "@/lib/api";
+import { api, samaHeaders, tenantApi, watchAgentRun, ApiError } from "@/lib/api";
 
 type Service = "search_console" | "analytics" | "ads";
 
@@ -211,7 +211,12 @@ export default function GoogleDataDiagnostics(props: Props) {
     try {
       const res = await fetch(`/api/integrations/gsc/import?tenant_id=${tenantId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // samaHeaders() carries X-Sama-Site-Id / X-Tenant-ID so the route
+        // resolves the same tenant the rest of the SEO page is reading
+        // from. Without these the server falls back to the caller's
+        // user_id and writes to the wrong settings row, leaving the
+        // tracked-keywords list visibly unchanged after a successful sync.
+        headers: { "Content-Type": "application/json", ...samaHeaders() },
         // No limit → the route asks the backend to import every GSC query
         // the property has ranked for, not just the top 25.
         body: JSON.stringify({ limit: "all" }),

@@ -1,7 +1,7 @@
 import { isAdminEmail } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import type { SettingsJson } from "@/lib/integrations/store";
+import { loadSettings, saveSettings, type SettingsJson } from "@/lib/integrations/store";
 
 /**
  * Resolves the active site id for an API request. The dashboard sends
@@ -82,4 +82,31 @@ export async function getSiteSettingsAccess(
       if (error) throw new Error(error.message);
     },
   };
+}
+
+/**
+ * Returns a settings accessor that targets whichever table the rest of the
+ * app treats as the source of truth for this tenant. In legacy single-site
+ * self-view mode (siteId === user.id) tracked keywords and other settings
+ * live on `user_settings`; the GET /api/seo/keywords and
+ * /api/seo/keywords/add routes read/write there. For any other site we use
+ * the per-workspace `user_sites.settings` row.
+ *
+ * Routes that persist tenant-scoped state should prefer this helper over
+ * `getSiteSettingsAccess` so a write made here is visible to those reads.
+ */
+export async function getTenantSettingsAccess(
+  user: { id: string; email?: string | null },
+  siteId: string,
+): Promise<SiteSettingsAccess> {
+  if (siteId === user.id) {
+    const settings = await loadSettings(user.id);
+    return {
+      settings,
+      async save(next: SettingsJson) {
+        await saveSettings(user.id, next);
+      },
+    };
+  }
+  return getSiteSettingsAccess(user, siteId);
 }
