@@ -3,6 +3,13 @@ import { requireAdmin } from "@/lib/admin-guard";
 
 export const dynamic = "force-dynamic";
 
+interface SiteSummary {
+  id: string;
+  site_name: string;
+  brand_name: string | null;
+  domain: string | null;
+}
+
 interface AccountRow {
   id: string;
   email: string | undefined;
@@ -13,6 +20,7 @@ interface AccountRow {
   domain: string | null;
   has_settings: boolean;
   last_seen_at: string | null;
+  sites: SiteSummary[];
 }
 
 export async function GET() {
@@ -41,6 +49,7 @@ export async function GET() {
         domain: null,
         has_settings: false,
         last_seen_at: null,
+        sites: [],
       });
     }
     if (data.users.length < perPage) break;
@@ -69,6 +78,52 @@ export async function GET() {
         a.brand_name = match.brand_name ?? null;
         a.domain = match.domain ?? null;
         a.has_settings = true;
+      }
+    }
+
+    // Enrich with all connected sites from user_sites. By convention the
+    // primary site uses id === user_id; any additional rows are extra
+    // brands/domains the user has added.
+    const { data: sitesData } = await admin
+      .from("user_sites")
+      .select("id, user_id, site_name, settings")
+      .in("user_id", ids);
+    if (sitesData) {
+      const sitesByUser = new Map<string, SiteSummary[]>();
+      for (const row of sitesData as Array<{
+        id: string;
+        user_id: string;
+        site_name: string;
+        settings: Record<string, unknown> | null;
+      }>) {
+        const s = row.settings || {};
+        const summary: SiteSummary = {
+          id: row.id,
+          site_name: row.site_name || "",
+          brand_name: typeof s.brand_name === "string" ? s.brand_name : null,
+          domain: typeof s.domain === "string" ? s.domain : null,
+        };
+        const list = sitesByUser.get(row.user_id) ?? [];
+        list.push(summary);
+        sitesByUser.set(row.user_id, list);
+      }
+      for (const a of accounts) {
+        const list = sitesByUser.get(a.id) ?? [];
+        // Sort so the primary (id === user_id) comes first, then by name.
+        list.sort((x, y) => {
+          if (x.id === a.id) return -1;
+          if (y.id === a.id) return 1;
+          return (x.site_name || "").localeCompare(y.site_name || "");
+        });
+        a.sites = list;
+        // Fall back to the primary site when user_settings has no brand
+        // (admin-created accounts only write to user_sites).
+        const primary = list[0];
+        if (primary) {
+          if (!a.brand_name) a.brand_name = primary.brand_name ?? primary.site_name ?? null;
+          if (!a.domain) a.domain = primary.domain ?? null;
+          a.has_settings = true;
+        }
       }
     }
 

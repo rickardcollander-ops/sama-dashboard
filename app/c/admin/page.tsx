@@ -11,6 +11,13 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { isAdminEmail } from "@/lib/admin";
 
+interface SiteSummary {
+  id: string;
+  site_name: string;
+  brand_name: string | null;
+  domain: string | null;
+}
+
 interface Account {
   id: string;
   email?: string;
@@ -21,6 +28,7 @@ interface Account {
   domain: string | null;
   has_settings: boolean;
   last_seen_at: string | null;
+  sites: SiteSummary[];
 }
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
@@ -448,11 +456,19 @@ export default function AdminPage() {
   const filtered = accounts.filter((a) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return (
+    if (
       (a.email ?? "").toLowerCase().includes(q) ||
       (a.brand_name ?? "").toLowerCase().includes(q) ||
       (a.domain ?? "").toLowerCase().includes(q) ||
       a.id.toLowerCase().includes(q)
+    ) {
+      return true;
+    }
+    return a.sites.some(
+      (s) =>
+        (s.brand_name ?? "").toLowerCase().includes(q) ||
+        (s.site_name ?? "").toLowerCase().includes(q) ||
+        (s.domain ?? "").toLowerCase().includes(q),
     );
   });
 
@@ -651,10 +667,38 @@ export default function AdminPage() {
                       <div className="text-xs text-slate-400 font-mono">{acc.id}</div>
                     </td>
                     <td className="px-4 py-3">
-                      {acc.brand_name ? (
+                      {acc.brand_name || acc.sites.length > 0 ? (
                         <div>
-                          <div className="font-medium text-slate-900">{acc.brand_name}</div>
-                          {acc.domain && <div className="text-xs text-slate-400">{acc.domain}</div>}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-medium text-slate-900">
+                              {acc.brand_name ?? acc.sites[0]?.site_name ?? "—"}
+                            </span>
+                            {acc.sites.length > 1 && (
+                              <span
+                                title={`${acc.sites.length} siter kopplade`}
+                                className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
+                              >
+                                +{acc.sites.length - 1} till
+                              </span>
+                            )}
+                          </div>
+                          {acc.domain && (
+                            <div className="text-xs text-slate-400">{acc.domain}</div>
+                          )}
+                          {acc.sites.length > 1 && (
+                            <ul className="mt-1.5 space-y-0.5 border-l-2 border-slate-100 pl-2">
+                              {acc.sites.slice(1).map((s) => (
+                                <li key={s.id} className="text-xs text-slate-500">
+                                  <span className="text-slate-700">
+                                    {s.brand_name || s.site_name || "(namnlös)"}
+                                  </span>
+                                  {s.domain && (
+                                    <span className="text-slate-400"> · {s.domain}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-slate-400">Ingen onboarding</span>
