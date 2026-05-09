@@ -20,6 +20,16 @@ interface Account {
   brand_name: string | null;
   domain: string | null;
   has_settings: boolean;
+  last_seen_at: string | null;
+}
+
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
+function isOnline(lastSeen: string | null, now: number): boolean {
+  if (!lastSeen) return false;
+  const t = new Date(lastSeen).getTime();
+  if (Number.isNaN(t)) return false;
+  return now - t < ONLINE_THRESHOLD_MS;
 }
 
 const BUSINESS_TYPES = [
@@ -349,6 +359,7 @@ export default function AdminPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [now, setNow] = useState<number>(() => Date.now());
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -380,6 +391,18 @@ export default function AdminPage() {
     const t = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(t);
   }, [notice]);
+
+  // Tick once a second so the online dot recomputes against the threshold,
+  // and refetch accounts every 30s so last_seen_at stays fresh.
+  useEffect(() => {
+    if (!isAdmin) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    const refresh = setInterval(() => void load(), 30_000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(refresh);
+    };
+  }, [isAdmin, load]);
 
   const handleDelete = async (acc: Account) => {
     if (!confirm(`Delete account ${acc.email ?? acc.id}? This cannot be undone.`)) return;
@@ -435,6 +458,7 @@ export default function AdminPage() {
 
   const confirmedCount = accounts.filter((a) => a.email_confirmed_at).length;
   const onboardedCount = accounts.filter((a) => a.has_settings).length;
+  const onlineCount = accounts.filter((a) => isOnline(a.last_seen_at, now)).length;
 
   if (loading || (!user && !loading)) {
     return (
@@ -528,10 +552,22 @@ export default function AdminPage() {
         )}
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <p className="text-xs text-slate-500">Total accounts</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{accounts.length}</p>
+          </div>
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <p className="text-xs text-slate-500">Inloggad nu</p>
+            <p className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900">
+              <span
+                className={`inline-block h-2.5 w-2.5 rounded-full ${
+                  onlineCount > 0 ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)]" : "bg-slate-300"
+                }`}
+                aria-hidden
+              />
+              {onlineCount}
+            </p>
           </div>
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <p className="text-xs text-slate-500">Email confirmed</p>
@@ -585,13 +621,29 @@ export default function AdminPage() {
               {filtered.map((acc) => {
                 const isSelf = isAdminEmail(acc.email);
                 const busy = pendingId === acc.id;
+                const online = isOnline(acc.last_seen_at, now);
                 return (
                   <tr key={acc.id} className="hover:bg-slate-50/60">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">
-                        {acc.email ?? "(no email)"}
+                      <div className="flex items-center gap-2 font-medium text-slate-900">
+                        <span
+                          title={
+                            online
+                              ? "Inloggad nu"
+                              : acc.last_seen_at
+                                ? `Senast aktiv ${fmtRelative(acc.last_seen_at)}`
+                                : "Ej aktiv"
+                          }
+                          aria-label={online ? "Inloggad" : "Ej inloggad"}
+                          className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                            online
+                              ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)]"
+                              : "bg-red-400"
+                          }`}
+                        />
+                        <span>{acc.email ?? "(no email)"}</span>
                         {isSelf && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             <Shield className="h-3 w-3" /> admin
                           </span>
                         )}

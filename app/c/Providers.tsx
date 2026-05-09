@@ -4,6 +4,7 @@ import { Fragment, type ReactNode } from "react";
 import { PeriodProvider } from "@/lib/hooks/usePeriod";
 import { ActiveRunsProvider } from "@/lib/hooks/useActiveRuns";
 import { SiteProvider, useSite } from "@/lib/hooks/useSite";
+import { usePresenceHeartbeat } from "@/lib/hooks/usePresenceHeartbeat";
 import ActiveRunsBanner from "@/components/ActiveRunsBanner";
 import AdminViewBanner from "@/components/AdminViewBanner";
 
@@ -16,11 +17,17 @@ function SiteScopedChildren({ children }: { children: ReactNode }) {
   return <Fragment key={effectiveTenantId || "no-site"}>{children}</Fragment>;
 }
 
+function PresenceHeartbeat() {
+  usePresenceHeartbeat();
+  return null;
+}
+
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <SiteProvider>
       <PeriodProvider>
         <ActiveRunsProvider>
+          <PresenceHeartbeat />
           <AdminViewBanner />
           <SiteScopedChildren>{children}</SiteScopedChildren>
           <ActiveRunsBanner />

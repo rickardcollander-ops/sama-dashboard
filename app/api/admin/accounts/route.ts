@@ -12,6 +12,7 @@ interface AccountRow {
   brand_name: string | null;
   domain: string | null;
   has_settings: boolean;
+  last_seen_at: string | null;
 }
 
 export async function GET() {
@@ -39,6 +40,7 @@ export async function GET() {
         brand_name: null,
         domain: null,
         has_settings: false,
+        last_seen_at: null,
       });
     }
     if (data.users.length < perPage) break;
@@ -67,6 +69,21 @@ export async function GET() {
         a.brand_name = match.brand_name ?? null;
         a.domain = match.domain ?? null;
         a.has_settings = true;
+      }
+    }
+
+    // Enrich with presence (last_seen_at)
+    const { data: presence } = await admin
+      .from("user_presence")
+      .select("user_id, last_seen_at")
+      .in("user_id", ids);
+    if (presence) {
+      const presenceById = new Map<string, string>();
+      for (const row of presence as Array<{ user_id: string; last_seen_at: string }>) {
+        presenceById.set(row.user_id, row.last_seen_at);
+      }
+      for (const a of accounts) {
+        a.last_seen_at = presenceById.get(a.id) ?? null;
       }
     }
   }
