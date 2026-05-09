@@ -541,15 +541,15 @@ export default function AnalysisPage() {
             if (result.run_id) {
               const totalArticles = result.articles_per_week * 13;
               const totalSocial = totalArticles * result.social_platforms.length;
-              // Each article costs 2 Claude calls (~25s combined) plus social
-              // posts at ~5s each — gives a realistic progress-bar baseline.
-              const expectedSeconds = Math.max(
-                90,
-                totalArticles * 25 + totalSocial * 5,
-              );
+              // Plan creation only batches a single Claude call for titles
+              // (and at most one extra call for brand-seed topics when the
+              // analysis is sparse). Article and social bodies are written
+              // later, on user approval, so this whole step is seconds —
+              // not minutes. Keep a 30s floor so the bar doesn't snap to
+              // 100% before the agent_runs row gets polled.
               registerRun("content", result.run_id, {
                 label: `Content-plan · ${totalArticles} artiklar + ${totalSocial} inlägg`,
-                expectedSeconds,
+                expectedSeconds: 30,
               });
             }
           }}
