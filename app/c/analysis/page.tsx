@@ -17,6 +17,7 @@ import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
+import AIReadabilityCard from "@/components/analysis/AIReadabilityCard";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
 
 interface AnalysisRunSummary {
@@ -519,8 +520,12 @@ export default function AnalysisPage() {
 
         {/* ── Insikter overview (always visible) ── */}
         {user && !running && (
-          <div className="mt-2">
+          <div className="mt-2 space-y-6">
             <InsightsOverview tenantId={effectiveTenantId} />
+            {/* AI-readability scorecard with prioritised action points.
+                Hides itself when no audit has scored the site yet, so this
+                section is invisible for new tenants. */}
+            <AIReadabilityCard />
           </div>
         )}
       </div>
