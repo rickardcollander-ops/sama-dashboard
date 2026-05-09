@@ -46,7 +46,7 @@ const TOP_NAV: NavItem[] = [
     id: "insights",
     href: "/c/analysis",
     icon: Sparkles,
-    matchPrefixes: ["/c/analysis", "/c/seo", "/c/geo", "/c/analytics"],
+    matchPrefixes: ["/c/analysis", "/c/seo", "/c/geo", "/c/analytics", "/c/audit"],
   },
   {
     id: "content",
@@ -91,6 +91,7 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
     { href: "/c/seo", labelKey: "google" },
     { href: "/c/geo", labelKey: "aiAssistants" },
     { href: "/c/analytics", labelKey: "traffic" },
+    { href: "/c/audit", labelKey: "siteAudit" },
   ],
   content: [
     { href: "/c/content", labelKey: "overview", exact: true },

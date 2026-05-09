@@ -3,15 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, RefreshCw, ArrowRight, AlertCircle, X,
-  PenTool, Check, Bot, Zap, Code2, Sparkles,
+  Search, RefreshCw, ArrowRight, AlertCircle, X, Check, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import CustomerNav from "@/components/CustomerNav";
 import PageHeader from "@/components/PageHeader";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
-import { buildNextSteps } from "@/components/dashboard/NextSteps";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
@@ -20,6 +18,7 @@ import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import type { ChecklistItem } from "@/components/dashboard/OnboardingChecklist";
+import type { AnalysisStatusInputs, RequirementChecks } from "@/lib/analyses";
 
 // Recharts is ~150 kB gzipped — load it on the client only after the page
 // shell paints so the headline numbers (StatScoreboard) appear immediately.
@@ -30,11 +29,8 @@ const TrafficGraph = dynamic(() => import("@/components/dashboard/TrafficGraph")
 
 // Below-the-fold sections — split so the initial JS payload only includes
 // what the user sees on first paint.
-const NextSteps = dynamic(() => import("@/components/dashboard/NextSteps"), {
-  loading: () => <div className="h-32 rounded-xl border bg-white shadow-sm" />,
-});
-const AgentChips = dynamic(() => import("@/components/dashboard/AgentChips"), {
-  loading: () => <div className="h-12" />,
+const AnalysisHub = dynamic(() => import("@/components/dashboard/AnalysisHub"), {
+  loading: () => <div className="h-72 rounded-xl border bg-white shadow-sm" />,
 });
 const ActivityFeed = dynamic(() => import("@/components/dashboard/ActivityFeed"), {
   loading: () => <div className="h-64 rounded-xl border bg-white shadow-sm" />,
@@ -317,7 +313,6 @@ export default function CustomerDashboard() {
       { id: "first_keyword", label: t.dashboard.checkFirstKeyword, description: t.dashboard.checkFirstKeywordDesc, done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: t.dashboard.checkFirstKeywordCta },
       { id: "first_content", label: t.dashboard.checkFirstContent, description: t.dashboard.checkFirstContentDesc, done: anyContentEver, href: "/c/content", cta: t.dashboard.checkFirstContentCta },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [settings, geoSummary, seoStats, anyContentEver, t]
   );
 
@@ -382,10 +377,37 @@ export default function CustomerDashboard() {
     }),
     [pendingApprovals, mentionRateDelta, contentStats?.published, contentStats?.total],
   );
-  const stepCount = useMemo(
-    () => buildNextSteps(nextStepsInput, t).length,
-    [nextStepsInput, t],
+
+  const statusInputs = useMemo<AnalysisStatusInputs>(
+    () => ({
+      geoSummary,
+      seoStats,
+      contentStats,
+      // Traffic doesn't expose a last_synced_at yet — fall back to the most
+      // recent point in the daily series we already pull for the chart.
+      trafficLastSyncedAt:
+        trafficData.daily?.[trafficData.daily.length - 1]?.date ?? null,
+      siteAuditLastRun: null,
+    }),
+    [geoSummary, seoStats, contentStats, trafficData.daily],
   );
+
+  const requirementChecks = useMemo<RequirementChecks>(
+    () => ({
+      brand_name: !!settings.brand_name,
+      domain: !!settings.domain,
+      geo_queries: (settings.geo_queries?.length ?? 0) > 0,
+      competitors: (settings.competitors?.length ?? 0) >= 2,
+      // We don't have a reliable signal here yet; assume the Tech card is
+      // always disabled until the user opens /c/tech and connects.
+      github: false,
+    }),
+    [settings.brand_name, settings.domain, settings.geo_queries, settings.competitors],
+  );
+
+  const triggerAgent = (agent: AgentKey, endpoint: string) => {
+    void triggerRun(agent, endpoint);
+  };
 
   if (loading && checkedOnboarding && !geoSummary && !seoStats) {
     return (
@@ -520,11 +542,13 @@ export default function CustomerDashboard() {
         </div>
 
         <div className="mt-8">
-          <NextSteps input={nextStepsInput} />
-        </div>
-
-        <div className="mt-8">
-          <AgentChips runs={runs} />
+          <AnalysisHub
+            runs={runs}
+            onTrigger={triggerAgent}
+            statusInputs={statusInputs}
+            requirementChecks={requirementChecks}
+            nextStepsInput={nextStepsInput}
+          />
         </div>
 
         {user && (
@@ -533,33 +557,11 @@ export default function CustomerDashboard() {
           </div>
         )}
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            {user && <ActivityFeed tenantId={effectiveTenantId} />}
+        {user && (
+          <div className="mt-8">
+            <ActivityFeed tenantId={effectiveTenantId} />
           </div>
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
-            <h3 className="mb-4 font-semibold text-slate-900">{t.dashboard.quickLinks}</h3>
-            <div className="space-y-2">
-              {[
-                { href: "/c/content",          icon: PenTool,      color: "text-purple-600", label: t.dashboard.createContent },
-                { href: "/c/tech",             icon: Code2,        color: "text-slate-700",  label: t.dashboard.techActions },
-                { href: "/c/analysis",         icon: Sparkles,     color: "text-blue-600",  label: t.dashboard.viewVisibility },
-                { href: "/c/settings",         icon: Bot,          color: "text-slate-600", label: t.dashboard.openSettings },
-              ].map((link) => (
-                <Link key={link.href} href={link.href} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 transition-colors">
-                  <link.icon className={`h-4 w-4 ${link.color}`} />
-                  <div className="flex-1 text-sm font-medium text-slate-700">{link.label}</div>
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
-                </Link>
-              ))}
-            </div>
-            {stepCount > 0 && (
-              <p className="mt-4 text-xs text-slate-400">
-                {stepCount} {stepCount === 1 ? t.dashboard.recommendedStep : t.dashboard.recommendedSteps} ovan.
-              </p>
-            )}
-          </div>
-        </div>
+        )}
       </main>
     </div>
   );
