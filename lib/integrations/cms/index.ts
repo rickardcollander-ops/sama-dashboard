@@ -4,6 +4,12 @@ import { webflowAdapter } from "./webflow";
 import { ghostAdapter } from "./ghost";
 import { notionAdapter } from "./notion";
 import { webhookAdapter } from "./webhook";
+import { shopifyAdapter } from "./shopify";
+import { framerAdapter } from "./framer";
+import { wixAdapter } from "./wix";
+import { gohighlevelAdapter } from "./gohighlevel";
+import { dudaAdapter } from "./duda";
+import { bigcommerceAdapter } from "./bigcommerce";
 
 const ADAPTERS: Record<CmsKind, CmsAdapter> = {
   wordpress: wordpressAdapter,
@@ -11,6 +17,12 @@ const ADAPTERS: Record<CmsKind, CmsAdapter> = {
   ghost: ghostAdapter,
   notion: notionAdapter,
   webhook: webhookAdapter,
+  shopify: shopifyAdapter,
+  framer: framerAdapter,
+  wix: wixAdapter,
+  gohighlevel: gohighlevelAdapter,
+  duda: dudaAdapter,
+  bigcommerce: bigcommerceAdapter,
 };
 
 export function getAdapter(kind: CmsKind): CmsAdapter {
@@ -21,8 +33,14 @@ export function getAdapter(kind: CmsKind): CmsAdapter {
 
 export const SUPPORTED_KINDS: CmsKind[] = [
   "wordpress",
+  "shopify",
   "webflow",
+  "framer",
   "ghost",
+  "wix",
+  "gohighlevel",
+  "duda",
+  "bigcommerce",
   "notion",
   "webhook",
 ];
@@ -73,6 +91,66 @@ export const KIND_META: Record<CmsKind, { label: string; fields: { key: string; 
       { key: "url", label: "Webhook URL", type: "url", required: true },
       { key: "bearer_token", label: "Bearer token (optional)", type: "password" },
       { key: "secret", label: "HMAC secret (optional)", type: "password" },
+    ],
+  },
+  shopify: {
+    label: "Shopify",
+    fields: [
+      { key: "shop_domain", label: "Shop domain", placeholder: "my-shop.myshopify.com", required: true },
+      { key: "access_token", label: "Admin API access token", type: "password", required: true },
+      { key: "blog_id", label: "Blog ID", placeholder: "123456789", required: true },
+      { key: "api_version", label: "API version", placeholder: "2024-10" },
+      { key: "author", label: "Author (optional)" },
+    ],
+  },
+  framer: {
+    label: "Framer",
+    fields: [
+      { key: "api_token", label: "API Token", type: "password", required: true },
+      { key: "collection_id", label: "Collection ID", required: true },
+      { key: "site_url", label: "Site URL (för länkar)", placeholder: "https://example.com" },
+      { key: "field_title", label: "Title fält slug", placeholder: "title" },
+      { key: "field_slug", label: "Slug fält slug", placeholder: "slug" },
+      { key: "field_body", label: "Body fält slug", placeholder: "content" },
+      { key: "field_excerpt", label: "Excerpt fält slug", placeholder: "excerpt" },
+      { key: "field_image", label: "Image fält slug", placeholder: "image" },
+    ],
+  },
+  wix: {
+    label: "Wix",
+    fields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "site_id", label: "Site ID", required: true },
+      { key: "account_id", label: "Account ID (optional)" },
+      { key: "member_id", label: "Author Member ID (optional)" },
+    ],
+  },
+  gohighlevel: {
+    label: "GoHighLevel",
+    fields: [
+      { key: "api_token", label: "Private Integration token", type: "password", required: true },
+      { key: "location_id", label: "Location ID", required: true },
+      { key: "blog_id", label: "Blog ID", required: true },
+      { key: "author_id", label: "Author ID (optional)" },
+      { key: "version", label: "API version", placeholder: "2021-07-28" },
+    ],
+  },
+  duda: {
+    label: "Duda",
+    fields: [
+      { key: "site_name", label: "Site name (alias)", required: true },
+      { key: "api_user", label: "API username", required: true },
+      { key: "api_pass", label: "API password", type: "password", required: true },
+      { key: "region", label: "Region (us / eu / ca)", placeholder: "us" },
+    ],
+  },
+  bigcommerce: {
+    label: "BigCommerce",
+    fields: [
+      { key: "store_hash", label: "Store hash", required: true },
+      { key: "access_token", label: "API access token", type: "password", required: true },
+      { key: "store_url", label: "Store URL (för länkar)", placeholder: "https://example.com" },
+      { key: "author", label: "Author (optional)" },
     ],
   },
 };

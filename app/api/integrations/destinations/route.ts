@@ -71,6 +71,9 @@ const SECRET_KEYS = new Set([
   "integration_token",
   "bearer_token",
   "secret",
+  "access_token",
+  "api_key",
+  "api_pass",
 ]);
 
 function maskConfig(config: Record<string, string>): Record<string, string> {
