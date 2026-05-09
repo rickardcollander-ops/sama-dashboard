@@ -388,7 +388,7 @@ export default function AnalysisPage() {
               <div className="font-medium">Content-plan skapas i bakgrunden</div>
               <div className="mt-0.5 text-xs opacity-80">{planToast}</div>
               <a href="/c/content/plan" className="mt-1 inline-block text-xs font-semibold underline">
-                Visa kalendern →
+                Visa planen →
               </a>
             </div>
             <button

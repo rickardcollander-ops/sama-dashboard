@@ -206,17 +206,17 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           <div>
             <h3 className="text-lg font-semibold text-slate-900">What to write next</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article, or use the calendar to schedule the publish date.
+              Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article, or use the plan to schedule the publish date.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href="/c/content/plan"
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              title="Open the content calendar"
+              title="Open the content plan"
             >
               <Calendar className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline">Calendar</span>
+              <span className="hidden sm:inline">Plan</span>
               {scheduledCount > 0 && (
                 <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">{scheduledCount}</span>
               )}
@@ -295,7 +295,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
               </h3>
               <p className="mt-2 text-sm text-slate-500">
                 {items.length === 0 ? (
-                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or <Link href="/c/content/plan" className="font-medium text-blue-600 hover:underline">open the calendar</Link> and schedule articles directly on a day.</>
+                  <>Click <span className="font-medium">Generate ideas</span> to populate the plan, or <Link href="/c/content/plan" className="font-medium text-blue-600 hover:underline">open the plan</Link> and schedule articles directly on a day.</>
                 ) : (
                   <>Try clearing the filters above.</>
                 )}

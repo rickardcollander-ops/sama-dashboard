@@ -573,7 +573,7 @@ function CustomerContentInner() {
         throw new Error(res.error || "Kunde inte schemalägga");
       }
       setScheduleSuccess(
-        `"${schedulingPiece.title}" lades på kalendern ${new Date(
+        `"${schedulingPiece.title}" lades i planen ${new Date(
           scheduledIso,
         ).toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}.`,
       );
@@ -682,7 +682,7 @@ function CustomerContentInner() {
             <Link
               href="/c/content/plan"
               className="flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
-              title="Visa kalendern med planerade artiklar och inlägg."
+              title="Visa planen med planerade artiklar och inlägg."
             >
               <Calendar className="h-4 w-4" />
               {t.content.viewCalendar}
