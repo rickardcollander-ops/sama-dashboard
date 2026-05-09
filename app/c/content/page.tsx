@@ -487,10 +487,14 @@ function CustomerContentInner() {
   const archivedCount = countByStatus("archived");
   const totalWords = pieces.reduce((sum, p) => sum + (p.word_count || 0), 0);
 
+  // Workflow arrow button. Stops at "approved" — the next step is
+  // scheduling and/or publishing, which has its own dedicated buttons
+  // (Schemalägg, Publicera till sajten, Publicera via GitHub). Mapping
+  // approved → published here would surface a third "publish" action
+  // next to those two, which is what made the row feel illogical.
   const STATUS_FLOW: Record<string, string> = {
     draft: "review",
     review: "approved",
-    approved: "published",
   };
 
   const updateStatus = async (pieceId: string, newStatus: string) => {
@@ -575,6 +579,10 @@ function CustomerContentInner() {
       );
       closeScheduleDialog();
       setTimeout(() => setScheduleSuccess(null), 6000);
+      // The backend may have updated an existing plan row (the one created
+      // from the originating idea) rather than inserting a new one — refetch
+      // so the calendar/ideas lists show the new scheduled_for.
+      fetchContent();
     } catch (e: any) {
       setScheduleError(e?.message || "Kunde inte schemalägga");
     } finally {
@@ -1093,8 +1101,16 @@ function CustomerContentInner() {
                       </button>
                     )}
 
-                    {/* Schedule onto the calendar — for unpublished drafts */}
-                    {piece.status !== "published" && piece.status !== "archived" && (
+                    {/* Schedule onto the calendar. Only shown once a piece
+                        is approved — scheduling a draft used to do nothing
+                        visible (the piece stayed in "Att granska" because
+                        the Schemalagda tab filters by status="approved")
+                        and on top of that crashed with a duplicate-key
+                        error against uniq_content_plan_keyword_per_tenant.
+                        Restricting it to approved pieces makes the row
+                        Skicka → Godkänn → Schemalägg → Publicera readable
+                        left-to-right. */}
+                    {piece.status === "approved" && (
                       <button
                         onClick={() => openScheduleDialog(piece)}
                         className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
