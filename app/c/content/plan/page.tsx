@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,6 +10,7 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import CreateContentPlanModal from "@/components/CreateContentPlanModal";
 import { useSite } from "@/lib/hooks/useSite";
+import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 
 interface PlanItem {
   id: string;
@@ -312,6 +313,34 @@ export default function ContentCalendarPage() {
   };
 
   useEffect(() => { fetchRange(); /* eslint-disable-next-line */ }, [year, month, effectiveTenantId]);
+
+  // While a content_plan run is in flight (e.g. user just clicked "Skapa
+  // content-plan" on /c/analysis or in the modal here), keep refetching
+  // the calendar so newly-created idea-rows show up without a manual
+  // reload. Also refetch once when the run flips to completed.
+  const lastContentRunCompletionRef = useRef<string | null>(null);
+  const hasRunningContentRun = activeRuns.some(
+    (r) => r.agent === "content" && (r.status === "running" || r.status === "pending"),
+  );
+  useEffect(() => {
+    if (!hasRunningContentRun) return;
+    const id = setInterval(() => {
+      fetchRange();
+    }, 5000);
+    return () => clearInterval(id);
+    // fetchRange is stable enough for this purpose; intentionally not a dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRunningContentRun]);
+  useEffect(() => {
+    const justCompleted = activeRuns.find(
+      (r) => r.agent === "content" && r.status === "completed",
+    );
+    if (!justCompleted) return;
+    if (lastContentRunCompletionRef.current === justCompleted.id) return;
+    lastContentRunCompletionRef.current = justCompleted.id;
+    fetchRange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRuns]);
 
   // Look up the most recent completed analysis run so the "Skapa plan från
   // analys" button knows which run to pass into CreateContentPlanModal.
