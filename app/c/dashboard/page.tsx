@@ -5,18 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, ArrowRight, AlertCircle, X,
   PenTool, Check, Bot, Zap, Code2, Sparkles,
-  ChevronDown, ChevronUp, TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend,
-} from "recharts";
+import dynamic from "next/dynamic";
 import CustomerNav from "@/components/CustomerNav";
 import PageHeader from "@/components/PageHeader";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
-import NextSteps, { buildNextSteps } from "@/components/dashboard/NextSteps";
-import AgentChips from "@/components/dashboard/AgentChips";
+import { buildNextSteps } from "@/components/dashboard/NextSteps";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
@@ -24,9 +19,32 @@ import { useLanguage } from "@/lib/hooks/useLanguage";
 import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
 import TrendBadge from "@/components/dashboard/TrendBadge";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
-import ActivityFeed from "@/components/dashboard/ActivityFeed";
-import OnboardingChecklist, { type ChecklistItem } from "@/components/dashboard/OnboardingChecklist";
-import RecentOutcomes from "@/components/dashboard/RecentOutcomes";
+import type { ChecklistItem } from "@/components/dashboard/OnboardingChecklist";
+
+// Recharts is ~150 kB gzipped — load it on the client only after the page
+// shell paints so the headline numbers (StatScoreboard) appear immediately.
+const TrafficGraph = dynamic(() => import("@/components/dashboard/TrafficGraph"), {
+  ssr: false,
+  loading: () => <div className="h-[88px] rounded-xl border bg-white shadow-sm" />,
+});
+
+// Below-the-fold sections — split so the initial JS payload only includes
+// what the user sees on first paint.
+const NextSteps = dynamic(() => import("@/components/dashboard/NextSteps"), {
+  loading: () => <div className="h-32 rounded-xl border bg-white shadow-sm" />,
+});
+const AgentChips = dynamic(() => import("@/components/dashboard/AgentChips"), {
+  loading: () => <div className="h-12" />,
+});
+const ActivityFeed = dynamic(() => import("@/components/dashboard/ActivityFeed"), {
+  loading: () => <div className="h-64 rounded-xl border bg-white shadow-sm" />,
+});
+const RecentOutcomes = dynamic(() => import("@/components/dashboard/RecentOutcomes"), {
+  loading: () => null,
+});
+const OnboardingChecklist = dynamic(() => import("@/components/dashboard/OnboardingChecklist"), {
+  loading: () => null,
+});
 
 interface CustomerSettings {
   brand_name?: string;
@@ -352,30 +370,54 @@ export default function CustomerDashboard() {
     return null;
   }, [settings.project_start_date, user?.created_at]);
 
-  const nextStepsInput = {
-    pendingApprovals,
-    mentionRateDelta,
-    publishedLast30d: contentStats?.published ?? contentStats?.total ?? 0,
-    alertsCount: 0,
-  };
-  const stepCount = buildNextSteps(nextStepsInput, t).length;
+  // Memoised so the dynamically-loaded NextSteps component receives a stable
+  // reference and doesn't re-render on every parent paint (e.g. each refresh
+  // tick of the active-runs banner).
+  const nextStepsInput = useMemo(
+    () => ({
+      pendingApprovals,
+      mentionRateDelta,
+      publishedLast30d: contentStats?.published ?? contentStats?.total ?? 0,
+      alertsCount: 0,
+    }),
+    [pendingApprovals, mentionRateDelta, contentStats?.published, contentStats?.total],
+  );
+  const stepCount = useMemo(
+    () => buildNextSteps(nextStepsInput, t).length,
+    [nextStepsInput, t],
+  );
 
   if (loading && checkedOnboarding && !geoSummary && !seoStats) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
         <CustomerNav />
         <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
-          <div className="mb-8">
-            <div className="h-8 w-64 rounded-lg bg-slate-200 animate-pulse" />
-            <div className="mt-2 h-4 w-48 rounded bg-slate-200 animate-pulse" />
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <div className="h-8 w-64 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="mt-2 h-4 w-48 rounded bg-slate-200 animate-pulse" />
+            </div>
+            <div className="hidden sm:flex gap-2">
+              <div className="h-7 w-24 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="h-7 w-28 rounded-lg bg-slate-200 animate-pulse" />
+            </div>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl bg-slate-200" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white p-5">
                 <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />
                 <div className="mt-3 h-7 w-16 rounded bg-slate-200 animate-pulse" />
+                <div className="mt-2 h-3 w-32 rounded bg-slate-100 animate-pulse" />
               </div>
             ))}
+          </div>
+          <div className="mt-8 space-y-4">
+            <div className="h-[88px] rounded-xl border bg-white shadow-sm" />
+            <div className="h-[88px] rounded-xl border bg-white shadow-sm" />
+          </div>
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2 h-64 rounded-xl border bg-white shadow-sm" />
+            <div className="h-64 rounded-xl border bg-white shadow-sm" />
           </div>
         </main>
       </div>
@@ -523,91 +565,3 @@ export default function CustomerDashboard() {
   );
 }
 
-interface TrafficGraphLine {
-  key: string;
-  label: string;
-  color: string;
-}
-
-function TrafficGraph({
-  title, subtitle, data, projectStartDate, visible, onToggle, lines, noData, noDataDesc, chartStart,
-}: {
-  title: string;
-  subtitle: string;
-  data?: { date: string; clicks: number; impressions: number }[];
-  projectStartDate: string | null;
-  visible: boolean;
-  onToggle: () => void;
-  lines: TrafficGraphLine[];
-  noData: string;
-  noDataDesc: string;
-  chartStart: string;
-}) {
-  const hasData = data && data.length > 0;
-
-  const fmtDate = (v: unknown): string => {
-    const d = new Date(String(v ?? ""));
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  };
-
-  return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <TrendingUp className="h-4 w-4 text-slate-400" />
-          <div className="text-left">
-            <div className="font-semibold text-slate-900 text-sm">{title}</div>
-            <div className="text-xs text-slate-500">{subtitle}</div>
-          </div>
-        </div>
-        {visible ? (
-          <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
-        )}
-      </button>
-
-      {visible && (
-        <div className="px-6 pb-6">
-          {hasData ? (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtDate} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} width={40} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#f8fafc", fontSize: "12px" }}
-                    labelFormatter={fmtDate}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
-                  {lines.map((l) => (
-                    <Line key={l.key} type="monotone" dataKey={l.key} name={l.label} stroke={l.color} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                  ))}
-                  {projectStartDate && (
-                    <ReferenceLine
-                      x={projectStartDate}
-                      stroke="#f59e0b"
-                      strokeDasharray="4 4"
-                      strokeWidth={2}
-                      label={{ value: chartStart, position: "insideTopRight", fontSize: 11, fill: "#f59e0b", fontWeight: 600 }}
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <TrendingUp className="h-8 w-8 text-slate-200 mb-2" />
-              <p className="text-sm text-slate-400">{noData}</p>
-              <p className="text-xs text-slate-300 mt-1">{noDataDesc}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}

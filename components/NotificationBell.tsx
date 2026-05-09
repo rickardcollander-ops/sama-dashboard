@@ -73,11 +73,14 @@ export default function NotificationBell() {
   const [tab, setTab] = useState<TabId>("pending");
   const ref = useRef<HTMLDivElement>(null);
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: "pending", label: t.notifications.tabPending },
-    { id: "recent", label: t.notifications.tabRecent },
-    { id: "alerts", label: t.notifications.tabAlerts },
-  ];
+  const tabs: { id: TabId; label: string }[] = useMemo(
+    () => [
+      { id: "pending", label: t.notifications.tabPending },
+      { id: "recent", label: t.notifications.tabRecent },
+      { id: "alerts", label: t.notifications.tabAlerts },
+    ],
+    [t.notifications.tabPending, t.notifications.tabRecent, t.notifications.tabAlerts],
+  );
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -125,9 +128,32 @@ export default function NotificationBell() {
     setPending([]);
   }, [effectiveTenantId]);
 
+  // Defer the initial fetches to idle time so the bell badge doesn't compete
+  // with the main page paint. Falls back to a microtask delay on browsers
+  // without requestIdleCallback (Safari).
   useEffect(() => {
-    fetchNotifications();
-    fetchPending();
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const w = window as IdleWindow;
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const run = () => {
+      void fetchNotifications();
+      void fetchPending();
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      idleId = w.requestIdleCallback(run, { timeout: 1500 });
+    } else {
+      timeoutId = setTimeout(run, 200);
+    }
+    return () => {
+      if (idleId != null && typeof w.cancelIdleCallback === "function") {
+        w.cancelIdleCallback(idleId);
+      }
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [fetchNotifications, fetchPending]);
 
   // Refresh pending when the panel opens (drafts can be approved on /c/approvals)
