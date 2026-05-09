@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
@@ -191,7 +191,7 @@ function CustomerContentInner() {
     if (!user || !effectiveTenantId) return;
     if (!hasRunningContentRun) return;
     const id = setInterval(() => {
-      fetchIdeas();
+      fetchIdeas({ background: true });
     }, 5000);
     return () => clearInterval(id);
     // fetchIdeas is stable enough for this purpose; intentionally not a dep
@@ -204,7 +204,7 @@ function CustomerContentInner() {
     if (!justCompleted) return;
     if (lastContentRunCompletionRef.current === justCompleted.id) return;
     lastContentRunCompletionRef.current = justCompleted.id;
-    if (user && effectiveTenantId) fetchIdeas();
+    if (user && effectiveTenantId) fetchIdeas({ background: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRuns, user, effectiveTenantId]);
 
@@ -317,9 +317,12 @@ function CustomerContentInner() {
     fetchIdeas();
   };
 
-  const fetchIdeas = async () => {
+  // `background` is set when the 5-second polling tick re-runs this while a
+  // content run is in flight. Skipping the loader toggle there keeps the
+  // ideas list from flashing a spinner on every tick.
+  const fetchIdeas = async ({ background = false }: { background?: boolean } = {}) => {
     if (!user) return;
-    setIdeasLoading(true);
+    if (!background) setIdeasLoading(true);
     try {
       const client = tenantClient;
       const data = await client.get<{ items?: PlanIdea[] }>(
@@ -330,7 +333,7 @@ function CustomerContentInner() {
       console.error("Failed to fetch ideas:", err);
       setIdeas([]);
     }
-    setIdeasLoading(false);
+    if (!background) setIdeasLoading(false);
   };
 
   // The first time we land on the page with ideas waiting, default the
@@ -504,19 +507,36 @@ function CustomerContentInner() {
     fetchContent();
   };
 
-  const filtered = pieces.filter((p) => {
-    if (filter === "to_review") return p.status === "draft" || p.status === "review";
-    if (filter === "scheduled") return p.status === "approved";
-    return p.status === filter;
-  });
+  // One pass over `pieces` for all the counts + total words. With ~200
+  // drafts the previous code did six full scans on every render — and
+  // every keystroke in the modal/toast inputs forced a re-render of this
+  // top-level component, so the perceived input lag was real.
+  const counts = useMemo(() => {
+    let draft = 0, review = 0, approved = 0, published = 0, archived = 0, words = 0;
+    for (const p of pieces) {
+      if (p.status === "draft") draft++;
+      else if (p.status === "review") review++;
+      else if (p.status === "approved") approved++;
+      else if (p.status === "published") published++;
+      else if (p.status === "archived") archived++;
+      words += p.word_count || 0;
+    }
+    return { draft, review, approved, published, archived, words };
+  }, [pieces]);
+  const draftCount = counts.draft;
+  const reviewCount = counts.review;
+  const approvedCount = counts.approved;
+  const publishedCount = counts.published;
+  const archivedCount = counts.archived;
+  const totalWords = counts.words;
 
-  const countByStatus = (status: string) => pieces.filter((p) => p.status === status).length;
-  const draftCount = countByStatus("draft");
-  const reviewCount = countByStatus("review");
-  const approvedCount = countByStatus("approved");
-  const publishedCount = countByStatus("published");
-  const archivedCount = countByStatus("archived");
-  const totalWords = pieces.reduce((sum, p) => sum + (p.word_count || 0), 0);
+  const filtered = useMemo(() => {
+    return pieces.filter((p) => {
+      if (filter === "to_review") return p.status === "draft" || p.status === "review";
+      if (filter === "scheduled") return p.status === "approved";
+      return p.status === filter;
+    });
+  }, [pieces, filter]);
 
   // Workflow arrow button. Stops at "approved" — the next step is
   // scheduling and/or publishing, which has its own dedicated buttons

@@ -281,6 +281,7 @@ function AddModal({ date, onClose, onAdded, tenantClient }: AddModalProps) {
 export default function ContentCalendarPage() {
   const router = useRouter();
   const { effectiveTenantId, tenantClient } = useSite();
+  const { runs: activeRuns } = useActiveRuns();
   const today = new Date();
   const [year, setYear] = useState(today.getUTCFullYear());
   const [month, setMonth] = useState(today.getUTCMonth());
@@ -291,14 +292,17 @@ export default function ContentCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [latestAnalysisId, setLatestAnalysisId] = useState<string | null>(null);
   const [showPlanModal, setShowPlanModal] = useState(false);
-
   const days = useMemo(() => buildMonthGrid(year, month), [year, month]);
   const start = days[0];
   const end = days[days.length - 1];
 
-  const fetchRange = async () => {
+  // `background` is set when the 5-second polling tick re-runs this while a
+  // content-plan run is in flight. Skipping the loading toggle there keeps
+  // the "Loading..." pill in the legend from strobing on every tick — that
+  // flash is the bulk of the "laggy" feel reported on this page.
+  const fetchRange = async ({ background = false }: { background?: boolean } = {}) => {
     if (!effectiveTenantId) return;
-    setLoading(true);
+    if (!background) setLoading(true);
     setError(null);
     try {
       const url = `/api/content/plan/calendar?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(new Date(end.getTime() + 86400_000).toISOString())}`;
@@ -308,7 +312,7 @@ export default function ContentCalendarPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load plan");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
@@ -325,7 +329,7 @@ export default function ContentCalendarPage() {
   useEffect(() => {
     if (!hasRunningContentRun) return;
     const id = setInterval(() => {
-      fetchRange();
+      fetchRange({ background: true });
     }, 5000);
     return () => clearInterval(id);
     // fetchRange is stable enough for this purpose; intentionally not a dep
@@ -338,7 +342,7 @@ export default function ContentCalendarPage() {
     if (!justCompleted) return;
     if (lastContentRunCompletionRef.current === justCompleted.id) return;
     lastContentRunCompletionRef.current = justCompleted.id;
-    fetchRange();
+    fetchRange({ background: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRuns]);
 

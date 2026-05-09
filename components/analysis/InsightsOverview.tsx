@@ -181,11 +181,16 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     (async () => {
       setLoading(true);
       setHasError(false);
+      // Only used to find which gap-card already has an in-progress / published
+      // piece linked to it — a few dozen recent pieces is plenty. The previous
+      // limit=200 routinely shipped a several-hundred-KB JSON payload that the
+      // user paid for on every visit to /c/analysis.
+      const client = tenantApi(tenantId);
       try {
         const [g, s, p] = await Promise.allSettled([
-          tenantApi(tenantId).get<GeoSummary>("/api/ai-visibility/summary?days=30"),
-          tenantApi(tenantId).get<SeoStats>("/api/seo/stats?days=30"),
-          tenantApi(tenantId).get<{ pieces?: PieceLink[] }>("/api/content/pieces?limit=200"),
+          client.get<GeoSummary>("/api/ai-visibility/summary?days=30"),
+          client.get<SeoStats>("/api/seo/stats?days=30"),
+          client.get<{ pieces?: PieceLink[] }>("/api/content/pieces?limit=50"),
         ]);
         if (cancelled) return;
         if (g.status === "fulfilled" && g.value) setGeo(g.value);
