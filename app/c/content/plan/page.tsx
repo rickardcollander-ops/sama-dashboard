@@ -129,7 +129,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
         }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to add to calendar");
+      if (!data.success) throw new Error(data.error || "Failed to add to plan");
 
       onAdded(data.item);
       // If we drafted right now, jump straight into the editor.
@@ -269,7 +269,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
             className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
           >
             {submitting ? <Clock className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {draftNow ? "Add + draft now" : "Add to calendar"}
+            {draftNow ? "Add + draft now" : "Add to plan"}
           </button>
         </div>
       </div>
@@ -308,7 +308,7 @@ export default function ContentCalendarPage() {
       setScheduled(Array.isArray(data.scheduled) ? data.scheduled : []);
       setPieces(Array.isArray(data.published_pieces) ? data.published_pieces : []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load calendar");
+      setError(e instanceof Error ? e.message : "Failed to load plan");
     } finally {
       setLoading(false);
     }
@@ -405,7 +405,7 @@ export default function ContentCalendarPage() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-              <CalendarIcon className="h-7 w-7 text-blue-600" /> Content Calendar
+              <CalendarIcon className="h-7 w-7 text-blue-600" /> Content Plan
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Click any day to schedule an article. Drafted on the date you pick — auto-published if you check the box.
