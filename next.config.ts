@@ -45,6 +45,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Tree-shake icon and chart libraries that re-export hundreds of symbols
+  // from a single barrel — without this, the dashboard ships every Lucide
+  // icon and the full Recharts surface even when a page only uses a few.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
+  },
   async redirects() {
     return [
       { source: "/audit", destination: "/c/audit", permanent: true },
