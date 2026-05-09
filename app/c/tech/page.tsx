@@ -226,12 +226,25 @@ export default function TechAgentPage() {
 
   return (
     <>
-      {/* Print stylesheet */}
+      {/* Print stylesheet.
+          We can't use `display: none` on body's children to hide everything
+          except #pdf-export — Next.js nests #pdf-export deep inside several
+          wrapper divs, and `display: none` on any ancestor prevents the
+          descendant from rendering at all (the result is a blank page).
+          `visibility: hidden` lets descendants opt back in with
+          `visibility: visible`, even when their ancestors are hidden. */}
       <style>{`
         @media print {
-          body > * { display: none !important; }
-          #pdf-export { display: block !important; }
-          #pdf-export { font-family: system-ui, sans-serif; padding: 2rem; }
+          body * { visibility: hidden !important; }
+          #pdf-export, #pdf-export * { visibility: visible !important; }
+          #pdf-export {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            font-family: system-ui, sans-serif;
+            padding: 2rem;
+          }
         }
         @media screen {
           #pdf-export { display: none; }
