@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import CreateContentPlanModal from "@/components/CreateContentPlanModal";
-import { SAMA_API_URL } from "@/lib/api";
+import { samaFetch } from "@/lib/api";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 
@@ -115,7 +115,7 @@ function AddModal({ date, onClose, onAdded }: AddModalProps) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${SAMA_API_URL}/api/content/plan/calendar`, {
+      const res = await samaFetch(`/api/content/plan/calendar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -303,8 +303,8 @@ export default function ContentCalendarPage() {
     setLoading(true);
     setError(null);
     try {
-      const url = `${SAMA_API_URL}/api/content/plan/calendar?start=${start.toISOString()}&end=${new Date(end.getTime() + 86400_000).toISOString()}`;
-      const res = await fetch(url);
+      const url = `/api/content/plan/calendar?start=${start.toISOString()}&end=${new Date(end.getTime() + 86400_000).toISOString()}`;
+      const res = await samaFetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setScheduled(Array.isArray(data.scheduled) ? data.scheduled : []);
