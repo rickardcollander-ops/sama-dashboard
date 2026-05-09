@@ -1,4 +1,15 @@
-export type CmsKind = "wordpress" | "webflow" | "ghost" | "notion" | "webhook";
+export type CmsKind =
+  | "wordpress"
+  | "webflow"
+  | "ghost"
+  | "notion"
+  | "webhook"
+  | "shopify"
+  | "framer"
+  | "wix"
+  | "gohighlevel"
+  | "duda"
+  | "bigcommerce";
 
 export interface CmsDestination {
   id: string;
