@@ -31,6 +31,10 @@ const sv = {
     integrations: "Integrationer",
     billing: "Plan & fakturering",
   },
+  subNavSections: {
+    personal: "Personligt",
+    business: "Företag",
+  },
   analyses: {
     title: "Analyser & checks",
     recurringTitle: "Återkommande checks",
@@ -389,6 +393,10 @@ const no: typeof sv = {
     team: "Team",
     integrations: "Integrasjoner",
     billing: "Plan & fakturering",
+  },
+  subNavSections: {
+    personal: "Personlig",
+    business: "Selskap",
   },
   analyses: {
     title: "Analyser & sjekker",
@@ -749,6 +757,10 @@ const da: typeof sv = {
     integrations: "Integrationer",
     billing: "Plan & fakturering",
   },
+  subNavSections: {
+    personal: "Personligt",
+    business: "Virksomhed",
+  },
   analyses: {
     title: "Analyser & tjek",
     recurringTitle: "Tilbagevendende tjek",
@@ -1107,6 +1119,10 @@ const en: typeof sv = {
     team: "Team",
     integrations: "Integrations",
     billing: "Plan & Billing",
+  },
+  subNavSections: {
+    personal: "Personal",
+    business: "Business",
   },
   analyses: {
     title: "Analyses & checks",
