@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone,
+  Users, Megaphone, MessageCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -33,7 +33,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-type SectionId = "home" | "insights" | "content" | "tech" | "ads" | "settings" | "admin";
+type SectionId = "home" | "insights" | "content" | "tech" | "reddit" | "ads" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -61,6 +61,12 @@ const TOP_NAV: NavItem[] = [
     matchPrefixes: ["/c/tech"],
   },
   {
+    id: "reddit",
+    href: "/c/reddit",
+    icon: MessageCircle,
+    matchPrefixes: ["/c/reddit"],
+  },
+  {
     id: "ads",
     href: "#",
     icon: Megaphone,
@@ -85,6 +91,7 @@ const ADMIN_NAV: NavItem = {
 const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   home: [],
   tech: [],
+  reddit: [],
   ads: [],
   insights: [
     { href: "/c/analysis", labelKey: "overview" },
