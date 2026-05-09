@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
   CheckCircle2, Loader2, X, Eye, Globe, ChevronRight,
@@ -542,6 +543,13 @@ export default function AdminPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} />
               Refresh
             </button>
+            <Link
+              href="/c/admin/email"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Mejl
+            </Link>
             <button
               onClick={() => setShowNewCustomer(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
