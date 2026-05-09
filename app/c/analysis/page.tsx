@@ -797,12 +797,15 @@ type ResultsTab = "overview" | "matrix" | "gaps" | "recommendations";
 function ResultsStage({ run }: { run: AnalysisRun }) {
   const { t } = useLanguage();
   const [tab, setTab] = useState<ResultsTab>("overview");
-  const tabs: { id: ResultsTab; label: string; show: boolean }[] = [
-    { id: "overview", label: t.insights.auditTabOverview, show: true },
-    { id: "matrix", label: t.insights.auditTabMatrix, show: true },
-    { id: "gaps", label: t.insights.auditTabGaps, show: true },
-    { id: "recommendations", label: t.insights.auditTabRecommendations, show: true },
-  ];
+  const tabs = useMemo<{ id: ResultsTab; label: string; show: boolean }[]>(
+    () => [
+      { id: "overview", label: t.insights.auditTabOverview, show: true },
+      { id: "matrix", label: t.insights.auditTabMatrix, show: true },
+      { id: "gaps", label: t.insights.auditTabGaps, show: true },
+      { id: "recommendations", label: t.insights.auditTabRecommendations, show: true },
+    ],
+    [t],
+  );
 
   const gapSummary = useMemo(() => buildGapSummary(run), [run]);
   const existingKeywords = useMemo(() => run.query_results.map((q) => q.query), [run]);
