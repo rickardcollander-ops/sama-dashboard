@@ -87,6 +87,11 @@ export function samaHeaders(): Record<string, string> {
       out["X-Sama-Account-Id"] = accountId;
     }
 
+    // SiteProvider clears localStorage[sama_active_site_id] when entering
+    // or leaving view-as mode and rewrites it once the new tenant's sites
+    // load, so a stale ID can't carry across the boundary. If localStorage
+    // is missing during the brief window between the reload and that
+    // rewrite, fall back to the view-as initial tenant.
     const resolvedSiteId = siteId || viewAs?.tenantId;
     if (resolvedSiteId) {
       out["X-Sama-Site-Id"] = resolvedSiteId;

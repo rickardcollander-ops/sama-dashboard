@@ -222,12 +222,16 @@ async function resolveTenantContext(
 
   let siteRow: { id: string; settings: Record<string, unknown> | null } | null = null;
   if (requestedSite) {
-    let query = admin
+    // Always require the site to belong to the resolved account, even
+    // for admin. Skipping this check let a stale X-Sama-Site-Id from a
+    // previous kundvy slip through and return another customer's data
+    // when admin opened a freshly added customer.
+    const { data } = await admin
       .from("user_sites")
       .select("id, settings, user_id")
-      .eq("id", requestedSite);
-    if (!isAdmin) query = query.eq("user_id", accountId);
-    const { data } = await query.maybeSingle();
+      .eq("id", requestedSite)
+      .eq("user_id", accountId)
+      .maybeSingle();
     if (data) siteRow = { id: data.id, settings: data.settings };
   }
   if (!siteRow) {

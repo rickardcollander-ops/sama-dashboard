@@ -179,7 +179,20 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
               ? localStorage.getItem(ACTIVE_SITE_KEY)
               : null;
           const valid = stored && loaded.some((s) => s.id === stored);
-          setActiveSiteIdState(valid ? stored : (loaded[0]?.id ?? null));
+          const resolved = valid ? stored : (loaded[0]?.id ?? null);
+          setActiveSiteIdState(resolved);
+          // Mirror the resolved site into localStorage so samaHeaders()
+          // (which reads localStorage directly) doesn't carry a stale
+          // value from the previous tenant on this tab. Without this
+          // any request fired before the user clicks the SiteSwitcher
+          // would be tagged with the wrong X-Sama-Site-Id and leak
+          // another customer's data into the new view.
+          if (typeof window !== "undefined") {
+            try {
+              if (resolved) localStorage.setItem(ACTIVE_SITE_KEY, resolved);
+              else localStorage.removeItem(ACTIVE_SITE_KEY);
+            } catch { /* private mode etc. */ }
+          }
         } else {
           setSites([]);
         }
@@ -241,7 +254,17 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       ? localStorage.getItem(ACTIVE_SITE_KEY)
       : null;
     const valid = stored && loaded.some((s) => s.id === stored);
-    setActiveSiteIdState(valid ? stored : (loaded[0]?.id ?? null));
+    const resolved = valid ? stored : (loaded[0]?.id ?? null);
+    setActiveSiteIdState(resolved);
+    // Keep localStorage in sync with the resolved site so samaHeaders()
+    // doesn't keep sending a stale ID from a different account on this
+    // tab.
+    if (typeof window !== "undefined") {
+      try {
+        if (resolved) localStorage.setItem(ACTIVE_SITE_KEY, resolved);
+        else localStorage.removeItem(ACTIVE_SITE_KEY);
+      } catch { /* private mode etc. */ }
+    }
 
     setLoading(false);
   }, [effectiveOwnerId, viewAs, user]);
@@ -283,6 +306,11 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return;
     try {
       sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(v));
+      // Drop the previously selected site_id — it belongs to whoever the
+      // admin was looking at before, and samaHeaders() reads localStorage
+      // directly, so leaving it in place would tag every request to the
+      // new customer with the OLD customer's site and leak their data.
+      localStorage.removeItem(ACTIVE_SITE_KEY);
     } catch { /* ignore */ }
     // Same reasoning as setActiveSiteId: switching to view-as a different
     // tenant means we need a clean JS context, not a soft state update.
@@ -293,6 +321,10 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return;
     try {
       sessionStorage.removeItem(VIEW_AS_KEY);
+      // Same reason as in setViewAs: the active site belonged to the
+      // viewed customer; keeping it would tag the admin's own session
+      // with that customer's site_id.
+      localStorage.removeItem(ACTIVE_SITE_KEY);
     } catch { /* ignore */ }
     window.location.reload();
   }, []);
