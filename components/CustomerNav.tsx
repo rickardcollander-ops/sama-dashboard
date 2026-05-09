@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone, User, CreditCard, Link2,
+  Users, Megaphone, User, CreditCard, Link2, Palette,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -125,6 +125,7 @@ const SUB_NAV: Record<SectionId, SubNavConfig> = {
     {
       titleKey: "business",
       items: [
+        { href: "/c/settings/branding", labelKey: "branding", icon: Palette },
         { href: "/c/settings/sites", labelKey: "sites", icon: Globe },
         { href: "/c/settings/team", labelKey: "team", icon: Users },
         { href: "/c/settings/integrations", labelKey: "integrations", icon: Link2 },
