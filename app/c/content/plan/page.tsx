@@ -287,6 +287,8 @@ export default function ContentCalendarPage() {
   const [month, setMonth] = useState(today.getUTCMonth());
   const [scheduled, setScheduled] = useState<PlanItem[]>([]);
   const [pieces, setPieces] = useState<PublishedPiece[]>([]);
+  const [unscheduled, setUnscheduled] = useState<PlanItem[]>([]);
+  const [unscheduledLoading, setUnscheduledLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [addDate, setAddDate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -324,6 +326,29 @@ export default function ContentCalendarPage() {
 
   useEffect(() => { fetchRange(); /* eslint-disable-next-line */ }, [year, month, effectiveTenantId]);
 
+  // Sidebar list of ideas the user hasn't placed on the calendar yet. The
+  // backend returns every status='idea' row for the tenant; we filter to
+  // those still missing a scheduled_for so the sidebar mirrors what is
+  // actually un-placed. Independent of the visible month so dragging from
+  // the sidebar onto any month works.
+  const fetchUnscheduled = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!effectiveTenantId) return;
+    if (!background) setUnscheduledLoading(true);
+    try {
+      const data = await tenantClient.get<{ items?: PlanItem[] }>(
+        `/api/content/plan?status=idea`,
+      );
+      const items = Array.isArray(data.items) ? data.items : [];
+      setUnscheduled(items.filter((it) => !it.scheduled_for));
+    } catch (e) {
+      console.error("Failed to fetch unscheduled ideas:", e);
+    } finally {
+      if (!background) setUnscheduledLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchUnscheduled(); /* eslint-disable-next-line */ }, [effectiveTenantId]);
+
   // While a content_plan run is in flight (e.g. user just clicked "Skapa
   // content-plan" on /c/analysis or in the modal here), keep refetching
   // the calendar so newly-created idea-rows show up without a manual
@@ -336,6 +361,7 @@ export default function ContentCalendarPage() {
     if (!hasRunningContentRun) return;
     const id = setInterval(() => {
       fetchRange({ background: true });
+      fetchUnscheduled({ background: true });
     }, 5000);
     return () => clearInterval(id);
     // fetchRange is stable enough for this purpose; intentionally not a dep
@@ -349,6 +375,7 @@ export default function ContentCalendarPage() {
     if (lastContentRunCompletionRef.current === justCompleted.id) return;
     lastContentRunCompletionRef.current = justCompleted.id;
     fetchRange({ background: true });
+    fetchUnscheduled({ background: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRuns.runs]);
 
@@ -458,7 +485,11 @@ export default function ContentCalendarPage() {
     setDraggingId(null);
     if (!id) return;
 
-    const item = scheduled.find((it) => it.id === id);
+    const fromScheduled = scheduled.find((it) => it.id === id);
+    const fromUnscheduled = !fromScheduled
+      ? unscheduled.find((it) => it.id === id)
+      : null;
+    const item = fromScheduled || fromUnscheduled;
     if (!item) return;
     if (item.scheduled_for && ymdKey(item.scheduled_for) === ymdKey(d)) return;
 
@@ -471,10 +502,16 @@ export default function ContentCalendarPage() {
     ).toISOString();
 
     // Optimistic update so the chip moves immediately.
-    const previous = scheduled;
-    setScheduled((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, scheduled_for: newIso } : p)),
-    );
+    const previousScheduled = scheduled;
+    const previousUnscheduled = unscheduled;
+    if (fromScheduled) {
+      setScheduled((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, scheduled_for: newIso } : p)),
+      );
+    } else if (fromUnscheduled) {
+      setUnscheduled((prev) => prev.filter((p) => p.id !== id));
+      setScheduled((prev) => [...prev, { ...fromUnscheduled, scheduled_for: newIso }]);
+    }
     setReschedulingId(id);
     setError(null);
     try {
@@ -487,7 +524,8 @@ export default function ContentCalendarPage() {
         setScheduled((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.item! } : p)));
       }
     } catch (err) {
-      setScheduled(previous);
+      setScheduled(previousScheduled);
+      setUnscheduled(previousUnscheduled);
       setError(err instanceof Error ? err.message : "Kunde inte flytta idén");
     } finally {
       setReschedulingId(null);
@@ -553,6 +591,8 @@ export default function ContentCalendarPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
         <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
           {/* Weekday header */}
           <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -682,6 +722,67 @@ export default function ContentCalendarPage() {
             </p>
           </div>
         )}
+          </div>
+
+          {/* Sidebar: ideas the user hasn't placed on the calendar yet. Drag
+              one onto a day cell to schedule it. */}
+          <aside className="w-full lg:sticky lg:top-6 lg:w-72 lg:flex-shrink-0">
+            <div className="rounded-lg border bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div>
+                  <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    Oschemalagda idéer
+                  </h3>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Dra in en idé på en dag i kalendern.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  {unscheduled.length}
+                </span>
+              </div>
+
+              <div className="max-h-[70vh] space-y-1.5 overflow-y-auto p-3">
+                {unscheduledLoading && unscheduled.length === 0 && (
+                  <div className="flex items-center justify-center py-6 text-xs text-slate-400">
+                    <Clock className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Loading...
+                  </div>
+                )}
+                {!unscheduledLoading && unscheduled.length === 0 && (
+                  <div className="rounded-md border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+                    Inga oschemalagda idéer. Skapa en plan från en analys, eller schemalägg direkt genom att klicka på en dag.
+                  </div>
+                )}
+                {unscheduled.map((it) => {
+                  const isDragging = draggingId === it.id;
+                  const isMoving = reschedulingId === it.id;
+                  return (
+                    <div
+                      key={it.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(it, e)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => setEditingItem(it)}
+                      title={`${it.title}\n(dra till en dag för att schemalägga)`}
+                      className={`group/sidechip flex cursor-grab items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-xs hover:border-blue-300 hover:bg-blue-50/40 active:cursor-grabbing ${
+                        isDragging ? "opacity-40" : ""
+                      } ${isMoving ? "animate-pulse" : ""}`}
+                    >
+                      <GripVertical className="mt-0.5 h-3 w-3 flex-shrink-0 text-slate-300 group-hover/sidechip:text-slate-500" />
+                      <span className="mt-0.5 flex-shrink-0 text-slate-500">
+                        {typeIcon(it.content_type)}
+                      </span>
+                      <span className="line-clamp-2 flex-1 text-slate-700">
+                        {it.title}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </aside>
+        </div>
       </main>
 
       {addDate && (
