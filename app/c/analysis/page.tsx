@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Sparkles, Loader2, RefreshCw, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
@@ -387,9 +388,9 @@ export default function AnalysisPage() {
             <div className="flex-1">
               <div className="font-medium">Content-plan skapas i bakgrunden</div>
               <div className="mt-0.5 text-xs opacity-80">{planToast}</div>
-              <a href="/c/content/plan" className="mt-1 inline-block text-xs font-semibold underline">
+              <Link href="/c/content/plan" className="mt-1 inline-block text-xs font-semibold underline">
                 Visa planen →
-              </a>
+              </Link>
             </div>
             <button
               onClick={() => setPlanToast(null)}
