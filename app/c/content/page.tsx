@@ -108,6 +108,13 @@ function CustomerContentInner() {
   const [ideas, setIdeas] = useState<PlanIdea[]>([]);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  // Plan items currently being drafted in the background. The
+  // /plan/{id}/draft endpoint returns immediately now, so we track
+  // pending draft IDs here and poll the lists until the new piece
+  // surfaces (cascade can take 30-90s once social children are
+  // included). Cap the polling window so a silently-dropped task
+  // doesn't keep us hammering the API forever.
+  const [draftingIds, setDraftingIds] = useState<Set<string>>(new Set());
   const [editingIdea, setEditingIdea] = useState<PlanIdea | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editTopic, setEditTopic] = useState("");
@@ -296,10 +303,12 @@ function CustomerContentInner() {
     }
   }, [error]);
 
-  const fetchContent = async () => {
+  const fetchContent = async ({ background = false }: { background?: boolean } = {}) => {
     if (!user) return;
-    setLoading(true);
-    setError(null);
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const client = tenantClient;
       const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
@@ -309,12 +318,12 @@ function CustomerContentInner() {
       console.error("Failed to fetch content:", err);
       if (IS_DEMO) {
         setPieces(demoContentPieces);
-      } else {
+      } else if (!background) {
         setError(t.content.errorFetch);
       }
     }
-    setLoading(false);
-    fetchIdeas();
+    if (!background) setLoading(false);
+    fetchIdeas({ background });
   };
 
   // `background` is set when the 5-second polling tick re-runs this while a
@@ -352,22 +361,55 @@ function CustomerContentInner() {
     setApprovingId(idea.id);
     try {
       const client = tenantClient;
+      // Backend now returns immediately ({status: "drafting"}) and runs
+      // the LLM call (article + social cascade) in a background task.
+      // The previous synchronous flow blocked for 30-90s, regularly
+      // exceeding the proxy timeout and leaving the spinner stuck.
       await client.post(
         `/api/content/plan/${idea.id}/draft`,
         {},
         { headers: { "X-Sama-Intent": "user-action" } },
       );
+      // Drop the idea from the local list right away — its plan_item
+      // status is now 'drafting', which fetchIdeas (status=idea) won't
+      // return anyway. The polling effect below picks up the finished
+      // piece in /content/pieces when the cascade completes.
+      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      setDraftingIds((prev) => {
+        const next = new Set(prev);
+        next.add(idea.id);
+        return next;
+      });
       setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
       setTimeout(() => setIdeaToast(null), 6000);
-      // Refetch both lists: idea moves out, draft moves into "to_review".
-      await fetchIdeas();
-      await fetchContent();
     } catch (err: any) {
       setError(`${err?.message || "Kunde inte godkänna idén"}`);
     } finally {
       setApprovingId(null);
     }
   };
+
+  // While there are ideas drafting in the background, refresh the lists
+  // every 5s so the new piece surfaces without a manual reload. Cap the
+  // window at 3 minutes per approve to bound the polling — a cascade
+  // that hasn't finished by then has almost certainly failed silently.
+  useEffect(() => {
+    if (!user || !effectiveTenantId) return;
+    if (draftingIds.size === 0) return;
+    const tick = setInterval(() => {
+      fetchIdeas({ background: true });
+      fetchContent({ background: true });
+    }, 5000);
+    const stop = setTimeout(() => {
+      setDraftingIds(new Set());
+    }, 180_000);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(stop);
+    };
+    // fetchIdeas/fetchContent are stable closures over user; safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, effectiveTenantId, draftingIds]);
 
   const archiveIdea = async (idea: PlanIdea) => {
     if (!user) return;
