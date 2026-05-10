@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
-import AIReadabilityCard from "@/components/analysis/AIReadabilityCard";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { usePeriod } from "@/lib/hooks/usePeriod";
@@ -344,11 +343,6 @@ export default function CustomerGeoPage() {
             onAdded={() => loadData()}
           />
         </div>
-
-        {/* AI-readability scorecard — produced by site_audit's post-step.
-            Hides itself when no audit has been run yet, so this section
-            is invisible for new tenants. */}
-        <AIReadabilityCard />
 
         {/* Tracked GEO Queries */}
         <div className="mb-8">

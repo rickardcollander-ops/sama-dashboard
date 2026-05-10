@@ -46,7 +46,10 @@ const TOP_NAV: NavItem[] = [
     id: "insights",
     href: "/c/analysis",
     icon: Sparkles,
-    matchPrefixes: ["/c/analysis", "/c/seo", "/c/geo", "/c/analytics", "/c/audit"],
+    // /c/audit is the public free-audit page; it's intentionally not part of
+    // the customer insights area, so don't highlight Insights when a user
+    // ends up on that route.
+    matchPrefixes: ["/c/analysis", "/c/seo", "/c/geo", "/c/analytics"],
   },
   {
     id: "content",
@@ -93,12 +96,14 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
   tech: [],
   reddit: [],
   ads: [],
+  // The public /c/audit page used to live here as "Site Audit". It's been
+  // removed because the customer-side site review now runs from /c/analysis
+  // and the AI-readability scorecard renders directly under InsightsOverview.
   insights: [
     { href: "/c/analysis", labelKey: "overview" },
     { href: "/c/seo", labelKey: "google" },
     { href: "/c/geo", labelKey: "aiAssistants" },
     { href: "/c/analytics", labelKey: "traffic" },
-    { href: "/c/audit", labelKey: "siteAudit" },
   ],
   content: [
     { href: "/c/content", labelKey: "overview", exact: true },
