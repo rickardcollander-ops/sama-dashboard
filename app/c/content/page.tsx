@@ -1179,10 +1179,34 @@ function CustomerContentInner() {
                 key={piece.id}
                 className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  {piece.featured_image_url ? (
+                    <Link
+                      href={`/c/content/article/${piece.id}`}
+                      className="hidden sm:block shrink-0 rounded-lg overflow-hidden border border-slate-200 hover:border-orange-300 transition-colors"
+                      style={{ width: 96 }}
+                      title="Open article view"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={piece.featured_image_url}
+                        alt=""
+                        className="w-24 h-16 object-cover"
+                      />
+                    </Link>
+                  ) : null}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
+                      {typeof piece.article_score === "number" ? (
+                        <Link
+                          href={`/c/content/article/${piece.id}`}
+                          className="font-semibold text-slate-900 truncate hover:text-orange-700"
+                        >
+                          {piece.title}
+                        </Link>
+                      ) : (
+                        <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
+                      )}
                       <StatusBadge status={piece.status} />
                     </div>
                     {/* Sprint 2 (K-3 / K-6) — provenance line. */}
