@@ -27,10 +27,15 @@ const sv = {
     siteAudit: "Sajtanalys",
     plan: "Plan",
     account: "Konto",
+    branding: "Varumärke",
     sites: "Sidor",
     team: "Team",
     integrations: "Integrationer",
     billing: "Plan & fakturering",
+  },
+  subNavSections: {
+    personal: "Personligt",
+    business: "Företag",
   },
   analyses: {
     title: "Analyser & checks",
@@ -365,6 +370,22 @@ const sv = {
       "Klistra in båda värdena nedan",
     ],
   },
+  branding: {
+    title: "Varumärke",
+    subtitle: "Hantera er varumärkesidentitet — logo och färger.",
+    saved: "Varumärkesinställningarna är sparade!",
+    invalidColor: "Ogiltig färg. Använd hex-format, t.ex. 4F46E5.",
+    logoTitle: "Logotyp",
+    logoDesc: "URL till logotypen. Används i publicerade artiklars schema-data.",
+    logoUrlLabel: "Logotyp-URL",
+    logoUrlHint: "Rekommenderat: PNG eller SVG på minst 200×200 px.",
+    logoPreviewAlt: "Logotyp-förhandsvisning",
+    logoPreviewEmpty: "Ingen logo",
+    colorsTitle: "Varumärkesfärger",
+    colorsDesc: "Definiera färgerna som används i visualiseringar och exporter.",
+    primaryColor: "Primärfärg",
+    secondaryColor: "Sekundärfärg",
+  },
 };
 
 const no: typeof sv = {
@@ -387,10 +408,15 @@ const no: typeof sv = {
     siteAudit: "Nettstedsanalyse",
     plan: "Plan",
     account: "Konto",
+    branding: "Merkevare",
     sites: "Sider",
     team: "Team",
     integrations: "Integrasjoner",
     billing: "Plan & fakturering",
+  },
+  subNavSections: {
+    personal: "Personlig",
+    business: "Selskap",
   },
   analyses: {
     title: "Analyser & sjekker",
@@ -725,6 +751,22 @@ const no: typeof sv = {
       "Lim inn begge verdiene nedenfor",
     ],
   },
+  branding: {
+    title: "Merkevare",
+    subtitle: "Administrer merkevaridentiteten — logo og farger.",
+    saved: "Merkevareinnstillingene er lagret!",
+    invalidColor: "Ugyldig farge. Bruk hex-format, f.eks. 4F46E5.",
+    logoTitle: "Logo",
+    logoDesc: "URL til logoen. Brukes i schema-data for publiserte artikler.",
+    logoUrlLabel: "Logo-URL",
+    logoUrlHint: "Anbefalt: PNG eller SVG på minst 200×200 px.",
+    logoPreviewAlt: "Logo-forhåndsvisning",
+    logoPreviewEmpty: "Ingen logo",
+    colorsTitle: "Merkevarefarger",
+    colorsDesc: "Definer fargene som brukes i visualiseringer og eksporter.",
+    primaryColor: "Primærfarge",
+    secondaryColor: "Sekundærfarge",
+  },
 };
 
 const da: typeof sv = {
@@ -747,10 +789,15 @@ const da: typeof sv = {
     siteAudit: "Sajtanalyse",
     plan: "Plan",
     account: "Konto",
+    branding: "Brand",
     sites: "Sider",
     team: "Team",
     integrations: "Integrationer",
     billing: "Plan & fakturering",
+  },
+  subNavSections: {
+    personal: "Personligt",
+    business: "Virksomhed",
   },
   analyses: {
     title: "Analyser & tjek",
@@ -1085,6 +1132,22 @@ const da: typeof sv = {
       "Indsæt begge værdier nedenfor",
     ],
   },
+  branding: {
+    title: "Brand",
+    subtitle: "Administrér jeres brandidentitet — logo og farver.",
+    saved: "Brandindstillingerne er gemt!",
+    invalidColor: "Ugyldig farve. Brug hex-format, fx 4F46E5.",
+    logoTitle: "Logo",
+    logoDesc: "URL til logoet. Bruges i schema-data for publicerede artikler.",
+    logoUrlLabel: "Logo-URL",
+    logoUrlHint: "Anbefalet: PNG eller SVG på mindst 200×200 px.",
+    logoPreviewAlt: "Logo-forhåndsvisning",
+    logoPreviewEmpty: "Intet logo",
+    colorsTitle: "Brandfarver",
+    colorsDesc: "Definér farverne der bruges i visualiseringer og eksporter.",
+    primaryColor: "Primærfarve",
+    secondaryColor: "Sekundærfarve",
+  },
 };
 
 const en: typeof sv = {
@@ -1107,10 +1170,15 @@ const en: typeof sv = {
     siteAudit: "Site Audit",
     plan: "Plan",
     account: "Account",
+    branding: "Branding",
     sites: "Sites",
     team: "Team",
     integrations: "Integrations",
     billing: "Plan & Billing",
+  },
+  subNavSections: {
+    personal: "Personal",
+    business: "Business",
   },
   analyses: {
     title: "Analyses & checks",
@@ -1444,6 +1512,22 @@ const en: typeof sv = {
       "Get your Customer ID from Google Ads (xxx-xxx-xxxx)",
       "Paste both values below",
     ],
+  },
+  branding: {
+    title: "Branding",
+    subtitle: "Manage your brand identity — logo and colors.",
+    saved: "Branding settings saved!",
+    invalidColor: "Invalid color. Use hex format, e.g. 4F46E5.",
+    logoTitle: "Brand Logo",
+    logoDesc: "Logo URL. Used in schema data for published articles.",
+    logoUrlLabel: "Logo URL",
+    logoUrlHint: "Recommended: PNG or SVG, at least 200×200 px.",
+    logoPreviewAlt: "Logo preview",
+    logoPreviewEmpty: "No logo",
+    colorsTitle: "Brand Colors",
+    colorsDesc: "Define the colors used in visualizations and exports.",
+    primaryColor: "Primary Color",
+    secondaryColor: "Secondary Color",
   },
 };
 

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone, MessageCircle,
+  Users, Megaphone, User, CreditCard, Link2, Palette,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -30,10 +30,27 @@ interface NavItem {
 interface SubNavItem {
   href: string;
   labelKey: keyof Translations["subNav"];
+  icon?: LucideIcon;
   exact?: boolean;
 }
 
-type SectionId = "home" | "insights" | "content" | "tech" | "reddit" | "ads" | "settings" | "admin";
+interface SubNavSection {
+  titleKey: keyof Translations["subNavSections"];
+  items: SubNavItem[];
+}
+
+type SubNavConfig = SubNavItem[] | SubNavSection[];
+
+function isGroupedSubNav(config: SubNavConfig): config is SubNavSection[] {
+  return config.length > 0 && "items" in config[0];
+}
+
+function flattenSubNav(config: SubNavConfig): SubNavItem[] {
+  if (isGroupedSubNav(config)) return config.flatMap((s) => s.items);
+  return config;
+}
+
+type SectionId = "home" | "insights" | "content" | "tech" | "ads" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -91,7 +108,7 @@ const ADMIN_NAV: NavItem = {
   matchPrefixes: ["/c/admin"],
 };
 
-const SUB_NAV: Record<SectionId, SubNavItem[]> = {
+const SUB_NAV: Record<SectionId, SubNavConfig> = {
   home: [],
   tech: [],
   reddit: [],
@@ -110,11 +127,22 @@ const SUB_NAV: Record<SectionId, SubNavItem[]> = {
     { href: "/c/content/plan", labelKey: "plan" },
   ],
   settings: [
-    { href: "/c/settings", labelKey: "account", exact: true },
-    { href: "/c/settings/sites", labelKey: "sites" },
-    { href: "/c/settings/team", labelKey: "team" },
-    { href: "/c/settings/integrations", labelKey: "integrations" },
-    { href: "/c/settings/billing", labelKey: "billing" },
+    {
+      titleKey: "personal",
+      items: [
+        { href: "/c/settings", labelKey: "account", icon: User, exact: true },
+        { href: "/c/settings/billing", labelKey: "billing", icon: CreditCard },
+      ],
+    },
+    {
+      titleKey: "business",
+      items: [
+        { href: "/c/settings/branding", labelKey: "branding", icon: Palette },
+        { href: "/c/settings/sites", labelKey: "sites", icon: Globe },
+        { href: "/c/settings/team", labelKey: "team", icon: Users },
+        { href: "/c/settings/integrations", labelKey: "integrations", icon: Link2 },
+      ],
+    },
   ],
   admin: [],
 };
@@ -419,7 +447,8 @@ function SidebarContent({
       <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive = section === item.id;
-          const subItems = SUB_NAV[item.id];
+          const subConfig = SUB_NAV[item.id];
+          const hasSubItems = flattenSubNav(subConfig).length > 0;
           if (item.disabled) {
             return (
               <div
@@ -436,6 +465,27 @@ function SidebarContent({
               </div>
             );
           }
+          const renderSubItem = (sub: SubNavItem) => {
+            const subActive = isSubItemActive(pathname, sub);
+            const SubIcon = sub.icon;
+            return (
+              <Link
+                key={sub.href}
+                href={sub.href}
+                onClick={onClose}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                  subActive
+                    ? "text-blue-700 font-semibold bg-blue-50/60"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                }`}
+              >
+                {SubIcon && (
+                  <SubIcon className={`h-4 w-4 flex-shrink-0 ${subActive ? "text-blue-600" : "text-slate-400"}`} />
+                )}
+                <span>{t.subNav[sub.labelKey]}</span>
+              </Link>
+            );
+          };
           return (
             <div key={item.id}>
               <Link
@@ -449,32 +499,31 @@ function SidebarContent({
               >
                 <item.icon className={`h-4.5 w-4.5 flex-shrink-0 ${isActive ? "text-blue-600" : "text-slate-400"}`} style={{ width: "1.125rem", height: "1.125rem" }} />
                 <span className="flex-1">{t.nav[item.id]}</span>
-                {subItems.length > 0 && (
+                {hasSubItems && (
                   <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform ${isActive ? "rotate-90" : ""}`} />
                 )}
               </Link>
 
               {/* Sub-items for active section */}
-              {isActive && subItems.length > 0 && (
-                <div className="ml-9 mt-0.5 mb-1 space-y-0.5">
-                  {subItems.map((sub) => {
-                    const subActive = isSubItemActive(pathname, sub);
-                    return (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        onClick={onClose}
-                        className={`block rounded-md px-3 py-2 text-sm transition-colors ${
-                          subActive
-                            ? "text-blue-700 font-semibold bg-blue-50/60"
-                            : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                        }`}
-                      >
-                        {t.subNav[sub.labelKey]}
-                      </Link>
-                    );
-                  })}
-                </div>
+              {isActive && hasSubItems && (
+                isGroupedSubNav(subConfig) ? (
+                  <div className="ml-2 mt-1 mb-1 border-l border-slate-100 pl-2">
+                    {subConfig.map((group) => (
+                      <div key={group.titleKey} className="mt-3 first:mt-1">
+                        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          {t.subNavSections[group.titleKey]}
+                        </p>
+                        <div className="space-y-0.5">
+                          {group.items.map(renderSubItem)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="ml-9 mt-0.5 mb-1 space-y-0.5">
+                    {subConfig.map(renderSubItem)}
+                  </div>
+                )
               )}
             </div>
           );
