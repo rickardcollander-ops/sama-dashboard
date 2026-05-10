@@ -1,27 +1,26 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { PeriodProvider } from "@/lib/hooks/usePeriod";
 import { ActiveRunsProvider } from "@/lib/hooks/useActiveRuns";
-import { SiteProvider, useSite } from "@/lib/hooks/useSite";
+import { SiteProvider } from "@/lib/hooks/useSite";
 import { usePresenceHeartbeat } from "@/lib/hooks/usePresenceHeartbeat";
 import ActiveRunsBanner from "@/components/ActiveRunsBanner";
 import AdminViewBanner from "@/components/AdminViewBanner";
-
-// Force a clean remount of the page tree when the active site (or admin
-// view-as target) changes. Each site is treated as its own workspace, so
-// switching wipes per-page state (filters, fetched data, in-flight loads)
-// instead of leaving stale data from the previous site on screen.
-function SiteScopedChildren({ children }: { children: ReactNode }) {
-  const { effectiveTenantId } = useSite();
-  return <Fragment key={effectiveTenantId || "no-site"}>{children}</Fragment>;
-}
 
 function PresenceHeartbeat() {
   usePresenceHeartbeat();
   return null;
 }
 
+// Children render without a tenant-scoped key. Every explicit tenant
+// switch (setActiveSiteId / setActiveAccountId / setViewAs /
+// clearViewAs) already does window.location.reload(), so we don't need
+// a key-based remount for cross-tenant safety. The previous keyed
+// Fragment was unmounting the entire page tree each time
+// `effectiveTenantId` flickered through "" → user.id → site.id during
+// initial site resolution, killing the dashboard's in-flight API batch
+// and forcing it to refetch from scratch.
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <SiteProvider>
@@ -29,7 +28,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         <ActiveRunsProvider>
           <PresenceHeartbeat />
           <AdminViewBanner />
-          <SiteScopedChildren>{children}</SiteScopedChildren>
+          {children}
           <ActiveRunsBanner />
         </ActiveRunsProvider>
       </PeriodProvider>
