@@ -147,10 +147,14 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
     return out.slice(0, 3);
   };
 
+  // Note: the AI-readability score deliberately does NOT generate a gap
+  // entry here. The AIReadabilityCard renders the prioritised action
+  // points right below this overview, so an extra gap row would just link
+  // back to itself. The 4th stat tile (below) is the only surface for
+  // AI-readability inside InsightsOverview.
   const buildGaps = (
     geoData: GeoSummary | null,
     seoData: SeoStats | null,
-    arData: AIReadabilitySummary | null,
   ): Gap[] => {
     const out: Gap[] = [];
     if (geoData && (geoData.open_gaps ?? 0) > 0) {
@@ -190,18 +194,6 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
           topic: `Why ${dominant.name} isn't enough — our take`,
         });
       }
-    }
-    // AI-readability becomes a gap when the audited pages score below 60.
-    // Linking to /c/geo brings the user to the AIReadabilityCard, where
-    // the prioritised action points spell out what to fix.
-    const ar = arData?.overall_score;
-    if (ar != null && ar < 60) {
-      out.push({
-        id: "ai_readability_low",
-        title: "Pages aren't AI-friendly enough",
-        detail: `AI-readability score ${ar}/100. Open AI-synlighet to see the prioritised fixes.`,
-        topic: "Improve on-page structure for AI ingestion",
-      });
     }
     if (out.length === 0) {
       out.push({
@@ -320,13 +312,13 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
       key: "ai_readability",
       label: "AI readability",
       tooltip:
-        "Score 0–100 for how well your audited pages are structured for AI ingestion. Produced by the latest site audit.",
+        "Score 0–100 for how well your audited pages are structured for AI ingestion. Produced by the latest site review.",
       value: haveAr ? `${arScore}` : "—",
     },
   ];
 
   const strengths = buildStrengths(geo, seo, aiReadability);
-  const gaps = buildGaps(geo, seo, aiReadability);
+  const gaps = buildGaps(geo, seo);
 
   return (
     <div className="space-y-6">
@@ -373,13 +365,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                 params.set("gap", g.id);
                 if (g.topic) params.set("topic", g.topic);
                 params.set("gap_title", g.title);
-                // The AI-readability gap links to the GEO page, where the
-                // AIReadabilityCard surfaces the prioritised action points.
-                // Other gaps go to /c/content where the user can spin up
-                // an article.
-                const href = g.id === "ai_readability_low"
-                  ? "/c/geo"
-                  : `/c/content?${params.toString()}`;
+                const href = `/c/content?${params.toString()}`;
                 const outcome = pickGapOutcome(pieces, g.id);
                 return (
                   <li key={g.id} className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
@@ -402,9 +388,7 @@ export default function InsightsOverview({ tenantId }: InsightsOverviewProps) {
                         href={href}
                         className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
                       >
-                        {g.id === "ai_readability_low"
-                          ? "Open AI-synlighet"
-                          : t.insightsOverview.createArticle}
+                        {t.insightsOverview.createArticle}
                         <ArrowRight className="h-3 w-3" />
                       </Link>
                     )}
