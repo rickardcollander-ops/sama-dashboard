@@ -65,29 +65,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: campErr?.message || "Could not create campaign" }, { status: 500 });
   }
 
-  const leadRows = parsed.rows.map((r: ApolloLeadRow) => ({
-    campaign_id: campaign.id,
-    company_name: r.company_name,
-    domain: r.domain,
-    contact_first_name: r.contact_first_name,
-    contact_last_name: r.contact_last_name,
-    contact_title: r.contact_title,
-    contact_email: r.contact_email,
-    contact_phone: r.contact_phone,
-    industry: r.industry,
-    company_size: r.company_size,
-    city: r.city,
-    country: r.country,
-    linkedin_url: r.linkedin_url,
-    raw: r.raw,
-    audit_status: r.domain ? "pending" : "skipped",
-    audit_error: r.domain ? null : "No domain in CSV row",
-  }));
+  // Dedupe by domain in-memory: campaign_id is brand new for this request, so
+  // the only possible collisions are repeated domains inside this CSV. We can't
+  // delegate to a DB upsert because the unique index on (campaign_id, domain)
+  // is partial (WHERE domain IS NOT NULL) and PostgREST can't infer partial
+  // indexes for ON CONFLICT.
+  const seenDomains = new Set<string>();
+  const leadRows = parsed.rows
+    .map((r: ApolloLeadRow) => ({
+      campaign_id: campaign.id,
+      company_name: r.company_name,
+      domain: r.domain,
+      contact_first_name: r.contact_first_name,
+      contact_last_name: r.contact_last_name,
+      contact_title: r.contact_title,
+      contact_email: r.contact_email,
+      contact_phone: r.contact_phone,
+      industry: r.industry,
+      company_size: r.company_size,
+      city: r.city,
+      country: r.country,
+      linkedin_url: r.linkedin_url,
+      raw: r.raw,
+      audit_status: r.domain ? "pending" : "skipped",
+      audit_error: r.domain ? null : "No domain in CSV row",
+    }))
+    .filter((r) => {
+      if (!r.domain) return true;
+      if (seenDomains.has(r.domain)) return false;
+      seenDomains.add(r.domain);
+      return true;
+    });
 
-  // upsert on (campaign_id, domain) so re-import doesn't double-insert
   const { error: leadsErr, count: insertedCount } = await auth.admin
     .from("apollo_leads")
-    .upsert(leadRows, { onConflict: "campaign_id,domain", count: "exact" });
+    .insert(leadRows, { count: "exact" });
 
   if (leadsErr) {
     // Roll back the campaign so the admin can retry without orphaned rows.
