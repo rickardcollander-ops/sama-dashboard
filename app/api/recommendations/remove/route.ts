@@ -37,7 +37,11 @@ export async function POST(req: NextRequest) {
   const removed = existing.length - next.length;
 
   if (removed > 0) {
-    await access.save({ ...settings, geo_queries: next });
+    await access.save({
+      ...settings,
+      geo_queries: next,
+      geo_queries_updated_at: new Date().toISOString(),
+    });
   }
 
   return NextResponse.json({ removed, geo_queries: next });

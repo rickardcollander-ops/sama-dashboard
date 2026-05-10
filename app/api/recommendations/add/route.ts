@@ -54,7 +54,11 @@ export async function POST(req: NextRequest) {
   }
   const geoChanged = geoAdded > 0 || merged.length !== existingGeo.length;
   if (geoChanged) {
-    settings = { ...settings, geo_queries: merged };
+    settings = {
+      ...settings,
+      geo_queries: merged,
+      geo_queries_updated_at: new Date().toISOString(),
+    };
     await access.save(settings);
   }
 
