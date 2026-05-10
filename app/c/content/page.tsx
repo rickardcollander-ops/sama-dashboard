@@ -40,6 +40,11 @@ interface ContentPiece {
   word_count: number;
   target_keyword: string;
   created_at?: string;
+  // Premium article fields (populated by the structured writer; older
+  // pieces have these as null and the UI degrades gracefully).
+  slug?: string | null;
+  featured_image_url?: string | null;
+  article_score?: number | null;
   // Sprint 2 (K-3 / K-6) — backreferences to the surface that motivated the
   // piece, so the article card can show "Skapad från lucka …" / "Skapad
   // utifrån strategi-topic …".
@@ -1215,6 +1220,24 @@ function CustomerContentInner() {
                           <Search className="h-3 w-3" />
                           {piece.target_keyword}
                         </span>
+                      )}
+                      {typeof piece.article_score === "number" && (
+                        <Link
+                          href={`/c/content/article/${piece.id}`}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            piece.article_score >= 85
+                              ? "bg-green-50 text-green-700"
+                              : piece.article_score >= 65
+                              ? "bg-lime-50 text-lime-700"
+                              : piece.article_score >= 40
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-red-50 text-red-700"
+                          }`}
+                          title="Open article view"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          Score {piece.article_score}/100
+                        </Link>
                       )}
                       {piece.created_at && (
                         <span className="flex items-center gap-1">
