@@ -226,14 +226,24 @@ export function parseApolloCsv(text: string): ParseResult {
 }
 
 /**
- * HMAC-SHA256 of `${leadId}|${exp}` using PDF_SIGNING_SECRET. Used to gate
- * the public PDF render route so Playwright (which runs without a logged-in
- * cookie) can fetch it from sama-agent without exposing customer data on a
- * permanent unauth URL.
+ * Returns the HMAC key used for PDF render tokens. Prefers the dedicated
+ * PDF_SIGNING_SECRET, but falls back to SUPABASE_SERVICE_ROLE_KEY — both
+ * sit at the same trust level (anyone with either can read any lead's
+ * report), and the service-role key is always present in any working
+ * dashboard deployment. Lets us ship without a separate env var.
+ */
+function pdfSigningSecret(): string {
+  return process.env.PDF_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+}
+
+/**
+ * HMAC-SHA256 of `${leadId}|${exp}`. Used to gate the public PDF render
+ * route so Playwright (which runs without a logged-in cookie) can fetch it
+ * from sama-agent without exposing customer data on a permanent unauth URL.
  */
 export async function signPdfToken(leadId: string, ttlSeconds = 600): Promise<string> {
-  const secret = process.env.PDF_SIGNING_SECRET || "";
-  if (!secret) throw new Error("PDF_SIGNING_SECRET not configured");
+  const secret = pdfSigningSecret();
+  if (!secret) throw new Error("PDF_SIGNING_SECRET (or SUPABASE_SERVICE_ROLE_KEY) not configured");
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload = `${leadId}|${exp}`;
   const enc = new TextEncoder();
@@ -247,7 +257,7 @@ export async function signPdfToken(leadId: string, ttlSeconds = 600): Promise<st
 }
 
 export async function verifyPdfToken(leadId: string, token: string): Promise<boolean> {
-  const secret = process.env.PDF_SIGNING_SECRET || "";
+  const secret = pdfSigningSecret();
   if (!secret || !token) return false;
   const [expStr, sig] = token.split(".");
   const exp = Number(expStr);
