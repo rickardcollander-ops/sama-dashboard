@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone, User, CreditCard, Link2, Palette,
+  Users, Megaphone, User, CreditCard, Link2, Palette, MessageCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -50,7 +50,7 @@ function flattenSubNav(config: SubNavConfig): SubNavItem[] {
   return config;
 }
 
-type SectionId = "home" | "insights" | "content" | "tech" | "ads" | "settings" | "admin";
+type SectionId = "home" | "insights" | "content" | "tech" | "reddit" | "ads" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
