@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
-  CheckCircle2, Loader2, X, Eye, Globe, ChevronRight,
+  CheckCircle2, Loader2, X, Eye, Globe, ChevronRight, Phone,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -549,6 +549,13 @@ export default function AdminPage() {
             >
               <Mail className="h-3.5 w-3.5" />
               Mejl
+            </Link>
+            <Link
+              href="/c/admin/campaigns"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Campaigns
             </Link>
             <button
               onClick={() => setShowNewCustomer(true)}
