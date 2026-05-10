@@ -25,5 +25,14 @@ export async function GET(req: NextRequest) {
       : []
   ).slice(0, MAX_GEO_QUERIES);
 
-  return NextResponse.json({ geo_queries: geoQueries, geo_max: MAX_GEO_QUERIES });
+  const updatedAt =
+    typeof settings.geo_queries_updated_at === "string"
+      ? settings.geo_queries_updated_at
+      : null;
+
+  return NextResponse.json({
+    geo_queries: geoQueries,
+    geo_max: MAX_GEO_QUERIES,
+    geo_queries_updated_at: updatedAt,
+  });
 }
