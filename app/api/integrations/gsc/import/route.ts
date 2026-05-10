@@ -29,6 +29,24 @@ const TOTAL_BUDGET_MS = 50_000;
 // these per-tenant anyway; pushing more than this just queues them.
 const BACKEND_SYNC_CONCURRENCY = 8;
 
+// The SAMA backend's TenantMiddleware rejects calls that only carry the
+// legacy X-Tenant-ID — protected routes require either a Supabase JWT or
+// X-Sama-Account-Id. Build the full triplet (account/site + legacy tenant
+// for backward compatibility) once and reuse it on every backend fetch.
+function backendHeaders(
+  siteId: string,
+  accountId: string,
+  jsonBody = false,
+): Record<string, string> {
+  const h: Record<string, string> = {
+    "X-Tenant-ID": siteId,
+    "X-Sama-Site-Id": siteId,
+    "X-Sama-Account-Id": accountId,
+  };
+  if (jsonBody) h["Content-Type"] = "application/json";
+  return h;
+}
+
 function makeDeadline(ms: number): { signal: AbortSignal; cancel: () => void } {
   const ctrl = new AbortController();
   const timer = setTimeout(
@@ -85,6 +103,7 @@ async function persistTrackedKeywords(
 
 async function fetchBackendKeywords(
   siteId: string,
+  accountId: string,
   deadline: AbortSignal,
 ): Promise<string[]> {
   // Pass an explicit high limit to defeat any default pagination on the
@@ -95,7 +114,7 @@ async function fetchBackendKeywords(
     try {
       const res = await fetch(`${SAMA_API_URL}${path}`, {
         method: "GET",
-        headers: { "X-Tenant-ID": siteId },
+        headers: backendHeaders(siteId, accountId),
         signal: fetchSignal(PER_FETCH_TIMEOUT_MS, deadline),
       });
       if (!res.ok) continue;
@@ -123,10 +142,11 @@ interface QueryProbe {
 // parallel so the total wall time is one timeout, not eight.
 async function fetchBackendGscQueries(
   siteId: string,
+  accountId: string,
   limit: number | null,
   deadline: AbortSignal,
 ): Promise<{ keywords: string[]; probes: QueryProbe[] }> {
-  const headers = { "X-Tenant-ID": siteId };
+  const headers = backendHeaders(siteId, accountId);
   const qs = limit == null ? "?limit=1000" : `?limit=${limit}`;
   const candidates = [
     `/api/seo/gsc/queries${qs}`,
@@ -181,6 +201,7 @@ async function fetchBackendGscQueries(
 
 async function syncKeywordsToBackend(
   siteId: string,
+  accountId: string,
   keywords: string[],
   deadline: AbortSignal,
 ): Promise<number> {
@@ -195,7 +216,7 @@ async function syncKeywordsToBackend(
       try {
         const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Tenant-ID": siteId },
+          headers: backendHeaders(siteId, accountId, true),
           body: JSON.stringify({ keyword: kw }),
           signal: fetchSignal(PER_FETCH_TIMEOUT_MS, deadline),
         });
@@ -237,6 +258,12 @@ export async function POST(req: NextRequest) {
   const limit = wantAll ? null : Math.min(Math.max(Number(rawLimit) || 25, 1), 1000);
 
   const siteId = resolveSiteId(req, user.id);
+  // The browser sends X-Sama-Account-Id via samaHeaders(); for admin
+  // "view-as" mode that's the customer being viewed, otherwise it equals
+  // the authenticated user.id. Either way the backend's TenantMiddleware
+  // requires it on protected routes — falling back to user.id keeps
+  // legacy callers (curl, integration tests) working.
+  const accountId = req.headers.get("X-Sama-Account-Id") || user.id;
   let access: SiteSettingsAccess;
   try {
     access = await getTenantSettingsAccess(user, siteId);
@@ -249,10 +276,7 @@ export async function POST(req: NextRequest) {
 
   const deadline = makeDeadline(TOTAL_BUDGET_MS);
   try {
-    const headers = {
-      "Content-Type": "application/json",
-      "X-Tenant-ID": siteId,
-    };
+    const headers = backendHeaders(siteId, accountId, true);
 
     // sync-gsc is the canonical endpoint for refreshing GSC stats; the
     // other paths cover older / alternative backend builds. Note: current
@@ -332,8 +356,8 @@ export async function POST(req: NextRequest) {
     // failed. The backend may expose a read-only GSC-query endpoint we
     // can persist from without ever needing the dedicated import path.
     const [fromBackend, fromGsc] = await Promise.all([
-      fetchBackendKeywords(siteId, deadline.signal),
-      fetchBackendGscQueries(siteId, limit, deadline.signal),
+      fetchBackendKeywords(siteId, accountId, deadline.signal),
+      fetchBackendGscQueries(siteId, accountId, limit, deadline.signal),
     ]);
     const returnedFromResp = firstSuccess
       ? extractKeywordStrings(
@@ -373,7 +397,7 @@ export async function POST(req: NextRequest) {
         (k) => !fromBackend.some((b) => b.toLowerCase() === k.toLowerCase()),
       );
       const backendSynced = missingOnBackend.length
-        ? await syncKeywordsToBackend(siteId, missingOnBackend, deadline.signal)
+        ? await syncKeywordsToBackend(siteId, accountId, missingOnBackend, deadline.signal)
         : 0;
       const backendSyncTruncated =
         missingOnBackend.length > 0 && backendSynced < missingOnBackend.length;
