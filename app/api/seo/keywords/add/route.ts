@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
   // user.id here is what previously caused customers to see — and edit —
   // the admin's own keyword list.
   const siteId = resolveSiteId(req, user.id);
+  // Backend TenantMiddleware rejects header-only protected POSTs that
+  // carry just X-Tenant-ID — the keyword silently fails to register on
+  // the backend, leaving its row out of seo_keywords and the dashboard
+  // showing zeros for clicks/impressions even after a successful local
+  // save. Forward the full triplet so the row gets created.
+  const accountId = req.headers.get("X-Sama-Account-Id") || user.id;
 
   let existing: string[] = [];
   let merged: string[] = [];
@@ -74,7 +80,12 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/seo/keywords/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Tenant-ID": siteId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tenant-ID": siteId,
+          "X-Sama-Site-Id": siteId,
+          "X-Sama-Account-Id": accountId,
+        },
         body: JSON.stringify({ keyword: kw }),
         signal: AbortSignal.timeout(15_000),
       });

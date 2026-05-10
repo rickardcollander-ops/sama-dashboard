@@ -50,6 +50,11 @@ export async function GET(req: NextRequest) {
   // would always fetch the calling admin's own keywords and leak them
   // into the customer's view.
   const siteId = resolveSiteId(req, user.id);
+  // The backend's TenantMiddleware silently swallows protected GETs that
+  // only carry the legacy X-Tenant-ID header (returns 200 {} when no
+  // account_id is resolvable). The browser sends X-Sama-Account-Id via
+  // samaHeaders(); fall back to user.id so legacy callers keep working.
+  const accountId = req.headers.get("X-Sama-Account-Id") || user.id;
 
   // Read locally tracked keywords from the right scope. For self-view we
   // keep the legacy user_settings store; for view-as on a different tenant
@@ -78,9 +83,13 @@ export async function GET(req: NextRequest) {
 
   const backendMap = new Map<string, BackendKeyword>();
   try {
-    const res = await fetch(`${SAMA_API_URL}/api/seo/keywords`, {
+    const res = await fetch(`${SAMA_API_URL}/api/seo/keywords?limit=1000`, {
       method: "GET",
-      headers: { "X-Tenant-ID": siteId },
+      headers: {
+        "X-Tenant-ID": siteId,
+        "X-Sama-Site-Id": siteId,
+        "X-Sama-Account-Id": accountId,
+      },
       signal: AbortSignal.timeout(15_000),
     });
     if (res.ok) {
