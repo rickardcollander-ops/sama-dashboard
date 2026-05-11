@@ -1,12 +1,12 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, use } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, X, Phone, Play, RefreshCw,
   FileText, CheckCircle2, XCircle, Clock, ExternalLink, Mail,
-  Globe, Building2, MapPin, User, FileDown,
+  Globe, Building2, MapPin, User, FileDown, Square,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -80,6 +80,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const stopRequested = useRef(false);
   const [auditingLeadId, setAuditingLeadId] = useState<string | null>(null);
   const [pdfLeadId, setPdfLeadId] = useState<string | null>(null);
   const [activeNotes, setActiveNotes] = useState<string | null>(null);
@@ -118,23 +120,45 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   const runBatch = async () => {
     if (!campaign) return;
+    stopRequested.current = false;
     setRunning(true);
     try {
-      // Loop until no work left or we hit a hard stop.
-      for (let i = 0; i < 200; i++) {
+      // Loop until no work left, the user hits Stop, or we hit a hard cap.
+      for (let i = 0; i < 1000; i++) {
+        if (stopRequested.current) break;
         const res = await fetch(`/api/admin/campaigns/${campaignId}/run`, { method: "POST" });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
         await load();
+        if (stopRequested.current) break;
         const pendingLeft = (body.pending ?? 0);
         const ranThisRound = (body.ran ?? 0) + (body.failed_in_batch ?? 0);
         if (pendingLeft === 0 || ranThisRound === 0) break;
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Run failed");
+      if (!stopRequested.current) setError(e instanceof Error ? e.message : "Run failed");
     } finally {
       setRunning(false);
       void load();
+    }
+  };
+
+  const stopBatch = async () => {
+    // Signal the runBatch loop to break before its next /run call, and reset
+    // any "running" leads server-side so they can be picked up again later.
+    stopRequested.current = true;
+    setStopping(true);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}/stop`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not stop");
+    } finally {
+      setStopping(false);
     }
   };
 
@@ -243,14 +267,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             >
               <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} /> Refresh
             </button>
-            <button
-              onClick={() => void runBatch()}
-              disabled={running || pending === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
-            >
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? "Running audits…" : pending === 0 ? "All audited" : `Run ${pending} pending audits`}
-            </button>
+            {running ? (
+              <button
+                onClick={() => void stopBatch()}
+                disabled={stopping}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {stopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 fill-current" />}
+                {stopping ? "Stopping…" : "Stop audits"}
+              </button>
+            ) : (
+              <button
+                onClick={() => void runBatch()}
+                disabled={pending === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" />
+                {pending === 0 ? "All audited" : `Run ${pending} pending audits`}
+              </button>
+            )}
           </div>
         </div>
 
