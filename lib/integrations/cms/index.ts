@@ -10,6 +10,7 @@ import { wixAdapter } from "./wix";
 import { gohighlevelAdapter } from "./gohighlevel";
 import { dudaAdapter } from "./duda";
 import { bigcommerceAdapter } from "./bigcommerce";
+import { githubAdapter } from "./github";
 
 const ADAPTERS: Record<CmsKind, CmsAdapter> = {
   wordpress: wordpressAdapter,
@@ -23,6 +24,7 @@ const ADAPTERS: Record<CmsKind, CmsAdapter> = {
   gohighlevel: gohighlevelAdapter,
   duda: dudaAdapter,
   bigcommerce: bigcommerceAdapter,
+  github: githubAdapter,
 };
 
 export function getAdapter(kind: CmsKind): CmsAdapter {
@@ -42,6 +44,7 @@ export const SUPPORTED_KINDS: CmsKind[] = [
   "duda",
   "bigcommerce",
   "notion",
+  "github",
   "webhook",
 ];
 
@@ -151,6 +154,16 @@ export const KIND_META: Record<CmsKind, { label: string; fields: { key: string; 
       { key: "access_token", label: "API access token", type: "password", required: true },
       { key: "store_url", label: "Store URL (för länkar)", placeholder: "https://example.com" },
       { key: "author", label: "Author (optional)" },
+    ],
+  },
+  github: {
+    label: "GitHub",
+    fields: [
+      { key: "token", label: "Personal access token", type: "password", required: true },
+      { key: "repo_owner", label: "Owner (user eller org)", placeholder: "acme", required: true },
+      { key: "repo_name", label: "Repository", placeholder: "site", required: true },
+      { key: "branch", label: "Branch", placeholder: "main" },
+      { key: "blog_path", label: "Sökväg för inlägg", placeholder: "content/blog" },
     ],
   },
 };
