@@ -17,7 +17,7 @@ const PUBLIC_TENANT_ID = process.env.PUBLIC_AUDIT_TENANT_ID || "public";
 const PUBLIC_MAX_PAGES = Number(process.env.PUBLIC_AUDIT_MAX_PAGES || "5");
 
 const POLL_INTERVAL_MS = 2_000;
-const POLL_TIMEOUT_MS = 110_000; // batch jobs can run a bit longer
+const DEFAULT_POLL_TIMEOUT_MS = 110_000;
 
 export interface AuditOutcome {
   /** Public audit id (also the share-URL slug). */
@@ -85,9 +85,9 @@ async function startBackendAudit(domain: string, maxPages: number): Promise<{ id
   }
 }
 
-async function pollBackendAudit(runId: string): Promise<SiteAuditRun | AuditError> {
+async function pollBackendAudit(runId: string, timeoutMs: number): Promise<SiteAuditRun | AuditError> {
   const start = Date.now();
-  while (Date.now() - start < POLL_TIMEOUT_MS) {
+  while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(`${SAMA_API_URL}/api/site-audit/runs/${runId}`, {
         headers: { "X-Tenant-ID": PUBLIC_TENANT_ID },
@@ -115,14 +115,15 @@ async function pollBackendAudit(runId: string): Promise<SiteAuditRun | AuditErro
  */
 export async function runAndSaveAudit(
   domain: string,
-  opts: { maxPages?: number } = {},
+  opts: { maxPages?: number; pollTimeoutMs?: number } = {},
 ): Promise<AuditOutcome | AuditError> {
   const maxPages = opts.maxPages ?? PUBLIC_MAX_PAGES;
+  const pollTimeoutMs = opts.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
 
   const started = await startBackendAudit(domain, maxPages);
   if ("error" in started) return started;
 
-  const audit = await pollBackendAudit(started.id);
+  const audit = await pollBackendAudit(started.id, pollTimeoutMs);
   if (isAuditError(audit)) return audit;
 
   const result = {
