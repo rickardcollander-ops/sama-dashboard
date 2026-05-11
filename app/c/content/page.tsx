@@ -361,6 +361,16 @@ function CustomerContentInner() {
     }
   }, [ideas.length, filter, autoSwitchedToIdeas]);
 
+  // After approving the last idea, the Ideas tab is empty but the freshly
+  // drafted pieces land on "Att granska". Move the user there so they can
+  // see their work instead of staring at an empty list.
+  useEffect(() => {
+    if (filter !== "ideas") return;
+    if (ideas.length > 0) return;
+    if (draftingIds.size === 0) return;
+    setFilter("to_review");
+  }, [filter, ideas.length, draftingIds]);
+
   const approveIdea = async (idea: PlanIdea) => {
     if (!user) return;
     setApprovingId(idea.id);
