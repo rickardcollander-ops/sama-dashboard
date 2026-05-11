@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Globe, Search, ListTree, PenTool, CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
+import CustomerNav from "@/components/CustomerNav";
 
 interface JobStatus {
   id: string;
@@ -96,6 +97,18 @@ function GeneratingInner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+      {/* Nav is rendered so the layout doesn't jump, but every interaction
+          inside it is blocked until the job finishes — clicking around
+          mid-generation would either confuse the user or kick them out of
+          the onboarding flow. aria-hidden keeps screen readers focused on
+          the live progress panel below. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none opacity-60"
+        tabIndex={-1}
+      >
+        <CustomerNav />
+      </div>
       <div className="mx-auto max-w-2xl px-4 py-16">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100">
