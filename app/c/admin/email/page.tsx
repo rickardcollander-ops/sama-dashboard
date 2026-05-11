@@ -8,6 +8,7 @@ import {
   Send, ArrowLeft, ChevronRight, Power, Save, Calendar,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import EmailTemplatesTab from "@/components/admin/EmailTemplatesTab";
 import { useUser } from "@/lib/hooks/useUser";
 import { isAdminEmail } from "@/lib/admin";
 
@@ -89,7 +90,7 @@ function kindLabel(kind: string): string {
 
 // ── Page ──────────────────────────────────────────────────────────────────────────
 
-type TabId = "log" | "schedules" | "users";
+type TabId = "log" | "schedules" | "users" | "templates";
 
 export default function AdminEmailPage() {
   const { user, loading } = useUser();
@@ -181,6 +182,7 @@ export default function AdminEmailPage() {
         <div className="mb-6 flex gap-1 border-b border-slate-200">
           {([
             ["log", "Logg"],
+            ["templates", "Mallar"],
             ["schedules", "Schema"],
             ["users", "Användare"],
           ] as [TabId, string][]).map(([id, label]) => (
@@ -199,6 +201,9 @@ export default function AdminEmailPage() {
         </div>
 
         {tab === "log" && <LogTab onError={setError} />}
+        {tab === "templates" && (
+          <EmailTemplatesTab onError={setError} onNotice={setNotice} />
+        )}
         {tab === "schedules" && (
           <SchedulesTab onError={setError} onNotice={setNotice} />
         )}
