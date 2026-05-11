@@ -9,7 +9,8 @@ export type CmsKind =
   | "wix"
   | "gohighlevel"
   | "duda"
-  | "bigcommerce";
+  | "bigcommerce"
+  | "github";
 
 export interface CmsDestination {
   id: string;

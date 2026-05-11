@@ -1,6 +1,40 @@
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { CmsDestination, CmsKind } from "./cms/types";
 
+export const GITHUB_VIRTUAL_DEST_ID = "github-default";
+const GITHUB_SETTINGS_KEY = "github";
+
+interface StoredGitHubConfig {
+  token?: string;
+  repo_owner?: string;
+  repo_name?: string;
+  blog_path?: string;
+  branch?: string;
+  connected_at?: string;
+}
+
+function buildGithubVirtualDestination(
+  settings: SettingsJson,
+): CmsDestination | null {
+  const raw = settings[GITHUB_SETTINGS_KEY];
+  if (!raw || typeof raw !== "object") return null;
+  const cfg = raw as StoredGitHubConfig;
+  if (!cfg.token || !cfg.repo_owner || !cfg.repo_name) return null;
+  return {
+    id: GITHUB_VIRTUAL_DEST_ID,
+    kind: "github",
+    name: `GitHub — ${cfg.repo_owner}/${cfg.repo_name}`,
+    config: {
+      token: cfg.token,
+      repo_owner: cfg.repo_owner,
+      repo_name: cfg.repo_name,
+      blog_path: cfg.blog_path || "content/blog",
+      branch: cfg.branch || "main",
+    },
+    created_at: cfg.connected_at || new Date(0).toISOString(),
+  };
+}
+
 export {
   MAX_GEO_QUERIES,
   AI_VISIBILITY_LOCK_DAYS,
@@ -93,14 +127,25 @@ async function readDestinationsWithLegacyFallback(
 ): Promise<CmsDestination[]> {
   const siteSettings = await loadSiteSettings(siteId);
   const list = siteSettings[PUBLISHING_KEY];
-  if (Array.isArray(list)) return list as CmsDestination[];
+  const stored: CmsDestination[] = Array.isArray(list)
+    ? (list as CmsDestination[])
+    : siteId === userId
+      ? await readLegacyPrimary(userId)
+      : [];
 
-  if (siteId === userId) {
-    const legacy = await loadSettings(userId);
-    const legacyList = legacy[PUBLISHING_KEY];
-    if (Array.isArray(legacyList)) return legacyList as CmsDestination[];
-  }
-  return [];
+  // Surface the standalone GitHub connection as a virtual destination so users
+  // who connected GitHub via Settings → Integrations see it in the publish
+  // dialog without having to add it again as a CMS destination.
+  const githubVirtual = buildGithubVirtualDestination(siteSettings);
+  if (!githubVirtual) return stored;
+  if (stored.some((d) => d.id === githubVirtual.id)) return stored;
+  return [githubVirtual, ...stored];
+}
+
+async function readLegacyPrimary(userId: string): Promise<CmsDestination[]> {
+  const legacy = await loadSettings(userId);
+  const legacyList = legacy[PUBLISHING_KEY];
+  return Array.isArray(legacyList) ? (legacyList as CmsDestination[]) : [];
 }
 
 async function readScheduledWithLegacyFallback(
