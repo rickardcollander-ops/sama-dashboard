@@ -5,11 +5,18 @@ import { runAndSaveAudit } from "@/lib/site-audit-runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Vercel Pro = 300s. Each audit ~30-60s, so we'll knock out ~4-8 leads per
-// invocation, then the client re-fires this endpoint until the queue is empty.
-export const maxDuration = 300;
+// One lead per invocation keeps us safely inside Vercel's function limit even
+// when an audit is slow — the client re-fires this endpoint until the queue
+// is empty (see runBatch() in the campaign detail page).
+export const maxDuration = 120;
 
-const BATCH_SIZE = Number(process.env.APOLLO_BATCH_SIZE || "8");
+const BATCH_SIZE = Number(process.env.APOLLO_BATCH_SIZE || "1");
+// Quick "homepage only" audit — much faster than the 5-page default and
+// enough to score the lead for a cold call.
+const CAMPAIGN_MAX_PAGES = Number(process.env.APOLLO_AUDIT_MAX_PAGES || "1");
+// Leave a few seconds of headroom under maxDuration so we can write the
+// failure row instead of letting Vercel kill the function.
+const CAMPAIGN_POLL_TIMEOUT_MS = Number(process.env.APOLLO_AUDIT_POLL_TIMEOUT_MS || "90000");
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -31,13 +38,15 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
     .update({ status: "running" })
     .eq("id", campaignId);
 
-  // Grab a batch of pending leads (with a domain — skipped rows stay skipped).
+  // Grab the next pending lead(s) in the same order the UI displays them
+  // (alphabetical by company_name) so users see progress from the top down.
   const { data: pendingLeads, error: pErr } = await auth.admin
     .from("apollo_leads")
     .select("id, domain, company_name")
     .eq("campaign_id", campaignId)
     .eq("audit_status", "pending")
     .not("domain", "is", null)
+    .order("company_name", { ascending: true })
     .limit(BATCH_SIZE);
 
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
@@ -60,7 +69,10 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
   for (const lead of pendingLeads) {
     if (!lead.domain) continue;
     try {
-      const out = await runAndSaveAudit(lead.domain);
+      const out = await runAndSaveAudit(lead.domain, {
+        maxPages: CAMPAIGN_MAX_PAGES,
+        pollTimeoutMs: CAMPAIGN_POLL_TIMEOUT_MS,
+      });
       if ("error" in out) {
         failed++;
         await auth.admin
