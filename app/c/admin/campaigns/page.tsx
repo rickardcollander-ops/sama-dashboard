@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Upload, Loader2, AlertCircle, CheckCircle2, X, Plus, Phone,
-  ArrowLeft, Trash2, ChevronRight, FileSpreadsheet,
+  ArrowLeft, Trash2, ChevronRight, FileSpreadsheet, Link2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -150,12 +150,25 @@ export default function CampaignsListPage() {
               Import an Apollo CSV, run a site-audit per company, and download a per-lead PDF report ready to email.
             </p>
           </div>
-          <button
-            onClick={() => setShowImport(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-          >
-            <Plus className="h-4 w-4" /> Import Apollo CSV
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/tm`;
+                void navigator.clipboard.writeText(url);
+                setNotice(`TM-portallänk kopierad: ${url}`);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50"
+              title="Kopiera länk till den externa TM-portalen — dela med operatörer som ska arbeta listan."
+            >
+              <Link2 className="h-4 w-4" /> Kopiera TM-portallänk
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+            >
+              <Plus className="h-4 w-4" /> Import Apollo CSV
+            </button>
+          </div>
         </div>
 
         {error && (
