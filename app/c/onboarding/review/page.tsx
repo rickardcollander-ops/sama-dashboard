@@ -38,6 +38,17 @@ interface OnboardingResult {
   plan: PlanEntry[];
   drafts: Draft[];
   generated_at: string;
+  backend_sync?: {
+    attempted: boolean;
+    pieces_created: number;
+    pieces_failed: number;
+    error?: string;
+  };
+  audits_started?: {
+    site_audit_id?: string;
+    analysis_run_id?: string;
+    error?: string;
+  };
 }
 
 function PriorityBadge({ p }: { p?: string }) {
@@ -159,6 +170,58 @@ function ReviewInner() {
           <SummaryCard icon={Calendar} label="Dagar i planen" value={result.plan.length} accent="bg-blue-50 text-blue-700" />
           <SummaryCard icon={FileText} label="Färdiga utkast" value={result.drafts.length} accent="bg-emerald-50 text-emerald-700" />
         </div>
+
+        {(result.backend_sync || result.audits_started) && (
+          <div className="mt-6 space-y-2">
+            {result.backend_sync && (
+              <div
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+                  result.backend_sync.pieces_failed === 0 && result.backend_sync.pieces_created > 0
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium">
+                    Kalender-sync:{" "}
+                    {result.backend_sync.pieces_failed === 0
+                      ? `${result.backend_sync.pieces_created} poster lades i kalendern`
+                      : `${result.backend_sync.pieces_created} lyckades, ${result.backend_sync.pieces_failed} misslyckades`}
+                  </div>
+                  {result.backend_sync.error && (
+                    <div className="mt-1 text-xs opacity-80">{result.backend_sync.error}</div>
+                  )}
+                </div>
+              </div>
+            )}
+            {result.audits_started && (
+              <div
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+                  result.audits_started.site_audit_id || result.audits_started.analysis_run_id
+                    ? "border-blue-200 bg-blue-50 text-blue-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {result.audits_started.site_audit_id && result.audits_started.analysis_run_id
+                      ? "Sajtanalys och AI-analys körs i bakgrunden"
+                      : result.audits_started.site_audit_id
+                        ? "Sajtanalys körs, AI-analys ej startad"
+                        : result.audits_started.analysis_run_id
+                          ? "AI-analys körs, sajtanalys ej startad"
+                          : "Analyserna kunde inte startas automatiskt"}
+                  </div>
+                  {result.audits_started.error && (
+                    <div className="mt-1 text-xs opacity-80">{result.audits_started.error}</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <section className="mt-10">
           <div className="mb-3 flex items-center justify-between">
