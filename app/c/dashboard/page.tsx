@@ -50,6 +50,10 @@ interface CustomerSettings {
   geo_platforms?: string[];
   competitors?: string[];
   project_start_date?: string;
+  // Set by the onboarding wizard as its last step. When present, the
+  // dashboard switches the "Kom igång" checklist to a "Kvar att göra"
+  // integration list (Google / GitHub / CMS).
+  onboarding_completed_at?: string;
 }
 
 interface DailyMetric {
@@ -113,6 +117,12 @@ export default function CustomerDashboard() {
   const [contentStats, setContentStats] = useState<ContentStats | null>(null);
   const [anyContentEver, setAnyContentEver] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  // Integration connection status — only used post-onboarding to drive the
+  // "Kvar att göra" checklist (Google services, GitHub, CMS). Cheap calls,
+  // run once on first load and never refreshed (settings page refetches).
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [cmsConnected, setCmsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
@@ -210,12 +220,48 @@ export default function CustomerDashboard() {
       loadContentStats(),
       loadPendingApprovals(),
       loadTrafficData(),
+      loadIntegrationStatus(),
     ]);
     if (results.every((r) => r.status === "rejected")) {
       setError(t.dashboard.loadError);
     }
     setLastRefresh(new Date());
     setLoading(false);
+  };
+
+  // Fires the three integration status calls in parallel. Each one swallows
+  // its own errors so a flaky GitHub status doesn't blank out Google/CMS.
+  const loadIntegrationStatus = async () => {
+    if (!effectiveTenantId) return;
+    await Promise.all([
+      (async () => {
+        try {
+          const data = await tenantClient.get<{ search_console?: boolean; analytics?: boolean; ads?: boolean }>(
+            "/api/auth/google/status",
+          );
+          setGoogleConnected(!!(data?.search_console || data?.analytics || data?.ads));
+        } catch { /* silent */ }
+      })(),
+      (async () => {
+        try {
+          const data = await tenantClient.get<{ connected?: boolean }>(
+            "/api/integrations/github/status",
+          );
+          setGithubConnected(!!data?.connected);
+        } catch { /* silent */ }
+      })(),
+      (async () => {
+        try {
+          const res = await fetch("/api/integrations/destinations", {
+            headers: effectiveTenantId ? { "X-Sama-Site-Id": effectiveTenantId, "X-Tenant-ID": effectiveTenantId } : {},
+          });
+          if (res.ok) {
+            const data = (await res.json().catch(() => ({}))) as { destinations?: unknown[] };
+            setCmsConnected(Array.isArray(data.destinations) && data.destinations.length > 0);
+          }
+        } catch { /* silent */ }
+      })(),
+    ]);
   };
 
   const loadTrafficData = async () => {
@@ -309,17 +355,51 @@ export default function CustomerDashboard() {
       ? geoSummary.mention_rate - geoSummary.previous_mention_rate
       : null);
 
-  const checklistItems: ChecklistItem[] = useMemo(
-    () => [
+  // Onboarding wizard writes settings.onboarding_completed_at as the very
+  // last step. Once that's set, the original 6-item "Kom igång" list has
+  // served its purpose — flip to a leaner "Kvar att göra" surface that
+  // only shows the integrations the wizard can't set up on the user's
+  // behalf (Google services, GitHub, CMS destinations).
+  const onboardingCompleted = !!settings.onboarding_completed_at;
+
+  const checklistItems: ChecklistItem[] = useMemo(() => {
+    if (onboardingCompleted) {
+      return [
+        {
+          id: "google",
+          label: "Anslut Google-tjänster",
+          description: "Search Console, Analytics och Ads för faktisk Google-data",
+          done: googleConnected,
+          href: "/c/settings/integrations",
+          cta: "Anslut",
+        },
+        {
+          id: "github",
+          label: "Anslut GitHub",
+          description: "Publicera artiklar via pull request direkt till din repo",
+          done: githubConnected,
+          href: "/c/settings/integrations",
+          cta: "Anslut",
+        },
+        {
+          id: "cms",
+          label: "Lägg till en CMS-destination",
+          description: "WordPress, Webflow, Ghost eller en webhook",
+          done: cmsConnected,
+          href: "/c/settings/integrations",
+          cta: "Lägg till",
+        },
+      ];
+    }
+    return [
       { id: "brand", label: t.dashboard.checkBrand, description: t.dashboard.checkBrandDesc, done: !!(settings.brand_name && settings.domain), href: "/c/settings", cta: t.dashboard.checkBrandCta },
       { id: "competitors", label: t.dashboard.checkCompetitors, description: t.dashboard.checkCompetitorsDesc, done: (settings.competitors?.length ?? 0) >= 2, href: "/c/settings", cta: t.dashboard.checkCompetitorsCta },
       { id: "geo_queries", label: t.dashboard.checkGeoQueries, description: t.dashboard.checkGeoQueriesDesc, done: (settings.geo_queries?.length ?? 0) >= 1, href: "/c/geo", cta: t.dashboard.checkGeoQueriesCta },
       { id: "first_check", label: t.dashboard.checkFirstCheck, description: t.dashboard.checkFirstCheckDesc, done: (geoSummary?.total_checks ?? 0) > 0, href: "/c/geo", cta: t.dashboard.checkFirstCheckCta },
       { id: "first_keyword", label: t.dashboard.checkFirstKeyword, description: t.dashboard.checkFirstKeywordDesc, done: (seoStats?.totalKeywords ?? 0) > 0, href: "/c/seo", cta: t.dashboard.checkFirstKeywordCta },
       { id: "first_content", label: t.dashboard.checkFirstContent, description: t.dashboard.checkFirstContentDesc, done: anyContentEver, href: "/c/content", cta: t.dashboard.checkFirstContentCta },
-    ],
-    [settings, geoSummary, seoStats, anyContentEver, t]
-  );
+    ];
+  }, [onboardingCompleted, googleConnected, githubConnected, cmsConnected, settings, geoSummary, seoStats, anyContentEver, t]);
 
   const scoreboardStats: ScoreboardStat[] = useMemo(() => {
     const mentionPct = Math.round(mentionRate * 100);
@@ -497,7 +577,13 @@ export default function CustomerDashboard() {
           </div>
         )}
 
-        {hasSetup && <OnboardingChecklist items={checklistItems} />}
+        {hasSetup && (
+          <OnboardingChecklist
+            items={checklistItems}
+            title={onboardingCompleted ? "Kvar att göra" : undefined}
+            hideWhenAllDone={onboardingCompleted}
+          />
+        )}
 
         {!hasSetup && (
           <Link href="/c/settings" className="mb-8 flex items-center gap-4 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 p-6 hover:bg-blue-100 transition-colors">

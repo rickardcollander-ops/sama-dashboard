@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
+import CustomerNav from "@/components/CustomerNav";
 
 interface OnboardingData {
   domain: string;
@@ -359,6 +360,17 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 text-slate-900">
+      {/* The dashboard chrome is rendered throughout onboarding so the user
+          sees where they are, but interaction is blocked until they
+          finish — clicking around half-way through would lose the wizard
+          state and stress the (still empty) tenant. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none opacity-60"
+        tabIndex={-1}
+      >
+        <CustomerNav />
+      </div>
       <div className="mx-auto max-w-2xl px-4 py-12">
         <div className="mb-8 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">

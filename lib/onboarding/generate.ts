@@ -588,12 +588,16 @@ Submit the brand profile now.`;
 /**
  * Pushes the 30 plan items + 2 full drafts to the SAMA backend so they
  * show up on the calendar (/c/content/plan) and content list
- * (/c/content). Mirrors the bulk-create-content pattern: direct call to
- * ${BACKEND}/api/content/pieces with X-Tenant-ID = siteId.
+ * (/c/content). Two upstream endpoints are involved:
  *
- * Each plan entry becomes an idea/draft piece scheduled on its
- * scheduled_for date. The 2 drafts also include the markdown body so
- * users can open them straight away.
+ *   - POST /api/content/plan/calendar  → creates a plan item scheduled
+ *     for a specific date (this is what /c/content/plan reads).
+ *   - POST /api/content/pieces         → creates a full content_piece
+ *     with markdown body (this is what /c/content reads).
+ *
+ * Every entry goes through /plan/calendar so the calendar is fully
+ * populated. The two pre-drafted articles ALSO go through /pieces so
+ * the user can open the markdown body right away from the content list.
  */
 async function syncToBackend(
   siteId: string,
@@ -603,75 +607,105 @@ async function syncToBackend(
 ): Promise<NonNullable<OnboardingResult["backend_sync"]>> {
   let created = 0;
   let failed = 0;
-  // Build a quick lookup so the corresponding plan entry's content_type
-  // and scheduled date are carried onto the full-draft pieces.
-  const planByKeyword = new Map<string, PlanEntry>();
-  for (const p of plan) {
-    planByKeyword.set(p.target_keyword.toLowerCase(), p);
-  }
-  const draftedKeywords = new Set(drafts.map((d) => d.target_keyword.toLowerCase()));
+  let firstError: string | undefined;
 
-  const post = async (payload: Record<string, unknown>): Promise<boolean> => {
-    try {
-      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/pieces`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": siteId,
-          "X-Sama-Intent": "user-action",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(15_000),
-      });
-      return res.ok;
-    } catch {
-      return false;
+  // Map the planner's content_type enum onto whatever the backend
+  // accepts. /api/content/plan/calendar in the existing UI uses
+  // "blog_article" rather than "blog_post" — match that to avoid
+  // schema rejection.
+  const calendarContentType = (t: PlanEntry["content_type"]): string => {
+    switch (t) {
+      case "blog_post": return "blog_article";
+      case "linkedin": return "linkedin";
+      case "epost": return "email";
+      default: return "blog_article";
     }
   };
 
-  for (const d of drafts) {
-    const planEntry = planByKeyword.get(d.target_keyword.toLowerCase());
-    const scheduled = planEntry
-      ? new Date(`${planEntry.scheduled_for}T09:00:00.000Z`).toISOString()
-      : undefined;
-    const ok = await post({
-      title: d.title,
-      slug: d.slug,
-      content: d.body_markdown,
-      body_markdown: d.body_markdown,
-      meta_title: d.meta_title,
-      meta_description: d.meta_description,
-      target_keyword: d.target_keyword,
-      word_count: d.word_count,
-      content_type: planEntry?.content_type || "blog_post",
-      type: planEntry?.content_type || "blog_post",
-      status: "draft",
-      language: input.content_language,
-      scheduled_for: scheduled,
-      source: "onboarding",
-    });
-    if (ok) created++;
-    else failed++;
-  }
+  const recordError = async (res: Response, label: string) => {
+    if (firstError) return;
+    const body = await res.text().catch(() => "");
+    firstError = `${label}: HTTP ${res.status} ${body.slice(0, 200)}`;
+  };
 
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Tenant-ID": siteId,
+    "X-Sama-Site-Id": siteId,
+    "X-Sama-Intent": "user-action",
+  };
+
+  // 1. Create all 30 plan/calendar entries.
   for (const p of plan) {
-    if (draftedKeywords.has(p.target_keyword.toLowerCase())) continue;
-    const ok = await post({
-      title: p.title,
-      target_keyword: p.target_keyword,
-      content_type: p.content_type,
-      type: p.content_type,
-      status: "idea",
-      language: input.content_language,
-      scheduled_for: new Date(`${p.scheduled_for}T09:00:00.000Z`).toISOString(),
-      source: "onboarding",
-      source_strategy_topic: p.angle || p.title,
-    });
-    if (ok) created++;
-    else failed++;
+    try {
+      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: p.title,
+          topic: p.angle || p.title,
+          target_keyword: p.target_keyword,
+          content_type: calendarContentType(p.content_type),
+          priority: "medium",
+          scheduled_for: new Date(`${p.scheduled_for}T09:00:00.000Z`).toISOString(),
+          auto_publish_on_schedule: false,
+          draft_now: false,
+          source: "onboarding",
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) created++;
+      else {
+        failed++;
+        await recordError(res, "plan/calendar");
+      }
+    } catch (e) {
+      failed++;
+      if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
+    }
   }
 
-  return { attempted: true, pieces_created: created, pieces_failed: failed };
+  // 2. Create the 2 pre-drafted pieces so the content list shows them.
+  for (const d of drafts) {
+    const planEntry = plan.find((p) => p.target_keyword.toLowerCase() === d.target_keyword.toLowerCase());
+    try {
+      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/pieces`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: d.title,
+          slug: d.slug,
+          content: d.body_markdown,
+          body_markdown: d.body_markdown,
+          meta_title: d.meta_title,
+          meta_description: d.meta_description,
+          target_keyword: d.target_keyword,
+          word_count: d.word_count,
+          content_type: calendarContentType(planEntry?.content_type || "blog_post"),
+          type: calendarContentType(planEntry?.content_type || "blog_post"),
+          status: "draft",
+          language: input.content_language,
+          source: "onboarding",
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) created++;
+      else {
+        failed++;
+        await recordError(res, "pieces");
+      }
+    } catch (e) {
+      failed++;
+      if (!firstError) firstError = `pieces: ${e instanceof Error ? e.message : "fetch failed"}`;
+    }
+  }
+
+  return {
+    attempted: true,
+    pieces_created: created,
+    pieces_failed: failed,
+    error: firstError,
+  };
 }
 
 /**
