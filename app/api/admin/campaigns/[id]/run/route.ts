@@ -5,18 +5,18 @@ import { runAndSaveAudit } from "@/lib/site-audit-runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// One lead per invocation keeps us safely inside Vercel's function limit even
-// when an audit is slow — the client re-fires this endpoint until the queue
-// is empty (see runBatch() in the campaign detail page).
-export const maxDuration = 120;
+// One lead per invocation, but allow the full Vercel Pro budget so a slow
+// backend run can still finish. The client re-fires this endpoint until the
+// queue is empty (see runBatch() in the campaign detail page).
+export const maxDuration = 300;
 
 const BATCH_SIZE = Number(process.env.APOLLO_BATCH_SIZE || "1");
 // Quick "homepage only" audit — much faster than the 5-page default and
 // enough to score the lead for a cold call.
 const CAMPAIGN_MAX_PAGES = Number(process.env.APOLLO_AUDIT_MAX_PAGES || "1");
-// Leave a few seconds of headroom under maxDuration so we can write the
-// failure row instead of letting Vercel kill the function.
-const CAMPAIGN_POLL_TIMEOUT_MS = Number(process.env.APOLLO_AUDIT_POLL_TIMEOUT_MS || "90000");
+// Leave ~25s of headroom under maxDuration so we can write the failure row
+// instead of letting Vercel kill the function mid-write.
+const CAMPAIGN_POLL_TIMEOUT_MS = Number(process.env.APOLLO_AUDIT_POLL_TIMEOUT_MS || "275000");
 
 type Ctx = { params: Promise<{ id: string }> };
 

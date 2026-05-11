@@ -4,12 +4,12 @@ import { runAndSaveAudit } from "@/lib/site-audit-runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // Match the bulk runner — a quick homepage-only audit is enough to score a
-// lead for a cold call, and keeps us well inside maxDuration.
+// lead for a cold call. Poll up to ~4.5 min so a slow backend still finishes.
 const CAMPAIGN_MAX_PAGES = Number(process.env.APOLLO_AUDIT_MAX_PAGES || "1");
-const CAMPAIGN_POLL_TIMEOUT_MS = Number(process.env.APOLLO_AUDIT_POLL_TIMEOUT_MS || "90000");
+const CAMPAIGN_POLL_TIMEOUT_MS = Number(process.env.APOLLO_AUDIT_POLL_TIMEOUT_MS || "275000");
 
 type Ctx = { params: Promise<{ leadId: string }> };
 
