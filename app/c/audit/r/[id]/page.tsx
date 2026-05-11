@@ -37,45 +37,55 @@ export async function generateMetadata(
 }
 
 export default async function SharedAuditPage(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{ tm?: string }>;
+  },
 ) {
   const { id } = await params;
+  const { tm } = await searchParams;
   const result = await loadPublicAudit(id);
   if (!result) notFound();
 
+  // ?tm=1 = opened from the Apollo telemarketing admin view. We strip the
+  // prospect-facing CTAs so the operator sees just the audit data.
+  const isTmView = tm === "1";
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <header className="border-b border-slate-100">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/c/audit" className="flex items-center gap-2 text-base font-bold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <span>Sama AI-audit</span>
-          </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/c/login"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in
+      {!isTmView && (
+        <header className="border-b border-slate-100">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+            <Link href="/c/audit" className="flex items-center gap-2 text-base font-bold">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <span>Sama AI-audit</span>
             </Link>
-            <Link
-              href="/c/audit"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
-            >
-              Run your own
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                href="/c/login"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in
+              </Link>
+              <Link
+                href="/c/audit"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
+              >
+                Run your own
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="mb-6">
           <p className="text-xs font-medium uppercase tracking-wider text-violet-600">
-            Shared audit
+            {isTmView ? "Lead audit" : "Shared audit"}
           </p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
             AI visibility report for {result.domain}
@@ -87,21 +97,23 @@ export default async function SharedAuditPage(
           </p>
         </div>
 
-        <PublicAuditResult result={result} />
+        <PublicAuditResult result={result} hideUpsells={isTmView} />
 
-        <div className="mt-12 rounded-2xl bg-slate-900 p-8 text-center text-white">
-          <h2 className="text-2xl font-bold sm:text-3xl">Get the same report for your own site</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
-            Free. No card. No account. 30 seconds.
-          </p>
-          <Link
-            href="/c/audit"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
-          >
-            Run free audit
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+        {!isTmView && (
+          <div className="mt-12 rounded-2xl bg-slate-900 p-8 text-center text-white">
+            <h2 className="text-2xl font-bold sm:text-3xl">Get the same report for your own site</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
+              Free. No card. No account. 30 seconds.
+            </p>
+            <Link
+              href="/c/audit"
+              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
+            >
+              Run free audit
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

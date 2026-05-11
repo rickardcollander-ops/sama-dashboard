@@ -37,8 +37,15 @@ const SEVERITY_RANK: Record<string, number> = {
 
 export default function PublicAuditResult({
   result: initialResult,
+  hideUpsells = false,
 }: {
   result: AuditResult;
+  /**
+   * When true, hides prospect-facing CTAs (email capture, competitor audit,
+   * "want the full report" sidebar). Used by the admin/TM view where we're
+   * looking at a lead's audit, not pitching the product to a visitor.
+   */
+  hideUpsells?: boolean;
 }) {
   const [result, setResult] = useState<AuditResult>(initialResult);
   const [copied, setCopied] = useState<string | null>(null);
@@ -123,7 +130,7 @@ export default function PublicAuditResult({
         </div>
 
         {/* Share row */}
-        {result.id && <ShareRow id={result.id} domain={result.domain} score={overall} copy={copy} copied={copied} />}
+        {result.id && !hideUpsells && <ShareRow id={result.id} domain={result.domain} score={overall} copy={copy} copied={copied} />}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
@@ -298,28 +305,34 @@ export default function PublicAuditResult({
             ))}
           </div>
 
-          <div className="rounded-xl border-2 border-dashed border-violet-300 bg-white p-5">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-violet-600" />
-              <h4 className="text-sm font-bold text-slate-900">Want to know exactly where you rank?</h4>
+          {!hideUpsells && (
+            <div className="rounded-xl border-2 border-dashed border-violet-300 bg-white p-5">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-violet-600" />
+                <h4 className="text-sm font-bold text-slate-900">Want to know exactly where you rank?</h4>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                We run automated tests against ChatGPT, Perplexity, Claude and Google AI every week
+                — and tell you exactly what to fix to be visible.
+              </p>
+              <Link
+                href="/c/onboarding"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                Get the full report free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              We run automated tests against ChatGPT, Perplexity, Claude and Google AI every week
-              — and tell you exactly what to fix to be visible.
-            </p>
-            <Link
-              href="/c/onboarding"
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
-            >
-              Get the full report free
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
+          )}
         </div>
       </div>
 
-      <EmailCapture domain={result.domain} auditId={result.id} />
-      <CompetitorAudit currentDomain={result.domain} onResult={setResult} />
+      {!hideUpsells && (
+        <>
+          <EmailCapture domain={result.domain} auditId={result.id} />
+          <CompetitorAudit currentDomain={result.domain} onResult={setResult} />
+        </>
+      )}
     </div>
   );
 }
