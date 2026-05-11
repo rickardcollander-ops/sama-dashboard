@@ -18,19 +18,40 @@ export interface ChecklistItem {
 interface OnboardingChecklistProps {
   items: ChecklistItem[];
   onDismiss?: () => void;
+  // Override the default "Kom igång med SAMA" header — used after the
+  // wizard is finished to switch to a "Kvar att göra" integration list.
+  title?: string;
+  // When true, all-items-done does NOT collapse into the WeeklyRhythm
+  // widget. Used by the post-onboarding integrations variant so it
+  // disappears outright once every integration is connected (the
+  // weekly rhythm is already rendered separately on that page).
+  hideWhenAllDone?: boolean;
 }
 
-export default function OnboardingChecklist({ items, onDismiss }: OnboardingChecklistProps) {
+export default function OnboardingChecklist({
+  items,
+  onDismiss,
+  title,
+  hideWhenAllDone,
+}: OnboardingChecklistProps) {
   const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
   const done = items.filter((i) => i.done).length;
   const total = items.length;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = done === total && total > 0;
+  const heading = title || t.onboarding.title;
 
-  // Setup done — surface the scheduled / autopilot rhythm so the user knows
-  // the dashboard hasn't gone quiet, just shifted from "to do" to "running".
-  if (allDone) return <WeeklyRhythm />;
+  if (allDone) {
+    // Render nothing when the caller takes responsibility for the
+    // "everything is connected" state (e.g. the integrations checklist
+    // post-onboarding).
+    if (hideWhenAllDone) return null;
+    // Otherwise surface the scheduled / autopilot rhythm so the user
+    // knows the dashboard hasn't gone quiet, just shifted from "to do"
+    // to "running".
+    return <WeeklyRhythm />;
+  }
 
   return (
     <div className="mb-8 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm">
@@ -50,7 +71,7 @@ export default function OnboardingChecklist({ items, onDismiss }: OnboardingChec
             </span>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-blue-900">{t.onboarding.title}</h3>
+            <h3 className="text-sm font-semibold text-blue-900">{heading}</h3>
             <p className="text-xs text-blue-700">
               {done} {t.onboarding.progress} {total} {t.onboarding.progressSteps}
             </p>
