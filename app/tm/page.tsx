@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Loader2,
@@ -9,9 +8,7 @@ import {
   Phone,
   ChevronRight,
   FileSpreadsheet,
-  LogOut,
 } from "lucide-react";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface CampaignRow {
   id: string;
@@ -45,7 +42,6 @@ function fmtRelative(iso: string): string {
 }
 
 export default function TmCampaignsPage() {
-  const router = useRouter();
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
@@ -55,15 +51,6 @@ export default function TmCampaignsPage() {
     setError("");
     try {
       const res = await fetch("/api/tm/campaigns", { cache: "no-store" });
-      if (res.status === 401) {
-        router.push("/tm/login");
-        return;
-      }
-      if (res.status === 403) {
-        setError("Ditt konto har inte tillgång till TM-portalen.");
-        setFetching(false);
-        return;
-      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -75,35 +62,22 @@ export default function TmCampaignsPage() {
     } finally {
       setFetching(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const handleSignOut = async () => {
-    await getSupabaseBrowser().auth.signOut();
-    router.push("/tm/login");
-  };
-
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
-      <header className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl sm:text-3xl font-bold text-slate-900">
-            <Phone className="h-7 w-7 text-violet-600" />
-            TM-kampanjlistor
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Logga ringningar, uppdatera status och anteckningar per kontakt.
-          </p>
-        </div>
-        <button
-          onClick={() => void handleSignOut()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Logga ut
-        </button>
+      <header className="mb-8 border-b border-slate-200 pb-6">
+        <h1 className="flex items-center gap-2 text-2xl sm:text-3xl font-bold text-slate-900">
+          <Phone className="h-7 w-7 text-violet-600" />
+          TM-kampanjlistor
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Logga ringningar, uppdatera status och anteckningar per kontakt.
+        </p>
       </header>
 
       {error && (

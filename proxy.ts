@@ -3,14 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * Next.js 16 ``proxy`` (replaces the deprecated ``middleware`` convention).
  *
- * Authentication for both the customer portal (/c/*), the telemarketing
- * portal (/tm/*) and admin API routes is enforced server-side:
+ * Authentication for both the customer portal (/c/*) and admin API routes
+ * is enforced server-side:
  *   - /c/* pages refresh the Supabase session here and redirect to /c/login
  *     when no user is present.
- *   - /tm/* does the same but redirects to /tm/login so a TM operator
- *     never ends up on the main customer login page.
  *   - /api/admin/* routes go through ``requireAdmin()`` (lib/admin-guard.ts).
- *   - /api/tm/* routes go through ``requireTmAccess()`` (lib/tm-guard.ts).
  *
  * This proxy also adds baseline security headers on every response. Public
  * endpoints (e.g. /api/public-audit) keep their own rate-limit at the route
@@ -38,15 +35,12 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
-async function refreshSupabaseSession(
-  req: NextRequest,
-  loginPath: string,
-): Promise<NextResponse> {
+async function refreshSupabaseSession(req: NextRequest): Promise<NextResponse> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(new URL(loginPath, req.url));
+    return NextResponse.redirect(new URL("/c/login", req.url));
   }
 
   try {
@@ -72,12 +66,12 @@ async function refreshSupabaseSession(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.redirect(new URL(loginPath, req.url));
+      return NextResponse.redirect(new URL("/c/login", req.url));
     }
 
     return res;
   } catch {
-    return NextResponse.redirect(new URL(loginPath, req.url));
+    return NextResponse.redirect(new URL("/c/login", req.url));
   }
 }
 
@@ -98,15 +92,7 @@ export async function proxy(req: NextRequest) {
     ) {
       return applySecurityHeaders(NextResponse.next());
     }
-    const res = await refreshSupabaseSession(req, "/c/login");
-    return applySecurityHeaders(res);
-  }
-
-  if (pathname.startsWith("/tm/") || pathname === "/tm") {
-    if (pathname === "/tm/login") {
-      return applySecurityHeaders(NextResponse.next());
-    }
-    const res = await refreshSupabaseSession(req, "/tm/login");
+    const res = await refreshSupabaseSession(req);
     return applySecurityHeaders(res);
   }
 

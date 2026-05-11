@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,9 +14,7 @@ import {
   MapPin,
   User,
   ExternalLink,
-  LogOut,
 } from "lucide-react";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface Campaign {
   id: string;
@@ -86,7 +83,6 @@ export default function TmCampaignDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: campaignId } = use(params);
-  const router = useRouter();
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -98,15 +94,6 @@ export default function TmCampaignDetailPage({
     setError("");
     try {
       const res = await fetch(`/api/tm/campaigns/${campaignId}`, { cache: "no-store" });
-      if (res.status === 401) {
-        router.push("/tm/login");
-        return;
-      }
-      if (res.status === 403) {
-        setError("Ditt konto har inte tillgång till TM-portalen.");
-        setFetching(false);
-        return;
-      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -119,7 +106,7 @@ export default function TmCampaignDetailPage({
     } finally {
       setFetching(false);
     }
-  }, [campaignId, router]);
+  }, [campaignId]);
 
   useEffect(() => {
     void load();
@@ -145,26 +132,15 @@ export default function TmCampaignDetailPage({
     }
   };
 
-  const handleSignOut = async () => {
-    await getSupabaseBrowser().auth.signOut();
-    router.push("/tm/login");
-  };
-
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <Link
           href="/tm"
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
           <ArrowLeft className="h-4 w-4" /> Tillbaka till kampanjer
         </Link>
-        <button
-          onClick={() => void handleSignOut()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Logga ut
-        </button>
       </div>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">

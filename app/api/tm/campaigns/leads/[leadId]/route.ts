@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmAccess } from "@/lib/tm-guard";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +17,18 @@ const ALLOWED_CALL_STATUSES = new Set([
 
 /**
  * PATCH /api/tm/campaigns/leads/[leadId] — TM operators can only update
- * the call workflow fields. Everything else (audit state, contact data)
- * stays admin-only.
+ * the call workflow fields. Intentionally unauthenticated; everything
+ * else (audit state, contact data) stays admin-only by virtue of not
+ * being patchable here.
  */
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const auth = await requireTmAccess();
-  if (!auth.ok) return auth.response;
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return NextResponse.json(
+      { error: "SUPABASE_SERVICE_ROLE_KEY not configured" },
+      { status: 503 },
+    );
+  }
   const { leadId } = await ctx.params;
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
 
@@ -40,7 +46,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  const { data, error } = await auth.admin
+  const { data, error } = await admin
     .from("apollo_leads")
     .update(update)
     .eq("id", leadId)
