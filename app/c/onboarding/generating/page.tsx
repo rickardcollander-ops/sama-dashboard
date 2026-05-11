@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Globe, Search, ListTree, PenTool, CheckCircle2, AlertCircle, Loader2,
+  Globe, Briefcase, Search, ListTree, PenTool, CalendarCheck, Radar,
+  CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 
@@ -17,12 +18,15 @@ interface JobStatus {
 }
 
 const STEPS: { key: string; label: string; sub: string; icon: typeof Globe }[] = [
-  { key: "analyzing_site",   label: "Analyserar sajten", sub: "Läser om varumärket, ton och språk", icon: Globe },
-  { key: "finding_keywords", label: "Hittar relevanta sökord", sub: "12 sökord med affärsvärde för din bransch", icon: Search },
-  { key: "planning_content", label: "Bygger 30-dagars plan", sub: "En idé per dag, mappad till sökord", icon: ListTree },
+  { key: "analyzing_site",    label: "Analyserar sajten", sub: "Läser om varumärket, ton och språk", icon: Globe },
+  { key: "analyzing_brand",   label: "Profilerar varumärket", sub: "Verksamhetstyp, USP, tonalitet och land", icon: Briefcase },
+  { key: "finding_keywords",  label: "Hittar relevanta sökord", sub: "12 sökord med affärsvärde för din bransch", icon: Search },
+  { key: "planning_content",  label: "Bygger 30-dagars plan", sub: "En idé per dag, mappad till sökord", icon: ListTree },
   { key: "writing_article_1", label: "Skriver artikel 1", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
   { key: "writing_article_2", label: "Skriver artikel 2", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
-  { key: "saving",           label: "Sparar planen", sub: "Lägger allt på plats i dashboard", icon: CheckCircle2 },
+  { key: "syncing_calendar",  label: "Lägger i kalendern", sub: "Pushar 30 idéer + 2 utkast till content-vyn", icon: CalendarCheck },
+  { key: "starting_audits",   label: "Startar sajt- och AI-analys", sub: "Audit och synlighetskoll körs i bakgrunden", icon: Radar },
+  { key: "saving",            label: "Sparar allt", sub: "Klart att granska", icon: CheckCircle2 },
 ];
 
 function stepIndex(currentStep: string): number {

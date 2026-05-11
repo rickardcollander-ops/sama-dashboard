@@ -1,11 +1,14 @@
 /**
  * Orchestrates the post-onboarding "build the user's starter content"
- * pipeline. Runs four sequential Claude calls:
+ * pipeline. Runs the following sequential steps:
  *
- *   1. Site meta scrape  → brand_name/description/language fallback
- *   2. Relevant keywords → 12 ranked SEO keywords for the brand
- *   3. 30-day plan       → one content idea per day, mapped to a keyword
- *   4. Two full drafts   → 1500-2500 word articles for the top 2 keywords
+ *   1. Site meta scrape       → brand_name/description/language fallback
+ *   2. AI brand profile       → business_type, USPs, tone, country, extra competitors
+ *   3. Relevant keywords      → 12 ranked SEO keywords for the brand
+ *   4. 30-day plan            → one content idea per day, mapped to a keyword
+ *   5. Two full drafts        → 1500-2500 word articles for the top 2 keywords
+ *   6. Backend sync           → push pieces to SAMA so they show in the calendar
+ *   7. Kick off audits        → fire-and-forget site-audit + AI visibility
  *
  * The result is persisted onto user_sites.settings.onboarding_result so
  * downstream pages (content/plan calendar, content list) can read it
@@ -22,6 +25,14 @@ const ANTHROPIC_VERSION = "2023-06-01";
 
 const MODEL_PLANNER = "claude-sonnet-4-6";
 const MODEL_WRITER = "claude-sonnet-4-6";
+const MODEL_PROFILER = "claude-haiku-4-5-20251001";
+
+// The SAMA agent backend (Railway) hosts content_pieces and the AI/audit
+// runners. Default matches the proxy fallback in /api/sama/[...path].
+const SAMA_BACKEND_URL =
+  process.env.SAMA_API_URL ||
+  process.env.NEXT_PUBLIC_SAMA_API_URL ||
+  "https://web-production-5324a.up.railway.app";
 
 export interface OnboardingFormInput {
   domain: string;
@@ -33,6 +44,19 @@ export interface OnboardingFormInput {
   geo_queries: string[];
   brand_color?: string;
   example_article_url?: string;
+}
+
+// Mirrors the enum values the existing settings page uses so the AI-filled
+// values render correctly in the dropdowns there.
+type BusinessType = "" | "ecommerce" | "local" | "services" | "software" | "media" | "other";
+type ToneOfVoice = "professional" | "friendly" | "authoritative" | "playful" | "neutral";
+
+export interface BrandProfile {
+  business_type: BusinessType;
+  unique_selling_points: string;
+  tone_of_voice: ToneOfVoice;
+  country: string; // ISO 2-letter, e.g. "SE", "US"
+  extra_competitors: string[];
 }
 
 export interface GeneratedKeyword {
@@ -68,30 +92,55 @@ export interface OnboardingResult {
     brand_description: string;
     content_language: string;
   };
+  brand_profile?: BrandProfile;
   keywords: GeneratedKeyword[];
   plan: PlanEntry[];
   drafts: DraftArticle[];
   generated_at: string;
+  // Best-effort sync status. The dashboard reads content_pieces from the
+  // external SAMA backend (Railway), so we push the generated pieces
+  // there at the end of the job. If the backend is unreachable the rest
+  // of the result is still persisted and the review page renders fine.
+  backend_sync?: {
+    attempted: boolean;
+    pieces_created: number;
+    pieces_failed: number;
+    error?: string;
+  };
+  // Site audit + AI visibility analysis are fire-and-forget — we don't
+  // wait for them. These IDs (when present) let the dashboard deep-link
+  // to the running analyses on the Insikter page.
+  audits_started?: {
+    site_audit_id?: string;
+    analysis_run_id?: string;
+    error?: string;
+  };
 }
 
 type JobStep =
   | "queued"
   | "analyzing_site"
+  | "analyzing_brand"
   | "finding_keywords"
   | "planning_content"
   | "writing_article_1"
   | "writing_article_2"
+  | "syncing_calendar"
+  | "starting_audits"
   | "saving"
   | "done";
 
 const STEP_PROGRESS: Record<JobStep, number> = {
   queued: 0,
-  analyzing_site: 10,
-  finding_keywords: 25,
-  planning_content: 45,
-  writing_article_1: 65,
-  writing_article_2: 85,
-  saving: 95,
+  analyzing_site: 8,
+  analyzing_brand: 18,
+  finding_keywords: 28,
+  planning_content: 42,
+  writing_article_1: 58,
+  writing_article_2: 78,
+  syncing_calendar: 88,
+  starting_audits: 94,
+  saving: 97,
   done: 100,
 };
 
@@ -421,6 +470,9 @@ interface SiteMetaScrape {
   brand_name: string;
   brand_description: string;
   content_language: string;
+  // Plain-text excerpt of the rendered page body, used by the brand
+  // profiler. Empty string when scraping failed.
+  body_text: string;
 }
 
 async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
@@ -440,14 +492,248 @@ async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
       html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']{1,500})["']`, "i"))?.[1]?.trim() || "";
     const title = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1]?.trim() || "";
     const lang = html.match(/<html[^>]+lang=["']([a-z]{2,5})/i)?.[1]?.toLowerCase().slice(0, 2) || "";
+    const bodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 3000);
     return {
       brand_name: (og("og:site_name") || title.split(/[|–\-—]/)[0]).trim().slice(0, 80),
       brand_description: (og("og:description") || meta("description")).slice(0, 500),
       content_language: lang || "",
+      body_text: bodyText,
     };
   } catch {
     return null;
   }
+}
+
+const BUSINESS_TYPES: BusinessType[] = ["ecommerce", "local", "services", "software", "media", "other"];
+const TONE_VOICES: ToneOfVoice[] = ["professional", "friendly", "authoritative", "playful", "neutral"];
+
+const BRAND_PROFILE_TOOL_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    business_type: { type: "string", enum: BUSINESS_TYPES },
+    unique_selling_points: { type: "string" },
+    tone_of_voice: { type: "string", enum: TONE_VOICES },
+    country: { type: "string" },
+    extra_competitors: { type: "array", items: { type: "string" } },
+  },
+  required: ["business_type", "unique_selling_points", "tone_of_voice", "country"],
+};
+
+async function generateBrandProfile(
+  apiKey: string,
+  input: OnboardingFormInput,
+  bodyText: string,
+): Promise<BrandProfile> {
+  const system = `You profile a brand based on its website and the description the user provided. Always reply by calling submit_brand_profile.
+
+Field rules:
+- business_type — pick the single best fit from the enum. "local" = brick-and-mortar / local service; "services" = professional services / agency / consulting; "software" = SaaS/software; "media" = publisher/media; "ecommerce" = online store; "other" if none fit.
+- unique_selling_points — 1–2 sentences in the brand's content language describing what makes them unique. Be specific, not generic.
+- tone_of_voice — pick the single best fit from the enum.
+- country — ISO 3166-1 alpha-2 code (e.g. "SE", "US", "DE"). Infer from TLD, language, addresses or content. Default "SE" only if Swedish content, otherwise pick the most plausible code.
+- extra_competitors — 0–4 domain-style competitor suggestions (e.g. "competitor.com"). Do NOT include any competitor the user already listed. Skip the array entirely if you're not confident.`;
+
+  const user = `Brand: ${input.brand_name}
+Domain: ${input.domain}
+Output language: ${input.content_language}
+Description provided by user: ${input.brand_description || "(none)"}
+Target audience: ${input.target_audience || "(none)"}
+Competitors already listed: ${input.competitors.join(", ") || "(none)"}
+
+Page content excerpt:
+${bodyText.slice(0, 2500) || "(scrape failed — base inference on description and domain)"}
+
+Submit the brand profile now.`;
+
+  const out = await callClaudeTool<BrandProfile>({
+    apiKey,
+    model: MODEL_PROFILER,
+    system,
+    user,
+    toolName: "submit_brand_profile",
+    toolSchema: BRAND_PROFILE_TOOL_SCHEMA,
+    maxTokens: 800,
+  });
+
+  // Normalise — Claude generally honours the enum but guard anyway.
+  const business_type: BusinessType = BUSINESS_TYPES.includes(out.business_type)
+    ? out.business_type
+    : "other";
+  const tone_of_voice: ToneOfVoice = TONE_VOICES.includes(out.tone_of_voice)
+    ? out.tone_of_voice
+    : "professional";
+  const country = (out.country || "").trim().toUpperCase().slice(0, 2) || "SE";
+  const userCompetitors = new Set(input.competitors.map((c) => c.toLowerCase()));
+  const extra_competitors = (Array.isArray(out.extra_competitors) ? out.extra_competitors : [])
+    .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+    .map((c) => c.trim().toLowerCase())
+    .filter((c) => !userCompetitors.has(c))
+    .slice(0, 4);
+
+  return {
+    business_type,
+    unique_selling_points: (out.unique_selling_points || "").trim().slice(0, 500),
+    tone_of_voice,
+    country,
+    extra_competitors,
+  };
+}
+
+/**
+ * Pushes the 30 plan items + 2 full drafts to the SAMA backend so they
+ * show up on the calendar (/c/content/plan) and content list
+ * (/c/content). Mirrors the bulk-create-content pattern: direct call to
+ * ${BACKEND}/api/content/pieces with X-Tenant-ID = siteId.
+ *
+ * Each plan entry becomes an idea/draft piece scheduled on its
+ * scheduled_for date. The 2 drafts also include the markdown body so
+ * users can open them straight away.
+ */
+async function syncToBackend(
+  siteId: string,
+  input: OnboardingFormInput,
+  plan: PlanEntry[],
+  drafts: DraftArticle[],
+): Promise<NonNullable<OnboardingResult["backend_sync"]>> {
+  let created = 0;
+  let failed = 0;
+  // Build a quick lookup so the corresponding plan entry's content_type
+  // and scheduled date are carried onto the full-draft pieces.
+  const planByKeyword = new Map<string, PlanEntry>();
+  for (const p of plan) {
+    planByKeyword.set(p.target_keyword.toLowerCase(), p);
+  }
+  const draftedKeywords = new Set(drafts.map((d) => d.target_keyword.toLowerCase()));
+
+  const post = async (payload: Record<string, unknown>): Promise<boolean> => {
+    try {
+      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/pieces`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tenant-ID": siteId,
+          "X-Sama-Intent": "user-action",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  for (const d of drafts) {
+    const planEntry = planByKeyword.get(d.target_keyword.toLowerCase());
+    const scheduled = planEntry
+      ? new Date(`${planEntry.scheduled_for}T09:00:00.000Z`).toISOString()
+      : undefined;
+    const ok = await post({
+      title: d.title,
+      slug: d.slug,
+      content: d.body_markdown,
+      body_markdown: d.body_markdown,
+      meta_title: d.meta_title,
+      meta_description: d.meta_description,
+      target_keyword: d.target_keyword,
+      word_count: d.word_count,
+      content_type: planEntry?.content_type || "blog_post",
+      type: planEntry?.content_type || "blog_post",
+      status: "draft",
+      language: input.content_language,
+      scheduled_for: scheduled,
+      source: "onboarding",
+    });
+    if (ok) created++;
+    else failed++;
+  }
+
+  for (const p of plan) {
+    if (draftedKeywords.has(p.target_keyword.toLowerCase())) continue;
+    const ok = await post({
+      title: p.title,
+      target_keyword: p.target_keyword,
+      content_type: p.content_type,
+      type: p.content_type,
+      status: "idea",
+      language: input.content_language,
+      scheduled_for: new Date(`${p.scheduled_for}T09:00:00.000Z`).toISOString(),
+      source: "onboarding",
+      source_strategy_topic: p.angle || p.title,
+    });
+    if (ok) created++;
+    else failed++;
+  }
+
+  return { attempted: true, pieces_created: created, pieces_failed: failed };
+}
+
+/**
+ * Fire-and-forget POSTs to the SAMA backend's site-audit and AI
+ * visibility runners. Both endpoints insert a "running" row and do the
+ * heavy lifting in their own background — we only need them to start.
+ */
+async function kickOffAudits(
+  siteId: string,
+  input: OnboardingFormInput,
+): Promise<NonNullable<OnboardingResult["audits_started"]>> {
+  const out: NonNullable<OnboardingResult["audits_started"]> = {};
+
+  try {
+    const res = await fetch(`${SAMA_BACKEND_URL}/api/site-audit/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": siteId,
+        "X-Sama-Intent": "user-action",
+      },
+      body: JSON.stringify({ domain: input.domain }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.id) out.site_audit_id = String(data.id);
+    }
+  } catch (e) {
+    out.error = e instanceof Error ? e.message : "site-audit kickoff failed";
+  }
+
+  if (input.geo_queries.length > 0) {
+    try {
+      const res = await fetch(`${SAMA_BACKEND_URL}/api/analysis/run`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tenant-ID": siteId,
+          "X-Sama-Intent": "user-action",
+        },
+        body: JSON.stringify({
+          queries: input.geo_queries,
+          platforms: ["chatgpt", "claude", "perplexity", "google_aio"],
+          brand_name: input.brand_name,
+          domain: input.domain,
+          competitors: input.competitors,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.id) out.analysis_run_id = String(data.id);
+      }
+    } catch (e) {
+      out.error = `${out.error ? out.error + "; " : ""}${
+        e instanceof Error ? e.message : "ai analysis kickoff failed"
+      }`;
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -469,6 +755,19 @@ async function saveResultToSite(
     .maybeSingle();
   const settings = ((row?.settings as Record<string, unknown>) || {}) as Record<string, unknown>;
 
+  // Merge AI-inferred brand profile fields into settings only when they
+  // weren't already filled in — never overwrite an explicit user choice
+  // captured during onboarding or previously edited in Settings.
+  const profile = result.brand_profile;
+  const mergedCompetitors = (() => {
+    if (formInput.competitors.length === 0 && profile && profile.extra_competitors.length > 0) {
+      return profile.extra_competitors;
+    }
+    const existing = new Set(formInput.competitors.map((c) => c.toLowerCase()));
+    const extras = (profile?.extra_competitors || []).filter((c) => !existing.has(c.toLowerCase()));
+    return [...formInput.competitors, ...extras];
+  })();
+
   const next = {
     ...settings,
     domain: formInput.domain,
@@ -476,7 +775,7 @@ async function saveResultToSite(
     brand_description: formInput.brand_description,
     target_audience: formInput.target_audience,
     content_language: formInput.content_language,
-    competitors: formInput.competitors,
+    competitors: mergedCompetitors,
     geo_queries: formInput.geo_queries.length > 0
       ? formInput.geo_queries
       : (Array.isArray(settings.geo_queries) ? settings.geo_queries : []),
@@ -486,6 +785,15 @@ async function saveResultToSite(
     brand_color: formInput.brand_color || (settings.brand_color as string) || "",
     example_article_url:
       formInput.example_article_url || (settings.example_article_url as string) || "",
+    business_type:
+      (settings.business_type as string) || profile?.business_type || "",
+    unique_selling_points:
+      (settings.unique_selling_points as string) ||
+      profile?.unique_selling_points ||
+      "",
+    tone_of_voice:
+      (settings.tone_of_voice as string) || profile?.tone_of_voice || "professional",
+    country: (settings.country as string) || profile?.country || "",
     onboarding_completed_at: new Date().toISOString(),
     onboarding_result: result,
   };
@@ -539,6 +847,16 @@ export async function runOnboardingGeneration(opts: {
       content_language: input.content_language || scrape?.content_language || "en",
     };
 
+    await job.setStep("analyzing_brand");
+    let brandProfile: BrandProfile | undefined;
+    try {
+      brandProfile = await generateBrandProfile(apiKey, enrichedInput, scrape?.body_text || "");
+    } catch {
+      // Profile is "nice to have" — don't fail the whole pipeline if
+      // Haiku is having a moment. The user can fill these in Settings.
+      brandProfile = undefined;
+    }
+
     await job.setStep("finding_keywords");
     const keywords = await generateKeywords(apiKey, enrichedInput);
     if (keywords.length === 0) {
@@ -565,6 +883,30 @@ export async function runOnboardingGeneration(opts: {
       plan.find((p) => p.target_keyword.toLowerCase() === secondKw.text.toLowerCase()),
     );
 
+    // Both of the next two steps are best-effort. If the SAMA backend is
+    // unreachable, we still save the result locally so the review page
+    // works — the user can manually re-trigger from Insikter later.
+    await job.setStep("syncing_calendar");
+    let backendSync: OnboardingResult["backend_sync"];
+    try {
+      backendSync = await syncToBackend(siteId, enrichedInput, plan, [draft1, draft2]);
+    } catch (e) {
+      backendSync = {
+        attempted: true,
+        pieces_created: 0,
+        pieces_failed: plan.length + 2,
+        error: e instanceof Error ? e.message : "backend sync failed",
+      };
+    }
+
+    await job.setStep("starting_audits");
+    let auditsStarted: OnboardingResult["audits_started"];
+    try {
+      auditsStarted = await kickOffAudits(siteId, enrichedInput);
+    } catch (e) {
+      auditsStarted = { error: e instanceof Error ? e.message : "audit kickoff failed" };
+    }
+
     await job.setStep("saving");
     const result: OnboardingResult = {
       site_meta: {
@@ -573,10 +915,13 @@ export async function runOnboardingGeneration(opts: {
         brand_description: enrichedInput.brand_description,
         content_language: enrichedInput.content_language,
       },
+      brand_profile: brandProfile,
       keywords,
       plan,
       drafts: [draft1, draft2],
       generated_at: new Date().toISOString(),
+      backend_sync: backendSync,
+      audits_started: auditsStarted,
     };
     await saveResultToSite(admin, userId, siteId, enrichedInput, result);
     await job.finish(result);
