@@ -238,6 +238,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const pending = (campaign?.total_leads ?? 0) - (campaign?.audited_leads ?? 0) - (campaign?.failed_leads ?? 0);
+  // Show the Stop button whenever there's work to interrupt — either our
+  // local loop is firing, or there are leads stuck in "running" from a
+  // previous tab/session.
+  const hasRunningLeads = leads.some((l) => l.audit_status === "running");
+  const showStop = running || hasRunningLeads;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -267,7 +272,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             >
               <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} /> Refresh
             </button>
-            {running ? (
+            {showStop ? (
               <button
                 onClick={() => void stopBatch()}
                 disabled={stopping}
