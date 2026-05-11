@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
     await runOnboardingGeneration({
       admin,
       jobId: job.id,
+      userId: user.id,
       siteId,
       input,
       apiKey,
