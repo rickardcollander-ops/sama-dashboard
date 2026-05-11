@@ -23,7 +23,7 @@ import { useLanguage } from "@/lib/hooks/useLanguage";
 import {
   MAX_GEO_QUERIES,
   GEO_QUERIES_STALE_DAYS,
-} from "@/lib/integrations/store";
+} from "@/lib/integrations/store-constants";
 
 interface Summary {
   mention_rate: number;
