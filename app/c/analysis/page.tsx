@@ -163,21 +163,18 @@ export default function AnalysisPage() {
       });
 
       try {
-        const res = await fetch("/api/analysis/runs?limit=1", {
+        // /api/analysis/latest returns either the most recent completed
+        // analysis_runs row (augmented with ai_visibility_checks) or a
+        // synthetic payload built purely from ai_visibility_checks when
+        // the tenant hasn't triggered a full analysis run yet. The matrix
+        // can render either shape because the synthetic payload mirrors
+        // the AnalysisRun schema.
+        const res = await fetch("/api/analysis/latest", {
           headers: { "X-Tenant-ID": effectiveTenantId },
         });
         if (res.ok) {
-          const data = await res.json();
-          const latest = data?.runs?.[0];
-          if (latest?.id && latest.status === "completed") {
-            const full = await fetch(`/api/analysis/runs/${latest.id}`, {
-              headers: { "X-Tenant-ID": effectiveTenantId },
-            });
-            if (full.ok) {
-              const run = await full.json();
-              if (run?.status === "completed") setVisibilityRun(run);
-            }
-          }
+          const run = await res.json();
+          if (run?.status === "completed") setVisibilityRun(run);
         }
       } catch { /* not critical */ }
 
