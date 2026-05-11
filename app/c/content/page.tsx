@@ -40,6 +40,11 @@ interface ContentPiece {
   word_count: number;
   target_keyword: string;
   created_at?: string;
+  // Premium article fields (populated by the structured writer; older
+  // pieces have these as null and the UI degrades gracefully).
+  slug?: string | null;
+  featured_image_url?: string | null;
+  article_score?: number | null;
   // Sprint 2 (K-3 / K-6) — backreferences to the surface that motivated the
   // piece, so the article card can show "Skapad från lucka …" / "Skapad
   // utifrån strategi-topic …".
@@ -355,6 +360,16 @@ function CustomerContentInner() {
       setAutoSwitchedToIdeas(true);
     }
   }, [ideas.length, filter, autoSwitchedToIdeas]);
+
+  // After approving the last idea, the Ideas tab is empty but the freshly
+  // drafted pieces land on "Att granska". Move the user there so they can
+  // see their work instead of staring at an empty list.
+  useEffect(() => {
+    if (filter !== "ideas") return;
+    if (ideas.length > 0) return;
+    if (draftingIds.size === 0) return;
+    setFilter("to_review");
+  }, [filter, ideas.length, draftingIds]);
 
   const approveIdea = async (idea: PlanIdea) => {
     if (!user) return;
@@ -1174,10 +1189,34 @@ function CustomerContentInner() {
                 key={piece.id}
                 className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  {piece.featured_image_url ? (
+                    <Link
+                      href={`/c/content/article/${piece.id}`}
+                      className="hidden sm:block shrink-0 rounded-lg overflow-hidden border border-slate-200 hover:border-orange-300 transition-colors"
+                      style={{ width: 96 }}
+                      title="Open article view"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={piece.featured_image_url}
+                        alt=""
+                        className="w-24 h-16 object-cover"
+                      />
+                    </Link>
+                  ) : null}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
+                      {typeof piece.article_score === "number" ? (
+                        <Link
+                          href={`/c/content/article/${piece.id}`}
+                          className="font-semibold text-slate-900 truncate hover:text-orange-700"
+                        >
+                          {piece.title}
+                        </Link>
+                      ) : (
+                        <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
+                      )}
                       <StatusBadge status={piece.status} />
                     </div>
                     {/* Sprint 2 (K-3 / K-6) — provenance line. */}
@@ -1215,6 +1254,24 @@ function CustomerContentInner() {
                           <Search className="h-3 w-3" />
                           {piece.target_keyword}
                         </span>
+                      )}
+                      {typeof piece.article_score === "number" && (
+                        <Link
+                          href={`/c/content/article/${piece.id}`}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            piece.article_score >= 85
+                              ? "bg-green-50 text-green-700"
+                              : piece.article_score >= 65
+                              ? "bg-lime-50 text-lime-700"
+                              : piece.article_score >= 40
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-red-50 text-red-700"
+                          }`}
+                          title="Open article view"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          Score {piece.article_score}/100
+                        </Link>
                       )}
                       {piece.created_at && (
                         <span className="flex items-center gap-1">

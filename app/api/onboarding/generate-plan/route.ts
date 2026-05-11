@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse, after } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { resolveSiteId } from "@/lib/integrations/site-context";
+import {
+  runOnboardingGeneration,
+  type OnboardingFormInput,
+} from "@/lib/onboarding/generate";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+// The four Claude calls plus the site scrape comfortably fit inside the
+// 5-minute window. If a brand's article ends up at the long end of the
+// word range we still leave ~60s of headroom.
+export const maxDuration = 300;
+
+function pickStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .map((s) => s.trim());
+}
+
+function normaliseDomain(raw: string): string {
+  return raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
+}
+
+export async function POST(req: NextRequest) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return NextResponse.json(
+      { error: "Server is missing SUPABASE_SERVICE_ROLE_KEY" },
+      { status: 500 },
+    );
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "AI service is not configured. Please contact support." },
+      { status: 500 },
+    );
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const domain = normaliseDomain(String(body.domain ?? ""));
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+    return NextResponse.json(
+      { error: "A valid domain is required" },
+      { status: 400 },
+    );
+  }
+
+  const input: OnboardingFormInput = {
+    domain,
+    brand_name: String(body.brand_name ?? "").trim(),
+    brand_description: String(body.brand_description ?? "").trim(),
+    target_audience: String(body.target_audience ?? "").trim(),
+    content_language: String(body.content_language ?? "en").trim() || "en",
+    competitors: pickStringArray(body.competitors).slice(0, 10),
+    geo_queries: pickStringArray(body.geo_queries).slice(0, 10),
+    brand_color: typeof body.brand_color === "string" ? body.brand_color.trim() : "",
+    example_article_url:
+      typeof body.example_article_url === "string" ? body.example_article_url.trim() : "",
+  };
+
+  const siteId = resolveSiteId(req, user.id);
+
+  const { data: job, error: jobError } = await admin
+    .from("onboarding_jobs")
+    .insert({
+      user_id: user.id,
+      site_id: siteId,
+      status: "queued",
+      step: "queued",
+      progress: 0,
+      result: { input },
+    })
+    .select("id")
+    .single();
+  if (jobError || !job) {
+    return NextResponse.json(
+      { error: jobError?.message || "Could not create onboarding job" },
+      { status: 500 },
+    );
+  }
+
+  // Run the heavy work after the HTTP response is sent. after() keeps the
+  // serverless function alive past the response — up to maxDuration above.
+  after(async () => {
+    await runOnboardingGeneration({
+      admin,
+      jobId: job.id,
+      userId: user.id,
+      siteId,
+      input,
+      apiKey,
+    });
+  });
+
+  return NextResponse.json({ job_id: job.id });
+}

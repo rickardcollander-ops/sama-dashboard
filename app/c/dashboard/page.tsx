@@ -249,25 +249,30 @@ export default function CustomerDashboard() {
 
   const loadContentStats = async () => {
     if (!user) return;
-    try {
-      const data = await tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`);
-      if (data) {
-        const pieces = data.pieces as unknown[] | undefined;
-        setContentStats({
-          total: (data.total ?? pieces?.length ?? 0) as number,
-          published: (data.published ?? 0) as number,
-          drafts: (data.drafts ?? 0) as number,
-          delta: (data.delta_percent ?? data.delta) as number | undefined,
-          updated_at: data.updated_at as string | undefined,
-        });
-      }
-    } catch {}
-    try {
-      const pieces = await tenantClient.get<Record<string, unknown>>("/api/content/pieces?limit=1");
+    // Run both calls in parallel — they're independent, and the original
+    // sequential pattern was adding a full extra round-trip to the
+    // slowest leg of loadData() on every dashboard refresh.
+    const [statsResult, piecesResult] = await Promise.allSettled([
+      tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`),
+      tenantClient.get<Record<string, unknown>>("/api/content/pieces?limit=1"),
+    ]);
+    if (statsResult.status === "fulfilled" && statsResult.value) {
+      const data = statsResult.value;
+      const pieces = data.pieces as unknown[] | undefined;
+      setContentStats({
+        total: (data.total ?? pieces?.length ?? 0) as number,
+        published: (data.published ?? 0) as number,
+        drafts: (data.drafts ?? 0) as number,
+        delta: (data.delta_percent ?? data.delta) as number | undefined,
+        updated_at: data.updated_at as string | undefined,
+      });
+    }
+    if (piecesResult.status === "fulfilled" && piecesResult.value) {
+      const pieces = piecesResult.value;
       const list = pieces?.pieces as unknown[] | undefined;
       const allTimeTotal = (pieces?.total ?? list?.length ?? 0) as number;
       setAnyContentEver(allTimeTotal > 0);
-    } catch {}
+    }
   };
 
   const loadPendingApprovals = async () => {
@@ -566,4 +571,3 @@ export default function CustomerDashboard() {
     </div>
   );
 }
-

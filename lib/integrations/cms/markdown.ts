@@ -1,71 +1,27 @@
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
+import remarkRehype from "remark-rehype";
+import rehypeSlug from "rehype-slug";
+import rehypeStringify from "rehype-stringify";
 
-const inline = (s: string) =>
-  s
-    .replace(/`([^`]+)`/g, (_, x) => `<code>${escapeHtml(x)}</code>`)
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2" />')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>');
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(rehypeSlug)
+  .use(rehypeStringify, { allowDangerousHtml: true })
+  .freeze();
+
+// LLM-generated articles append Pandoc-style {#id} suffixes to headings.
+// Strip them so they don't render as literal text — rehype-slug regenerates
+// IDs from the heading text, which matches what the LLM was emitting anyway.
+const stripHeadingIds = (md: string): string =>
+  md.replace(/^(#{1,6}\s+[^\n]*?)\s*\{#[\w-]+\}\s*$/gm, "$1");
 
 export function markdownToHtml(md: string): string {
   if (!md) return "";
-  const lines = md.replace(/\r\n/g, "\n").split("\n");
-  const out: string[] = [];
-  let inUl = false;
-  let inOl = false;
-  let inCode = false;
-  let para: string[] = [];
-
-  const flushPara = () => {
-    if (para.length) {
-      out.push(`<p>${inline(para.join(" "))}</p>`);
-      para = [];
-    }
-  };
-  const closeLists = () => {
-    if (inUl) { out.push("</ul>"); inUl = false; }
-    if (inOl) { out.push("</ol>"); inOl = false; }
-  };
-
-  for (const raw of lines) {
-    const line = raw;
-    if (line.startsWith("```")) {
-      flushPara(); closeLists();
-      if (!inCode) { out.push("<pre><code>"); inCode = true; }
-      else { out.push("</code></pre>"); inCode = false; }
-      continue;
-    }
-    if (inCode) { out.push(escapeHtml(line)); continue; }
-
-    const h = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (h) {
-      flushPara(); closeLists();
-      const lvl = h[1].length;
-      out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`);
-      continue;
-    }
-    if (/^\s*[-*+]\s+/.test(line)) {
-      flushPara();
-      if (inOl) { out.push("</ol>"); inOl = false; }
-      if (!inUl) { out.push("<ul>"); inUl = true; }
-      out.push(`<li>${inline(line.replace(/^\s*[-*+]\s+/, ""))}</li>`);
-      continue;
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      flushPara();
-      if (inUl) { out.push("</ul>"); inUl = false; }
-      if (!inOl) { out.push("<ol>"); inOl = true; }
-      out.push(`<li>${inline(line.replace(/^\s*\d+\.\s+/, ""))}</li>`);
-      continue;
-    }
-    if (line.trim() === "") { flushPara(); closeLists(); continue; }
-    para.push(line.trim());
-  }
-  flushPara(); closeLists();
-  if (inCode) out.push("</code></pre>");
-  return out.join("\n");
+  return String(processor.processSync(stripHeadingIds(md)));
 }
 
 export function slugify(s: string): string {

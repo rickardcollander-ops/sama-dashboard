@@ -23,6 +23,9 @@ const SECRET_FIELDS = new Set([
   "integration_token",
   "bearer_token",
   "secret",
+  "access_token",
+  "api_key",
+  "api_pass",
 ]);
 
 export default function PublishingDestinations() {
@@ -145,9 +148,10 @@ export default function PublishingDestinations() {
           <div className="text-xs text-blue-800">
             <p className="font-medium text-sm text-blue-900 mb-1">How CMS publishing works</p>
             <p>
-              Connect WordPress, Webflow, Ghost, Notion or a custom webhook below. Then in
-              Content, pick a destination and publish — SAMA pushes the post with full HTML,
-              JSON-LD schema and metadata. You can also schedule for later.
+              Connect WordPress, Shopify, Webflow, Framer, Ghost, Wix, GoHighLevel, Duda,
+              BigCommerce, Notion or a custom webhook below. Then in Content, pick a
+              destination and publish — SAMA pushes the post with full HTML, JSON-LD schema
+              and metadata. You can also schedule for later.
             </p>
           </div>
         </div>

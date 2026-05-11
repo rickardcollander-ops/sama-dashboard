@@ -117,10 +117,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      // First call accept-invite to activate any pending memberships, then
-      // list accessible accounts.
-      await fetch("/api/account/accept-invite", { method: "POST" }).catch(() => null);
-      const res = await fetch("/api/account/list", { cache: "no-store" });
+      // Fire accept-invite alongside list instead of in front of it.
+      // Sequencing them was costing a full extra round-trip (typically
+      // 150-300 ms) on every dashboard load just so a freshly-invited
+      // user could see their new membership without a manual refresh —
+      // a case that's rare enough to not justify slowing every login.
+      const [, res] = await Promise.all([
+        fetch("/api/account/accept-invite", { method: "POST" }).catch(() => null),
+        fetch("/api/account/list", { cache: "no-store" }),
+      ]);
       if (!res.ok) return;
       const body = (await res.json()) as { accounts: AccessibleAccount[] };
       setAccounts(body.accounts);

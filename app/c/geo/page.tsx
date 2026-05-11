@@ -20,6 +20,10 @@ import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import PeriodSelector from "@/components/dashboard/PeriodSelector";
 import { exportCsv } from "@/lib/csv";
 import { useLanguage } from "@/lib/hooks/useLanguage";
+import {
+  MAX_GEO_QUERIES,
+  GEO_QUERIES_STALE_DAYS,
+} from "@/lib/integrations/store-constants";
 
 interface Summary {
   mention_rate: number;
@@ -33,7 +37,32 @@ interface Summary {
   history?: { date: string; mention_rate: number }[];
 }
 
-const MAX_GEO_QUERIES = 5;
+interface LockStatus {
+  locked: boolean;
+  last_completed_at: string | null;
+  next_available_at: string | null;
+  lock_days: number;
+  geo_queries_updated_at: string | null;
+}
+
+function formatCountdown(target: Date): string {
+  const ms = target.getTime() - Date.now();
+  if (ms <= 0) return "snart";
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin - days * 60 * 24) / 60);
+  const mins = totalMin - days * 60 * 24 - hours * 60;
+  if (days > 0) return `${days} d ${hours} h`;
+  if (hours > 0) return `${hours} h ${mins} m`;
+  return `${mins} m`;
+}
+
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 interface AICheck {
   id: string;
@@ -61,12 +90,16 @@ export default function CustomerGeoPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [checks, setChecks] = useState<AICheck[]>([]);
   const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
+  const [queriesUpdatedAt, setQueriesUpdatedAt] = useState<string | null>(null);
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [newQueryInput, setNewQueryInput] = useState("");
   const [addingQuery, setAddingQuery] = useState(false);
   const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [lockStatus, setLockStatus] = useState<LockStatus | null>(null);
+  // Re-render once a minute so the countdown ticks down without a refetch.
+  const [, setNowTick] = useState(0);
   const { period, setPeriod, days } = usePeriod();
   const { runs, triggerRun } = useActiveRuns();
 
@@ -83,7 +116,14 @@ export default function CustomerGeoPage() {
     setSummary(null);
     setChecks([]);
     setTrackedQueries([]);
+    setQueriesUpdatedAt(null);
+    setLockStatus(null);
   }, [effectiveTenantId]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (user && effectiveTenantId) loadData();
@@ -109,17 +149,27 @@ export default function CustomerGeoPage() {
     setError("");
     const client = tenantClient;
     try {
-      const [summaryData, checksData, trackedRes] = await Promise.all([
+      const [summaryData, checksData, trackedRes, lockRes] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),
         client.get(`/api/ai-visibility/checks?limit=50&days=${days}`).catch(() => []),
         fetch("/api/recommendations/list", { headers: samaHeaders() })
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
+        client.get(`/api/ai-visibility/lock-status`).catch(() => null),
       ]);
       if (summaryData) setSummary(summaryData);
       if (Array.isArray(checksData)) setChecks(checksData);
       else if (checksData?.checks) setChecks(checksData.checks);
       setTrackedQueries(Array.isArray(trackedRes?.geo_queries) ? trackedRes.geo_queries : []);
+      // Prefer the dashboard-side timestamp (it's authoritative for the
+      // current user's edits) but fall back to the backend mirror when
+      // /list didn't include it (older clients) so the banner still works.
+      setQueriesUpdatedAt(
+        typeof trackedRes?.geo_queries_updated_at === "string"
+          ? trackedRes.geo_queries_updated_at
+          : (lockRes?.geo_queries_updated_at ?? null),
+      );
+      setLockStatus(lockRes ?? null);
     } catch (err: any) {
       console.error("Failed to load GEO data:", err);
       setError(`Could not load data: ${err?.message || err}`);
@@ -194,10 +244,38 @@ export default function CustomerGeoPage() {
   const runCheck = async () => {
     if (!user) return;
     setError("");
-    await triggerRun("ai_visibility", "/api/ai-visibility/check");
+    if (trackedQueries.length === 0) {
+      setError(
+        "Lägg till minst en bevakad fråga nedan innan du kör en kontroll — annars finns det inget att mäta.",
+      );
+      return;
+    }
+    if (lockStatus?.locked) {
+      // Defensive: button should already be hidden when locked, but the
+      // backend will refuse anyway and we don't want a confusing spinner.
+      return;
+    }
+    const result = await triggerRun("ai_visibility", "/api/ai-visibility/check");
+    // Refresh lock status so the countdown takes over once the run starts.
+    if (result) {
+      try {
+        const lockRes = await tenantClient.get(`/api/ai-visibility/lock-status`);
+        if (lockRes) setLockStatus(lockRes);
+      } catch {
+        // non-critical
+      }
+    }
   };
 
   const running = !!activeGeoRun;
+  const nextAvailableDate =
+    lockStatus?.next_available_at ? new Date(lockStatus.next_available_at) : null;
+  const isLocked =
+    !!lockStatus?.locked && !!nextAvailableDate && nextAvailableDate.getTime() > Date.now();
+  const queriesStaleDays = daysSince(queriesUpdatedAt);
+  const queriesAreStale =
+    trackedQueries.length > 0 &&
+    (queriesStaleDays === null || queriesStaleDays >= GEO_QUERIES_STALE_DAYS);
 
   if (userLoading || loading) {
     return (
@@ -233,17 +311,50 @@ export default function CustomerGeoPage() {
               <Download className="h-3.5 w-3.5" />
               {t.geo.export}
             </button>
-            <button
-              type="button"
-              onClick={runCheck}
-              disabled={running}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
-            >
-              {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? t.geo.running : t.geo.runCheck}
-            </button>
+            {isLocked && nextAvailableDate && !running ? (
+              <div
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+                title={`Senaste kontroll: ${
+                  lockStatus?.last_completed_at
+                    ? new Date(lockStatus.last_completed_at).toLocaleString("sv-SE")
+                    : "—"
+                }. Kör automatiskt enligt veckoschema.`}
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
+                <span>
+                  Nästa kontroll om{" "}
+                  <span className="font-semibold text-slate-800">
+                    {formatCountdown(nextAvailableDate)}
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={runCheck}
+                disabled={running}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+              >
+                {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {running ? t.geo.running : t.geo.runCheck}
+              </button>
+            )}
           </div>
         </div>
+
+        {queriesAreStale && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 flex items-start gap-3">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium">Granska dina bevakade frågor</p>
+              <p className="mt-0.5 text-amber-800">
+                {queriesStaleDays === null
+                  ? "Du har inte uppdaterat din bevakningslista än — kontrollera att frågorna fortfarande är relevanta."
+                  : `Det var ${queriesStaleDays} dagar sedan du senast uppdaterade dina bevakade frågor. Granska gärna listan nedan så att veckokontrollen mäter det du faktiskt bryr dig om.`}
+              </p>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
@@ -345,9 +456,9 @@ export default function CustomerGeoPage() {
           />
         </div>
 
-        {/* AI-readability scorecard — produced by site_audit's post-step.
-            Hides itself when no audit has been run yet, so this section
-            is invisible for new tenants. */}
+        {/* AI-readability scorecard. Hides itself when no site review has
+            scored the site yet, so this section is invisible for new
+            tenants until their first /c/analysis run completes. */}
         <AIReadabilityCard />
 
         {/* Tracked GEO Queries */}
@@ -443,14 +554,26 @@ export default function CustomerGeoPage() {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">{t.geo.noDataTitle}</h3>
                 <p className="text-sm text-slate-500 max-w-md mb-6">{t.geo.noDataHint}</p>
-                <button
-                  onClick={runCheck}
-                  disabled={running}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
-                >
-                  {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  {running ? t.geo.running : t.geo.runCheck}
-                </button>
+                {isLocked && nextAvailableDate && !running ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+                    <RefreshCw className="h-4 w-4 text-slate-400" />
+                    <span>
+                      Nästa kontroll om{" "}
+                      <span className="font-semibold text-slate-800">
+                        {formatCountdown(nextAvailableDate)}
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={runCheck}
+                    disabled={running}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-sm"
+                  >
+                    {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    {running ? t.geo.running : t.geo.runCheck}
+                  </button>
+                )}
               </div>
             </div>
           ) : (
