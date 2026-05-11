@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone, User, CreditCard, Link2, Palette, MessageCircle,
+  Users, Megaphone, Share2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -34,23 +34,7 @@ interface SubNavItem {
   exact?: boolean;
 }
 
-interface SubNavSection {
-  titleKey: keyof Translations["subNavSections"];
-  items: SubNavItem[];
-}
-
-type SubNavConfig = SubNavItem[] | SubNavSection[];
-
-function isGroupedSubNav(config: SubNavConfig): config is SubNavSection[] {
-  return config.length > 0 && "items" in config[0];
-}
-
-function flattenSubNav(config: SubNavConfig): SubNavItem[] {
-  if (isGroupedSubNav(config)) return config.flatMap((s) => s.items);
-  return config;
-}
-
-type SectionId = "home" | "insights" | "content" | "tech" | "reddit" | "ads" | "settings" | "admin";
+type SectionId = "home" | "insights" | "content" | "tech" | "social" | "ads" | "settings" | "admin";
 
 const TOP_NAV: NavItem[] = [
   {
@@ -81,10 +65,11 @@ const TOP_NAV: NavItem[] = [
     matchPrefixes: ["/c/tech"],
   },
   {
-    id: "reddit",
-    href: "/c/reddit",
-    icon: MessageCircle,
-    matchPrefixes: ["/c/reddit"],
+    id: "social",
+    href: "#",
+    icon: Share2,
+    matchPrefixes: [],
+    disabled: true,
   },
   {
     id: "ads",
@@ -111,7 +96,7 @@ const ADMIN_NAV: NavItem = {
 const SUB_NAV: Record<SectionId, SubNavConfig> = {
   home: [],
   tech: [],
-  reddit: [],
+  social: [],
   ads: [],
   // The public /c/audit page used to live here as "Site Audit". It's been
   // removed because the customer-side site review now runs from /c/analysis
