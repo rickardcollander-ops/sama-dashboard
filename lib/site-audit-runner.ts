@@ -69,7 +69,7 @@ async function startBackendAudit(domain: string, maxPages: number): Promise<{ id
         "X-Tenant-ID": PUBLIC_TENANT_ID,
       },
       body: JSON.stringify({ domain, max_pages: maxPages }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
