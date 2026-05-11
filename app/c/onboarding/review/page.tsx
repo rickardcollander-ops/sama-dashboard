@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Sparkles, FileText, Calendar, Tag, ExternalLink,
@@ -60,36 +60,76 @@ function ContentTypeBadge({ t }: { t: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${e.bg}`}>{e.label}</span>;
 }
 
-export default function OnboardingReviewPage() {
+function isOnboardingResult(value: unknown): value is OnboardingResult {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return Array.isArray(v.keywords) && Array.isArray(v.plan) && Array.isArray(v.drafts);
+}
+
+function ReviewInner() {
   const router = useRouter();
+  const params = useSearchParams();
+  const jobId = params.get("job");
   const { activeSite, loading: sitesLoading, reloadSites } = useSite();
   const [expandedDraft, setExpandedDraft] = useState<number | null>(0);
+  const [jobResult, setJobResult] = useState<OnboardingResult | null>(null);
+  const [jobChecked, setJobChecked] = useState(false);
 
-  // The generation job writes user_sites.settings server-side, so the
-  // SiteContext cache likely doesn't have it yet on first paint. Force a
-  // reload once on mount.
+  // Refresh the site cache so the dashboard picks up the new settings.
   useEffect(() => {
     void reloadSites();
   }, [reloadSites]);
 
-  // Derive the result from the active site instead of mirroring it into
-  // local state — keeps render output strictly a function of context.
+  // Read the result straight off the job row when we have a job id —
+  // avoids a race with the SiteContext cache (the background writer
+  // updates user_sites while the loader page is still active, so
+  // activeSite.settings can lag a few seconds).
+  useEffect(() => {
+    if (!jobId) {
+      setJobChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/onboarding/generate-plan/${jobId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (isOnboardingResult(json.result)) {
+          setJobResult(json.result);
+        }
+      } catch {
+        /* fall back to site settings below */
+      } finally {
+        if (!cancelled) setJobChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
   const result = useMemo<OnboardingResult | null>(() => {
+    if (jobResult) return jobResult;
     const settings = (activeSite?.settings as Record<string, unknown> | undefined) || {};
-    const r = settings.onboarding_result as OnboardingResult | undefined;
-    return r && Array.isArray(r.keywords) ? r : null;
-  }, [activeSite]);
+    return isOnboardingResult(settings.onboarding_result) ? settings.onboarding_result : null;
+  }, [jobResult, activeSite]);
 
   // Safety net: if we've fully loaded and there's still no result after a
-  // couple of seconds, send the user back to onboarding.
+  // generous window (job query + site reload), send the user back to
+  // onboarding. The window must outlive the longest of the two so we
+  // don't bounce while either source is still in flight.
   useEffect(() => {
-    if (sitesLoading || result) return;
+    if (result) return;
+    if (sitesLoading || !jobChecked) return;
     const t = setTimeout(() => {
-      const settings = (activeSite?.settings as Record<string, unknown> | undefined) || {};
-      if (!settings.onboarding_result) router.push("/c/onboarding");
-    }, 4000);
+      if (!result) router.push("/c/onboarding");
+    }, 2000);
     return () => clearTimeout(t);
-  }, [sitesLoading, result, activeSite, router]);
+  }, [result, sitesLoading, jobChecked, router]);
 
   if (!result) {
     return (
@@ -285,5 +325,19 @@ function SummaryCard({
       <div className="mt-3 text-3xl font-bold tracking-tight">{value}</div>
       <div className="text-xs text-slate-500">{label}</div>
     </div>
+  );
+}
+
+export default function OnboardingReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <ReviewInner />
+    </Suspense>
   );
 }

@@ -457,6 +457,7 @@ async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
  */
 async function saveResultToSite(
   admin: SupabaseClient,
+  userId: string,
   siteId: string,
   formInput: OnboardingFormInput,
   result: OnboardingResult,
@@ -465,7 +466,7 @@ async function saveResultToSite(
     .from("user_sites")
     .select("settings")
     .eq("id", siteId)
-    .single();
+    .maybeSingle();
   const settings = ((row?.settings as Record<string, unknown>) || {}) as Record<string, unknown>;
 
   const next = {
@@ -489,20 +490,43 @@ async function saveResultToSite(
     onboarding_result: result,
   };
 
-  await admin
+  // Upsert covers two cases: (a) the user already has a site row — we
+  // refresh settings on it; (b) brand-new user with no row yet — we
+  // create the primary site with id = user.id, matching the legacy
+  // convention documented in supabase-user-sites.sql ("The first site
+  // always uses id = user.id to preserve existing backend tenant data").
+  const siteName =
+    formInput.brand_name?.trim() ||
+    formInput.domain ||
+    (settings.site_name as string) ||
+    "";
+
+  const { error } = await admin
     .from("user_sites")
-    .update({ settings: next, updated_at: new Date().toISOString() })
-    .eq("id", siteId);
+    .upsert(
+      {
+        id: siteId,
+        user_id: userId,
+        site_name: siteName,
+        settings: next,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
+  if (error) {
+    throw new Error(`user_sites upsert failed: ${error.message}`);
+  }
 }
 
 export async function runOnboardingGeneration(opts: {
   admin: SupabaseClient;
   jobId: string;
+  userId: string;
   siteId: string;
   input: OnboardingFormInput;
   apiKey: string;
 }): Promise<void> {
-  const { admin, jobId, siteId, input, apiKey } = opts;
+  const { admin, jobId, userId, siteId, input, apiKey } = opts;
   const job = makeJobUpdater(admin, jobId);
 
   try {
@@ -554,7 +578,7 @@ export async function runOnboardingGeneration(opts: {
       drafts: [draft1, draft2],
       generated_at: new Date().toISOString(),
     };
-    await saveResultToSite(admin, siteId, enrichedInput, result);
+    await saveResultToSite(admin, userId, siteId, enrichedInput, result);
     await job.finish(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Onboarding generation failed";

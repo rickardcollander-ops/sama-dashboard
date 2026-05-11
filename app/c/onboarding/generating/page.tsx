@@ -64,8 +64,10 @@ function GeneratingInner() {
 
         if (json.status === "done") {
           // Small pause so the user sees the green checkmark before redirect.
+          // Pass the job id so the review page can read the result directly
+          // (avoids a race with the site-context cache refresh).
           timer = setTimeout(() => {
-            router.push("/c/onboarding/review");
+            router.push(`/c/onboarding/review?job=${encodeURIComponent(jobId)}`);
           }, 1200);
           return;
         }
