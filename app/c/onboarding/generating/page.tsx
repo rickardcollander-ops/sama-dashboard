@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Globe, Briefcase, Search, ListTree, PenTool, CalendarCheck, Radar,
-  CheckCircle2, AlertCircle, Loader2,
+  CheckCircle2, AlertCircle, Loader2, MessageSquare, ScanLine,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 
@@ -14,10 +14,16 @@ interface JobStatus {
   step: string;
   progress: number;
   error: string | null;
-  result?: Record<string, unknown>;
+  result?: {
+    audits_started?: {
+      site_audit_id?: string;
+      analysis_run_id?: string;
+    };
+  } & Record<string, unknown>;
 }
 
-const STEPS: { key: string; label: string; sub: string; icon: typeof Globe }[] = [
+// Steps shown by the generation phase (driven by the onboarding_jobs row).
+const JOB_STEPS = [
   { key: "analyzing_site",    label: "Analyserar sajten", sub: "Läser om varumärket, ton och språk", icon: Globe },
   { key: "analyzing_brand",   label: "Profilerar varumärket", sub: "Verksamhetstyp, USP, tonalitet och land", icon: Briefcase },
   { key: "finding_keywords",  label: "Hittar relevanta sökord", sub: "12 sökord med affärsvärde för din bransch", icon: Search },
@@ -25,13 +31,36 @@ const STEPS: { key: string; label: string; sub: string; icon: typeof Globe }[] =
   { key: "writing_article_1", label: "Skriver artikel 1", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
   { key: "writing_article_2", label: "Skriver artikel 2", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
   { key: "syncing_calendar",  label: "Lägger i kalendern", sub: "Pushar 30 idéer + 2 utkast till content-vyn", icon: CalendarCheck },
-  { key: "starting_audits",   label: "Startar sajt- och AI-analys", sub: "Audit och synlighetskoll körs i bakgrunden", icon: Radar },
-  { key: "saving",            label: "Sparar allt", sub: "Klart att granska", icon: CheckCircle2 },
-];
+  { key: "starting_audits",   label: "Startar sajt- och AI-analys", sub: "Audit och synlighetskoll köas på SAMA-backenden", icon: Radar },
+  { key: "saving",            label: "Sparar planen", sub: "All AI-genererad output landar på siten", icon: CheckCircle2 },
+] as const;
 
-function stepIndex(currentStep: string): number {
-  const i = STEPS.findIndex((s) => s.key === currentStep);
+// Steps shown AFTER the job is done — we keep polling the SAMA backend
+// until the site audit and AI visibility check have completed too. They
+// run as their own background tasks on the backend (Railway), so the job
+// row reports "done" minutes before they actually finish.
+const AUDIT_STEPS = [
+  { key: "site_audit",  label: "Sajtanalys körs", sub: "Crawl + on-page revision (2-4 min)", icon: ScanLine },
+  { key: "ai_analysis", label: "AI-synlighet körs", sub: "Frågor mot ChatGPT, Claude, Perplexity och Gemini", icon: MessageSquare },
+] as const;
+
+type Phase = "running_job" | "waiting_audits" | "done" | "error";
+
+// Max time we'll spend waiting for audits after the job completes. After
+// this we redirect to review anyway — the user can pick the results up
+// from /c/analysis / /c/geo on their own time.
+const AUDIT_WAIT_TIMEOUT_MS = 6 * 60_000;
+
+function jobStepIndex(step: string): number {
+  const i = JOB_STEPS.findIndex((s) => s.key === step);
   return i === -1 ? 0 : i;
+}
+
+interface RunStatus {
+  status: "pending" | "running" | "completed" | "error";
+  // Free-text message surfaced under the step when the backend errors,
+  // so the user can see whether to retry or move on.
+  detail?: string;
 }
 
 function GeneratingInner() {
@@ -39,14 +68,29 @@ function GeneratingInner() {
   const params = useSearchParams();
   const jobId = params.get("job") || "";
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [phase, setPhase] = useState<Phase>("running_job");
   const [pollError, setPollError] = useState<string | null>(null);
+  const [siteAudit, setSiteAudit] = useState<RunStatus>({ status: "pending" });
+  const [aiAnalysis, setAiAnalysis] = useState<RunStatus>({ status: "pending" });
   const startedAt = useRef<number>(Date.now());
+  const auditPhaseStartedAt = useRef<number | null>(null);
+  const [tick, setTick] = useState(0);
 
+  // Repaint once per second so the elapsed counter stays current — the
+  // job poller fires every 2.5s which leaves the timer feeling stuck.
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  void tick;
+
+  // Phase 1: poll the onboarding job until it's done or errored.
   useEffect(() => {
     if (!jobId) {
       router.push("/c/onboarding");
       return;
     }
+    if (phase !== "running_job") return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -67,16 +111,20 @@ function GeneratingInner() {
         setPollError(null);
 
         if (json.status === "done") {
-          // Small pause so the user sees the green checkmark before redirect.
-          // Pass the job id so the review page can read the result directly
-          // (avoids a race with the site-context cache refresh).
-          timer = setTimeout(() => {
-            router.push(`/c/onboarding/review?job=${encodeURIComponent(jobId)}`);
-          }, 1200);
+          const audits = json.result?.audits_started;
+          const hasSite = !!audits?.site_audit_id;
+          const hasAnalysis = !!audits?.analysis_run_id;
+          // Seed each audit's status: "running" if we have an id to
+          // poll, "completed" otherwise so the gate clears it.
+          setSiteAudit({ status: hasSite ? "running" : "completed", detail: hasSite ? undefined : "Hoppades över" });
+          setAiAnalysis({ status: hasAnalysis ? "running" : "completed", detail: hasAnalysis ? undefined : "Inga AI-frågor angivna" });
+          auditPhaseStartedAt.current = Date.now();
+          setPhase("waiting_audits");
           return;
         }
         if (json.status === "error") {
-          return; // Stop polling — surface the error.
+          setPhase("error");
+          return;
         }
         timer = setTimeout(poll, 2500);
       } catch (e) {
@@ -92,14 +140,110 @@ function GeneratingInner() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [jobId, router]);
+  }, [jobId, phase, router]);
 
-  const idx = job ? stepIndex(job.step) : 0;
-  const isError = job?.status === "error";
-  const isDone = job?.status === "done";
+  // Phase 2: poll site audit + analysis runs until both finish (or
+  // time out). Each runs in its own polling loop so a slow audit can't
+  // block an early-completing analysis from being shown as done.
+  useEffect(() => {
+    if (phase !== "waiting_audits") return;
+    const audits = job?.result?.audits_started;
+    if (!audits) return;
+
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const pollRun = async (
+      runId: string,
+      path: "site-audit" | "analysis",
+      setter: (s: RunStatus) => void,
+    ) => {
+      try {
+        const res = await fetch(`/api/${path}/runs/${runId}`, { cache: "no-store" });
+        if (!res.ok) {
+          // 404 from the backend can mean the run was wiped between
+          // kickoff and our first poll — treat as "completed" so the
+          // gate clears rather than spinning forever.
+          if (res.status === 404) {
+            if (!cancelled) setter({ status: "completed", detail: "Resultat hittades inte" });
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = (await res.json().catch(() => ({}))) as {
+          status?: string;
+          error?: string;
+        };
+        if (cancelled) return;
+        const status = (data.status || "running").toLowerCase();
+        if (status === "completed" || status === "success") {
+          setter({ status: "completed" });
+          return;
+        }
+        if (status === "error" || status === "failed") {
+          setter({ status: "error", detail: data.error || "Backend rapporterade fel" });
+          return;
+        }
+        setter({ status: "running" });
+        timers.push(setTimeout(() => void pollRun(runId, path, setter), 4000));
+      } catch (e) {
+        if (cancelled) return;
+        // Transient errors don't abort — try again in 5 s.
+        setter({ status: "running", detail: e instanceof Error ? e.message : "tappade kontakten" });
+        timers.push(setTimeout(() => void pollRun(runId, path, setter), 5000));
+      }
+    };
+
+    if (audits.site_audit_id) {
+      void pollRun(audits.site_audit_id, "site-audit", setSiteAudit);
+    }
+    if (audits.analysis_run_id) {
+      void pollRun(audits.analysis_run_id, "analysis", setAiAnalysis);
+    }
+
+    return () => {
+      cancelled = true;
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [phase, job]);
+
+  // Phase 3: when both audits land in a terminal state (or the wait
+  // window expires), bounce the user to the review page.
+  useEffect(() => {
+    if (phase !== "waiting_audits") return;
+    const startedAtAudits = auditPhaseStartedAt.current;
+    const siteTerminal = siteAudit.status !== "running" && siteAudit.status !== "pending";
+    const aiTerminal = aiAnalysis.status !== "running" && aiAnalysis.status !== "pending";
+    const timedOut = startedAtAudits != null && Date.now() - startedAtAudits > AUDIT_WAIT_TIMEOUT_MS;
+    if ((siteTerminal && aiTerminal) || timedOut) {
+      // Brief pause so the user sees the green checkmarks before we move on.
+      const t = setTimeout(() => {
+        setPhase("done");
+        router.push(`/c/onboarding/review?job=${encodeURIComponent(jobId)}`);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+  }, [phase, siteAudit.status, aiAnalysis.status, jobId, router]);
+
+  const idx = job ? jobStepIndex(job.step) : 0;
+  const isError = phase === "error";
+  const isWaitingAudits = phase === "waiting_audits";
+  const isFinishing = phase === "done";
 
   const elapsedSec = Math.floor((Date.now() - startedAt.current) / 1000);
   const elapsed = `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toString().padStart(2, "0")}s`;
+
+  // Coarse progress: 0-90 driven by job.progress while running, 90-100
+  // driven by audit completion afterwards. Keeps the bar moving so the
+  // user doesn't think things stalled.
+  const auditFraction = (() => {
+    const sDone = siteAudit.status !== "running" && siteAudit.status !== "pending" ? 1 : 0;
+    const aDone = aiAnalysis.status !== "running" && aiAnalysis.status !== "pending" ? 1 : 0;
+    return (sDone + aDone) / 2;
+  })();
+  const progress = isWaitingAudits || isFinishing
+    ? 90 + Math.round(auditFraction * 10)
+    : job?.progress ?? 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -120,7 +264,7 @@ function GeneratingInner() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100">
             {isError ? (
               <AlertCircle className="h-7 w-7 text-red-600" />
-            ) : isDone ? (
+            ) : isFinishing ? (
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             ) : (
               <Loader2 className="h-7 w-7 animate-spin text-orange-600" />
@@ -129,18 +273,22 @@ function GeneratingInner() {
           <h1 className="text-2xl font-bold tracking-tight">
             {isError
               ? "Något gick fel"
-              : isDone
+              : isFinishing
                 ? "Allt klart!"
-                : "Bygger din SAMA-plan"}
+                : isWaitingAudits
+                  ? "Kör analyserna i bakgrunden"
+                  : "Bygger din SAMA-plan"}
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             {isError
               ? "Vi kunde inte slutföra genereringen."
-              : isDone
+              : isFinishing
                 ? "Skickar dig vidare till granskningen…"
-                : "Du kan stänga den här fliken — vi mailar när det är klart om du loggar ut."}
+                : isWaitingAudits
+                  ? "Sajten crawlas och dina AI-frågor körs mot ChatGPT, Claude, Perplexity och Gemini. Vänta kvar — vi släpper in dig så fort allt är klart."
+                  : "Stäng inte fliken — vi behöver hålla den öppen tills planen är på plats."}
           </p>
-          {!isError && !isDone && (
+          {!isError && !isFinishing && (
             <p className="mt-1 text-xs text-slate-400">
               Förfluten tid: {elapsed}
             </p>
@@ -151,20 +299,20 @@ function GeneratingInner() {
           <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full bg-orange-500 transition-all duration-500"
-              style={{ width: `${job?.progress ?? 0}%` }}
+              style={{ width: `${progress}%` }}
             />
           </div>
 
           <ol className="space-y-3">
-            {STEPS.map((s, i) => {
+            {JOB_STEPS.map((s, i) => {
               const Icon = s.icon;
-              const done = isDone || i < idx || (i === idx && job?.progress === 100);
-              const active = !isDone && !isError && i === idx;
+              const stepDone = phase !== "running_job" || i < idx || (i === idx && job?.progress === 100);
+              const active = phase === "running_job" && !isError && i === idx;
               return (
                 <li
                   key={s.key}
                   className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
-                    done
+                    stepDone
                       ? "border-emerald-100 bg-emerald-50/40"
                       : active
                         ? "border-orange-200 bg-orange-50/50"
@@ -173,14 +321,14 @@ function GeneratingInner() {
                 >
                   <div
                     className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-                      done
+                      stepDone
                         ? "bg-emerald-500 text-white"
                         : active
                           ? "bg-orange-500 text-white"
                           : "bg-slate-200 text-slate-400"
                     }`}
                   >
-                    {done ? (
+                    {stepDone ? (
                       <CheckCircle2 className="h-4 w-4" />
                     ) : active ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -191,12 +339,75 @@ function GeneratingInner() {
                   <div className="flex-1">
                     <div
                       className={`text-sm font-medium ${
-                        done ? "text-emerald-900" : active ? "text-orange-900" : "text-slate-500"
+                        stepDone ? "text-emerald-900" : active ? "text-orange-900" : "text-slate-500"
                       }`}
                     >
                       {s.label}
                     </div>
                     <div className="text-xs text-slate-500">{s.sub}</div>
+                  </div>
+                </li>
+              );
+            })}
+
+            {AUDIT_STEPS.map((s) => {
+              const Icon = s.icon;
+              const run = s.key === "site_audit" ? siteAudit : aiAnalysis;
+              const stepDone =
+                phase !== "running_job" &&
+                (run.status === "completed" || run.status === "error");
+              const active = phase !== "running_job" && run.status === "running";
+              return (
+                <li
+                  key={s.key}
+                  className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                    stepDone
+                      ? run.status === "error"
+                        ? "border-amber-200 bg-amber-50/50"
+                        : "border-emerald-100 bg-emerald-50/40"
+                      : active
+                        ? "border-orange-200 bg-orange-50/50"
+                        : "border-slate-100 bg-slate-50/40"
+                  }`}
+                >
+                  <div
+                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+                      stepDone
+                        ? run.status === "error"
+                          ? "bg-amber-500 text-white"
+                          : "bg-emerald-500 text-white"
+                        : active
+                          ? "bg-orange-500 text-white"
+                          : "bg-slate-200 text-slate-400"
+                    }`}
+                  >
+                    {stepDone ? (
+                      run.status === "error" ? (
+                        <AlertCircle className="h-4 w-4" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )
+                    ) : active ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Icon className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div
+                      className={`text-sm font-medium ${
+                        stepDone
+                          ? run.status === "error"
+                            ? "text-amber-900"
+                            : "text-emerald-900"
+                          : active
+                            ? "text-orange-900"
+                            : "text-slate-500"
+                      }`}
+                    >
+                      {s.label}
+                    </div>
+                    <div className="text-xs text-slate-500">{run.detail || s.sub}</div>
                   </div>
                 </li>
               );

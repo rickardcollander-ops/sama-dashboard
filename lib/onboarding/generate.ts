@@ -697,15 +697,25 @@ async function syncToBackend(
   // 1. Create all 30 plan/calendar entries. The backend returns
   // {success, error?} on this route — a 200 with success:false still
   // means the row didn't land, so we have to look past res.ok.
+  //
+  // The backend enforces a unique index on (tenant_id, lower(target_keyword)),
+  // so only the FIRST plan entry per keyword can include it; subsequent
+  // entries targeting the same keyword skip the field (we still record
+  // it in onboarding_result so the review page can show what each post
+  // was about — it's just not pushed to plan_items as a hard key).
+  const sentKeywords = new Set<string>();
   for (const p of plan) {
+    const kwLower = (p.target_keyword || "").trim().toLowerCase();
+    const includeKeyword = kwLower.length > 0 && !sentKeywords.has(kwLower);
+    if (includeKeyword) sentKeywords.add(kwLower);
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           title: p.title,
-          topic: p.angle || p.title,
-          target_keyword: p.target_keyword,
+          topic: p.angle || p.target_keyword || p.title,
+          ...(includeKeyword ? { target_keyword: p.target_keyword } : {}),
           content_type: calendarContentType(p.content_type),
           priority: "medium",
           scheduled_for: new Date(`${p.scheduled_for}T09:00:00.000Z`).toISOString(),
