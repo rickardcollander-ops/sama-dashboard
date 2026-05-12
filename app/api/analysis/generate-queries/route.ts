@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { suggestQueries } from "../_mock";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 
@@ -17,14 +18,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
   if (SAMA_API_URL) {
-    const tenantId = req.headers.get("X-Tenant-ID") || "";
+    const auth = await buildBackendAuth(req, "application/json");
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/generate-queries`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": tenantId,
-        },
+        headers: auth.headers,
         body: JSON.stringify({ count: body.count ?? 10 }),
         signal: AbortSignal.timeout(60_000),
       });

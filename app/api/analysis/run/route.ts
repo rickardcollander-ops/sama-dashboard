@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMockRun } from "../_mock";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import type { AIPlatform } from "@/app/c/analysis/types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -31,16 +32,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (SAMA_API_URL && !forceMock) {
-    const tenantId = req.headers.get("X-Tenant-ID") || "";
+    const auth = await buildBackendAuth(req, "application/json");
     let upstreamStatus = 0;
     let upstreamBodyText = "";
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/run`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": tenantId,
-        },
+        headers: auth.headers,
         // Forward the full body so the backend can override the tenant's
         // stored brand context with whatever the user just typed in.
         body: JSON.stringify({

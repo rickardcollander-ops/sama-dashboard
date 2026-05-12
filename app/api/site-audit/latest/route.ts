@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
@@ -22,7 +23,8 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
  * so callers can render an empty state without parsing error responses.
  */
 export async function GET(req: NextRequest) {
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
 
   // Workspace's configured domain — used to refuse any audit that doesn't
   // belong to this tenant, regardless of what the upstream backend returns.
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (SAMA_API_URL) {
     try {
       const listRes = await fetch(`${SAMA_API_URL}/api/site-audit/runs?limit=1`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(10_000),
       });
       if (listRes.ok) {
@@ -42,11 +44,15 @@ export async function GET(req: NextRequest) {
           runs?: Array<{ id?: string; domain?: string }>;
         };
         const latest = list?.runs?.[0];
-        if (latest?.id && sameDomain(latest.domain, expectedDomain)) {
+        // When expectedDomain isn't known yet, trust the upstream's tenant
+        // scoping instead of hard-skipping.
+        const summaryDomainOk =
+          !expectedDomain || sameDomain(latest?.domain, expectedDomain);
+        if (latest?.id && summaryDomainOk) {
           const detail = await fetch(
             `${SAMA_API_URL}/api/site-audit/runs/${latest.id}`,
             {
-              headers: { "X-Tenant-ID": tenantId },
+              headers: auth.headers,
               signal: AbortSignal.timeout(15_000),
             },
           );
@@ -54,7 +60,9 @@ export async function GET(req: NextRequest) {
             const run = (await detail.json().catch(() => null)) as
               | SiteAuditRun
               | null;
-            if (run && sameDomain(run.domain, expectedDomain)) {
+            const runDomainOk =
+              !expectedDomain || sameDomain(run?.domain, expectedDomain);
+            if (run && runDomainOk) {
               return NextResponse.json({ run });
             }
           }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun, SiteAuditRunSummary } from "@/app/c/analysis/audit-types";
 
@@ -28,7 +29,8 @@ function summarizeSavedRun(run: SiteAuditRun): SiteAuditRunSummary {
  */
 export async function GET(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get("limit") || "20");
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
 
   // Pull the workspace's configured domain so we can drop any upstream rows
   // whose `domain` doesn't match — belt-and-braces against tenant-isolation
@@ -42,15 +44,21 @@ export async function GET(req: NextRequest) {
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/site-audit/runs?limit=${limit}`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(10_000),
       });
       if (upstream.ok) {
         const data = await upstream.json();
         if (Array.isArray(data?.runs)) {
-          backendRuns = (data.runs as SiteAuditRunSummary[]).filter((r) =>
-            sameDomain(r?.domain, expectedDomain),
-          );
+          // Filter by domain only when the workspace has one stored. When
+          // expectedDomain is empty (no X-Tenant-ID forwarded, or settings
+          // not yet saved), trust the upstream's tenant scoping and pass
+          // its rows through rather than silently dropping everything.
+          backendRuns = expectedDomain
+            ? (data.runs as SiteAuditRunSummary[]).filter((r) =>
+                sameDomain(r?.domain, expectedDomain),
+              )
+            : (data.runs as SiteAuditRunSummary[]);
         }
       }
     } catch {

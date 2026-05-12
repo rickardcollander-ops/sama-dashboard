@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Globe, Briefcase, Search, ListTree, PenTool, CalendarCheck, Radar,
   CheckCircle2, AlertCircle, Loader2, MessageSquare, ScanLine,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import { useSite } from "@/lib/hooks/useSite";
 
 interface JobStatus {
   id: string;
@@ -67,6 +68,20 @@ function GeneratingInner() {
   const router = useRouter();
   const params = useSearchParams();
   const jobId = params.get("job") || "";
+  const { effectiveTenantId } = useSite();
+  // Polls hit /api/{site-audit,analysis}/runs/{id}, which forwards to the
+  // SAMA backend with the user's Supabase bearer. Without a site-id header
+  // the dashboard route can't resolve the workspace's domain and used to
+  // return 404 for every completed run; supply the active site so the
+  // route's domain check works as intended.
+  const pollHeaders = useMemo<Record<string, string>>(() => {
+    const h: Record<string, string> = {};
+    if (effectiveTenantId) {
+      h["X-Tenant-ID"] = effectiveTenantId;
+      h["X-Sama-Site-Id"] = effectiveTenantId;
+    }
+    return h;
+  }, [effectiveTenantId]);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("running_job");
   const [pollError, setPollError] = useState<string | null>(null);
@@ -159,7 +174,10 @@ function GeneratingInner() {
       setter: (s: RunStatus) => void,
     ) => {
       try {
-        const res = await fetch(`/api/${path}/runs/${runId}`, { cache: "no-store" });
+        const res = await fetch(`/api/${path}/runs/${runId}`, {
+          cache: "no-store",
+          headers: pollHeaders,
+        });
         if (!res.ok) {
           // 404 from the backend can mean the run was wiped between
           // kickoff and our first poll — treat as "completed" so the
@@ -205,7 +223,7 @@ function GeneratingInner() {
       cancelled = true;
       for (const t of timers) clearTimeout(t);
     };
-  }, [phase, job]);
+  }, [phase, job, pollHeaders]);
 
   // Phase 3: when both audits land in a terminal state (or the wait
   // window expires), bounce the user to the review page.

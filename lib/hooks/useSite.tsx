@@ -226,6 +226,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     // Auto-migrate from user_settings if no sites exist yet (only when looking
     // at the user's own account — never invent sites for an account they joined).
     if ((!data || data.length === 0) && effectiveOwnerId === user?.id) {
+      // maybeSingle so brand-new users (no user_settings row) don't get a
+      // 406 in the console for the expected "no row" case.
       const { data: legacyRow } = await supabase
         .from("user_settings")
         .select("settings")
