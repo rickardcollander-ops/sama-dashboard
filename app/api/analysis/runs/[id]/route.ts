@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
@@ -51,7 +52,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
 
   // Workspace's configured domain — used to refuse a run that doesn't belong
   // to this tenant, regardless of what the upstream backend returns.
@@ -63,7 +65,7 @@ export async function GET(
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/runs/${id}`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(15_000),
       });
       const text = await upstream.text();
@@ -72,8 +74,13 @@ export async function GET(
       if (upstream.ok && body && typeof body === "object") {
         const upstreamDomain = (body as { domain?: string }).domain;
         // Completed runs carry a `domain`; "running" payloads may not — only
-        // enforce on payloads that actually have one.
-        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+        // enforce on payloads that actually have one AND when we know what
+        // domain the workspace expects. An empty expectedDomain means the
+        // route was called before the workspace had a domain stored — fall
+        // back to saved-run lookup instead of hard 404ing valid data.
+        if (upstreamDomain && expectedDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+          const saved = await loadSavedRun(id, tenantId, expectedDomain);
+          if (saved) return NextResponse.json({ ...saved, _source: "saved" });
           return NextResponse.json({ error: "not found" }, { status: 404 });
         }
         (body as Record<string, unknown>)._source = "live";

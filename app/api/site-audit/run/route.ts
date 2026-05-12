@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 
@@ -17,15 +18,12 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req, "application/json");
 
   try {
     const upstream = await fetch(`${SAMA_API_URL}/api/site-audit/run`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-ID": tenantId,
-      },
+      headers: auth.headers,
       body: JSON.stringify({
         domain: body.domain,
         max_pages: body.max_pages,
