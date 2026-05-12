@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ leadId: string }> };
 
 const ALLOWED_CALL_STATUSES = new Set([
-  "new", "called", "callback", "not_interested", "meeting_booked", "converted",
+  "new", "called", "callback", "phone_missing", "not_interested", "meeting_booked", "converted",
 ]);
 
 /** PATCH /api/admin/campaigns/leads/[leadId] — update call status / notes. */

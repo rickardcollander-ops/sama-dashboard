@@ -10,6 +10,7 @@ const ALLOWED_CALL_STATUSES = new Set([
   "new",
   "called",
   "callback",
+  "phone_missing",
   "not_interested",
   "meeting_booked",
   "converted",
