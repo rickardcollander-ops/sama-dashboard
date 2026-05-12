@@ -605,23 +605,33 @@ Submit the brand profile now.`;
  */
 // Headers required for every backend call: tenant context + the user's
 // Supabase bearer (the backend recently migrated to requiring it on top
-// of X-Tenant-ID). Centralised so any future header tweak only happens
-// in one place.
-function backendHeaders(siteId: string, accessToken: string): Record<string, string> {
+// of X-Tenant-ID). X-Sama-Account-Id is also required by content
+// endpoints; for first-run users their account_id equals user.id —
+// matches the fallback in /api/account/list.
+function backendHeaders(
+  siteId: string,
+  accessToken: string,
+  accountId: string,
+): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "X-Tenant-ID": siteId,
     "X-Sama-Site-Id": siteId,
+    "X-Sama-Account-Id": accountId,
     "X-Sama-Intent": "user-action",
     Authorization: `Bearer ${accessToken}`,
   };
 }
 
-async function activateTenant(siteId: string, accessToken: string): Promise<string | undefined> {
+async function activateTenant(
+  siteId: string,
+  accessToken: string,
+  accountId: string,
+): Promise<string | undefined> {
   try {
     const res = await fetch(`${SAMA_BACKEND_URL}/api/tenant/activate`, {
       method: "POST",
-      headers: backendHeaders(siteId, accessToken),
+      headers: backendHeaders(siteId, accessToken, accountId),
       // Body is intentionally empty — the backend reads tenant context
       // from headers and pulls everything else from user_sites settings.
       body: JSON.stringify({}),
@@ -654,6 +664,7 @@ async function activateTenant(siteId: string, accessToken: string): Promise<stri
 async function syncToBackend(
   siteId: string,
   accessToken: string,
+  accountId: string,
   input: OnboardingFormInput,
   plan: PlanEntry[],
   drafts: DraftArticle[],
@@ -681,7 +692,7 @@ async function syncToBackend(
     firstError = `${label}: HTTP ${res.status} ${body.slice(0, 200)}`;
   };
 
-  const headers = backendHeaders(siteId, accessToken);
+  const headers = backendHeaders(siteId, accessToken, accountId);
 
   // 1. Create all 30 plan/calendar entries. The backend returns
   // {success, error?} on this route — a 200 with success:false still
@@ -782,6 +793,7 @@ async function syncToBackend(
 async function kickOffAudits(
   siteId: string,
   accessToken: string,
+  accountId: string,
   input: OnboardingFormInput,
 ): Promise<NonNullable<OnboardingResult["audits_started"]>> {
   const out: NonNullable<OnboardingResult["audits_started"]> = {};
@@ -789,7 +801,7 @@ async function kickOffAudits(
   try {
     const res = await fetch(`${SAMA_BACKEND_URL}/api/site-audit/run`, {
       method: "POST",
-      headers: backendHeaders(siteId, accessToken),
+      headers: backendHeaders(siteId, accessToken, accountId),
       body: JSON.stringify({ domain: input.domain }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -809,7 +821,7 @@ async function kickOffAudits(
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/analysis/run`, {
         method: "POST",
-        headers: backendHeaders(siteId, accessToken),
+        headers: backendHeaders(siteId, accessToken, accountId),
         body: JSON.stringify({
           queries: input.geo_queries,
           platforms: ["chatgpt", "claude", "perplexity", "google_aio"],
@@ -844,6 +856,70 @@ async function kickOffAudits(
  * (and bumps onboarding_completed_at). Service-role client so this works
  * from a background task without a user session cookie.
  */
+/**
+ * Writes the user's form input to user_sites.settings BEFORE the SAMA
+ * backend gets pinged. The backend reads brand context (geo_queries,
+ * domain, brand_name, competitors) from the same row to decide whether
+ * an analysis can run — without this, the AI visibility runner returns
+ * "No queries configured" even when we pass them in the request body.
+ *
+ * Settings already on the row are preserved (we only fill in fields
+ * the user just typed and protect any prior manual edits).
+ */
+async function persistFormInputEarly(
+  admin: SupabaseClient,
+  userId: string,
+  siteId: string,
+  formInput: OnboardingFormInput,
+): Promise<void> {
+  const { data: row } = await admin
+    .from("user_sites")
+    .select("settings")
+    .eq("id", siteId)
+    .maybeSingle();
+  const settings = ((row?.settings as Record<string, unknown>) || {}) as Record<string, unknown>;
+
+  const next = {
+    ...settings,
+    domain: formInput.domain,
+    brand_name: formInput.brand_name || (settings.brand_name as string) || "",
+    brand_description: formInput.brand_description || (settings.brand_description as string) || "",
+    target_audience: formInput.target_audience || (settings.target_audience as string) || "",
+    content_language: formInput.content_language || (settings.content_language as string) || "en",
+    competitors: formInput.competitors.length > 0
+      ? formInput.competitors
+      : (Array.isArray(settings.competitors) ? settings.competitors : []),
+    geo_queries: formInput.geo_queries.length > 0
+      ? formInput.geo_queries
+      : (Array.isArray(settings.geo_queries) ? settings.geo_queries : []),
+    geo_platforms: Array.isArray(settings.geo_platforms) && settings.geo_platforms.length > 0
+      ? settings.geo_platforms
+      : ["ChatGPT", "Perplexity", "Claude", "Google AIO"],
+    brand_color: formInput.brand_color || (settings.brand_color as string) || "",
+    example_article_url:
+      formInput.example_article_url || (settings.example_article_url as string) || "",
+  };
+
+  const siteName =
+    (settings.site_name as string) ||
+    formInput.brand_name?.trim() ||
+    formInput.domain ||
+    "";
+
+  await admin
+    .from("user_sites")
+    .upsert(
+      {
+        id: siteId,
+        user_id: userId,
+        site_name: siteName,
+        settings: next,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
+}
+
 async function saveResultToSite(
   admin: SupabaseClient,
   userId: string,
@@ -942,6 +1018,10 @@ export async function runOnboardingGeneration(opts: {
 }): Promise<void> {
   const { admin, jobId, userId, siteId, input, apiKey, userAccessToken } = opts;
   const job = makeJobUpdater(admin, jobId);
+  // For brand-new users the account_id equals user.id (matches the
+  // fallback at app/api/account/list/route.ts). Content endpoints reject
+  // calls that have a Bearer but no account header.
+  const accountId = userId;
 
   try {
     await job.setStep("analyzing_site");
@@ -989,6 +1069,15 @@ export async function runOnboardingGeneration(opts: {
       plan.find((p) => p.target_keyword.toLowerCase() === secondKw.text.toLowerCase()),
     );
 
+    // Persist the user's form input on the site row BEFORE we touch
+    // the SAMA backend. Several backend endpoints (analysis/run,
+    // tenant/activate, content/plan/calendar) read brand context from
+    // user_sites.settings — the AI visibility runner in particular
+    // returns "No queries configured" when settings.geo_queries is
+    // empty, regardless of what we put in the request body. Saving
+    // now closes that race.
+    await persistFormInputEarly(admin, userId, siteId, enrichedInput);
+
     // All three of the next steps are best-effort. If the SAMA backend
     // is unreachable, we still save the result locally so the review
     // page works — the user can manually re-trigger from Insikter later.
@@ -998,7 +1087,7 @@ export async function runOnboardingGeneration(opts: {
     // haven't been activated yet, which silently dropped every write
     // the first time we shipped this without an activation call.
     await job.setStep("syncing_calendar");
-    const activationError = await activateTenant(siteId, userAccessToken);
+    const activationError = await activateTenant(siteId, userAccessToken, accountId);
     const tenantActivation: OnboardingResult["tenant_activation"] = {
       succeeded: !activationError,
       error: activationError,
@@ -1006,7 +1095,7 @@ export async function runOnboardingGeneration(opts: {
 
     let backendSync: OnboardingResult["backend_sync"];
     try {
-      backendSync = await syncToBackend(siteId, userAccessToken, enrichedInput, plan, [draft1, draft2]);
+      backendSync = await syncToBackend(siteId, userAccessToken, accountId, enrichedInput, plan, [draft1, draft2]);
     } catch (e) {
       backendSync = {
         attempted: true,
@@ -1019,7 +1108,7 @@ export async function runOnboardingGeneration(opts: {
     await job.setStep("starting_audits");
     let auditsStarted: OnboardingResult["audits_started"];
     try {
-      auditsStarted = await kickOffAudits(siteId, userAccessToken, enrichedInput);
+      auditsStarted = await kickOffAudits(siteId, userAccessToken, accountId, enrichedInput);
     } catch (e) {
       auditsStarted = { error: e instanceof Error ? e.message : "audit kickoff failed" };
     }
