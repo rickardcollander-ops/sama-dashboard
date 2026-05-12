@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, FileText, MessageSquare, Mail, BarChart3,
   Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb, GripVertical,
+  Search, CheckCircle2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import CreateContentPlanModal from "@/components/CreateContentPlanModal";
@@ -26,6 +27,14 @@ interface PlanItem {
   content_piece_id: string | null;
   scheduled_for: string | null;
   auto_publish_on_schedule: boolean;
+  // Backend (`/api/content/plan/calendar`) enriches scheduled rows with
+  // the linked content_pieces fields so the calendar can show thumbnails
+  // and score chips for drafts/approved articles in the plan.
+  piece_status?: string | null;
+  piece_title?: string | null;
+  featured_image_url?: string | null;
+  article_score?: number | null;
+  slug?: string | null;
 }
 
 interface PublishedPiece {
@@ -37,6 +46,11 @@ interface PublishedPiece {
   target_url: string | null;
   external_url: string | null;
   created_at: string | null;
+  // Same enrichment as PlanItem: present once migration 044 has been
+  // applied so the calendar can render the cover image and score chip.
+  featured_image_url?: string | null;
+  article_score?: number | null;
+  slug?: string | null;
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -404,6 +418,30 @@ export default function ContentCalendarPage() {
     return () => ctrl.abort();
   }, [effectiveTenantId]);
 
+  // "Finished" articles in the plan: drafts and approved pieces that have
+  // been written but not yet published. The user is supposed to be able to
+  // see these at the top of the calendar with cover image + score chip, the
+  // same way the /c/content list renders polished article rows. Backend
+  // enriches scheduled rows with the linked content_pieces fields so we
+  // don't need a second round-trip here.
+  const finishedArticles = useMemo(() => {
+    return scheduled
+      .filter((it) => {
+        if (!it.content_piece_id) return false;
+        const s = (it.piece_status || "").toLowerCase();
+        // Fall back to plan-item status if backend didn't enrich (e.g.
+        // pre-migration schemas) — plan status "draft" still flags a
+        // piece that has a body but isn't published yet.
+        if (s) return s === "draft" || s === "review" || s === "approved";
+        return it.status === "draft";
+      })
+      .sort((a, b) => {
+        const da = a.scheduled_for ? new Date(a.scheduled_for).getTime() : 0;
+        const db = b.scheduled_for ? new Date(b.scheduled_for).getTime() : 0;
+        return da - db;
+      });
+  }, [scheduled]);
+
   // Bucket items by YYYY-MM-DD so each cell can do an O(1) lookup.
   const itemsByDay = useMemo(() => {
     const map = new Map<string, { plan: PlanItem[]; published: PublishedPiece[] }>();
@@ -591,6 +629,32 @@ export default function ContentCalendarPage() {
           </div>
         )}
 
+        {finishedArticles.length > 0 && (
+          <section className="mb-6 rounded-lg border bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b px-5 py-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <h3 className="text-sm font-semibold text-slate-900">Färdiga artiklar</h3>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  {finishedArticles.length}
+                </span>
+              </div>
+              <p className="hidden text-xs text-slate-500 sm:block">
+                Skrivna men inte publicerade än — klicka för att granska.
+              </p>
+            </div>
+            <ul className="divide-y">
+              {finishedArticles.map((it) => (
+                <FinishedArticleRow
+                  key={it.id}
+                  item={it}
+                  onEdit={() => setEditingItem(it)}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
         <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
@@ -646,6 +710,7 @@ export default function ContentCalendarPage() {
                       {bucket.plan.slice(0, 3).map(it => {
                         const isDragging = draggingId === it.id;
                         const isMoving = reschedulingId === it.id;
+                        const thumb = it.featured_image_url;
                         return (
                         <div
                           key={it.id}
@@ -659,25 +724,56 @@ export default function ContentCalendarPage() {
                           } ${isDragging ? "opacity-40" : ""} ${isMoving ? "animate-pulse" : ""}`}
                         >
                           <GripVertical className="h-2.5 w-2.5 flex-shrink-0 opacity-0 group-hover/chip:opacity-60" />
-                          {typeIcon(it.content_type)}
+                          {thumb ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-3.5 w-3.5 flex-shrink-0 rounded-sm object-cover"
+                            />
+                          ) : (
+                            typeIcon(it.content_type)
+                          )}
                           <span className="truncate">{it.title}</span>
+                          {typeof it.article_score === "number" && (
+                            <span className="ml-auto flex-shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-medium text-slate-600">
+                              {it.article_score}
+                            </span>
+                          )}
                           {it.auto_publish_on_schedule && (
-                            <Rocket className="ml-auto h-2.5 w-2.5 flex-shrink-0" />
+                            <Rocket className={`${typeof it.article_score === "number" ? "" : "ml-auto"} h-2.5 w-2.5 flex-shrink-0`} />
                           )}
                         </div>
                         );
                       })}
-                      {bucket.published.slice(0, 2).map(p => (
+                      {bucket.published.slice(0, 2).map(p => {
+                        const thumb = p.featured_image_url;
+                        return (
                         <button
                           key={p.id}
                           onClick={(e) => handlePieceClick(p, e)}
                           title={p.title}
                           className="flex w-full items-center gap-1 truncate rounded bg-green-100 px-1.5 py-0.5 text-left text-[11px] text-green-700"
                         >
-                          <Rocket className="h-2.5 w-2.5 flex-shrink-0" />
+                          {thumb ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-3.5 w-3.5 flex-shrink-0 rounded-sm object-cover"
+                            />
+                          ) : (
+                            <Rocket className="h-2.5 w-2.5 flex-shrink-0" />
+                          )}
                           <span className="truncate">{p.title}</span>
+                          {typeof p.article_score === "number" && (
+                            <span className="ml-auto flex-shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-medium text-green-800">
+                              {p.article_score}
+                            </span>
+                          )}
                         </button>
-                      ))}
+                        );
+                      })}
                       {bucket.plan.length + bucket.published.length > 5 && (
                         <p className="px-1 text-[10px] text-slate-400">
                           +{bucket.plan.length + bucket.published.length - 5} more
@@ -827,5 +923,156 @@ export default function ContentCalendarPage() {
         }}
       />
     </div>
+  );
+}
+
+// ── Finished-article row ────────────────────────────────────────────────
+// Matches the row layout on /c/content (cover image + score chip + meta) so
+// articles that have been written but not yet published get the same
+// polished treatment when shown at the top of the calendar.
+
+function FinishedArticleRow({
+  item,
+  onEdit,
+}: {
+  item: PlanItem;
+  onEdit: () => void;
+}) {
+  const pieceId = item.content_piece_id;
+  const articleHref = pieceId ? `/c/content/article/${pieceId}` : null;
+  const editorHref = pieceId ? `/c/content/${pieceId}` : null;
+  const score = typeof item.article_score === "number" ? item.article_score : null;
+  const pieceStatus = (item.piece_status || item.status || "").toLowerCase();
+
+  return (
+    <li className="flex items-start gap-4 p-4 hover:bg-slate-50/60">
+      {item.featured_image_url ? (
+        articleHref ? (
+          <Link
+            href={articleHref}
+            className="hidden shrink-0 overflow-hidden rounded-lg border border-slate-200 transition-colors hover:border-orange-300 sm:block"
+            style={{ width: 96 }}
+            title="Öppna artikelvy"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.featured_image_url}
+              alt=""
+              className="h-16 w-24 object-cover"
+            />
+          </Link>
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={item.featured_image_url}
+            alt=""
+            className="hidden h-16 w-24 shrink-0 rounded-lg border border-slate-200 object-cover sm:block"
+          />
+        )
+      ) : (
+        <div
+          className="hidden h-16 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-300 sm:flex"
+          aria-hidden
+        >
+          <FileText className="h-5 w-5" />
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {articleHref ? (
+            <Link
+              href={articleHref}
+              className="truncate font-semibold text-slate-900 hover:text-orange-700"
+            >
+              {item.piece_title || item.title}
+            </Link>
+          ) : (
+            <span className="truncate font-semibold text-slate-900">
+              {item.piece_title || item.title}
+            </span>
+          )}
+          {pieceStatus && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                STATUS_BADGE[pieceStatus] || STATUS_BADGE.draft
+              }`}
+            >
+              {pieceStatus}
+            </span>
+          )}
+          {item.auto_publish_on_schedule && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+              <Rocket className="h-3 w-3" />
+              auto-publish
+            </span>
+          )}
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            {typeIcon(item.content_type)}
+            {item.content_type.replace(/_/g, " ")}
+          </span>
+          {item.target_keyword && (
+            <span className="inline-flex items-center gap-1">
+              <Search className="h-3 w-3" />
+              {item.target_keyword}
+            </span>
+          )}
+          {score !== null && articleHref && (
+            <Link
+              href={articleHref}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                score >= 85
+                  ? "bg-green-50 text-green-700"
+                  : score >= 65
+                  ? "bg-lime-50 text-lime-700"
+                  : score >= 40
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-red-50 text-red-700"
+              }`}
+              title="Öppna artikelvy"
+            >
+              <Sparkles className="h-3 w-3" />
+              Score {score}/100
+            </Link>
+          )}
+          {item.scheduled_for && (
+            <span className="inline-flex items-center gap-1">
+              <CalendarIcon className="h-3 w-3" />
+              {new Date(item.scheduled_for).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {articleHref && (
+          <Link
+            href={articleHref}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Visa
+          </Link>
+        )}
+        {editorHref && (
+          <Link
+            href={editorHref}
+            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            Öppna redigerare
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
+        <button
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          title="Redigera plan-rad"
+        >
+          <Wand2 className="h-3 w-3" />
+        </button>
+      </div>
+    </li>
   );
 }
