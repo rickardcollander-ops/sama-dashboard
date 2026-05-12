@@ -760,7 +760,7 @@ function CustomerContentInner() {
         .from("user_settings")
         .select("settings")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       recipient = data?.settings?.publish_email_recipient || "";
       recipientName = data?.settings?.publish_email_recipient_name || "";
     } catch {

@@ -158,7 +158,7 @@ export default function AIReadabilityCard() {
       {/* History sparkline */}
       {summary.history && summary.history.length > 1 && (
         <div className="mb-6 h-32 -mx-2">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
             <LineChart data={summary.history} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis

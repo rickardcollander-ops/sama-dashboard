@@ -85,7 +85,7 @@ export default function RefineDialog({ open, onClose, tenantId, pieceId, onSaved
           .from("user_settings")
           .select("settings")
           .eq("user_id", tenantId)
-          .single();
+          .maybeSingle();
         const a = data?.settings?.target_audience;
         if (typeof a === "string" && a.trim()) setResolvedAudience(a.trim());
       } catch {

@@ -75,7 +75,7 @@ export async function loadSettings(userId: string): Promise<SettingsJson> {
     .from("user_settings")
     .select("settings")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
   return (data?.settings as SettingsJson) || {};
 }
 
@@ -100,7 +100,7 @@ export async function loadSiteSettings(siteId: string): Promise<SettingsJson> {
     .from("user_sites")
     .select("settings")
     .eq("id", siteId)
-    .single();
+    .maybeSingle();
   return (data?.settings as SettingsJson) || {};
 }
 

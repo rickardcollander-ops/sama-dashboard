@@ -230,7 +230,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         .from("user_settings")
         .select("settings")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (legacyRow?.settings) {
         const s = legacyRow.settings as Record<string, unknown>;

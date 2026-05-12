@@ -84,7 +84,7 @@ export default function CustomerSeoPage() {
     if (!user) return;
     try {
       const supabase = getSupabaseBrowser();
-      const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).single();
+      const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).maybeSingle();
       if (data?.settings) setBrandContext(data.settings);
     } catch {}
     try {
@@ -453,7 +453,7 @@ export default function CustomerSeoPage() {
               </button>
             </div>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <LineChart
                   data={selectedKeyword.position_history}
                   margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
