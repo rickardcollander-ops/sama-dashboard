@@ -12,6 +12,10 @@ interface AnalysisGroupProps {
   statusInputs: AnalysisStatusInputs;
   requirementChecks: RequirementChecks;
   onTrigger: (agent: AgentKey, endpoint: string) => void;
+  // Hide the "Kör nu" run button on each row even when the analysis
+  // has a triggerEndpoint. Used by the recurring group on the
+  // dashboard where users shouldn't trigger checks manually.
+  hideRunButton?: boolean;
 }
 
 export default function AnalysisGroup({
@@ -22,6 +26,7 @@ export default function AnalysisGroup({
   statusInputs,
   requirementChecks,
   onTrigger,
+  hideRunButton,
 }: AnalysisGroupProps) {
   if (items.length === 0) return null;
   return (
@@ -39,6 +44,7 @@ export default function AnalysisGroup({
             statusInputs={statusInputs}
             requirementChecks={requirementChecks}
             onTrigger={onTrigger}
+            hideRunButton={hideRunButton}
           />
         ))}
       </ul>
