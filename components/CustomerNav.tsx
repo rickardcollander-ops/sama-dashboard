@@ -7,6 +7,7 @@ import {
   Activity, BarChart2, Settings, LogOut, Menu, X,
   FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
   Users, Megaphone, Share2,
+  User, CreditCard, Palette, Link2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
@@ -32,6 +33,26 @@ interface SubNavItem {
   labelKey: keyof Translations["subNav"];
   icon?: LucideIcon;
   exact?: boolean;
+}
+
+// Grouped variant: a labelled section that itself contains SubNavItems.
+// Used by /c/settings to split sub-nav into "Personal" vs "Business" etc.
+interface SubNavSection {
+  titleKey: keyof Translations["subNavSections"];
+  items: SubNavItem[];
+}
+
+// A section's sub-nav is either a flat list of items OR a list of
+// grouped sections. Mixing the two within one section isn't supported —
+// the renderer in the JSX below treats the two shapes separately.
+type SubNavConfig = SubNavItem[] | SubNavSection[];
+
+function isGroupedSubNav(config: SubNavConfig): config is SubNavSection[] {
+  return config.length > 0 && "items" in config[0];
+}
+
+function flattenSubNav(config: SubNavConfig): SubNavItem[] {
+  return isGroupedSubNav(config) ? config.flatMap((g) => g.items) : config;
 }
 
 type SectionId = "home" | "insights" | "content" | "tech" | "social" | "ads" | "settings" | "admin";
