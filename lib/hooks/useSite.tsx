@@ -361,6 +361,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     return accounts.find((a) => a.account_id === activeAccountId)?.role ?? null;
   }, [accounts, activeAccountId]);
 
+  // View-as is the source of truth for which account the admin is acting on.
+  // The underlying `activeAccountId` state is kept for the account-switcher UI
+  // (which only lists accounts the admin is a formal member of), but every
+  // downstream consumer needs the impersonated account here — otherwise the
+  // team-invite endpoint (and any other /api/account/* call) would tag the
+  // request with the admin's own account_id and end up writing rows there
+  // instead of into the customer the admin is currently viewing.
+  const effectiveAccountId = viewAs?.userId ?? activeAccountId;
+
   const value = useMemo<SiteContextValue>(
     () => ({
       sites,
@@ -375,7 +384,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       clearViewAs,
       reloadSites: loadSites,
       accounts,
-      activeAccountId,
+      activeAccountId: effectiveAccountId,
       setActiveAccountId,
       myRole,
       reloadAccounts: loadAccounts,
@@ -383,7 +392,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [
       sites, activeSite, loading, setActiveSiteId, tenantClient, effectiveTenantId,
       effectiveOwnerId, viewAs, setViewAs, clearViewAs, loadSites,
-      accounts, activeAccountId, setActiveAccountId, myRole, loadAccounts,
+      accounts, effectiveAccountId, setActiveAccountId, myRole, loadAccounts,
     ]
   );
 

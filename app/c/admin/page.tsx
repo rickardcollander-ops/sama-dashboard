@@ -369,6 +369,9 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
+  const [inviteFor, setInviteFor] = useState<Account | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -435,6 +438,45 @@ export default function AdminPage() {
   const handleViewAs = (acc: Account) => {
     setViewAs({ userId: acc.id, tenantId: acc.id, brandName: acc.brand_name ?? "", domain: acc.domain ?? "" });
     router.push("/c/dashboard");
+  };
+
+  // Direct invite from /c/admin: hits /api/account/members with the
+  // customer's account_id explicitly in the header. Avoids the trap where an
+  // admin invites from /c/settings/team while merely view-as'ing a customer
+  // and the membership row silently gets written to the admin's own account.
+  const handleInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteFor) return;
+    const email = inviteEmail.trim();
+    if (!email || !email.includes("@")) {
+      setError("Valid email required");
+      return;
+    }
+    setInviting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/account/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sama-account-id": inviteFor.id,
+        },
+        body: JSON.stringify({ email }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setNotice(
+        body.invited
+          ? `Invitation sent to ${email} for ${inviteFor.brand_name ?? inviteFor.email ?? "this account"}`
+          : `${email} was added to ${inviteFor.brand_name ?? inviteFor.email ?? "this account"} (already had an account)`,
+      );
+      setInviteFor(null);
+      setInviteEmail("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send invitation");
+    } finally {
+      setInviting(false);
+    }
   };
 
   const handleResetPassword = async (acc: Account) => {
@@ -749,6 +791,14 @@ export default function AdminPage() {
                           <Eye className="h-3 w-3" /> View
                         </button>
                         <button
+                          onClick={() => { setInviteFor(acc); setInviteEmail(""); setError(""); }}
+                          disabled={busy}
+                          title="Invite a team member to this account"
+                          className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                        >
+                          <UserPlus className="h-3 w-3" /> Invite
+                        </button>
+                        <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
                           title="Send password reset"
@@ -781,6 +831,71 @@ export default function AdminPage() {
           with every linked row via ON DELETE CASCADE.
         </p>
       </main>
+
+      {inviteFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Invite team member</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Invites {inviteFor.brand_name ?? inviteFor.email ?? "this account"} — the new
+                  member will get access to all sites under this customer&apos;s account.
+                </p>
+              </div>
+              <button
+                onClick={() => { setInviteFor(null); setInviteEmail(""); }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  autoFocus
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="teammate@company.com"
+                  disabled={inviting}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-50"
+                />
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-700">Account target</div>
+                <div className="mt-0.5 font-mono text-[11px] text-slate-500">{inviteFor.id}</div>
+                {inviteFor.sites.length > 0 && (
+                  <div className="mt-1">
+                    Will get access to: {inviteFor.sites.map((s) => s.brand_name || s.site_name).join(", ")}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setInviteFor(null); setInviteEmail(""); }}
+                  disabled={inviting}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviting || !inviteEmail.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                  Send invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
