@@ -201,7 +201,7 @@ export default function StrategyPage() {
         .from("user_settings")
         .select("settings")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       if (data?.settings) {
         setTeamMembers((data.settings as Record<string, unknown>).team_members as string[] ?? []);
         const goals = (data.settings as Record<string, unknown>).strategy_goals as StrategyGoals | undefined;
@@ -282,7 +282,7 @@ export default function StrategyPage() {
       .from("user_settings")
       .select("settings")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
     const merged = { ...(existing?.settings ?? {}), strategy_goals: goals };
     await getSupabaseBrowser()
       .from("user_settings")

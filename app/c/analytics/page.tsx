@@ -289,7 +289,7 @@ export default function CustomerAnalyticsPage() {
               <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
                 <h2 className="font-semibold text-slate-900 mb-4">Day by day</h2>
                 <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <LineChart data={data.daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis
@@ -326,7 +326,7 @@ export default function CustomerAnalyticsPage() {
                   Clicks and impressions per day from Google Search Console.
                 </p>
                 <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <LineChart data={data.seo_daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis
@@ -360,7 +360,7 @@ export default function CustomerAnalyticsPage() {
               <div className="rounded-xl border bg-white p-6 shadow-sm">
                 <h2 className="font-semibold text-slate-900 mb-4">Per channel</h2>
                 <div className="h-64 mb-6">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <BarChart data={data.channels} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="channel" tick={{ fontSize: 12, fill: "#94a3b8" }} />

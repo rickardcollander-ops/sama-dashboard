@@ -53,7 +53,7 @@ export async function getSiteSettingsAccess(
       .from("user_sites")
       .select("settings")
       .eq("id", siteId)
-      .single();
+      .maybeSingle();
     return {
       settings: (data?.settings as SettingsJson) || {},
       async save(next: SettingsJson) {
@@ -71,7 +71,7 @@ export async function getSiteSettingsAccess(
     .from("user_sites")
     .select("settings")
     .eq("id", siteId)
-    .single();
+    .maybeSingle();
   return {
     settings: (data?.settings as SettingsJson) || {},
     async save(next: SettingsJson) {
