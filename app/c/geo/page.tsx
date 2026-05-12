@@ -273,9 +273,15 @@ export default function CustomerGeoPage() {
   const isLocked =
     !!lockStatus?.locked && !!nextAvailableDate && nextAvailableDate.getTime() > Date.now();
   const queriesStaleDays = daysSince(queriesUpdatedAt);
+  // Only flag the list as stale when we actually know how old it is.
+  // Missing timestamps (queries seeded by the backend or saved before we
+  // started tracking geo_queries_updated_at) would otherwise produce a
+  // false "you haven't set up questions yet" warning even when the user
+  // has a healthy list.
   const queriesAreStale =
     trackedQueries.length > 0 &&
-    (queriesStaleDays === null || queriesStaleDays >= GEO_QUERIES_STALE_DAYS);
+    queriesStaleDays !== null &&
+    queriesStaleDays >= GEO_QUERIES_STALE_DAYS;
 
   if (userLoading || loading) {
     return (
@@ -348,9 +354,7 @@ export default function CustomerGeoPage() {
             <div className="flex-1">
               <p className="font-medium">Granska dina bevakade frågor</p>
               <p className="mt-0.5 text-amber-800">
-                {queriesStaleDays === null
-                  ? "Du har inte uppdaterat din bevakningslista än — kontrollera att frågorna fortfarande är relevanta."
-                  : `Det var ${queriesStaleDays} dagar sedan du senast uppdaterade dina bevakade frågor. Granska gärna listan nedan så att veckokontrollen mäter det du faktiskt bryr dig om.`}
+                {`Det var ${queriesStaleDays} dagar sedan du senast uppdaterade dina bevakade frågor. Granska gärna listan nedan så att veckokontrollen mäter det du faktiskt bryr dig om.`}
               </p>
             </div>
           </div>
