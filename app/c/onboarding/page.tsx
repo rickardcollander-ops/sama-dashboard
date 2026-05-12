@@ -384,7 +384,21 @@ export default function OnboardingPage() {
         <CustomerNav />
       </div>
       <div className="mx-auto max-w-2xl px-4 py-12">
-        <div className="mb-8 text-center">
+        <div className="relative mb-8 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem("sama_onboarding_skipped", "1");
+                clearDraft();
+              }
+              router.push("/c/dashboard");
+            }}
+            className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+          >
+            Hoppa över
+            <X className="h-3 w-3" />
+          </button>
           <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
             <Icon className="h-3.5 w-3.5" />
             Steg {step + 1} av {TOTAL_STEPS}

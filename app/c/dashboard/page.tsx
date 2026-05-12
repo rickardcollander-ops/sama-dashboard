@@ -12,6 +12,7 @@ import PageHeader from "@/components/PageHeader";
 import StatScoreboard, { type ScoreboardStat } from "@/components/StatScoreboard";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { isAdminEmail } from "@/lib/admin";
 import { usePeriod } from "@/lib/hooks/usePeriod";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import { useActiveRuns, type AgentKey } from "@/lib/hooks/useActiveRuns";
@@ -158,7 +159,23 @@ export default function CustomerDashboard() {
   useEffect(() => {
     if (!user || userLoading || sitesLoading) return;
 
-    if (settings.brand_name) {
+    // Admins routinely jump between tenants in view-as mode — including
+    // brand-new ones that don't have a brand_name yet. Forcing them
+    // through the customer onboarding wizard locks them out of their
+    // own dashboard, so we never auto-redirect the operator account.
+    if (isAdminEmail(user.email)) {
+      setCheckedOnboarding(true);
+      return;
+    }
+
+    // Any of these signals means the user has already engaged with
+    // setup at some point — don't push them back into the wizard.
+    const s = settings as Record<string, unknown>;
+    if (
+      settings.brand_name ||
+      settings.domain ||
+      typeof s.onboarding_completed_at === "string"
+    ) {
       setCheckedOnboarding(true);
       return;
     }
@@ -179,7 +196,7 @@ export default function CustomerDashboard() {
     // Has a site row but no brand_name yet — let them in; the in-app
     // checklist + "Kom igång"-bannern guides them to fill it out.
     setCheckedOnboarding(true);
-  }, [user, userLoading, sitesLoading, sites.length, settings.brand_name, router]);
+  }, [user, userLoading, sitesLoading, sites.length, settings, router]);
 
   // Clear cached metrics when the active site changes so we never render the
   // previous site's numbers while the new fetch is still in flight.
