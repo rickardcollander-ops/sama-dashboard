@@ -23,7 +23,7 @@ interface Campaign {
   created_at: string;
 }
 
-type CallStatus = "new" | "called" | "callback" | "not_interested" | "meeting_booked" | "converted";
+type CallStatus = "new" | "called" | "callback" | "not_interested" | "meeting_booked" | "converted" | "phone_missing";
 
 interface Lead {
   id: string;
@@ -53,6 +53,7 @@ const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] 
   { value: "new",            label: "New",            tone: "bg-slate-100 text-slate-700" },
   { value: "called",         label: "Called",         tone: "bg-blue-100 text-blue-700" },
   { value: "callback",       label: "Callback",       tone: "bg-amber-100 text-amber-700" },
+  { value: "phone_missing",  label: "Phone missing",  tone: "bg-orange-100 text-orange-700" },
   { value: "not_interested", label: "Not interested", tone: "bg-rose-100 text-rose-700" },
   { value: "meeting_booked", label: "Meeting booked", tone: "bg-violet-100 text-violet-700" },
   { value: "converted",      label: "Converted",      tone: "bg-emerald-100 text-emerald-700" },
@@ -85,6 +86,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [auditingLeadId, setAuditingLeadId] = useState<string | null>(null);
   const [pdfLeadId, setPdfLeadId] = useState<string | null>(null);
   const [activeNotes, setActiveNotes] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
 
   const load = useCallback(async () => {
     setError("");
@@ -244,6 +246,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const hasRunningLeads = leads.some((l) => l.audit_status === "running");
   const showStop = running || hasRunningLeads;
 
+  const visibleLeads = statusFilter === "all"
+    ? leads
+    : leads.filter((l) => l.call_status === statusFilter);
+
+  const statusCounts = leads.reduce<Record<string, number>>((acc, l) => {
+    acc[l.call_status] = (acc[l.call_status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const buildMailto = (lead: Lead): string => {
+    const to = lead.contact_email ?? "";
+    const company = lead.company_name || lead.domain || "";
+    const subject = `Information om er sajt${company ? ` — ${company}` : ""}`;
+    const greeting = lead.contact_first_name ? `Hej ${lead.contact_first_name},` : "Hej,";
+    const auditLine = lead.audit_score != null
+      ? `Vi körde en snabb AI-läsbarhetsanalys av ${lead.domain || "er sajt"} och fick en score på ${lead.audit_score}/100. Jag tänkte dela vad vi hittade och prata om hur ni kan lyfta synligheten.`
+      : `Vi har tittat på ${lead.domain || "er sajt"} och har några konkreta förbättringar för synlighet i Google och AI-assistenter (ChatGPT, Claude, Perplexity).`;
+    const body = `${greeting}\n\n${auditLine}\n\nFinns det 15 minuter nästa vecka för en kort genomgång?\n\n— SAMA-teamet`;
+    return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
@@ -311,12 +334,48 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-500">Filter:</span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("all")}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              statusFilter === "all"
+                ? "bg-slate-900 text-white"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            All ({leads.length})
+          </button>
+          {CALL_STATUS_OPTIONS.map((o) => {
+            const count = statusCounts[o.value] ?? 0;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatusFilter(o.value)}
+                disabled={count === 0 && statusFilter !== o.value}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  statusFilter === o.value
+                    ? "bg-slate-900 text-white"
+                    : count === 0
+                      ? "bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed"
+                      : `${o.tone} hover:opacity-80`
+                }`}
+              >
+                {o.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
         <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Score</th>
                 <th className="px-4 py-3">Audit</th>
                 <th className="px-4 py-3">Call status</th>
@@ -324,10 +383,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {leads.length === 0 && !fetching && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No leads in this campaign.</td></tr>
+              {visibleLeads.length === 0 && !fetching && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  {leads.length === 0 ? "No leads in this campaign." : "No leads match the selected filter."}
+                </td></tr>
               )}
-              {leads.map((lead) => {
+              {visibleLeads.map((lead) => {
                 const contactName = [lead.contact_first_name, lead.contact_last_name].filter(Boolean).join(" ");
                 const isAuditing = auditingLeadId === lead.id;
                 const isDownloading = pdfLeadId === lead.id;
@@ -362,13 +423,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             {lead.contact_title && (
                               <div className="text-xs text-slate-400">{lead.contact_title}</div>
                             )}
-                            {lead.contact_email && (
-                              <a href={`mailto:${lead.contact_email}`} className="text-xs text-violet-600 hover:underline flex items-center gap-1"><Mail className="h-3 w-3" />{lead.contact_email}</a>
-                            )}
-                            {lead.contact_phone && (
+                            {lead.contact_phone ? (
                               <a href={`tel:${lead.contact_phone}`} className="text-xs text-slate-600 flex items-center gap-1"><Phone className="h-3 w-3" />{lead.contact_phone}</a>
+                            ) : (
+                              <span className="text-xs text-orange-600 flex items-center gap-1"><Phone className="h-3 w-3" /> saknas</span>
                             )}
                           </>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {lead.contact_email ? (
+                          <a
+                            href={`mailto:${lead.contact_email}`}
+                            className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
+                          >
+                            <Mail className="h-3 w-3" />
+                            {lead.contact_email}
+                          </a>
                         ) : (
                           <span className="text-xs text-slate-300">—</span>
                         )}
@@ -438,6 +511,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                               {lead.audit_status === "failed" ? "Retry" : "Audit"}
                             </button>
                           )}
+                          {lead.contact_email && (
+                            <a
+                              href={buildMailto(lead)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                              title="Open a pre-filled email to this lead"
+                            >
+                              <Mail className="h-3 w-3" /> Maila info
+                            </a>
+                          )}
                           <button
                             onClick={() => setActiveNotes(activeNotes === lead.id ? null : lead.id)}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
@@ -449,7 +531,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     </tr>
                     {activeNotes === lead.id && (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={6} className="px-4 py-3">
+                        <td colSpan={7} className="px-4 py-3">
                           <textarea
                             defaultValue={lead.call_notes || ""}
                             onBlur={(e) => {

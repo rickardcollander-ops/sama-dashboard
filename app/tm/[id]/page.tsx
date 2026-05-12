@@ -31,6 +31,7 @@ type CallStatus =
   | "new"
   | "called"
   | "callback"
+  | "phone_missing"
   | "not_interested"
   | "meeting_booked"
   | "converted";
@@ -59,6 +60,7 @@ const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] 
   { value: "new", label: "Ny", tone: "bg-slate-100 text-slate-700" },
   { value: "called", label: "Uppringd", tone: "bg-blue-100 text-blue-700" },
   { value: "callback", label: "Ring tillbaka", tone: "bg-amber-100 text-amber-700" },
+  { value: "phone_missing", label: "Telefonnummer saknas", tone: "bg-orange-100 text-orange-700" },
   { value: "not_interested", label: "Ej intresserad", tone: "bg-rose-100 text-rose-700" },
   { value: "meeting_booked", label: "Möte bokat", tone: "bg-violet-100 text-violet-700" },
   { value: "converted", label: "Konverterad", tone: "bg-emerald-100 text-emerald-700" },
@@ -89,6 +91,28 @@ export default function TmCampaignDetailPage({
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [activeNotes, setActiveNotes] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
+
+  const visibleLeads = statusFilter === "all"
+    ? leads
+    : leads.filter((l) => l.call_status === statusFilter);
+
+  const statusCounts = leads.reduce<Record<string, number>>((acc, l) => {
+    acc[l.call_status] = (acc[l.call_status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const buildMailto = (lead: Lead): string => {
+    const to = lead.contact_email ?? "";
+    const company = lead.company_name || lead.domain || "";
+    const subject = `Information om er sajt${company ? ` — ${company}` : ""}`;
+    const greeting = lead.contact_first_name ? `Hej ${lead.contact_first_name},` : "Hej,";
+    const auditLine = lead.audit_score != null
+      ? `Vi körde en snabb AI-läsbarhetsanalys av ${lead.domain || "er sajt"} och fick en score på ${lead.audit_score}/100. Jag tänkte dela vad vi hittade och prata om hur ni kan lyfta synligheten.`
+      : `Vi har tittat på ${lead.domain || "er sajt"} och har några konkreta förbättringar för synlighet i Google och AI-assistenter (ChatGPT, Claude, Perplexity).`;
+    const body = `${greeting}\n\n${auditLine}\n\nFinns det 15 minuter nästa vecka för en kort genomgång?\n\n— SAMA-teamet`;
+    return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
 
   const load = useCallback(async () => {
     setError("");
@@ -173,26 +197,64 @@ export default function TmCampaignDetailPage({
         </div>
       )}
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-slate-500">Filter:</span>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            statusFilter === "all"
+              ? "bg-slate-900 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Alla ({leads.length})
+        </button>
+        {CALL_STATUS_OPTIONS.map((o) => {
+          const count = statusCounts[o.value] ?? 0;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setStatusFilter(o.value)}
+              disabled={count === 0 && statusFilter !== o.value}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === o.value
+                  ? "bg-slate-900 text-white"
+                  : count === 0
+                    ? "bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed"
+                    : `${o.tone} hover:opacity-80`
+              }`}
+            >
+              {o.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
               <th className="px-4 py-3">Företag</th>
               <th className="px-4 py-3">Kontakt</th>
+              <th className="px-4 py-3">E-post</th>
               <th className="px-4 py-3">Score</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Anteckningar</th>
+              <th className="px-4 py-3 text-right">Åtgärder</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {leads.length === 0 && !fetching && (
+            {visibleLeads.length === 0 && !fetching && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                  Inga leads i denna kampanj.
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  {leads.length === 0
+                    ? "Inga leads i denna kampanj."
+                    : "Inga leads matchar valt filter."}
                 </td>
               </tr>
             )}
-            {leads.map((lead) => {
+            {visibleLeads.map((lead) => {
               const contactName = [lead.contact_first_name, lead.contact_last_name]
                 .filter(Boolean)
                 .join(" ");
@@ -237,16 +299,7 @@ export default function TmCampaignDetailPage({
                           {lead.contact_title && (
                             <div className="text-xs text-slate-400">{lead.contact_title}</div>
                           )}
-                          {lead.contact_email && (
-                            <a
-                              href={`mailto:${lead.contact_email}`}
-                              className="text-xs text-violet-600 hover:underline flex items-center gap-1"
-                            >
-                              <Mail className="h-3 w-3" />
-                              {lead.contact_email}
-                            </a>
-                          )}
-                          {lead.contact_phone && (
+                          {lead.contact_phone ? (
                             <a
                               href={`tel:${lead.contact_phone}`}
                               className="text-xs text-slate-600 flex items-center gap-1"
@@ -254,8 +307,25 @@ export default function TmCampaignDetailPage({
                               <Phone className="h-3 w-3" />
                               {lead.contact_phone}
                             </a>
+                          ) : (
+                            <span className="text-xs text-orange-600 flex items-center gap-1">
+                              <Phone className="h-3 w-3" /> saknas
+                            </span>
                           )}
                         </>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {lead.contact_email ? (
+                        <a
+                          href={`mailto:${lead.contact_email}`}
+                          className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
+                        >
+                          <Mail className="h-3 w-3" />
+                          {lead.contact_email}
+                        </a>
                       ) : (
                         <span className="text-xs text-slate-300">—</span>
                       )}
@@ -289,7 +359,16 @@ export default function TmCampaignDetailPage({
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1.5">
+                        {lead.contact_email && (
+                          <a
+                            href={buildMailto(lead)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                            title="Öppna ett färdigt mail till denna lead"
+                          >
+                            <Mail className="h-3 w-3" /> Maila info
+                          </a>
+                        )}
                         <button
                           onClick={() =>
                             setActiveNotes(activeNotes === lead.id ? null : lead.id)
@@ -303,7 +382,7 @@ export default function TmCampaignDetailPage({
                   </tr>
                   {activeNotes === lead.id && (
                     <tr className="bg-slate-50/60">
-                      <td colSpan={5} className="px-4 py-3">
+                      <td colSpan={6} className="px-4 py-3">
                         <textarea
                           defaultValue={lead.call_notes || ""}
                           onBlur={(e) => {
