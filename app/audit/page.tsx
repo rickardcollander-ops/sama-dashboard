@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Search, Sparkles, ArrowRight, CheckCircle, XCircle,
-  Loader2, Globe, TrendingUp, Bot, LogIn,
+  Loader2, Globe, TrendingUp, Bot,
 } from "lucide-react";
 import PublicAuditResult, { type AuditResult } from "@/components/analysis/PublicAuditResult";
+import MarketingHeader from "@/components/marketing/MarketingHeader";
+import MarketingFooter from "@/components/marketing/MarketingFooter";
 
 export default function AuditLandingPage() {
   const [domain, setDomain] = useState("");
@@ -44,31 +46,7 @@ export default function AuditLandingPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <header className="border-b border-slate-100">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/c/audit" className="flex items-center gap-2 text-base font-bold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <span>Sama AI-audit</span>
-          </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/c/login"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:px-4 sm:py-2"
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in
-            </Link>
-            <Link
-              href="/c/onboarding"
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 sm:px-4 sm:py-2"
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
@@ -178,9 +156,9 @@ export default function AuditLandingPage() {
               <p className="mt-4 text-base text-slate-600">
                 Classic SEO is no longer enough. ChatGPT, Perplexity, Claude and Google AI Overviews
                 choose which companies get mentioned — without sending clicks back to your site.
-                If your website isn't optimised for{" "}
+                If your website isn&apos;t optimised for{" "}
                 <strong className="text-slate-900">Generative Engine Optimization (GEO)</strong>{" "}
-                you're already missing business you don't even know about.
+                you&apos;re already missing business you don&apos;t even know about.
               </p>
               <ul className="mt-6 space-y-3">
                 {[
@@ -250,6 +228,7 @@ export default function AuditLandingPage() {
         </div>
       </section>
 
+      <MarketingFooter />
     </div>
   );
 }

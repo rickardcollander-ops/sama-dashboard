@@ -157,7 +157,7 @@ export const ANALYSES: ReadonlyArray<AnalysisDef> = [
     description: "Crawl + tekniskt och innehållsmässigt djuptest av upp till 200 sidor.",
     category: "deep",
     cadence: "on-demand",
-    href: "/c/audit",
+    href: "/audit",
     requires: ["domain"],
     lastRunSelector: (p) => p.siteAuditLastRun,
   },

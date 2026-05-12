@@ -53,8 +53,8 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: "/audit", destination: "/c/audit", permanent: true },
-      { source: "/audit/r/:id", destination: "/c/audit/r/:id", permanent: true },
+      { source: "/c/audit", destination: "/audit", permanent: true },
+      { source: "/c/audit/r/:id", destination: "/audit/r/:id", permanent: true },
     ];
   },
   async headers() {
