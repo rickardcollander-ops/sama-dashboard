@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -23,6 +24,13 @@ const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 export async function GET(req: NextRequest) {
   const tenantId = req.headers.get("X-Tenant-ID") || "";
 
+  // Workspace's configured domain — used to refuse any audit that doesn't
+  // belong to this tenant, regardless of what the upstream backend returns.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
+
   if (SAMA_API_URL) {
     try {
       const listRes = await fetch(`${SAMA_API_URL}/api/site-audit/runs?limit=1`, {
@@ -31,12 +39,12 @@ export async function GET(req: NextRequest) {
       });
       if (listRes.ok) {
         const list = (await listRes.json().catch(() => ({}))) as {
-          runs?: Array<{ id?: string }>;
+          runs?: Array<{ id?: string; domain?: string }>;
         };
-        const latestId = list?.runs?.[0]?.id;
-        if (latestId) {
+        const latest = list?.runs?.[0];
+        if (latest?.id && sameDomain(latest.domain, expectedDomain)) {
           const detail = await fetch(
-            `${SAMA_API_URL}/api/site-audit/runs/${latestId}`,
+            `${SAMA_API_URL}/api/site-audit/runs/${latest.id}`,
             {
               headers: { "X-Tenant-ID": tenantId },
               signal: AbortSignal.timeout(15_000),
@@ -46,7 +54,9 @@ export async function GET(req: NextRequest) {
             const run = (await detail.json().catch(() => null)) as
               | SiteAuditRun
               | null;
-            if (run) return NextResponse.json({ run });
+            if (run && sameDomain(run.domain, expectedDomain)) {
+              return NextResponse.json({ run });
+            }
           }
         }
       }
@@ -68,8 +78,11 @@ export async function GET(req: NextRequest) {
       const tenantRuns = Array.isArray(byTenant[effectiveTenantId])
         ? byTenant[effectiveTenantId]
         : [];
-      if (tenantRuns.length > 0) {
-        const sorted = [...tenantRuns].sort((a, b) => {
+      // Also filter local saves so previously-poisoned cache entries don't
+      // sneak back in via this endpoint.
+      const safeRuns = tenantRuns.filter((r) => sameDomain(r?.domain, expectedDomain));
+      if (safeRuns.length > 0) {
+        const sorted = [...safeRuns].sort((a, b) => {
           const ta = Date.parse(a.created_at || "") || 0;
           const tb = Date.parse(b.created_at || "") || 0;
           return tb - ta;

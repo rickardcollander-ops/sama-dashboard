@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 
-async function loadLatestSavedRun(tenantId: string): Promise<AnalysisRun | null> {
+async function loadLatestSavedRun(tenantId: string, expectedDomain: string): Promise<AnalysisRun | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
@@ -17,6 +18,8 @@ async function loadLatestSavedRun(tenantId: string): Promise<AnalysisRun | null>
     if (tenantRuns.length === 0 && effectiveTenantId === user.id && Array.isArray(settings.saved_analyses)) {
       tenantRuns = settings.saved_analyses as AnalysisRun[];
     }
+    // Drop poisoned entries whose domain doesn't match the workspace.
+    tenantRuns = tenantRuns.filter((r) => sameDomain(r?.domain, expectedDomain));
     if (tenantRuns.length === 0) return null;
     const sorted = [...tenantRuns].sort((a, b) => {
       const ta = Date.parse(a.created_at || "") || 0;
@@ -45,6 +48,13 @@ async function loadLatestSavedRun(tenantId: string): Promise<AnalysisRun | null>
 export async function GET(req: NextRequest) {
   const tenantId = req.headers.get("X-Tenant-ID") || "";
 
+  // Workspace's configured domain — used to drop any upstream run that
+  // doesn't belong to this tenant.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
+
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/latest`, {
@@ -58,24 +68,33 @@ export async function GET(req: NextRequest) {
         const bodyObj = body as Record<string, unknown>;
         // Backend "empty" sentinel → fall back to the newest local save if any.
         if (bodyObj.status === "empty") {
-          const saved = await loadLatestSavedRun(tenantId);
+          const saved = await loadLatestSavedRun(tenantId, expectedDomain);
           if (saved) return NextResponse.json({ ...saved, _source: "saved" });
+        }
+        // Defense-in-depth: if upstream payload has a domain, it must match
+        // the workspace. Synthetic / status-only payloads without a domain
+        // pass through (they don't carry tenant-leakable findings).
+        const upstreamDomain = bodyObj.domain as string | undefined;
+        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+          const saved = await loadLatestSavedRun(tenantId, expectedDomain);
+          if (saved) return NextResponse.json({ ...saved, _source: "saved" });
+          return NextResponse.json({ status: "empty" });
         }
         bodyObj._source = bodyObj.synthetic ? "synthetic" : "live";
         return NextResponse.json(bodyObj, { status: upstream.status });
       }
-      const saved = await loadLatestSavedRun(tenantId);
+      const saved = await loadLatestSavedRun(tenantId, expectedDomain);
       if (saved) return NextResponse.json({ ...saved, _source: "saved" });
       return NextResponse.json(body, { status: upstream.status });
     } catch (e) {
-      const saved = await loadLatestSavedRun(tenantId);
+      const saved = await loadLatestSavedRun(tenantId, expectedDomain);
       if (saved) return NextResponse.json({ ...saved, _source: "saved" });
       const msg = e instanceof Error ? e.message : "Upstream unavailable";
       return NextResponse.json({ error: `Upstream unavailable: ${msg}` }, { status: 502 });
     }
   }
 
-  const saved = await loadLatestSavedRun(tenantId);
+  const saved = await loadLatestSavedRun(tenantId, expectedDomain);
   if (saved) return NextResponse.json({ ...saved, _source: "saved" });
   return NextResponse.json(
     { error: "Backend not configured (NEXT_PUBLIC_SAMA_API_URL)" },

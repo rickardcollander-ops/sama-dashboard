@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 
-async function loadSavedRun(id: string, tenantId: string): Promise<AnalysisRun | null> {
+async function loadSavedRun(id: string, tenantId: string, expectedDomain: string): Promise<AnalysisRun | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
@@ -15,14 +16,18 @@ async function loadSavedRun(id: string, tenantId: string): Promise<AnalysisRun |
       : {}) as Record<string, AnalysisRun[]>;
     const tenantRuns = Array.isArray(byTenant[effectiveTenantId]) ? byTenant[effectiveTenantId] : [];
     const match = tenantRuns.find((r) => r && r.id === id);
-    if (match) return match;
+    if (match) {
+      // Drop entries whose domain doesn't match the workspace.
+      if (!sameDomain(match.domain, expectedDomain)) return null;
+      return match;
+    }
 
     // Legacy compat: pre-migration saves lived in a flat user_settings.saved_analyses
     // list. Only surface them on the user's own primary site so other customers/workspaces
     // don't see another tenant's analyses leak through the fallback.
     if (effectiveTenantId === user.id && Array.isArray(settings.saved_analyses)) {
       const legacy = (settings.saved_analyses as AnalysisRun[]).find((r) => r && r.id === id);
-      if (legacy) return legacy;
+      if (legacy && sameDomain(legacy.domain, expectedDomain)) return legacy;
     }
     return null;
   } catch {
@@ -48,6 +53,13 @@ export async function GET(
   const { id } = await params;
   const tenantId = req.headers.get("X-Tenant-ID") || "";
 
+  // Workspace's configured domain — used to refuse a run that doesn't belong
+  // to this tenant, regardless of what the upstream backend returns.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
+
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/runs/${id}`, {
@@ -58,21 +70,27 @@ export async function GET(
       let body: unknown = {};
       try { body = JSON.parse(text); } catch { body = { error: "non-JSON response", upstream_body: text.slice(0, 500) }; }
       if (upstream.ok && body && typeof body === "object") {
+        const upstreamDomain = (body as { domain?: string }).domain;
+        // Completed runs carry a `domain`; "running" payloads may not — only
+        // enforce on payloads that actually have one.
+        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+          return NextResponse.json({ error: "not found" }, { status: 404 });
+        }
         (body as Record<string, unknown>)._source = "live";
         return NextResponse.json(body, { status: upstream.status });
       }
-      const saved = await loadSavedRun(id, tenantId);
+      const saved = await loadSavedRun(id, tenantId, expectedDomain);
       if (saved) return NextResponse.json({ ...saved, _source: "saved" });
       return NextResponse.json(body, { status: upstream.status });
     } catch (e) {
-      const saved = await loadSavedRun(id, tenantId);
+      const saved = await loadSavedRun(id, tenantId, expectedDomain);
       if (saved) return NextResponse.json({ ...saved, _source: "saved" });
       const msg = e instanceof Error ? e.message : "Upstream unavailable";
       return NextResponse.json({ error: `Upstream unavailable: ${msg}` }, { status: 502 });
     }
   }
 
-  const saved = await loadSavedRun(id, tenantId);
+  const saved = await loadSavedRun(id, tenantId, expectedDomain);
   if (saved) return NextResponse.json({ ...saved, _source: "saved" });
   return NextResponse.json(
     { error: "Backend not configured (NEXT_PUBLIC_SAMA_API_URL)" },

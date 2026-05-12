@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings, saveSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings, saveSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
 export const runtime = "nodejs";
@@ -24,6 +25,19 @@ export async function POST(req: NextRequest) {
   }
 
   const tenantId = req.headers.get("X-Tenant-ID") || user.id;
+
+  // Refuse to cache a run that doesn't belong to the workspace it's being
+  // saved under. The browser sets the X-Tenant-ID header from useSite(), but
+  // an upstream-backend mixup could still hand us a foreign run — saving it
+  // would persist the leak even after the upstream is fixed.
+  const siteSettings = await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>));
+  const expectedDomain = (siteSettings.domain as string) || "";
+  if (!sameDomain(run.domain, expectedDomain)) {
+    return NextResponse.json(
+      { error: "run does not belong to this workspace" },
+      { status: 403 },
+    );
+  }
 
   const settings = await loadSettings(user.id);
   const byTenant = (settings.saved_site_audits_by_tenant && typeof settings.saved_site_audits_by_tenant === "object"
