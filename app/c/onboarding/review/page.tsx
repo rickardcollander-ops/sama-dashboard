@@ -49,6 +49,10 @@ interface OnboardingResult {
     analysis_run_id?: string;
     error?: string;
   };
+  tenant_activation?: {
+    succeeded: boolean;
+    error?: string;
+  };
 }
 
 function PriorityBadge({ p }: { p?: string }) {
@@ -171,8 +175,29 @@ function ReviewInner() {
           <SummaryCard icon={FileText} label="Färdiga utkast" value={result.drafts.length} accent="bg-emerald-50 text-emerald-700" />
         </div>
 
-        {(result.backend_sync || result.audits_started) && (
+        {(result.tenant_activation || result.backend_sync || result.audits_started) && (
           <div className="mt-6 space-y-2">
+            {result.tenant_activation && (
+              <div
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+                  result.tenant_activation.succeeded
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-red-200 bg-red-50 text-red-800"
+                }`}
+              >
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {result.tenant_activation.succeeded
+                      ? "Tenanten är aktiverad på SAMA-backenden"
+                      : "Tenant-aktivering misslyckades — content och analyser kunde inte sparas"}
+                  </div>
+                  {result.tenant_activation.error && (
+                    <div className="mt-1 text-xs opacity-80">{result.tenant_activation.error}</div>
+                  )}
+                </div>
+              </div>
+            )}
             {result.backend_sync && (
               <div
                 className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
