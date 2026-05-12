@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
 
-async function loadSavedAudit(id: string, tenantId: string): Promise<SiteAuditRun | null> {
+async function loadSavedAudit(id: string, tenantId: string, expectedDomain: string): Promise<SiteAuditRun | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
@@ -15,7 +16,12 @@ async function loadSavedAudit(id: string, tenantId: string): Promise<SiteAuditRu
       : {}) as Record<string, SiteAuditRun[]>;
     const tenantRuns = Array.isArray(byTenant[effectiveTenantId]) ? byTenant[effectiveTenantId] : [];
     const match = tenantRuns.find((r) => r && r.id === id);
-    return match || null;
+    if (!match) return null;
+    // Drop any entry whose domain doesn't match the workspace's configured
+    // domain — older entries from before the domain-match guard could
+    // otherwise still surface here.
+    if (!sameDomain(match.domain, expectedDomain)) return null;
+    return match;
   } catch {
     return null;
   }
@@ -39,6 +45,13 @@ export async function GET(
   const { id } = await params;
   const tenantId = req.headers.get("X-Tenant-ID") || "";
 
+  // Workspace's configured domain — used to refuse audits that don't belong
+  // to this tenant, even if the upstream backend returns one.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
+
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/site-audit/runs/${id}`, {
@@ -47,19 +60,25 @@ export async function GET(
       });
       const body = await upstream.json().catch(() => ({}));
       if (upstream.ok && body && typeof body === "object") {
+        // Completed runs carry a `domain`; "running" status payloads may not
+        // yet — only enforce the check on terminal payloads with a domain.
+        const upstreamDomain = (body as { domain?: string }).domain;
+        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+          return NextResponse.json({ error: "not found" }, { status: 404 });
+        }
         return NextResponse.json(body, { status: upstream.status });
       }
-      const saved = await loadSavedAudit(id, tenantId);
+      const saved = await loadSavedAudit(id, tenantId, expectedDomain);
       if (saved) return NextResponse.json(saved);
       return NextResponse.json(body, { status: upstream.status });
     } catch {
-      const saved = await loadSavedAudit(id, tenantId);
+      const saved = await loadSavedAudit(id, tenantId, expectedDomain);
       if (saved) return NextResponse.json(saved);
       return NextResponse.json({ error: "Upstream unavailable" }, { status: 502 });
     }
   }
 
-  const saved = await loadSavedAudit(id, tenantId);
+  const saved = await loadSavedAudit(id, tenantId, expectedDomain);
   if (saved) return NextResponse.json(saved);
   return NextResponse.json({ error: "Backend not configured" }, { status: 503 });
 }

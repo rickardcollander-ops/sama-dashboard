@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun, SiteAuditRunSummary } from "@/app/c/analysis/audit-types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -29,6 +30,14 @@ export async function GET(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get("limit") || "20");
   const tenantId = req.headers.get("X-Tenant-ID") || "";
 
+  // Pull the workspace's configured domain so we can drop any upstream rows
+  // whose `domain` doesn't match — belt-and-braces against tenant-isolation
+  // bugs in the upstream agent backend.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
+
   let backendRuns: SiteAuditRunSummary[] = [];
   if (SAMA_API_URL) {
     try {
@@ -38,7 +47,11 @@ export async function GET(req: NextRequest) {
       });
       if (upstream.ok) {
         const data = await upstream.json();
-        if (Array.isArray(data?.runs)) backendRuns = data.runs as SiteAuditRunSummary[];
+        if (Array.isArray(data?.runs)) {
+          backendRuns = (data.runs as SiteAuditRunSummary[]).filter((r) =>
+            sameDomain(r?.domain, expectedDomain),
+          );
+        }
       }
     } catch {
       // fall through — local saves still get returned below
@@ -55,7 +68,9 @@ export async function GET(req: NextRequest) {
         ? settings.saved_site_audits_by_tenant
         : {}) as Record<string, SiteAuditRun[]>;
       const saved = Array.isArray(byTenant[effectiveTenantId]) ? byTenant[effectiveTenantId] : [];
-      savedRuns = saved.map(summarizeSavedRun);
+      // Also filter local saves — any poisoned entries from before the
+      // domain-match guard was added must not surface here.
+      savedRuns = saved.filter((r) => sameDomain(r?.domain, expectedDomain)).map(summarizeSavedRun);
     }
   } catch {
     // unauthenticated or settings unreadable — skip local merge
