@@ -87,6 +87,19 @@ export interface SiteAuditPage {
   h2_texts?: string[];
   /** Presence map for the security headers we surface. */
   security_headers?: Record<string, boolean>;
+  /**
+   * Raw signals retained so the tech agent can quote the customer's actual
+   * current code in suggestions. All optional — older runs that predate
+   * the capture won't have them populated.
+   */
+  og_tags?: Record<string, string>;
+  jsonld_blocks?: string[];
+  head_html_excerpt?: string | null;
+  viewport_content?: string | null;
+  html_lang?: string | null;
+  hreflang_alternates?: { lang: string; href: string }[];
+  /** First ~1.5k chars of body text — used for keyword + tech context. */
+  body_text_sample?: string | null;
   issues: string[];
 }
 
@@ -210,6 +223,9 @@ export interface SiteAuditRun {
   recommendation_groups?: Partial<Record<RecommendationGroup, SiteAuditRecommendation[]>>;
   /** Keyword extraction + suggestions to grow organic + AI traffic. */
   keyword_opportunities?: KeywordOpportunities | null;
+  /** Raw site-level signals retained for the tech agent. */
+  robots_txt_content?: string | null;
+  sitemap_sample?: string[];
   created_at?: string;
   error?: string;
 }

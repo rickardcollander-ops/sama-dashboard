@@ -1,21 +1,30 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Code2, Loader2, Sparkles, AlertCircle, X, CheckCircle, ExternalLink,
-  Github, ArrowRight, Settings, AlertTriangle, Info, Wrench, Copy, Check,
+  Github, ArrowRight, Settings, AlertTriangle, Info, Wrench,
   FileDown, Eye,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import CodeBlock, { type CodeBlockLanguage } from "@/components/tech/CodeBlock";
 
 interface TechSuggestion {
   title: string;
   description: string;
-  file_hint?: string;
-  change_type?: "edit" | "create";
+  rationale?: string | null;
+  target_url?: string | null;
+  file_hint?: string | null;
+  change_type?: "edit" | "create" | "delete";
+  language?: CodeBlockLanguage;
+  current_snippet?: string | null;
+  suggested_snippet?: string | null;
+  finding_ref?: string | null;
+  impact?: "low" | "medium" | "high" | null;
+  effort?: "low" | "medium" | "high" | null;
 }
 
 interface FileChange {
@@ -28,6 +37,13 @@ interface PreviewResult {
   description: string;
   files: FileChange[];
   summary: string;
+  // Echo of the snippet that produced this preview, when applicable —
+  // exposed in the PDF so the customer's developer sees the before state
+  // alongside the new file content.
+  current_snippet?: string | null;
+  suggested_snippet?: string | null;
+  target_url?: string | null;
+  language?: CodeBlockLanguage;
 }
 
 interface ExecuteResult {
@@ -47,7 +63,29 @@ interface AuditFinding {
   severity: "critical" | "warning" | "info";
   category?: string;
   description?: string;
+  affected_urls?: string[];
+  how_to_fix?: string | null;
 }
+
+interface SuggestResponse {
+  suggestions?: TechSuggestion[];
+  github_connected?: boolean;
+  degraded?: boolean;
+  audit_id?: string | null;
+  error?: string;
+}
+
+const IMPACT_TONE: Record<NonNullable<TechSuggestion["impact"]>, string> = {
+  high: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  medium: "bg-amber-50 text-amber-700 border border-amber-200",
+  low: "bg-slate-50 text-slate-600 border border-slate-200",
+};
+
+const EFFORT_TONE: Record<NonNullable<TechSuggestion["effort"]>, string> = {
+  low: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  medium: "bg-amber-50 text-amber-700 border border-amber-200",
+  high: "bg-rose-50 text-rose-700 border border-rose-200",
+};
 
 export default function TechAgentPage() {
   const { user, loading: userLoading } = useUser();
@@ -57,8 +95,10 @@ export default function TechAgentPage() {
   const [suggestions, setSuggestions] = useState<TechSuggestion[]>([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(false);
 
   const [auditFindings, setAuditFindings] = useState<AuditFinding[]>([]);
+  const [auditId, setAuditId] = useState<string | null>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
   const [pending, setPending] = useState<TechSuggestion | null>(null);
@@ -71,7 +111,6 @@ export default function TechAgentPage() {
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
   // PDF export: accumulate previewed items
   const [exportItems, setExportItems] = useState<PreviewResult[]>([]);
@@ -110,10 +149,12 @@ export default function TechAgentPage() {
       });
       if (res.ok) {
         const data = (await res.json()) as {
-          run?: { findings?: AuditFinding[] };
+          run?: { id?: string; findings?: AuditFinding[] };
           findings?: AuditFinding[];
+          id?: string;
         };
         setAuditFindings(data?.run?.findings || data?.findings || []);
+        setAuditId(data?.run?.id || data?.id || null);
       }
     } catch {
       // no audit data yet
@@ -125,11 +166,17 @@ export default function TechAgentPage() {
     setLoadingSuggest(true);
     setError(null);
     try {
-      const res = await tenantClient.post<{ suggestions?: TechSuggestion[] }>(
-        "/api/tech/suggest", {}
+      const res = await tenantClient.post<SuggestResponse>(
+        "/api/tech/suggest",
+        // Anchor the prompt to the audit run we just loaded so Claude can
+        // quote real page contents instead of inventing brand-themed advice.
+        auditId ? { audit_id: auditId } : {},
       );
       setSuggestions(res.suggestions || []);
-      if ((res.suggestions || []).length === 0) setError("No suggestions returned. Please try again.");
+      setDegraded(Boolean(res.degraded));
+      if ((res.suggestions || []).length === 0) {
+        setError(res.error || "No suggestions returned. Please try again.");
+      }
     } catch (err: any) {
       setError(err?.message || "Could not fetch suggestions.");
     }
@@ -144,8 +191,14 @@ export default function TechAgentPage() {
       const res = await tenantClient.post<ExecuteResult>("/api/tech/execute", {
         title: pending.title,
         description: pending.description,
-        file_hint: pending.file_hint,
+        file_hint: pending.file_hint || undefined,
         change_type: pending.change_type,
+        // Forwarding these lets the backend splice the snippet into the
+        // existing file deterministically — no second Claude call.
+        target_url: pending.target_url || undefined,
+        language: pending.language,
+        current_snippet: pending.current_snippet || undefined,
+        suggested_snippet: pending.suggested_snippet || undefined,
       });
       setResults((prev) => [res, ...prev]);
       setSuggestions((prev) => prev.filter((s) => s !== pending));
@@ -165,13 +218,25 @@ export default function TechAgentPage() {
       const res = await tenantClient.post<PreviewResult>("/api/tech/preview", {
         title: s.title,
         description: s.description,
-        file_hint: s.file_hint,
+        file_hint: s.file_hint || undefined,
         change_type: s.change_type,
+        target_url: s.target_url || undefined,
+        language: s.language,
+        current_snippet: s.current_snippet || undefined,
+        suggested_snippet: s.suggested_snippet || undefined,
       });
-      setPreviewResult(res);
-      // Add to export list if not already there
+      // Backend doesn't echo the snippets back, so attach them client-side
+      // so the PDF export can show the before/after pair.
+      const enriched: PreviewResult = {
+        ...res,
+        current_snippet: s.current_snippet ?? null,
+        suggested_snippet: s.suggested_snippet ?? null,
+        target_url: s.target_url ?? null,
+        language: s.language,
+      };
+      setPreviewResult(enriched);
       setExportItems((prev) =>
-        prev.find((i) => i.title === res.title) ? prev : [...prev, res]
+        prev.find((i) => i.title === enriched.title) ? prev : [...prev, enriched]
       );
     } catch (err: any) {
       setPreviewError(err?.message || "Could not generate preview.");
@@ -179,16 +244,14 @@ export default function TechAgentPage() {
     setLoadingPreview(false);
   };
 
-  const copyToClipboard = async (text: string, path: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedPath(path);
-    setTimeout(() => setCopiedPath(null), 2000);
-  };
-
   const sendFindingToAgent = (finding: AuditFinding) => {
+    // Promote the audit finding into a suggestion shell so the existing
+    // execute/preview flow can pick it up. The backend will splice in
+    // the how_to_fix template when generating the file change.
     const s: TechSuggestion = {
       title: finding.title,
-      description: finding.description || finding.title,
+      description: finding.description || finding.how_to_fix || finding.title,
+      target_url: finding.affected_urls?.[0] ?? null,
     };
     if (ghStatus?.connected) {
       setPending(s);
@@ -264,9 +327,42 @@ export default function TechAgentPage() {
             <h2 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "0.25rem" }}>
               {i + 1}. {item.title}
             </h2>
-            <p style={{ color: "#475569", marginBottom: "1rem", fontSize: "0.875rem" }}>
+            <p style={{ color: "#475569", marginBottom: "0.5rem", fontSize: "0.875rem" }}>
               {item.description}
             </p>
+            {item.target_url && (
+              <p style={{ color: "#7c3aed", marginBottom: "1rem", fontSize: "0.75rem" }}>
+                Page: {item.target_url}
+              </p>
+            )}
+            {item.current_snippet && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <p style={{ fontWeight: 600, fontSize: "0.75rem", color: "#475569", marginBottom: "0.25rem" }}>
+                  Before (current code)
+                </p>
+                <pre style={{
+                  background: "#fff1f2", border: "1px solid #fecdd3",
+                  borderRadius: "0.375rem", padding: "0.75rem",
+                  fontSize: "0.7rem", whiteSpace: "pre-wrap", wordBreak: "break-all",
+                }}>
+                  {item.current_snippet}
+                </pre>
+              </div>
+            )}
+            {item.suggested_snippet && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <p style={{ fontWeight: 600, fontSize: "0.75rem", color: "#065f46", marginBottom: "0.25rem" }}>
+                  After (paste this)
+                </p>
+                <pre style={{
+                  background: "#ecfdf5", border: "1px solid #a7f3d0",
+                  borderRadius: "0.375rem", padding: "0.75rem",
+                  fontSize: "0.7rem", whiteSpace: "pre-wrap", wordBreak: "break-all",
+                }}>
+                  {item.suggested_snippet}
+                </pre>
+              </div>
+            )}
             {item.files.map((f, fi) => (
               <div key={fi} style={{ marginBottom: "1rem" }}>
                 <p style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -356,6 +452,22 @@ export default function TechAgentPage() {
                 Connected to <span className="font-mono font-semibold">{ghStatus.repo}</span>
                 {ghStatus.branch && <> · branch <span className="font-mono">{ghStatus.branch}</span></>}
               </div>
+            </div>
+          )}
+
+          {/* Degraded banner — surfaces when /suggest couldn't ground itself
+              against an audit run. The new onboarding flow always seeds one
+              so this is a rare-but-possible state. */}
+          {degraded && suggestions.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-800 flex items-start gap-2">
+              <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>
+                These suggestions are generic — we couldn't find a recent site audit to ground them.{" "}
+                <Link href="/c/analysis" className="font-semibold underline hover:text-amber-900">
+                  Run a site analysis
+                </Link>{" "}
+                for site-specific suggestions with paste-ready code.
+              </span>
             </div>
           )}
 
@@ -457,39 +569,13 @@ export default function TechAgentPage() {
               </h2>
               <div className="space-y-3">
                 {suggestions.map((s, idx) => (
-                  <div key={idx} className="rounded-xl border bg-white p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold uppercase text-slate-700">
-                            {s.change_type === "create" ? "Create file" : "Edit"}
-                          </span>
-                          {s.file_hint && (
-                            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{s.file_hint}</code>
-                          )}
-                        </div>
-                        <p className="font-semibold text-slate-900">{s.title}</p>
-                        <p className="text-sm text-slate-600 mt-1">{s.description}</p>
-                      </div>
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        <button
-                          onClick={() => previewSuggestion(s)}
-                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Show code
-                        </button>
-                        {ghStatus?.connected && (
-                          <button
-                            onClick={() => setPending(s)}
-                            className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors"
-                          >
-                            Create PR
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <SuggestionCard
+                    key={idx}
+                    suggestion={s}
+                    githubConnected={!!ghStatus?.connected}
+                    onPreview={() => previewSuggestion(s)}
+                    onCreatePR={() => setPending(s)}
+                  />
                 ))}
               </div>
             </div>
@@ -515,6 +601,9 @@ export default function TechAgentPage() {
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 mb-4">
                 <p className="font-semibold text-slate-900 text-sm">{pending.title}</p>
                 <p className="text-xs text-slate-600 mt-1">{pending.description}</p>
+                {pending.target_url && (
+                  <p className="mt-2 text-xs text-violet-600 break-all">{pending.target_url}</p>
+                )}
                 {pending.file_hint && <p className="text-xs text-slate-500 mt-2 font-mono">{pending.file_hint}</p>}
               </div>
               <p className="text-sm text-slate-600 mb-4">
@@ -553,6 +642,13 @@ export default function TechAgentPage() {
                     {previewing.title}
                   </h3>
                   <p className="text-sm text-slate-500 mt-0.5">{previewing.description}</p>
+                  {previewing.target_url && (
+                    <a href={previewing.target_url} target="_blank" rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-xs text-violet-600 hover:underline break-all">
+                      {previewing.target_url}
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    </a>
+                  )}
                 </div>
                 <button onClick={() => setPreviewing(null)} className="ml-4 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex-shrink-0">
                   <X className="h-5 w-5" />
@@ -560,7 +656,7 @@ export default function TechAgentPage() {
               </div>
 
               {/* Modal body */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {loadingPreview && (
                   <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -572,20 +668,40 @@ export default function TechAgentPage() {
                     <AlertCircle className="h-4 w-4 flex-shrink-0" />{previewError}
                   </div>
                 )}
+                {previewing.current_snippet && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-rose-700">Current code</p>
+                    <CodeBlock
+                      code={previewing.current_snippet}
+                      language={previewing.language}
+                      copyKey="preview-current"
+                      tone="danger"
+                    />
+                  </div>
+                )}
+                {previewing.suggested_snippet && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">Replace with</p>
+                    <CodeBlock
+                      code={previewing.suggested_snippet}
+                      language={previewing.language}
+                      copyKey="preview-suggested"
+                      tone="success"
+                    />
+                  </div>
+                )}
                 {previewResult && previewResult.files.map((f, i) => (
-                  <div key={i} className={i > 0 ? "mt-6" : ""}>
-                    <div className="flex items-center justify-between mb-2">
-                      <code className="text-xs font-mono text-slate-600 bg-slate-100 rounded px-2 py-1">{f.path}</code>
-                      <button
-                        onClick={() => copyToClipboard(f.content, f.path)}
-                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-                      >
-                        {copiedPath === f.path ? <><Check className="h-3.5 w-3.5 text-emerald-500" />Copied!</> : <><Copy className="h-3.5 w-3.5" />Copy</>}
-                      </button>
-                    </div>
-                    <pre className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all leading-relaxed text-slate-800 max-h-96">
-                      {f.content}
-                    </pre>
+                  <div key={i}>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                      Full file
+                    </p>
+                    <CodeBlock
+                      code={f.content}
+                      label={f.path}
+                      language={inferLanguage(f.path)}
+                      copyKey={`preview-file-${i}`}
+                      maxHeightClass="max-h-96"
+                    />
                   </div>
                 ))}
               </div>
@@ -623,4 +739,156 @@ export default function TechAgentPage() {
       )}
     </>
   );
+}
+
+/**
+ * Single suggestion row. Pulled out so the surrounding page logic stays
+ * readable — each card is a richer block now (URL pill, impact/effort
+ * badges, collapsible before/after snippets) than the old title-only design.
+ */
+function SuggestionCard({
+  suggestion,
+  githubConnected,
+  onPreview,
+  onCreatePR,
+}: {
+  suggestion: TechSuggestion;
+  githubConnected: boolean;
+  onPreview: () => void;
+  onCreatePR: () => void;
+}) {
+  const s = suggestion;
+  const hasSnippets = !!(s.current_snippet || s.suggested_snippet);
+  return (
+    <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="text-xs font-semibold uppercase text-slate-700">
+              {s.change_type === "create" ? "Create file" : s.change_type === "delete" ? "Delete" : "Edit"}
+            </span>
+            {s.file_hint && (
+              <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{s.file_hint}</code>
+            )}
+            {s.target_url && (
+              <a
+                href={s.target_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 hover:bg-violet-100 max-w-xs truncate"
+                title={s.target_url}
+              >
+                {prettyUrl(s.target_url)}
+                <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              </a>
+            )}
+            {s.impact && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${IMPACT_TONE[s.impact]}`}>
+                {s.impact} impact
+              </span>
+            )}
+            {s.effort && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${EFFORT_TONE[s.effort]}`}>
+                {s.effort} effort
+              </span>
+            )}
+          </div>
+          <p className="font-semibold text-slate-900">{s.title}</p>
+          <p className="text-sm text-slate-600 mt-1">{s.description}</p>
+          {s.rationale && (
+            <p className="text-xs text-slate-400 mt-1 italic">{s.rationale}</p>
+          )}
+        </div>
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <button
+            onClick={onPreview}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Show code
+          </button>
+          {githubConnected && (
+            <button
+              onClick={onCreatePR}
+              className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+            >
+              Create PR
+            </button>
+          )}
+        </div>
+      </div>
+      {hasSnippets && (
+        <details className="mt-4 group">
+          <summary className="cursor-pointer text-xs font-semibold text-slate-500 hover:text-slate-700 select-none">
+            Show before / after code
+          </summary>
+          <div className="mt-3 space-y-3">
+            {s.current_snippet && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700">Current code</p>
+                <CodeBlock
+                  code={s.current_snippet}
+                  language={s.language}
+                  copyKey={`s-current-${s.title}`}
+                  tone="danger"
+                  maxHeightClass="max-h-48"
+                />
+              </div>
+            )}
+            {s.suggested_snippet && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Replace with</p>
+                <CodeBlock
+                  code={s.suggested_snippet}
+                  language={s.language}
+                  copyKey={`s-suggested-${s.title}`}
+                  tone="success"
+                  maxHeightClass="max-h-48"
+                />
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** Trim the URL down to host+path so the pill doesn't spill across the row. */
+function prettyUrl(u: string): string {
+  try {
+    const parsed = new URL(u);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${parsed.host}${path}`;
+  } catch {
+    return u;
+  }
+}
+
+/** Best-effort language tag from a file extension — the CodeBlock is
+ * dependency-free today, but storing the tag lets us light up syntax
+ * highlighting later without revisiting every call site. */
+function inferLanguage(path: string): CodeBlockLanguage {
+  const ext = path.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "html":
+    case "htm":
+      return "html";
+    case "tsx":
+      return "tsx";
+    case "jsx":
+      return "jsx";
+    case "json":
+      return "json";
+    case "yaml":
+    case "yml":
+      return "yaml";
+    case "md":
+    case "mdx":
+      return "md";
+    case "txt":
+      return "text";
+    default:
+      return "other";
+  }
 }
