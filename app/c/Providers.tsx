@@ -7,6 +7,7 @@ import { SiteProvider } from "@/lib/hooks/useSite";
 import { usePresenceHeartbeat } from "@/lib/hooks/usePresenceHeartbeat";
 import ActiveRunsBanner from "@/components/ActiveRunsBanner";
 import AdminViewBanner from "@/components/AdminViewBanner";
+import TrialBanner from "@/components/TrialBanner";
 
 function PresenceHeartbeat() {
   usePresenceHeartbeat();
@@ -28,6 +29,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         <ActiveRunsProvider>
           <PresenceHeartbeat />
           <AdminViewBanner />
+          <TrialBanner />
           {children}
           <ActiveRunsBanner />
         </ActiveRunsProvider>
