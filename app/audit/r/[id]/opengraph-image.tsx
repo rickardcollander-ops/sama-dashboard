@@ -2,16 +2,16 @@ import { ImageResponse } from "next/og";
 import { loadPublicAudit } from "@/lib/public-audit-store";
 
 export const runtime = "nodejs";
-export const alt = "AI-synlighetsrapport";
+export const alt = "AI visibility report";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function OG({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const result = await loadPublicAudit(id);
-  const domain = result?.domain ?? "din-sajt.se";
+  const domain = result?.domain ?? "your-site.com";
   const score = result?.audit.scores.overall ?? 0;
-  const grade = score >= 80 ? "Stark" : score >= 60 ? "OK" : score >= 40 ? "Svag" : "Kritisk";
+  const grade = score >= 80 ? "Strong" : score >= 60 ? "OK" : score >= 40 ? "Weak" : "Critical";
   const ringColor = score >= 80 ? "#22c55e" : score >= 60 ? "#eab308" : score >= 40 ? "#f97316" : "#ef4444";
 
   // Donut: stroke-dasharray with circumference 2πr ≈ 502 for r=80
@@ -75,7 +75,7 @@ export default async function OG({ params }: { params: Promise<{ id: string }> }
           {/* Text */}
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
             <div style={{ fontSize: 22, color: "#7c3aed", fontWeight: 600, textTransform: "uppercase", letterSpacing: 2 }}>
-              AI-synlighetsrapport
+              AI visibility report
             </div>
             <div style={{ fontSize: 64, fontWeight: 800, color: "#0f172a", marginTop: 12, lineHeight: 1.1 }}>
               {domain}
@@ -84,7 +84,7 @@ export default async function OG({ params }: { params: Promise<{ id: string }> }
               {grade} · {score}/100
             </div>
             <div style={{ fontSize: 22, color: "#475569", marginTop: 22, maxWidth: 620 }}>
-              Hur syns sajten i ChatGPT, Perplexity & Google AI?
+              How visible is this site in ChatGPT, Perplexity & Google AI?
             </div>
           </div>
         </div>
@@ -97,7 +97,7 @@ export default async function OG({ params }: { params: Promise<{ id: string }> }
           }}
         >
           <span>Run your own free audit in 30 seconds</span>
-          <span style={{ fontWeight: 600, color: "#0f172a" }}>sama-ai → /c/audit</span>
+          <span style={{ fontWeight: 600, color: "#0f172a" }}>sama-ai → /audit</span>
         </div>
       </div>
     ),

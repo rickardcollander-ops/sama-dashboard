@@ -423,8 +423,8 @@ function ShareRow({
   copied: string | null;
 }) {
   const url = typeof window !== "undefined"
-    ? `${window.location.origin}/c/audit/r/${id}`
-    : `/c/audit/r/${id}`;
+    ? `${window.location.origin}/audit/r/${id}`
+    : `/audit/r/${id}`;
   const text = `${domain} scored ${score}/100 in AI visibility. Run your own free audit:`;
   const li = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
   const tw = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
