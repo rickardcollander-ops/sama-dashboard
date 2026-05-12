@@ -122,6 +122,18 @@ export default function OnboardingPage() {
     if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
 
+  // If this user has already completed onboarding, route them away. The
+  // wizard is one-shot — re-running it would re-trigger a 2-5 min Claude
+  // job and could overwrite curated keywords/plan. To reset, the user
+  // should clear settings.onboarding_completed_at in /c/settings.
+  useEffect(() => {
+    if (!activeSite) return;
+    const s = (activeSite.settings as Record<string, unknown> | undefined) || {};
+    if (typeof s.onboarding_completed_at === "string" && s.onboarding_completed_at) {
+      router.replace("/c/dashboard");
+    }
+  }, [activeSite, router]);
+
   // Pre-fill from existing site row on first availability (without clobbering a local draft).
   useEffect(() => {
     if (hydratedFromSite.current) return;

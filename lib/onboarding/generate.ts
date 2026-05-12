@@ -115,6 +115,14 @@ export interface OnboardingResult {
     analysis_run_id?: string;
     error?: string;
   };
+  // The SAMA backend insists on /api/tenant/activate before any
+  // content_pieces / plan rows are accepted. If activation fails, all
+  // downstream writes will fail too — surfacing it explicitly tells the
+  // user (and us) exactly which step broke the chain.
+  tenant_activation?: {
+    succeeded: boolean;
+    error?: string;
+  };
 }
 
 type JobStep =
@@ -586,6 +594,41 @@ Submit the brand profile now.`;
 }
 
 /**
+ * Calls the SAMA backend's tenant activation endpoint. The backend
+ * insists on this before any /api/content/* writes are accepted — it
+ * creates the tenant row, sets up agent registrations and seeds the
+ * scoreboard. The original 7-step onboarding called it from the client
+ * after the user finished; we need to do the same from this background
+ * job before pushing any content.
+ *
+ * Returns a string error message on failure, undefined on success.
+ */
+async function activateTenant(siteId: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${SAMA_BACKEND_URL}/api/tenant/activate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": siteId,
+        "X-Sama-Site-Id": siteId,
+        "X-Sama-Intent": "user-action",
+      },
+      // Body is intentionally empty — the backend reads tenant context
+      // from headers and pulls everything else from user_sites settings.
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return `tenant/activate: HTTP ${res.status} ${body.slice(0, 200)}`;
+    }
+    return undefined;
+  } catch (e) {
+    return `tenant/activate: ${e instanceof Error ? e.message : "fetch failed"}`;
+  }
+}
+
+/**
  * Pushes the 30 plan items + 2 full drafts to the SAMA backend so they
  * show up on the calendar (/c/content/plan) and content list
  * (/c/content). Two upstream endpoints are involved:
@@ -635,7 +678,9 @@ async function syncToBackend(
     "X-Sama-Intent": "user-action",
   };
 
-  // 1. Create all 30 plan/calendar entries.
+  // 1. Create all 30 plan/calendar entries. The backend returns
+  // {success, error?} on this route — a 200 with success:false still
+  // means the row didn't land, so we have to look past res.ok.
   for (const p of plan) {
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
@@ -654,11 +699,20 @@ async function syncToBackend(
         }),
         signal: AbortSignal.timeout(15_000),
       });
-      if (res.ok) created++;
-      else {
+      if (!res.ok) {
         failed++;
         await recordError(res, "plan/calendar");
+        continue;
       }
+      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null;
+      if (data && data.success === false) {
+        failed++;
+        if (!firstError) {
+          firstError = `plan/calendar: ${data.error || "success:false"}`;
+        }
+        continue;
+      }
+      created++;
     } catch (e) {
       failed++;
       if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
@@ -689,11 +743,18 @@ async function syncToBackend(
         }),
         signal: AbortSignal.timeout(15_000),
       });
-      if (res.ok) created++;
-      else {
+      if (!res.ok) {
         failed++;
         await recordError(res, "pieces");
+        continue;
       }
+      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null;
+      if (data && data.success === false) {
+        failed++;
+        if (!firstError) firstError = `pieces: ${data.error || "success:false"}`;
+        continue;
+      }
+      created++;
     } catch (e) {
       failed++;
       if (!firstError) firstError = `pieces: ${e instanceof Error ? e.message : "fetch failed"}`;
@@ -725,6 +786,7 @@ async function kickOffAudits(
       headers: {
         "Content-Type": "application/json",
         "X-Tenant-ID": siteId,
+        "X-Sama-Site-Id": siteId,
         "X-Sama-Intent": "user-action",
       },
       body: JSON.stringify({ domain: input.domain }),
@@ -733,9 +795,13 @@ async function kickOffAudits(
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
       if (data?.id) out.site_audit_id = String(data.id);
+      else out.error = `site-audit: response had no id (${JSON.stringify(data).slice(0, 150)})`;
+    } else {
+      const body = await res.text().catch(() => "");
+      out.error = `site-audit: HTTP ${res.status} ${body.slice(0, 200)}`;
     }
   } catch (e) {
-    out.error = e instanceof Error ? e.message : "site-audit kickoff failed";
+    out.error = e instanceof Error ? `site-audit: ${e.message}` : "site-audit kickoff failed";
   }
 
   if (input.geo_queries.length > 0) {
@@ -745,6 +811,7 @@ async function kickOffAudits(
         headers: {
           "Content-Type": "application/json",
           "X-Tenant-ID": siteId,
+          "X-Sama-Site-Id": siteId,
           "X-Sama-Intent": "user-action",
         },
         body: JSON.stringify({
@@ -759,10 +826,16 @@ async function kickOffAudits(
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data?.id) out.analysis_run_id = String(data.id);
+        else {
+          out.error = `${out.error ? out.error + "; " : ""}analysis: response had no id (${JSON.stringify(data).slice(0, 150)})`;
+        }
+      } else {
+        const body = await res.text().catch(() => "");
+        out.error = `${out.error ? out.error + "; " : ""}analysis: HTTP ${res.status} ${body.slice(0, 200)}`;
       }
     } catch (e) {
-      out.error = `${out.error ? out.error + "; " : ""}${
-        e instanceof Error ? e.message : "ai analysis kickoff failed"
+      out.error = `${out.error ? out.error + "; " : ""}analysis: ${
+        e instanceof Error ? e.message : "kickoff failed"
       }`;
     }
   }
@@ -917,10 +990,21 @@ export async function runOnboardingGeneration(opts: {
       plan.find((p) => p.target_keyword.toLowerCase() === secondKw.text.toLowerCase()),
     );
 
-    // Both of the next two steps are best-effort. If the SAMA backend is
-    // unreachable, we still save the result locally so the review page
-    // works — the user can manually re-trigger from Insikter later.
+    // All three of the next steps are best-effort. If the SAMA backend
+    // is unreachable, we still save the result locally so the review
+    // page works — the user can manually re-trigger from Insikter later.
+    //
+    // Activation MUST run before sync/audits — the backend rejects
+    // content_pieces / plan / site-audit writes for tenants that
+    // haven't been activated yet, which silently dropped every write
+    // the first time we shipped this without an activation call.
     await job.setStep("syncing_calendar");
+    const activationError = await activateTenant(siteId);
+    const tenantActivation: OnboardingResult["tenant_activation"] = {
+      succeeded: !activationError,
+      error: activationError,
+    };
+
     let backendSync: OnboardingResult["backend_sync"];
     try {
       backendSync = await syncToBackend(siteId, enrichedInput, plan, [draft1, draft2]);
@@ -954,6 +1038,7 @@ export async function runOnboardingGeneration(opts: {
       plan,
       drafts: [draft1, draft2],
       generated_at: new Date().toISOString(),
+      tenant_activation: tenantActivation,
       backend_sync: backendSync,
       audits_started: auditsStarted,
     };
