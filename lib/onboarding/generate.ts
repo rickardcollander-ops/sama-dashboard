@@ -603,16 +603,25 @@ Submit the brand profile now.`;
  *
  * Returns a string error message on failure, undefined on success.
  */
-async function activateTenant(siteId: string): Promise<string | undefined> {
+// Headers required for every backend call: tenant context + the user's
+// Supabase bearer (the backend recently migrated to requiring it on top
+// of X-Tenant-ID). Centralised so any future header tweak only happens
+// in one place.
+function backendHeaders(siteId: string, accessToken: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "X-Tenant-ID": siteId,
+    "X-Sama-Site-Id": siteId,
+    "X-Sama-Intent": "user-action",
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+async function activateTenant(siteId: string, accessToken: string): Promise<string | undefined> {
   try {
     const res = await fetch(`${SAMA_BACKEND_URL}/api/tenant/activate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-ID": siteId,
-        "X-Sama-Site-Id": siteId,
-        "X-Sama-Intent": "user-action",
-      },
+      headers: backendHeaders(siteId, accessToken),
       // Body is intentionally empty — the backend reads tenant context
       // from headers and pulls everything else from user_sites settings.
       body: JSON.stringify({}),
@@ -644,6 +653,7 @@ async function activateTenant(siteId: string): Promise<string | undefined> {
  */
 async function syncToBackend(
   siteId: string,
+  accessToken: string,
   input: OnboardingFormInput,
   plan: PlanEntry[],
   drafts: DraftArticle[],
@@ -671,12 +681,7 @@ async function syncToBackend(
     firstError = `${label}: HTTP ${res.status} ${body.slice(0, 200)}`;
   };
 
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Tenant-ID": siteId,
-    "X-Sama-Site-Id": siteId,
-    "X-Sama-Intent": "user-action",
-  };
+  const headers = backendHeaders(siteId, accessToken);
 
   // 1. Create all 30 plan/calendar entries. The backend returns
   // {success, error?} on this route — a 200 with success:false still
@@ -776,6 +781,7 @@ async function syncToBackend(
  */
 async function kickOffAudits(
   siteId: string,
+  accessToken: string,
   input: OnboardingFormInput,
 ): Promise<NonNullable<OnboardingResult["audits_started"]>> {
   const out: NonNullable<OnboardingResult["audits_started"]> = {};
@@ -783,12 +789,7 @@ async function kickOffAudits(
   try {
     const res = await fetch(`${SAMA_BACKEND_URL}/api/site-audit/run`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-ID": siteId,
-        "X-Sama-Site-Id": siteId,
-        "X-Sama-Intent": "user-action",
-      },
+      headers: backendHeaders(siteId, accessToken),
       body: JSON.stringify({ domain: input.domain }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -808,12 +809,7 @@ async function kickOffAudits(
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/analysis/run`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": siteId,
-          "X-Sama-Site-Id": siteId,
-          "X-Sama-Intent": "user-action",
-        },
+        headers: backendHeaders(siteId, accessToken),
         body: JSON.stringify({
           queries: input.geo_queries,
           platforms: ["chatgpt", "claude", "perplexity", "google_aio"],
@@ -940,8 +936,11 @@ export async function runOnboardingGeneration(opts: {
   siteId: string;
   input: OnboardingFormInput;
   apiKey: string;
+  // Supabase JWT used to authenticate SAMA backend calls. Required —
+  // tenant_activate / content_pieces / plan_calendar all 401 without it.
+  userAccessToken: string;
 }): Promise<void> {
-  const { admin, jobId, userId, siteId, input, apiKey } = opts;
+  const { admin, jobId, userId, siteId, input, apiKey, userAccessToken } = opts;
   const job = makeJobUpdater(admin, jobId);
 
   try {
@@ -999,7 +998,7 @@ export async function runOnboardingGeneration(opts: {
     // haven't been activated yet, which silently dropped every write
     // the first time we shipped this without an activation call.
     await job.setStep("syncing_calendar");
-    const activationError = await activateTenant(siteId);
+    const activationError = await activateTenant(siteId, userAccessToken);
     const tenantActivation: OnboardingResult["tenant_activation"] = {
       succeeded: !activationError,
       error: activationError,
@@ -1007,7 +1006,7 @@ export async function runOnboardingGeneration(opts: {
 
     let backendSync: OnboardingResult["backend_sync"];
     try {
-      backendSync = await syncToBackend(siteId, enrichedInput, plan, [draft1, draft2]);
+      backendSync = await syncToBackend(siteId, userAccessToken, enrichedInput, plan, [draft1, draft2]);
     } catch (e) {
       backendSync = {
         attempted: true,
@@ -1020,7 +1019,7 @@ export async function runOnboardingGeneration(opts: {
     await job.setStep("starting_audits");
     let auditsStarted: OnboardingResult["audits_started"];
     try {
-      auditsStarted = await kickOffAudits(siteId, enrichedInput);
+      auditsStarted = await kickOffAudits(siteId, userAccessToken, enrichedInput);
     } catch (e) {
       auditsStarted = { error: e instanceof Error ? e.message : "audit kickoff failed" };
     }

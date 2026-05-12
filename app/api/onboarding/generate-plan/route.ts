@@ -33,6 +33,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // The SAMA backend rejects content/audit writes that don't carry the
+  // user's Supabase bearer token (response is "Missing tenant context").
+  // Pull it out here before scheduling the background job so we can
+  // forward it on every upstream call — cookies aren't readable inside
+  // after().
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const userAccessToken = session?.access_token ?? "";
+  if (!userAccessToken) {
+    return NextResponse.json(
+      { error: "Missing Supabase session — please sign in again." },
+      { status: 401 },
+    );
+  }
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(
@@ -102,6 +118,7 @@ export async function POST(req: NextRequest) {
       siteId,
       input,
       apiKey,
+      userAccessToken,
     });
   });
 
