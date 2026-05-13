@@ -19,6 +19,7 @@ import SiteAuditReport from "@/components/analysis/SiteAuditReport";
 import InsightsOverview from "@/components/analysis/InsightsOverview";
 import AIReadabilityCard from "@/components/analysis/AIReadabilityCard";
 import type { SiteAuditRun, SiteAuditRunSummary } from "./audit-types";
+import { sameDomain } from "@/lib/domain";
 
 interface AnalysisRunSummary {
   id: string;
@@ -162,6 +163,8 @@ export default function AnalysisPage() {
         competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
       });
 
+      const expectedDomain = (s.domain as string) || "";
+
       try {
         // /api/analysis/latest returns either the most recent completed
         // analysis_runs row (augmented with ai_visibility_checks) or a
@@ -174,7 +177,9 @@ export default function AnalysisPage() {
         });
         if (res.ok) {
           const run = await res.json();
-          if (run?.status === "completed") setVisibilityRun(run);
+          if (run?.status === "completed" && sameDomain(run.domain, expectedDomain)) {
+            setVisibilityRun(run);
+          }
         }
       } catch { /* not critical */ }
 
@@ -185,13 +190,13 @@ export default function AnalysisPage() {
         if (res.ok) {
           const data = await res.json();
           const latest = data?.runs?.[0];
-          if (latest?.id && latest.status === "completed") {
+          if (latest?.id && latest.status === "completed" && sameDomain(latest.domain, expectedDomain)) {
             const full = await fetch(`/api/site-audit/runs/${latest.id}`, {
               headers: { "X-Tenant-ID": effectiveTenantId },
             });
             if (full.ok) {
               const run = await full.json();
-              if (run?.status === "completed") {
+              if (run?.status === "completed" && sameDomain(run.domain, expectedDomain)) {
                 setAuditRun(run);
                 void persistSiteAuditRun(run, effectiveTenantId);
               }
@@ -250,15 +255,20 @@ export default function AnalysisPage() {
 
       const polls: Promise<unknown>[] = [];
 
+      const expectedDomain = brand.domain;
+
       if (visRes.status === "fulfilled" && visRes.value.ok) {
         const vData = await visRes.value.json().catch(() => ({}));
         if (Array.isArray((vData as AnalysisRun).query_results)) {
-          setVisibilityRun(vData as AnalysisRun);
-          void persistAnalysisRun(vData as AnalysisRun, effectiveTenantId);
+          const run = vData as AnalysisRun;
+          if (sameDomain(run.domain, expectedDomain)) {
+            setVisibilityRun(run);
+            void persistAnalysisRun(run, effectiveTenantId);
+          }
         } else if ((vData as { id?: string }).id) {
           polls.push(
             pollAnalysisRun(effectiveTenantId, (vData as { id: string }).id).then((r) => {
-              if (r?.status === "completed") {
+              if (r?.status === "completed" && sameDomain(r.domain, expectedDomain)) {
                 setVisibilityRun(r);
                 void persistAnalysisRun(r, effectiveTenantId);
               }
@@ -276,7 +286,7 @@ export default function AnalysisPage() {
           });
           polls.push(
             pollSiteAuditRun(effectiveTenantId, auditId).then((r) => {
-              if (r?.status === "completed") {
+              if (r?.status === "completed" && sameDomain(r.domain, expectedDomain)) {
                 setAuditRun(r);
                 void persistSiteAuditRun(r, effectiveTenantId);
               }
@@ -425,6 +435,10 @@ export default function AnalysisPage() {
                   const res = await fetch(`/api/analysis/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } });
                   const d = await res.json().catch(() => ({}));
                   if (res.ok && d?.status === "completed") {
+                    if (!sameDomain(d.domain, brand.domain)) {
+                      setError("That analysis belongs to a different site. Refresh and try again.");
+                      return;
+                    }
                     setVisibilityRun(d);
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -441,6 +455,10 @@ export default function AnalysisPage() {
                   const res = await fetch(`/api/site-audit/runs/${id}`, { headers: { "X-Tenant-ID": effectiveTenantId } });
                   const d = await res.json().catch(() => ({}));
                   if (res.ok && d?.status === "completed") {
+                    if (!sameDomain(d.domain, brand.domain)) {
+                      setError("That audit belongs to a different site. Refresh and try again.");
+                      return;
+                    }
                     setAuditRun(d);
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });

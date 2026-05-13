@@ -82,11 +82,11 @@ async function startBackendAudit(domain: string): Promise<{ id: string } | { err
         || (data as { error?: string }).error;
       return { error: detail || `Backend HTTP ${upstream.status}`, status: upstream.status };
     }
-    if (!data?.id) return { error: "Backend returnerade inget audit-id", status: 502 };
+    if (!data?.id) return { error: "Backend returned no audit id", status: 502 };
     return { id: data.id as string };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "okänt fel";
-    return { error: `Kunde inte starta audit: ${msg}`, status: 502 };
+    const msg = e instanceof Error ? e.message : "unknown error";
+    return { error: `Could not start audit: ${msg}`, status: 502 };
   }
 }
 
@@ -101,7 +101,7 @@ async function pollBackendAudit(runId: string): Promise<SiteAuditRun | { error: 
       if (res.ok) {
         const data = (await res.json()) as SiteAuditRun;
         if (data?.status && data.status !== "running") {
-          if (data.status === "failed") return { error: data.error || "Audit misslyckades" };
+          if (data.status === "failed") return { error: data.error || "Audit failed" };
           return data;
         }
       }
@@ -110,7 +110,7 @@ async function pollBackendAudit(runId: string): Promise<SiteAuditRun | { error: 
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
-  return { error: "Audit tog för lång tid (timeout)" };
+  return { error: "Audit took too long (timeout)" };
 }
 
 function suggestQueries(audit: SiteAuditRun, host: string): string[] {
@@ -122,11 +122,11 @@ function suggestQueries(audit: SiteAuditRun, host: string): string[] {
   const topic = titleHint && titleHint.length > 4 && titleHint.length < 60 ? titleHint : brand;
 
   return [
-    `Vilket är det bästa alternativet till ${brand}?`,
-    `${brand} recensioner och omdömen 2026`,
-    `${brand} vs konkurrenter – vad ska jag välja?`,
-    `Bästa verktygen för ${topic}`,
-    `Är ${brand} värt pengarna?`,
+    `What's the best alternative to ${brand}?`,
+    `${brand} reviews and ratings 2026`,
+    `${brand} vs competitors — which should I pick?`,
+    `Best tools for ${topic}`,
+    `Is ${brand} worth the money?`,
   ];
 }
 
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
   });
   if (!rl.allowed) {
     return NextResponse.json(
-      { error: "För många försök. Försök igen senare." },
+      { error: "Too many attempts. Please try again later." },
       { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
     );
   }
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const target = normalizeDomain((body?.domain || "").toString());
   if (!target) {
-    return NextResponse.json({ error: "Ogiltig domän. Ange t.ex. exempel.se" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid domain. Try e.g. example.com" }, { status: 400 });
   }
 
   // Captcha gating. Off by default so existing UI keeps working until the
@@ -159,14 +159,14 @@ export async function POST(req: NextRequest) {
   const captchaOk = await verifyTurnstile(captchaToken, ip);
   if (!captchaOk) {
     return NextResponse.json(
-      { error: "Captcha krävs. Ladda om sidan och försök igen." },
+      { error: "Captcha required. Reload the page and try again." },
       { status: 403 },
     );
   }
 
   if (!SAMA_API_URL) {
     return NextResponse.json(
-      { error: "Audit-backend är inte konfigurerad (NEXT_PUBLIC_SAMA_API_URL saknas)." },
+      { error: "Audit backend is not configured (NEXT_PUBLIC_SAMA_API_URL missing)." },
       { status: 503 },
     );
   }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
   CheckCircle2, Loader2, X, Eye, Globe, ChevronRight, Phone,
+  Gift, Ban,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -30,7 +31,22 @@ interface Account {
   has_settings: boolean;
   last_seen_at: string | null;
   sites: SiteSummary[];
+  plan: string | null;
 }
+
+// Plan tiers an admin can pin an account to. "free" is comp / internal —
+// effectively unlimited so the tenant doesn't hit a paywall. Backend
+// enforces the same set in sama-agent/shared/usage.py.
+const PLAN_OPTIONS = ["free", "starter", "growth", "enterprise"] as const;
+type PlanOption = (typeof PLAN_OPTIONS)[number];
+
+const PLAN_BADGE: Record<PlanOption | "none", string> = {
+  free: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  starter: "bg-blue-50 text-blue-700 border-blue-200",
+  growth: "bg-violet-50 text-violet-700 border-violet-200",
+  enterprise: "bg-amber-50 text-amber-700 border-amber-200",
+  none: "bg-slate-100 text-slate-500 border-slate-200",
+};
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
 
@@ -353,6 +369,174 @@ function FieldTextarea({ label, value, onChange, placeholder }: {
   );
 }
 
+// ── Plan badge + Grant modal ───────────────────────────────────────────────────
+
+function PlanBadge({ entry, now }: { entry: PlanStatusEntry | undefined; now: number }) {
+  if (!entry) return <span className="text-xs text-slate-400">—</span>;
+  const status = entry.plan_status ?? "";
+  const plan = entry.plan ?? "";
+  const styles: Record<string, string> = {
+    trial: "bg-amber-100 text-amber-800",
+    active: "bg-emerald-100 text-emerald-800",
+    trialing: "bg-emerald-100 text-emerald-800",
+    admin_granted: "bg-purple-100 text-purple-800",
+    past_due: "bg-orange-100 text-orange-800",
+    canceled: "bg-slate-200 text-slate-600",
+    expired: "bg-rose-100 text-rose-800",
+  };
+  const label = (
+    {
+      trial: "Trial",
+      active: "Active",
+      trialing: "Trialing",
+      admin_granted: "Free (admin)",
+      past_due: "Past due",
+      canceled: "Canceled",
+      expired: "Expired",
+    } as Record<string, string>
+  )[status] ?? (status || "—");
+  const cls = styles[status] ?? "bg-slate-100 text-slate-600";
+  let tail: string | null = null;
+  if (status === "trial" && entry.trial_ends_at) {
+    const days = Math.ceil((new Date(entry.trial_ends_at).getTime() - now) / 86_400_000);
+    tail = days > 0 ? `${days}d left` : "expired";
+  } else if (status === "admin_granted" && entry.admin_granted_until) {
+    tail = `until ${new Date(entry.admin_granted_until).toLocaleDateString()}`;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+        {label}
+      </span>
+      <span className="text-[11px] text-slate-500">
+        {plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : ""}
+        {tail ? ` · ${tail}` : ""}
+      </span>
+    </div>
+  );
+}
+
+function GrantModal({
+  account,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  account: Account;
+  onClose: () => void;
+  onSubmit: (payload: { granted_until: string | null; note?: string }) => void;
+  submitting: boolean;
+}) {
+  const [duration, setDuration] = useState("unlimited"); // unlimited | 7 | 30 | 90 | custom
+  const [customDate, setCustomDate] = useState("");
+  const [note, setNote] = useState("");
+
+  function computeUntil(): string | null {
+    if (duration === "unlimited") return null;
+    if (duration === "custom") {
+      if (!customDate) return null;
+      const d = new Date(customDate);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    const days = parseInt(duration, 10);
+    if (Number.isNaN(days)) return null;
+    return new Date(Date.now() + days * 86_400_000).toISOString();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Gift className="h-5 w-5 text-emerald-600" />
+              Grant free access
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Override Stripe billing for {account.email ?? account.brand_name ?? account.id}.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Duration</label>
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              disabled={submitting}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="unlimited">Unlimited (until manually revoked)</option>
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="custom">Custom date</option>
+            </select>
+          </div>
+
+          {duration === "custom" && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Ends on</label>
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                disabled={submitting}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Note (optional)</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Pilot customer, partnership, etc."
+              disabled={submitting}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onSubmit({
+                granted_until: computeUntil(),
+                note: note.trim() || undefined,
+              })
+            }
+            disabled={submitting || (duration === "custom" && !customDate)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Gift className="h-3.5 w-3.5" />}
+            Grant access
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Admin page ─────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -369,6 +553,11 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
+  const [inviteFor, setInviteFor] = useState<Account | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [planStatuses, setPlanStatuses] = useState<Record<string, PlanStatusEntry>>({});
+  const [grantFor, setGrantFor] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -381,12 +570,83 @@ export default function AdminPage() {
       }
       const body = (await res.json()) as { accounts: Account[] };
       setAccounts(body.accounts);
+      // Side-load plan statuses for the status column. Single batched call.
+      const ids = body.accounts.map((a) => a.id);
+      if (ids.length > 0) {
+        try {
+          const planRes = await fetch(
+            `/api/admin/grant-free-access?user_ids=${encodeURIComponent(ids.join(","))}`,
+            { cache: "no-store" },
+          );
+          if (planRes.ok) {
+            const { statuses } = (await planRes.json()) as {
+              statuses: Record<string, PlanStatusEntry>;
+            };
+            setPlanStatuses(statuses ?? {});
+          }
+        } catch {
+          /* status column gracefully degrades to empty */
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load accounts");
     } finally {
       setFetching(false);
     }
   }, []);
+
+  const handleGrant = useCallback(
+    async (acc: Account, payload: { granted_until: string | null; note?: string }) => {
+      setPendingId(acc.id);
+      setError("");
+      try {
+        const res = await fetch("/api/admin/grant-free-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: acc.id,
+            action: "grant",
+            granted_until: payload.granted_until,
+            note: payload.note,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        setNotice(`Granted free access to ${acc.email ?? acc.id}`);
+        setGrantFor(null);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not grant access");
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [load],
+  );
+
+  const handleRevoke = useCallback(
+    async (acc: Account) => {
+      if (!confirm(`Revoke free access for ${acc.email ?? acc.id}?`)) return;
+      setPendingId(acc.id);
+      setError("");
+      try {
+        const res = await fetch("/api/admin/grant-free-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: acc.id, action: "revoke" }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        setNotice(`Revoked free access for ${acc.email ?? acc.id}`);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not revoke access");
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [load],
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -437,6 +697,45 @@ export default function AdminPage() {
     router.push("/c/dashboard");
   };
 
+  // Direct invite from /c/admin: hits /api/account/members with the
+  // customer's account_id explicitly in the header. Avoids the trap where an
+  // admin invites from /c/settings/team while merely view-as'ing a customer
+  // and the membership row silently gets written to the admin's own account.
+  const handleInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteFor) return;
+    const email = inviteEmail.trim();
+    if (!email || !email.includes("@")) {
+      setError("Valid email required");
+      return;
+    }
+    setInviting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/account/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sama-account-id": inviteFor.id,
+        },
+        body: JSON.stringify({ email }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setNotice(
+        body.invited
+          ? `Invitation sent to ${email} for ${inviteFor.brand_name ?? inviteFor.email ?? "this account"}`
+          : `${email} was added to ${inviteFor.brand_name ?? inviteFor.email ?? "this account"} (already had an account)`,
+      );
+      setInviteFor(null);
+      setInviteEmail("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send invitation");
+    } finally {
+      setInviting(false);
+    }
+  };
+
   const handleResetPassword = async (acc: Account) => {
     setPendingId(acc.id);
     setError("");
@@ -451,6 +750,32 @@ export default function AdminPage() {
       setError(e instanceof Error ? e.message : "Could not send reset email");
     } finally {
       setPendingId(null);
+    }
+  };
+
+  const handlePlanChange = async (acc: Account, plan: PlanOption) => {
+    if ((acc.plan || "") === plan) return;
+    // Optimistic update so the dropdown shows the new value immediately;
+    // revert on failure.
+    const previous = acc.plan;
+    setAccounts((prev) => prev.map((a) => (a.id === acc.id ? { ...a, plan } : a)));
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/accounts/${acc.id}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setNotice(`Plan set to ${plan} for ${acc.email ?? acc.id}`);
+    } catch (e) {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === acc.id ? { ...a, plan: previous } : a)),
+      );
+      setError(e instanceof Error ? e.message : "Could not update plan");
     }
   };
 
@@ -628,23 +953,25 @@ export default function AdminPage() {
               <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Brand</th>
+                <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Created</th>
                 <th className="px-4 py-3">Last sign-in</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {fetching && accounts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   </td>
                 </tr>
               )}
               {!fetching && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     No accounts match your search.
                   </td>
                 </tr>
@@ -719,6 +1046,9 @@ export default function AdminPage() {
                         <span className="text-xs text-slate-400">No onboarding</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      <PlanBadge entry={planStatuses[acc.id]} now={now} />
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{fmtDate(acc.created_at)}</div>
                       <div className="text-xs text-slate-400">{fmtRelative(acc.created_at)}</div>
@@ -739,6 +1069,26 @@ export default function AdminPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
+                      <select
+                        value={(acc.plan ?? "") as PlanOption | ""}
+                        onChange={(e) =>
+                          void handlePlanChange(acc, e.target.value as PlanOption)
+                        }
+                        disabled={busy}
+                        title="Set the billing plan for this account. Pick 'free' to skip the paywall."
+                        className={`rounded-md border px-2 py-1 text-xs font-medium capitalize ${
+                          PLAN_BADGE[(acc.plan as PlanOption) ?? "none"]
+                        } disabled:opacity-50`}
+                      >
+                        {!acc.plan && <option value="">(not set)</option>}
+                        {PLAN_OPTIONS.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleViewAs(acc)}
@@ -749,6 +1099,14 @@ export default function AdminPage() {
                           <Eye className="h-3 w-3" /> View
                         </button>
                         <button
+                          onClick={() => { setInviteFor(acc); setInviteEmail(""); setError(""); }}
+                          disabled={busy}
+                          title="Invite a team member to this account"
+                          className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                        >
+                          <UserPlus className="h-3 w-3" /> Invite
+                        </button>
+                        <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
                           title="Send password reset"
@@ -757,6 +1115,27 @@ export default function AdminPage() {
                           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
                           Reset
                         </button>
+                        {planStatuses[acc.id]?.plan_status === "admin_granted" ? (
+                          <button
+                            onClick={() => void handleRevoke(acc)}
+                            disabled={busy}
+                            title="Revoke free access"
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+                            Revoke
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setGrantFor(acc)}
+                            disabled={busy}
+                            title="Grant free access"
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                          >
+                            <Gift className="h-3 w-3" />
+                            Grant
+                          </button>
+                        )}
                         <button
                           onClick={() => void handleDelete(acc)}
                           disabled={busy || isSelf}
@@ -781,6 +1160,80 @@ export default function AdminPage() {
           with every linked row via ON DELETE CASCADE.
         </p>
       </main>
+
+      {grantFor && (
+        <GrantModal
+          account={grantFor}
+          onClose={() => setGrantFor(null)}
+          onSubmit={(payload) => void handleGrant(grantFor, payload)}
+          submitting={pendingId === grantFor.id}
+        />
+      )}
+
+      {inviteFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Invite team member</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Invites {inviteFor.brand_name ?? inviteFor.email ?? "this account"} — the new
+                  member will get access to all sites under this customer&apos;s account.
+                </p>
+              </div>
+              <button
+                onClick={() => { setInviteFor(null); setInviteEmail(""); }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  autoFocus
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="teammate@company.com"
+                  disabled={inviting}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-50"
+                />
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-700">Account target</div>
+                <div className="mt-0.5 font-mono text-[11px] text-slate-500">{inviteFor.id}</div>
+                {inviteFor.sites.length > 0 && (
+                  <div className="mt-1">
+                    Will get access to: {inviteFor.sites.map((s) => s.brand_name || s.site_name).join(", ")}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setInviteFor(null); setInviteEmail(""); }}
+                  disabled={inviting}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviting || !inviteEmail.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                  Send invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

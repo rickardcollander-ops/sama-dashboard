@@ -481,7 +481,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         <div className="flex flex-wrap justify-end gap-1.5">
                           {lead.audit_id && (
                             <Link
-                              href={`/c/audit/r/${lead.audit_id}?tm=1`}
+                              href={`/audit/r/${lead.audit_id}?tm=1`}
                               target="_blank" rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
                               title="Open the full audit report"

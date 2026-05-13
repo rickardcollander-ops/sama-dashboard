@@ -226,11 +226,13 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     // Auto-migrate from user_settings if no sites exist yet (only when looking
     // at the user's own account — never invent sites for an account they joined).
     if ((!data || data.length === 0) && effectiveOwnerId === user?.id) {
+      // maybeSingle so brand-new users (no user_settings row) don't get a
+      // 406 in the console for the expected "no row" case.
       const { data: legacyRow } = await supabase
         .from("user_settings")
         .select("settings")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (legacyRow?.settings) {
         const s = legacyRow.settings as Record<string, unknown>;
@@ -361,6 +363,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     return accounts.find((a) => a.account_id === activeAccountId)?.role ?? null;
   }, [accounts, activeAccountId]);
 
+  // View-as is the source of truth for which account the admin is acting on.
+  // The underlying `activeAccountId` state is kept for the account-switcher UI
+  // (which only lists accounts the admin is a formal member of), but every
+  // downstream consumer needs the impersonated account here — otherwise the
+  // team-invite endpoint (and any other /api/account/* call) would tag the
+  // request with the admin's own account_id and end up writing rows there
+  // instead of into the customer the admin is currently viewing.
+  const effectiveAccountId = viewAs?.userId ?? activeAccountId;
+
   const value = useMemo<SiteContextValue>(
     () => ({
       sites,
@@ -375,7 +386,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       clearViewAs,
       reloadSites: loadSites,
       accounts,
-      activeAccountId,
+      activeAccountId: effectiveAccountId,
       setActiveAccountId,
       myRole,
       reloadAccounts: loadAccounts,
@@ -383,7 +394,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [
       sites, activeSite, loading, setActiveSiteId, tenantClient, effectiveTenantId,
       effectiveOwnerId, viewAs, setViewAs, clearViewAs, loadSites,
-      accounts, activeAccountId, setActiveAccountId, myRole, loadAccounts,
+      accounts, effectiveAccountId, setActiveAccountId, myRole, loadAccounts,
     ]
   );
 

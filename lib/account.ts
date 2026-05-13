@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { isAdminEmail } from "@/lib/admin";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 export type AccountRole = "owner" | "admin" | "member";
@@ -95,6 +96,18 @@ export async function requireAccount(
         },
         { onConflict: "account_id,user_id" },
       );
+    role = "owner";
+  }
+
+  // Platform admins (rc@, etc.) can act on any account without being a
+  // formal member of it. This makes /api/account/* respect the admin's
+  // view-as context: when an admin is impersonating a customer the
+  // dashboard sends that customer's account_id in the header, and we
+  // want writes/reads to go there — not to fall back to the admin's
+  // own account or 403. Without this, inviting a member while viewing
+  // another customer silently writes the invite to the admin's own
+  // account_members instead of the customer's.
+  if (!role && isAdminEmail(user.email)) {
     role = "owner";
   }
 

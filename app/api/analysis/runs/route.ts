@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, loadSettings } from "@/lib/integrations/store";
+import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
+import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
 const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
@@ -40,18 +42,36 @@ function summarizeSavedRun(run: AnalysisRun): RunSummary {
  */
 export async function GET(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get("limit") || "20");
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
+
+  // Pull the workspace's configured domain so we can drop any row whose
+  // `domain` doesn't match — defence-in-depth against tenant leaks from the
+  // upstream backend or stale local cache.
+  const siteSettings = tenantId
+    ? await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>))
+    : ({} as Record<string, unknown>);
+  const expectedDomain = (siteSettings.domain as string) || "";
 
   let backendRuns: RunSummary[] = [];
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/runs?limit=${limit}`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(10_000),
       });
       if (upstream.ok) {
         const data = await upstream.json();
-        if (Array.isArray(data?.runs)) backendRuns = data.runs as RunSummary[];
+        if (Array.isArray(data?.runs)) {
+          // Filter by domain only when we know the workspace's domain.
+          // When expectedDomain is empty, trust the upstream's tenant
+          // scoping and pass rows through.
+          backendRuns = expectedDomain
+            ? (data.runs as RunSummary[]).filter((r) =>
+                sameDomain(r?.domain, expectedDomain),
+              )
+            : (data.runs as RunSummary[]);
+        }
       }
     } catch {
       // fall through — local saves still get returned below
@@ -76,7 +96,8 @@ export async function GET(req: NextRequest) {
         saved = settings.saved_analyses as AnalysisRun[];
       }
 
-      savedRuns = saved.map(summarizeSavedRun);
+      // Drop poisoned entries whose domain doesn't match the workspace.
+      savedRuns = saved.filter((r) => sameDomain(r?.domain, expectedDomain)).map(summarizeSavedRun);
     }
   } catch {
     // unauthenticated or settings unreadable — skip local merge
