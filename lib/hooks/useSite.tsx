@@ -81,6 +81,10 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
   const [accounts, setAccounts] = useState<AccessibleAccount[]>([]);
   const [activeAccountId, setActiveAccountIdState] = useState<string>("");
+  // Stays true until the first /api/account/list response arrives.
+  // loadSites is gated on this so it never runs with the wrong effectiveOwnerId
+  // (user's own id instead of the account owner's id for invited members).
+  const [accountsLoading, setAccountsLoading] = useState(true);
 
   const [viewAs, setViewAsState] = useState<ViewAs | null>(() => {
     if (typeof window === "undefined") return null;
@@ -114,14 +118,11 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setAccounts([]);
       setActiveAccountIdState("");
+      setAccountsLoading(false);
       return;
     }
     try {
       // Fire accept-invite alongside list instead of in front of it.
-      // Sequencing them was costing a full extra round-trip (typically
-      // 150-300 ms) on every dashboard load just so a freshly-invited
-      // user could see their new membership without a manual refresh —
-      // a case that's rare enough to not justify slowing every login.
       const [, res] = await Promise.all([
         fetch("/api/account/accept-invite", { method: "POST" }).catch(() => null),
         fetch("/api/account/list", { cache: "no-store" }),
@@ -140,6 +141,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       setActiveAccountIdState(valid ? stored : fallback);
     } catch (err) {
       console.error("[useSite] failed to load accounts:", err);
+    } finally {
+      setAccountsLoading(false);
     }
   }, [user]);
 
@@ -174,11 +177,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
           const body = await res.json() as { sites: UserSite[] };
           const loaded = body.sites ?? [];
           setSites(loaded);
-          // Honour an explicit selection from localStorage if it still
-          // belongs to this customer — otherwise we forget the choice
-          // every reload and fall back to the first site, which is what
-          // made the SiteSwitcher appear to "snap back" in admin
-          // kundvy.
           const stored =
             typeof window !== "undefined"
               ? localStorage.getItem(ACTIVE_SITE_KEY)
@@ -186,12 +184,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
           const valid = stored && loaded.some((s) => s.id === stored);
           const resolved = valid ? stored : (loaded[0]?.id ?? null);
           setActiveSiteIdState(resolved);
-          // Mirror the resolved site into localStorage so samaHeaders()
-          // (which reads localStorage directly) doesn't carry a stale
-          // value from the previous tenant on this tab. Without this
-          // any request fired before the user clicks the SiteSwitcher
-          // would be tagged with the wrong X-Sama-Site-Id and leak
-          // another customer's data into the new view.
           if (typeof window !== "undefined") {
             try {
               if (resolved) localStorage.setItem(ACTIVE_SITE_KEY, resolved);
@@ -263,9 +255,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     const valid = stored && loaded.some((s) => s.id === stored);
     const resolved = valid ? stored : (loaded[0]?.id ?? null);
     setActiveSiteIdState(resolved);
-    // Keep localStorage in sync with the resolved site so samaHeaders()
-    // doesn't keep sending a stale ID from a different account on this
-    // tab.
     if (typeof window !== "undefined") {
       try {
         if (resolved) localStorage.setItem(ACTIVE_SITE_KEY, resolved);
@@ -276,17 +265,18 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, [effectiveOwnerId, viewAs, user]);
 
+  // Gate site loading on accounts being resolved first — unless we're in
+  // view-as mode (where effectiveOwnerId comes from viewAs, not accounts).
+  // Without this gate, loadSites fires immediately with effectiveOwnerId =
+  // user.id (the member's own id), finds 0 sites, and the dashboard
+  // redirects to /c/onboarding before loadAccounts returns the real owner id.
   useEffect(() => {
-    void loadSites();
-  }, [loadSites]);
+    if (viewAs || !accountsLoading) void loadSites();
+  }, [loadSites, accountsLoading, viewAs]);
 
   // Switching tenant is treated as navigating to a different workspace —
   // the only way to guarantee no data leaks across the boundary is to
-  // throw out the entire JS context (in-flight requests, page-level
-  // caches, recharts/animation timers, polling hooks, etc.) and start
-  // fresh. A React state update would otherwise let stale closures or
-  // late-arriving fetches paint the previous tenant's numbers onto the
-  // new one.
+  // throw out the entire JS context and start fresh.
   const setActiveSiteId = useCallback((id: string) => {
     if (typeof window === "undefined") return;
     if (id === activeSiteId) return;
@@ -301,9 +291,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (id === activeAccountId) return;
     try {
       localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
-      // The previously selected site belongs to the old account and
-      // probably doesn't exist under the new one — drop it so the new
-      // session resolves to the new account's first site.
       localStorage.removeItem(ACTIVE_SITE_KEY);
     } catch { /* private mode etc. */ }
     window.location.reload();
@@ -313,14 +300,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return;
     try {
       sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(v));
-      // Drop the previously selected site_id — it belongs to whoever the
-      // admin was looking at before, and samaHeaders() reads localStorage
-      // directly, so leaving it in place would tag every request to the
-      // new customer with the OLD customer's site and leak their data.
       localStorage.removeItem(ACTIVE_SITE_KEY);
     } catch { /* ignore */ }
-    // Same reasoning as setActiveSiteId: switching to view-as a different
-    // tenant means we need a clean JS context, not a soft state update.
     window.location.reload();
   }, []);
 
@@ -328,9 +309,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return;
     try {
       sessionStorage.removeItem(VIEW_AS_KEY);
-      // Same reason as in setViewAs: the active site belonged to the
-      // viewed customer; keeping it would tag the admin's own session
-      // with that customer's site_id.
       localStorage.removeItem(ACTIVE_SITE_KEY);
     } catch { /* ignore */ }
     window.location.reload();
@@ -341,11 +319,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [sites, activeSiteId]
   );
 
-  // The effective tenant ID. In admin view-as mode the loaded `sites`
-  // come from the viewed customer (via /api/admin/user-sites), so the
-  // selection in the SiteSwitcher is the source of truth — fall back to
-  // the original viewAs.tenantId only while sites are still loading,
-  // and to effectiveOwnerId as a last resort.
   const effectiveTenantId =
     activeSite?.id ?? viewAs?.tenantId ?? effectiveOwnerId;
 
@@ -363,20 +336,17 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     return accounts.find((a) => a.account_id === activeAccountId)?.role ?? null;
   }, [accounts, activeAccountId]);
 
-  // View-as is the source of truth for which account the admin is acting on.
-  // The underlying `activeAccountId` state is kept for the account-switcher UI
-  // (which only lists accounts the admin is a formal member of), but every
-  // downstream consumer needs the impersonated account here — otherwise the
-  // team-invite endpoint (and any other /api/account/* call) would tag the
-  // request with the admin's own account_id and end up writing rows there
-  // instead of into the customer the admin is currently viewing.
   const effectiveAccountId = viewAs?.userId ?? activeAccountId;
 
   const value = useMemo<SiteContextValue>(
     () => ({
       sites,
       activeSite,
-      loading,
+      // Expose a combined loading flag: consumers should treat the context as
+      // unready until both accounts and sites have been fetched. This prevents
+      // the dashboard onboarding gate from seeing sites=[] and redirecting to
+      // /c/onboarding while accountsLoading is still true.
+      loading: loading || accountsLoading,
       setActiveSiteId,
       tenantClient,
       effectiveTenantId,
@@ -392,8 +362,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       reloadAccounts: loadAccounts,
     }),
     [
-      sites, activeSite, loading, setActiveSiteId, tenantClient, effectiveTenantId,
-      effectiveOwnerId, viewAs, setViewAs, clearViewAs, loadSites,
+      sites, activeSite, loading, accountsLoading, setActiveSiteId, tenantClient,
+      effectiveTenantId, effectiveOwnerId, viewAs, setViewAs, clearViewAs, loadSites,
       accounts, effectiveAccountId, setActiveAccountId, myRole, loadAccounts,
     ]
   );

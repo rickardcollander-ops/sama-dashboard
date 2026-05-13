@@ -101,32 +101,52 @@ export async function GET() {
 
     const ids = rows.map((r) => r.account_id);
     if (ids.length === 0) {
-      // Trigger hasn't fired (or upsert above was blocked): return self-only
-      // so the UI can still render an account switcher.
       return NextResponse.json({ accounts: selfOnly(currentUser) });
     }
 
-    const settingsById = new Map<
-      string,
-      { brand_name?: string; domain?: string }
-    >();
+    // Primary source: user_sites (current table). Use the first/primary site
+    // per account for brand_name and domain displayed in the account switcher.
+    const settingsById = new Map<string, { brand_name?: string; domain?: string }>();
     try {
       const res = await admin
-        .from("user_settings")
-        .select("user_id, settings")
-        .in("user_id", ids);
+        .from("user_sites")
+        .select("user_id, site_name, settings")
+        .in("user_id", ids)
+        .order("created_at", { ascending: true });
       for (const row of res.data ?? []) {
-        const s =
-          (row as { user_id: string; settings: Record<string, unknown> })
-            .settings || {};
-        settingsById.set((row as { user_id: string }).user_id, {
-          brand_name:
-            typeof s.brand_name === "string" ? s.brand_name : undefined,
-          domain: typeof s.domain === "string" ? s.domain : undefined,
-        });
+        const r = row as { user_id: string; site_name: string; settings: Record<string, unknown> };
+        // Only store the first (primary) site per account.
+        if (!settingsById.has(r.user_id)) {
+          const s = r.settings || {};
+          settingsById.set(r.user_id, {
+            brand_name: (s.brand_name as string) || r.site_name || undefined,
+            domain: (s.domain as string) || undefined,
+          });
+        }
       }
     } catch (e) {
-      console.error("[account/list] user_settings lookup threw:", e);
+      console.error("[account/list] user_sites lookup threw:", e);
+    }
+
+    // Fallback: user_settings (legacy) for accounts not found in user_sites.
+    const missingIds = ids.filter((id) => !settingsById.has(id));
+    if (missingIds.length > 0) {
+      try {
+        const res = await admin
+          .from("user_settings")
+          .select("user_id, settings")
+          .in("user_id", missingIds);
+        for (const row of res.data ?? []) {
+          const r = row as { user_id: string; settings: Record<string, unknown> };
+          const s = r.settings || {};
+          settingsById.set(r.user_id, {
+            brand_name: typeof s.brand_name === "string" ? s.brand_name : undefined,
+            domain: typeof s.domain === "string" ? s.domain : undefined,
+          });
+        }
+      } catch (e) {
+        console.error("[account/list] user_settings fallback threw:", e);
+      }
     }
 
     const ownerEmails = new Map<string, string | null>();
@@ -139,7 +159,6 @@ export async function GET() {
         const { data } = await admin.auth.admin.getUserById(id);
         ownerEmails.set(id, data?.user?.email ?? null);
       } catch (e) {
-        // A deleted/orphaned membership shouldn't 500 the whole switcher.
         console.error("[account/list] getUserById failed for", id, e);
         ownerEmails.set(id, null);
       }
@@ -157,17 +176,13 @@ export async function GET() {
     accounts.sort((a, b) => {
       if (a.account_id === currentUser.id) return -1;
       if (b.account_id === currentUser.id) return 1;
-      const aLabel =
-        a.brand_name || a.domain || a.owner_email || a.account_id;
-      const bLabel =
-        b.brand_name || b.domain || b.owner_email || b.account_id;
+      const aLabel = a.brand_name || a.domain || a.owner_email || a.account_id;
+      const bLabel = b.brand_name || b.domain || b.owner_email || b.account_id;
       return aLabel.localeCompare(bLabel);
     });
 
     return NextResponse.json({ accounts });
   } catch (e) {
-    // Anything we didn't anticipate above still collapses to self-only so the
-    // browser console doesn't get a 500.
     console.error("[account/list] unexpected error:", e);
     return NextResponse.json({ accounts: selfOnly(currentUser) });
   }
