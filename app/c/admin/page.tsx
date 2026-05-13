@@ -958,7 +958,9 @@ export default function AdminPage() {
                 <th className="px-4 py-3">Last sign-in</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="sticky right-0 bg-slate-50 px-4 py-3 text-right shadow-[inset_1px_0_0_0_rgb(226_232_240)]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -981,7 +983,7 @@ export default function AdminPage() {
                 const busy = pendingId === acc.id;
                 const online = isOnline(acc.last_seen_at, now);
                 return (
-                  <tr key={acc.id} className="hover:bg-slate-50/60">
+                  <tr key={acc.id} className="group hover:bg-slate-50/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 font-medium text-slate-900">
                         <span
@@ -1088,32 +1090,34 @@ export default function AdminPage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
+                    <td className="sticky right-0 bg-white px-4 py-3 shadow-[inset_1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50/60">
+                      <div className="flex justify-end gap-1.5">
                         <button
                           onClick={() => handleViewAs(acc)}
                           disabled={busy}
                           title="View the customer's dashboard"
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          aria-label="View as"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                         >
-                          <Eye className="h-3 w-3" /> View
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => { setInviteFor(acc); setInviteEmail(""); setError(""); }}
                           disabled={busy}
                           title="Invite a team member to this account"
-                          className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                          aria-label="Invite"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50"
                         >
-                          <UserPlus className="h-3 w-3" /> Invite
+                          <UserPlus className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
                           title="Send password reset"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          aria-label="Reset password"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
-                          Reset
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                         </button>
                         {planStatuses[acc.id]?.plan_status === "admin_granted" ? (
                           <button
@@ -1140,10 +1144,10 @@ export default function AdminPage() {
                           onClick={() => void handleDelete(acc)}
                           disabled={busy || isSelf}
                           title={isSelf ? "Cannot delete your own admin account" : "Delete account"}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          aria-label="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                          Delete
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                       </div>
                     </td>

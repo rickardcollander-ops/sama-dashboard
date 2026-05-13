@@ -453,6 +453,31 @@ function GeneratingInner() {
             Tappade kontakten ({pollError}) — försöker igen…
           </div>
         )}
+
+        {/* Always-visible escape hatch. The job is meant to run in the
+            background, so blocking the user here when it stalls is what
+            traps first-time customers. Lets them bail out to the dashboard
+            without losing their plan — the run keeps progressing server-
+            side and they can come back to the review page later. */}
+        {!isError && !isFinishing && (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem("sama_onboarding_skipped", "1");
+                }
+                router.push("/c/dashboard");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Avbryt och gå till dashboard
+            </button>
+            <p className="text-[11px] text-slate-400">
+              Genereringen fortsätter i bakgrunden — du kan komma tillbaka senare.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
