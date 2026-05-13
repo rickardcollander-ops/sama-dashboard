@@ -20,6 +20,17 @@ interface SiteSummary {
   domain: string | null;
 }
 
+// Mirrors /api/admin/grant-free-access GET response so the PlanBadge can
+// render the right status pill + trail (days left for trial, until-date for
+// admin grants). Kept as a free-standing interface so /c/admin can use it
+// in the planStatuses state and the GET response typing.
+interface PlanStatusEntry {
+  plan: string | null;
+  plan_status: string | null;
+  trial_ends_at: string | null;
+  admin_granted_until: string | null;
+}
+
 interface Account {
   id: string;
   email?: string;
@@ -33,20 +44,6 @@ interface Account {
   sites: SiteSummary[];
   plan: string | null;
 }
-
-// Plan tiers an admin can pin an account to. "free" is comp / internal —
-// effectively unlimited so the tenant doesn't hit a paywall. Backend
-// enforces the same set in sama-agent/shared/usage.py.
-const PLAN_OPTIONS = ["free", "starter", "growth", "enterprise"] as const;
-type PlanOption = (typeof PLAN_OPTIONS)[number];
-
-const PLAN_BADGE: Record<PlanOption | "none", string> = {
-  free: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  starter: "bg-blue-50 text-blue-700 border-blue-200",
-  growth: "bg-violet-50 text-violet-700 border-violet-200",
-  enterprise: "bg-amber-50 text-amber-700 border-amber-200",
-  none: "bg-slate-100 text-slate-500 border-slate-200",
-};
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
 
@@ -753,32 +750,6 @@ export default function AdminPage() {
     }
   };
 
-  const handlePlanChange = async (acc: Account, plan: PlanOption) => {
-    if ((acc.plan || "") === plan) return;
-    // Optimistic update so the dropdown shows the new value immediately;
-    // revert on failure.
-    const previous = acc.plan;
-    setAccounts((prev) => prev.map((a) => (a.id === acc.id ? { ...a, plan } : a)));
-    setError("");
-    try {
-      const res = await fetch(`/api/admin/accounts/${acc.id}/plan`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      setNotice(`Plan set to ${plan} for ${acc.email ?? acc.id}`);
-    } catch (e) {
-      setAccounts((prev) =>
-        prev.map((a) => (a.id === acc.id ? { ...a, plan: previous } : a)),
-      );
-      setError(e instanceof Error ? e.message : "Could not update plan");
-    }
-  };
-
   const filtered = accounts.filter((a) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -957,7 +928,6 @@ export default function AdminPage() {
                 <th className="px-4 py-3">Created</th>
                 <th className="px-4 py-3">Last sign-in</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Plan</th>
                 <th className="sticky right-0 bg-slate-50 px-4 py-3 text-right shadow-[inset_1px_0_0_0_rgb(226_232_240)]">
                   Actions
                 </th>
@@ -1069,26 +1039,6 @@ export default function AdminPage() {
                           Pending
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={(acc.plan ?? "") as PlanOption | ""}
-                        onChange={(e) =>
-                          void handlePlanChange(acc, e.target.value as PlanOption)
-                        }
-                        disabled={busy}
-                        title="Set the billing plan for this account. Pick 'free' to skip the paywall."
-                        className={`rounded-md border px-2 py-1 text-xs font-medium capitalize ${
-                          PLAN_BADGE[(acc.plan as PlanOption) ?? "none"]
-                        } disabled:opacity-50`}
-                      >
-                        {!acc.plan && <option value="">(not set)</option>}
-                        {PLAN_OPTIONS.map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
-                      </select>
                     </td>
                     <td className="sticky right-0 bg-white px-4 py-3 shadow-[inset_1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50/60">
                       <div className="flex justify-end gap-1.5">
