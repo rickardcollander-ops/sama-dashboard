@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 import CustomerNav from "@/components/CustomerNav";
 
 interface OnboardingData {
@@ -47,16 +48,8 @@ const LANGS: { code: string; label: string }[] = [
   { code: "nl", label: "Nederlands" },
 ];
 
-const STEP_LABELS = [
-  { icon: Globe, label: "Webbsida" },
-  { icon: Languages, label: "Språk" },
-  { icon: FileText, label: "Verksamhet" },
-  { icon: Users, label: "Konkurrenter" },
-  { icon: Palette, label: "Varumärke" },
-  { icon: Sparkles, label: "AI-frågor" },
-];
-
-const TOTAL_STEPS = STEP_LABELS.length;
+const STEP_ICONS = [Globe, Languages, FileText, Users, Palette, Sparkles];
+const TOTAL_STEPS = STEP_ICONS.length;
 
 const DRAFT_KEY = "sama_onboarding_v2_draft";
 const SKIP_KEY = "sama_onboarding_skipped";
@@ -102,6 +95,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { activeSite } = useSite();
+  const { t } = useLanguage();
+  const ow = t.onboardingWizard;
 
   const initial = typeof window !== "undefined" ? loadDraft() : null;
   const [step, setStep] = useState(initial?.step ?? 0);
@@ -117,6 +112,15 @@ export default function OnboardingPage() {
 
   const hydratedFromSite = useRef<boolean>(initial !== null);
   const querySuggestRequested = useRef<boolean>(initial?.data.geo_queries.length ? true : false);
+
+  const STEP_LABELS = [
+    ow.stepDomain,
+    ow.stepLanguage,
+    ow.stepBusiness,
+    ow.stepCompetitors,
+    ow.stepBranding,
+    ow.stepAiQueries,
+  ];
 
   useEffect(() => {
     if (!userLoading && !user) router.push("/c/login");
@@ -236,7 +240,7 @@ export default function OnboardingPage() {
 
   // Kick off the AI-query suggestion automatically the first time the user
   // reaches step 5 (AI queries). It takes a few seconds — we hide the
-  // latency behind a "Genererar förslag…" state in the UI.
+  // latency behind a loading state in the UI.
   useEffect(() => {
     if (step !== 5) return;
     if (querySuggestRequested.current) return;
@@ -291,7 +295,6 @@ export default function OnboardingPage() {
     if (editingQueryIdx === null) return;
     const v = editingQueryValue.trim();
     if (!v) {
-      // Empty value = remove.
       removeQuery(editingQueryIdx);
     } else {
       update(
@@ -355,7 +358,7 @@ export default function OnboardingPage() {
       clearDraft();
       router.push(`/c/onboarding/generating?job=${encodeURIComponent(jobId)}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Något gick fel");
+      setError(e instanceof Error ? e.message : ow.errorGeneral);
       setSubmitting(false);
     }
   };
@@ -368,7 +371,7 @@ export default function OnboardingPage() {
     );
   }
 
-  const Icon = STEP_LABELS[step].icon;
+  const StepIcon = STEP_ICONS[step];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 text-slate-900">
@@ -396,28 +399,28 @@ export default function OnboardingPage() {
             }}
             className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
           >
-            Hoppa över
+            {ow.skip}
             <X className="h-3 w-3" />
           </button>
           <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
-            <Icon className="h-3.5 w-3.5" />
-            Steg {step + 1} av {TOTAL_STEPS}
+            <StepIcon className="h-3.5 w-3.5" />
+            {ow.stepPrefix} {step + 1} {ow.stepOf} {TOTAL_STEPS}
           </div>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">
-            {step === 0 && "Vad är din webbsida?"}
-            {step === 1 && "Välj primärt språk"}
-            {step === 2 && "Beskriv din verksamhet"}
-            {step === 3 && "Lägg till konkurrenter"}
-            {step === 4 && "Berätta om varumärket"}
-            {step === 5 && "AI-frågor att bevaka"}
+            {step === 0 && ow.domainTitle}
+            {step === 1 && ow.languageTitle}
+            {step === 2 && ow.businessTitle}
+            {step === 3 && ow.competitorsTitle}
+            {step === 4 && ow.brandingTitle}
+            {step === 5 && ow.geoTitle}
           </h1>
           <p className="mt-2 text-sm text-slate-600">
-            {step === 0 && "Vi analyserar den och bygger din plan automatiskt."}
-            {step === 1 && "Standardspråk för allt innehåll vi skapar — du kan ändra senare."}
-            {step === 2 && "Vad gör företaget, och vem är det till för?"}
-            {step === 3 && "Hjälper oss förstå din marknad. Hoppa över om du vill — kan läggas till senare."}
-            {step === 4 && "Hjälp oss anpassa designen. Båda fälten är valfria."}
-            {step === 5 && "Frågor vi kör mot ChatGPT, Claude och Perplexity för att mäta din synlighet. Granska, redigera eller lägg till egna."}
+            {step === 0 && ow.domainDesc}
+            {step === 1 && ow.languageDesc}
+            {step === 2 && ow.businessDesc}
+            {step === 3 && ow.competitorsDesc}
+            {step === 4 && ow.brandingDesc}
+            {step === 5 && ow.geoDesc}
           </p>
         </div>
 
@@ -439,8 +442,12 @@ export default function OnboardingPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           {step === 0 && (
             <div className="space-y-4">
+              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+                <span className="font-semibold">{ow.betaTitle}</span>{" "}
+                {ow.betaDesc}
+              </div>
               <label className="block text-sm font-medium text-slate-700">
-                Domän
+                {ow.domainLabel}
                 {prefilling && (
                   <Loader2 className="ml-2 inline h-3 w-3 animate-spin text-slate-400" />
                 )}
@@ -451,12 +458,12 @@ export default function OnboardingPage() {
                 value={data.domain}
                 onChange={(e) => update("domain", e.target.value)}
                 onBlur={() => void domainBlur()}
-                placeholder="dittforetag.se"
+                placeholder={ow.domainPlaceholder}
                 className="w-full rounded-full border border-slate-300 px-5 py-3 text-base focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
               {data.brand_name && (
                 <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
-                  <span className="text-slate-500">Vi hittade: </span>
+                  <span className="text-slate-500">{ow.domainFound} </span>
                   <span className="font-medium">{data.brand_name}</span>
                 </div>
               )}
@@ -489,25 +496,25 @@ export default function OnboardingPage() {
             <div className="space-y-5">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Beskrivning
+                  {ow.descriptionLabel}
                 </label>
                 <textarea
                   value={data.brand_description}
                   onChange={(e) => update("brand_description", e.target.value)}
                   rows={5}
-                  placeholder="Vad gör företaget? Vilka problem löser ni? Vad är unikt?"
+                  placeholder={ow.descriptionPlaceholder}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-relaxed focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Målgrupp
+                  {ow.audienceLabel}
                 </label>
                 <input
                   type="text"
                   value={data.target_audience}
                   onChange={(e) => update("target_audience", e.target.value)}
-                  placeholder="T.ex. småföretagare, e-handelsbolag, marknadschefer i SaaS…"
+                  placeholder={ow.audiencePlaceholder}
                   className="w-full rounded-full border border-slate-300 px-5 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
               </div>
@@ -528,7 +535,7 @@ export default function OnboardingPage() {
                       type="button"
                       onClick={() => removeCompetitor(i)}
                       className="rounded-full p-0.5 hover:bg-slate-200"
-                      aria-label="Ta bort"
+                      aria-label={ow.removeLabel}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -546,7 +553,7 @@ export default function OnboardingPage() {
                       addCompetitor();
                     }
                   }}
-                  placeholder="konkurrent.se"
+                  placeholder={ow.competitorPlaceholder}
                   className="flex-1 rounded-full border border-slate-300 px-5 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
                 <button
@@ -565,7 +572,7 @@ export default function OnboardingPage() {
             <div className="space-y-5">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Varumärkesfärg
+                  {ow.brandColorLabel}
                 </label>
                 <div className="flex items-center gap-3 rounded-full border border-slate-300 px-4 py-2.5">
                   <input
@@ -573,7 +580,7 @@ export default function OnboardingPage() {
                     value={data.brand_color}
                     onChange={(e) => update("brand_color", e.target.value)}
                     className="h-8 w-8 cursor-pointer rounded-md border-0 bg-transparent"
-                    aria-label="Välj varumärkesfärg"
+                    aria-label={ow.brandColorLabel}
                   />
                   <input
                     type="text"
@@ -586,19 +593,17 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Exempelartikel-URL{" "}
-                  <span className="font-normal text-slate-400">(valfritt)</span>
+                  {ow.exampleUrlLabel}{" "}
+                  <span className="font-normal text-slate-400">{ow.optionalLabel}</span>
                 </label>
                 <input
                   type="url"
                   value={data.example_article_url}
                   onChange={(e) => update("example_article_url", e.target.value)}
-                  placeholder="https://dittforetag.se/blogg/bra-artikel"
+                  placeholder="https://yourcompany.com/blog/great-article"
                   className="w-full rounded-full border border-slate-300 px-5 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
-                <p className="mt-1.5 text-xs text-slate-500">
-                  Vi tittar på den för att matcha skrivstil och ton.
-                </p>
+                <p className="mt-1.5 text-xs text-slate-500">{ow.exampleUrlHint}</p>
               </div>
             </div>
           )}
@@ -608,7 +613,7 @@ export default function OnboardingPage() {
               {suggestingQueries && data.geo_queries.length === 0 && (
                 <div className="flex items-center gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-700">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Genererar förslag baserat på din verksamhet…
+                  {ow.geoGenerating}
                 </div>
               )}
 
@@ -639,7 +644,7 @@ export default function OnboardingPage() {
                         onClick={commitEditQuery}
                         className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600"
                       >
-                        Spara
+                        {ow.saveLabel}
                       </button>
                     </div>
                   ) : (
@@ -654,7 +659,7 @@ export default function OnboardingPage() {
                           type="button"
                           onClick={() => startEditQuery(i)}
                           className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                          aria-label="Redigera"
+                          aria-label={ow.editLabel}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -662,7 +667,7 @@ export default function OnboardingPage() {
                           type="button"
                           onClick={() => removeQuery(i)}
                           className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                          aria-label="Ta bort"
+                          aria-label={ow.removeLabel}
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -683,7 +688,7 @@ export default function OnboardingPage() {
                       addQuery();
                     }
                   }}
-                  placeholder='Lägg till en egen fråga — t.ex. "bästa verktyget för…"'
+                  placeholder={ow.geoAddPlaceholder}
                   className="flex-1 rounded-full border border-slate-300 px-5 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
                 <button
@@ -702,7 +707,7 @@ export default function OnboardingPage() {
                   onClick={() => void suggestGeoQueries()}
                   className="text-sm font-medium text-orange-600 hover:text-orange-700"
                 >
-                  Hämta AI-förslag igen
+                  {ow.geoRefetch}
                 </button>
               )}
             </div>
@@ -722,7 +727,7 @@ export default function OnboardingPage() {
               className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-0"
             >
               <ChevronLeft className="h-4 w-4" />
-              Tillbaka
+              {ow.back}
             </button>
 
             {step < TOTAL_STEPS - 1 ? (
@@ -732,7 +737,7 @@ export default function OnboardingPage() {
                 disabled={!canAdvance() || submitting}
                 className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-8 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                Fortsätt
+                {ow.next}
                 <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
@@ -745,11 +750,11 @@ export default function OnboardingPage() {
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Startar…
+                    {ow.starting}
                   </>
                 ) : (
                   <>
-                    Starta SAMA
+                    {ow.start}
                     <Sparkles className="h-4 w-4" />
                   </>
                 )}
