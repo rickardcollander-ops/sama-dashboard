@@ -9,7 +9,7 @@ export const framerAdapter: CmsAdapter = {
     const token = cfg.api_token?.trim();
     const collection = cfg.collection_id?.trim();
     if (!token || !collection) {
-      return { ok: false, message: "api_token och collection_id krävs" };
+      return { ok: false, message: "api_token and collection_id are required" };
     }
     const res = await fetch(`${API}/collections/${collection}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -25,7 +25,7 @@ export const framerAdapter: CmsAdapter = {
     const token = cfg.api_token?.trim();
     const collection = cfg.collection_id?.trim();
     if (!token || !collection) {
-      throw new PublishError("Framer: api_token och collection_id krävs", 400);
+      throw new PublishError("Framer: api_token and collection_id are required", 400);
     }
 
     const titleField = cfg.field_title || "title";

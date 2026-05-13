@@ -53,14 +53,14 @@ export const githubAdapter: CmsAdapter = {
     const token = cfg.token?.trim();
     const repo_owner = cfg.repo_owner?.trim();
     const repo_name = cfg.repo_name?.trim();
-    if (!token) return { ok: false, message: "GitHub token saknas" };
-    if (!repo_owner || !repo_name) return { ok: false, message: "Repo (owner/name) krävs" };
+    if (!token) return { ok: false, message: "GitHub token is required" };
+    if (!repo_owner || !repo_name) return { ok: false, message: "Repo (owner/name) is required" };
     const res = await fetch(`${GITHUB_API}/repos/${repo_owner}/${repo_name}`, {
       headers: ghHeaders(token),
     });
-    if (res.status === 401) return { ok: false, message: "GitHub-token är ogiltig eller utgången" };
-    if (res.status === 404) return { ok: false, message: "Hittar inte repot — kontrollera owner/name och tokenens åtkomst" };
-    if (!res.ok) return { ok: false, message: `GitHub svarade HTTP ${res.status}` };
+    if (res.status === 401) return { ok: false, message: "GitHub token is invalid or expired" };
+    if (res.status === 404) return { ok: false, message: "Repository not found — check owner/name and token permissions" };
+    if (!res.ok) return { ok: false, message: `GitHub responded with HTTP ${res.status}` };
     return { ok: true };
   },
 
@@ -69,7 +69,7 @@ export const githubAdapter: CmsAdapter = {
     const repo_owner = cfg.repo_owner?.trim();
     const repo_name = cfg.repo_name?.trim();
     if (!token || !repo_owner || !repo_name) {
-      throw new PublishError("GitHub: anslutning saknas — anslut under Integrationer", 400);
+      throw new PublishError("GitHub: connection missing — connect under Integrations", 400);
     }
     const branch = cfg.branch?.trim() || "main";
     const blogPath = cleanPath(cfg.blog_path, "content/blog");
@@ -90,7 +90,7 @@ export const githubAdapter: CmsAdapter = {
       if (data?.sha) existingSha = data.sha;
     } else if (existing.status !== 404) {
       const text = await existing.text().catch(() => "");
-      throw new PublishError(`GitHub kunde inte läsa filen (HTTP ${existing.status})`, existing.status, text);
+      throw new PublishError(`GitHub could not read the file (HTTP ${existing.status})`, existing.status, text);
     }
 
     const message = existingSha

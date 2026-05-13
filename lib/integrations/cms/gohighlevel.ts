@@ -20,7 +20,7 @@ export const gohighlevelAdapter: CmsAdapter = {
     const locationId = cfg.location_id?.trim();
     const blogId = cfg.blog_id?.trim();
     if (!token || !locationId || !blogId) {
-      return { ok: false, message: "api_token, location_id och blog_id krävs" };
+      return { ok: false, message: "api_token, location_id and blog_id are required" };
     }
     const res = await fetch(
       `${API}/blogs/site/all?locationId=${encodeURIComponent(locationId)}&limit=1&offset=0`,
@@ -38,7 +38,7 @@ export const gohighlevelAdapter: CmsAdapter = {
     const locationId = cfg.location_id?.trim();
     const blogId = cfg.blog_id?.trim();
     if (!token || !locationId || !blogId) {
-      throw new PublishError("GHL: api_token, location_id och blog_id krävs", 400);
+      throw new PublishError("GHL: api_token, location_id and blog_id are required", 400);
     }
 
     const html = input.body_html || "";
