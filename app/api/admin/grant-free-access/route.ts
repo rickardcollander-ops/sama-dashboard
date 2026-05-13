@@ -20,12 +20,9 @@ export const dynamic = "force-dynamic";
 interface GrantBody {
   user_id: string;
   action: "grant" | "revoke";
-  plan?: string;
   granted_until?: string | null; // ISO; null/omitted = unlimited
   note?: string;
 }
-
-const VALID_PLANS = new Set(["starter", "growth", "enterprise"]);
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
@@ -56,10 +53,6 @@ export async function POST(req: NextRequest) {
   let auditUntil: string | null;
 
   if (body.action === "grant") {
-    const plan = (body.plan ?? "growth").toLowerCase();
-    if (!VALID_PLANS.has(plan)) {
-      return NextResponse.json({ error: `Unknown plan: ${plan}` }, { status: 400 });
-    }
     let untilIso: string | null = null;
     if (body.granted_until) {
       const d = new Date(body.granted_until);
@@ -69,7 +62,7 @@ export async function POST(req: NextRequest) {
       untilIso = d.toISOString();
     }
     patch = {
-      plan,
+      plan: "site",
       plan_status: "admin_granted",
       admin_granted_until: untilIso,
       admin_granted_by: adminEmail,

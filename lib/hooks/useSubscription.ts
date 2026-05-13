@@ -12,7 +12,7 @@ import { api, ApiError } from "@/lib/api";
  * portal layout.
  */
 export interface SubscriptionStatus {
-  plan: string;                        // starter | growth | enterprise
+  plan: string;                        // always "site" with per-site pricing
   status: string;                      // trial | active | trialing | past_due | admin_granted | canceled | expired
   has_access: boolean;
   trial_ends_at: string | null;
@@ -22,6 +22,10 @@ export interface SubscriptionStatus {
   stripe_subscription_id: string | null;
   blocked_reason: string | null;
   current_period_end: string | null;
+  site_count: number;
+  quantity: number;
+  unit_price_usd: number;
+  monthly_total_usd: number;
 }
 
 interface UseSubscription {

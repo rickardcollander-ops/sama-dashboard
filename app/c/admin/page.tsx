@@ -416,10 +416,9 @@ function GrantModal({
 }: {
   account: Account;
   onClose: () => void;
-  onSubmit: (payload: { plan: string; granted_until: string | null; note?: string }) => void;
+  onSubmit: (payload: { granted_until: string | null; note?: string }) => void;
   submitting: boolean;
 }) {
-  const [plan, setPlan] = useState("growth");
   const [duration, setDuration] = useState("unlimited"); // unlimited | 7 | 30 | 90 | custom
   const [customDate, setCustomDate] = useState("");
   const [note, setNote] = useState("");
@@ -459,20 +458,6 @@ function GrantModal({
         </div>
 
         <div className="mt-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Plan</label>
-            <select
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-              disabled={submitting}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="starter">Starter</option>
-              <option value="growth">Growth</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </div>
-
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Duration</label>
             <select
@@ -528,7 +513,6 @@ function GrantModal({
             type="button"
             onClick={() =>
               onSubmit({
-                plan,
                 granted_until: computeUntil(),
                 note: note.trim() || undefined,
               })
@@ -604,7 +588,7 @@ export default function AdminPage() {
   }, []);
 
   const handleGrant = useCallback(
-    async (acc: Account, payload: { plan: string; granted_until: string | null; note?: string }) => {
+    async (acc: Account, payload: { granted_until: string | null; note?: string }) => {
       setPendingId(acc.id);
       setError("");
       try {
@@ -614,14 +598,13 @@ export default function AdminPage() {
           body: JSON.stringify({
             user_id: acc.id,
             action: "grant",
-            plan: payload.plan,
             granted_until: payload.granted_until,
             note: payload.note,
           }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-        setNotice(`Granted free ${payload.plan} access to ${acc.email ?? acc.id}`);
+        setNotice(`Granted free access to ${acc.email ?? acc.id}`);
         setGrantFor(null);
         await load();
       } catch (e) {
