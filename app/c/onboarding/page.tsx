@@ -439,10 +439,6 @@ export default function OnboardingPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           {step === 0 && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-                <span className="font-semibold">Beta-testare sökes!</span>{" "}
-                Vi har lagt upp på Reddit att vi letar testare — tack för att du är här tidigt. Ditt feedback hjälper oss att göra SAMA bättre.
-              </div>
               <label className="block text-sm font-medium text-slate-700">
                 Domän
                 {prefilling && (

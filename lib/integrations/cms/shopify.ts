@@ -25,7 +25,7 @@ export const shopifyAdapter: CmsAdapter = {
     const blogId = cfg.blog_id?.trim();
     const version = cfg.api_version?.trim() || DEFAULT_VERSION;
     if (!shop || !token || !blogId) {
-      return { ok: false, message: "shop_domain, access_token och blog_id krävs" };
+      return { ok: false, message: "shop_domain, access_token and blog_id are required" };
     }
     const res = await fetch(
       `https://${shop}/admin/api/${version}/blogs/${blogId}.json`,
@@ -44,7 +44,7 @@ export const shopifyAdapter: CmsAdapter = {
     const blogId = cfg.blog_id?.trim();
     const version = cfg.api_version?.trim() || DEFAULT_VERSION;
     if (!shop || !token || !blogId) {
-      throw new PublishError("Shopify: shop_domain, access_token och blog_id krävs", 400);
+      throw new PublishError("Shopify: shop_domain, access_token and blog_id are required", 400);
     }
 
     const html = input.body_html || "";

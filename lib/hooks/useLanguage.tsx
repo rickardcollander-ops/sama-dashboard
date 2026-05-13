@@ -12,7 +12,7 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
 const STORAGE_KEY = "sama_language";
-const DEFAULT_LANGUAGE: Language = "sv";
+const DEFAULT_LANGUAGE: Language = "en";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   // Always start with the default so server-rendered HTML matches the

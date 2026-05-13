@@ -21,6 +21,9 @@ interface AnalysisRowProps {
   statusInputs: AnalysisStatusInputs;
   requirementChecks: RequirementChecks;
   onTrigger: (agent: AgentKey, endpoint: string) => void;
+  // When true, the row never renders the "Kör nu" button even when the
+  // analysis has a triggerEndpoint. The autopilot pill still shows.
+  hideRunButton?: boolean;
 }
 
 const STATUS_PILL: Record<
@@ -60,6 +63,7 @@ export default function AnalysisRow({
   statusInputs,
   requirementChecks,
   onTrigger,
+  hideRunButton,
 }: AnalysisRowProps) {
   const { t } = useLanguage();
   const agent = AGENTS[def.agentIconId];
@@ -75,7 +79,7 @@ export default function AnalysisRow({
       : undefined;
 
   const lastRun = def.lastRunSelector(statusInputs);
-  const isManual = !!def.triggerEndpoint && !!def.agentKey;
+  const isManual = !hideRunButton && !!def.triggerEndpoint && !!def.agentKey;
   const isRunning = status === "running";
   const canRun = isManual && missing.length === 0 && !isRunning;
 

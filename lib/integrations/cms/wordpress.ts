@@ -10,7 +10,7 @@ function buildAuthHeader(cfg: Record<string, string>): string {
   const user = cfg.username?.trim();
   const pass = cfg.app_password?.trim();
   if (!user || !pass) {
-    throw new PublishError("WordPress: username och application password krävs", 400);
+    throw new PublishError("WordPress: username and application password are required", 400);
   }
   const token = Buffer.from(`${user}:${pass}`).toString("base64");
   return `Basic ${token}`;
@@ -31,7 +31,7 @@ export const wordpressAdapter: CmsAdapter = {
       }
       return { ok: true };
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : "Kunde inte nå WordPress" };
+      return { ok: false, message: e instanceof Error ? e.message : "Could not reach WordPress" };
     }
   },
 

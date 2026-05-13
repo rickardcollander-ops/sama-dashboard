@@ -20,14 +20,14 @@ export const webhookAdapter: CmsAdapter = {
   async validate(cfg) {
     const url = cfg.url?.trim();
     if (!url || !/^https?:\/\//.test(url)) {
-      return { ok: false, message: "URL krävs (https rekommenderas)" };
+      return { ok: false, message: "URL is required (https recommended)" };
     }
     return { ok: true };
   },
 
   async publish(cfg, input: PublishInput): Promise<PublishResult> {
     const url = cfg.url?.trim();
-    if (!url) throw new PublishError("Webhook: url saknas", 400);
+    if (!url) throw new PublishError("Webhook: url is required", 400);
 
     const payload = {
       title: input.title,

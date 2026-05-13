@@ -19,7 +19,7 @@ export const wixAdapter: CmsAdapter = {
     const apiKey = cfg.api_key?.trim();
     const siteId = cfg.site_id?.trim();
     if (!apiKey || !siteId) {
-      return { ok: false, message: "api_key och site_id krävs" };
+      return { ok: false, message: "api_key and site_id are required" };
     }
     const res = await fetch(
       `${API}/blog/v3/posts/query`,
@@ -40,7 +40,7 @@ export const wixAdapter: CmsAdapter = {
     const apiKey = cfg.api_key?.trim();
     const siteId = cfg.site_id?.trim();
     if (!apiKey || !siteId) {
-      throw new PublishError("Wix: api_key och site_id krävs", 400);
+      throw new PublishError("Wix: api_key and site_id are required", 400);
     }
 
     const richContent = {
@@ -87,7 +87,7 @@ export const wixAdapter: CmsAdapter = {
     const draftData = await draftRes.json();
     const draftId = draftData?.draftPost?.id;
     if (!draftId) {
-      throw new PublishError("Wix: kunde inte läsa draft id", 500, draftData);
+      throw new PublishError("Wix: could not read draft id", 500, draftData);
     }
 
     if (input.status === "draft") {
