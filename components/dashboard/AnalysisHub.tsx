@@ -35,6 +35,7 @@ export default function AnalysisHub({
           statusInputs={statusInputs}
           requirementChecks={requirementChecks}
           onTrigger={onTrigger}
+          hideRunButton
         />
         <AnalysisGroup
           title={t.analyses.channelTitle}
@@ -46,16 +47,6 @@ export default function AnalysisHub({
           onTrigger={onTrigger}
         />
       </div>
-
-      <AnalysisGroup
-        title={t.analyses.deepTitle}
-        description={t.analyses.deepDescription}
-        items={ANALYSES_BY_CATEGORY.deep}
-        runs={runs}
-        statusInputs={statusInputs}
-        requirementChecks={requirementChecks}
-        onTrigger={onTrigger}
-      />
     </div>
   );
 }

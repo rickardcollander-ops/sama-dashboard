@@ -98,6 +98,19 @@ export const ANALYSES: ReadonlyArray<AnalysisDef> = [
     requires: ["domain"],
     lastRunSelector: (p) => p.trafficLastSyncedAt,
   },
+  {
+    id: "site_audit",
+    agentKey: "site_audit",
+    agentIconId: "tech",
+    label: "Sajtanalys",
+    description: "Crawl + tekniskt och innehållsmässigt djuptest av upp till 200 sidor.",
+    category: "recurring",
+    cadence: "weekly",
+    cronDescription: "Veckovis (söndagar)",
+    href: "/c/audit",
+    requires: ["domain"],
+    lastRunSelector: (p) => p.siteAuditLastRun,
+  },
 
   // --- Innehåll & kanaler (channel) ------------------------------------
   {
@@ -148,19 +161,9 @@ export const ANALYSES: ReadonlyArray<AnalysisDef> = [
     lastRunSelector: () => undefined,
   },
 
-  // --- Djupanalyser (deep) ---------------------------------------------
-  {
-    id: "site_audit",
-    agentKey: "site_audit",
-    agentIconId: "tech",
-    label: "Sajtanalys",
-    description: "Crawl + tekniskt och innehållsmässigt djuptest av upp till 200 sidor.",
-    category: "deep",
-    cadence: "on-demand",
-    href: "/audit",
-    requires: ["domain"],
-    lastRunSelector: (p) => p.siteAuditLastRun,
-  },
+  // Sajtanalys was previously in its own "Djupanalyser" group but the
+  // dashboard now folds it into Återkommande checks (no extra section
+  // for a single-item category).
 ];
 
 export const ANALYSES_BY_CATEGORY: Record<AnalysisCategory, AnalysisDef[]> = {
