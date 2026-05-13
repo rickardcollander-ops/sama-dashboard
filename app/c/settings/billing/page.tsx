@@ -3,60 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowRight, Building2, Check, ExternalLink, Loader2,
-  ShieldCheck, Sparkles, Zap,
+  AlertTriangle, ArrowRight, Check, ExternalLink, Globe, Loader2,
+  ShieldCheck, Sparkles,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { api, ApiError } from "@/lib/api";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 
-type TierKey = "starter" | "growth" | "enterprise";
-
-interface Tier {
-  key: TierKey;
-  name: string;
-  price: string;
-  period: string;
-  blurb: string;
-  icon: typeof Zap;
-  highlights: string[];
-}
-
-const TIERS: Tier[] = [
-  {
-    key: "starter",
-    name: "Starter",
-    price: "$149",
-    period: "/mo",
-    blurb: "Starter pack for growing brands",
-    icon: Zap,
-    highlights: ["SEO agent", "5 content/mo", "Reviews"],
-  },
-  {
-    key: "growth",
-    name: "Growth",
-    price: "$399",
-    period: "/mo",
-    blurb: "Full marketing AI for scaling companies",
-    icon: Sparkles,
-    highlights: ["Everything in Starter", "Ad agent", "AI visibility", "Full reporting"],
-  },
-  {
-    key: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
-    period: "",
-    blurb: "Tailored for larger organisations",
-    icon: Building2,
-    highlights: ["Everything in Growth", "API access", "Dedicated support"],
-  },
+const FEATURES = [
+  "Full SEO + content agent",
+  "Ads agent (Google & Meta)",
+  "Social (X + LinkedIn + Reddit)",
+  "AI visibility monitoring",
+  "Auto-replies to reviews",
+  "Full analytics & reporting",
 ];
-
-function tierFor(key: string | null | undefined): Tier | null {
-  if (!key) return null;
-  const k = key.toLowerCase();
-  return TIERS.find((t) => t.key === k) ?? null;
-}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -69,22 +30,27 @@ export default function BillingPage() {
   const [busy, setBusy] = useState<"checkout" | "portal" | null>(null);
   const [busyMsg, setBusyMsg] = useState<string | null>(null);
 
-  const current = tierFor(status?.plan);
+  const sites = status?.site_count ?? 0;
+  const quantity = status?.quantity ?? Math.max(sites, 1);
+  const unit = status?.unit_price_usd ?? 169;
+  const total = status?.monthly_total_usd ?? unit * Math.max(quantity, 1);
+
   const isAdminGranted = status?.status === "admin_granted";
   const isTrial = status?.status === "trial";
   const isActive = status?.status === "active" || status?.status === "trialing";
   const isPastDue = status?.status === "past_due";
   const isBlocked = status && !status.has_access;
 
-  async function startCheckout(plan: TierKey) {
+  async function startCheckout() {
     setBusy("checkout");
     setBusyMsg(null);
     try {
-      const { url } = await api.post<{ url: string }>("/api/subscriptions/checkout", { plan });
+      const { url } = await api.post<{ url: string }>("/api/subscriptions/checkout", {});
       if (url) window.location.href = url;
     } catch (e) {
-      const msg = e instanceof ApiError ? `Checkout failed (${e.status})` : "Checkout failed";
-      setBusyMsg(msg);
+      setBusyMsg(
+        e instanceof ApiError ? `Checkout failed (${e.status})` : "Checkout failed",
+      );
     } finally {
       setBusy(null);
     }
@@ -97,8 +63,9 @@ export default function BillingPage() {
       const { url } = await api.post<{ url: string }>("/api/subscriptions/portal", {});
       if (url) window.location.href = url;
     } catch (e) {
-      const msg = e instanceof ApiError ? `Portal unavailable (${e.status})` : "Portal unavailable";
-      setBusyMsg(msg);
+      setBusyMsg(
+        e instanceof ApiError ? `Portal unavailable (${e.status})` : "Portal unavailable",
+      );
     } finally {
       setBusy(null);
     }
@@ -112,11 +79,11 @@ export default function BillingPage() {
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Plan & billing</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Manage your subscription, trial status, and payment method.
+            ${unit} / month per site. Your bill updates automatically as you add or remove sites.
           </p>
         </div>
 
-        {/* ── Status banner ───────────────────────────────────────────── */}
+        {/* Status banners */}
         {isTrial && status && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <div className="flex items-start gap-3">
@@ -142,7 +109,7 @@ export default function BillingPage() {
               <div className="flex-1">
                 <p className="font-semibold">Trial expired</p>
                 <p className="mt-0.5 text-rose-800">
-                  Choose a plan to re-enable content generation, agent runs and the
+                  Subscribe to re-enable content generation, agent runs and the
                   rest of the AI features. Already paid? Refresh this page.
                 </p>
               </div>
@@ -184,32 +151,24 @@ export default function BillingPage() {
           </div>
         )}
 
-        {/* ── Current plan card ───────────────────────────────────────── */}
+        {/* Plan card */}
         <div className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="flex-1">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Current plan
               </p>
               <div className="mt-1 flex items-center gap-3">
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                ) : current ? (
-                  <>
-                    <current.icon className="h-6 w-6 text-blue-600" />
-                    <h2 className="text-2xl font-bold text-slate-900">{current.name}</h2>
-                    <span className="text-slate-500">
-                      {current.price}
-                      {current.period}
-                    </span>
-                  </>
                 ) : (
-                  <h2 className="text-2xl font-bold text-slate-900">No active plan</h2>
+                  <>
+                    <Globe className="h-6 w-6 text-blue-600" />
+                    <h2 className="text-2xl font-bold text-slate-900">SAMA</h2>
+                    <span className="text-slate-500">${unit} / site / mo</span>
+                  </>
                 )}
               </div>
-              {current && (
-                <p className="mt-2 text-sm text-slate-500">{current.blurb}</p>
-              )}
               {error && (
                 <p className="mt-2 text-xs text-rose-600">Failed to load: {error}</p>
               )}
@@ -232,27 +191,57 @@ export default function BillingPage() {
                   )}
                 </button>
               ) : (
-                <Link
-                  href="/c/pricing"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+                <button
+                  type="button"
+                  onClick={startCheckout}
+                  disabled={busy === "checkout"}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-60"
                 >
-                  {current ? "Subscribe now" : "Pick a plan"}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                  {busy === "checkout" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      Subscribe
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </div>
 
-          {current && (
-            <ul className="mt-6 grid gap-2 sm:grid-cols-2">
-              {current.highlights.map((h) => (
-                <li key={h} className="flex items-center gap-2 text-sm text-slate-700">
-                  <Check className="h-4 w-4 flex-shrink-0 text-emerald-500" />
-                  {h}
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Site breakdown */}
+          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Connected sites</span>
+              <span className="font-semibold text-slate-900">{sites || 0}</span>
+            </div>
+            {isActive && quantity !== sites && sites > 0 && (
+              <div className="mt-1 flex items-center justify-between text-xs text-amber-700">
+                <span>Stripe quantity</span>
+                <span>
+                  {quantity} (syncing to {sites})
+                </span>
+              </div>
+            )}
+            <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-3">
+              <span className="text-slate-500">
+                ${unit} × {Math.max(quantity, 1)}
+              </span>
+              <span className="text-xl font-bold text-slate-900">
+                ${total} <span className="text-sm font-normal text-slate-400">/ mo</span>
+              </span>
+            </div>
+          </div>
+
+          <ul className="mt-6 grid gap-2 sm:grid-cols-2">
+            {FEATURES.map((h) => (
+              <li key={h} className="flex items-center gap-2 text-sm text-slate-700">
+                <Check className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+                {h}
+              </li>
+            ))}
+          </ul>
 
           {status?.current_period_end && (isActive || isPastDue) && (
             <p className="mt-4 text-xs text-slate-500">
@@ -261,63 +250,13 @@ export default function BillingPage() {
           )}
         </div>
 
-        {/* ── Quick upgrade buttons (anyone not active) ───────────────── */}
-        {!isActive && (
-          <>
-            <h3 className="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Subscribe
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {TIERS.map((t) => (
-                <div
-                  key={t.key}
-                  className="flex flex-col rounded-xl border bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <t.icon className="h-5 w-5 text-slate-500" />
-                    <h4 className="font-semibold text-slate-900">{t.name}</h4>
-                  </div>
-                  <p className="mt-2 text-2xl font-bold text-slate-900">
-                    {t.price}
-                    <span className="text-sm font-normal text-slate-400">{t.period}</span>
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">{t.blurb}</p>
-                  {t.key === "enterprise" ? (
-                    <a
-                      href="mailto:hello@successifier.com"
-                      className="mt-4 inline-flex items-center justify-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
-                    >
-                      Contact us
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => startCheckout(t.key)}
-                      disabled={busy === "checkout"}
-                      className="mt-4 inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      {busy === "checkout" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          Subscribe
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* ── Manual refresh hint ─────────────────────────────────────── */}
+        {/* Help */}
         <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-slate-900">Need help with your invoice?</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Receipts and tax documents are available in the Stripe billing portal.
-            For anything else, reach out and we&apos;ll sort it.
+            Receipts, tax docs, payment-method updates and cancellations live in
+            the Stripe billing portal. For anything else, reach out and
+            we&apos;ll sort it.
           </p>
           <div className="mt-3 flex items-center gap-3">
             <a
@@ -327,6 +266,12 @@ export default function BillingPage() {
               Contact support
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
+            <Link
+              href="/c/pricing"
+              className="text-xs text-slate-500 hover:text-slate-700"
+            >
+              View pricing
+            </Link>
             <button
               type="button"
               onClick={() => void refresh()}

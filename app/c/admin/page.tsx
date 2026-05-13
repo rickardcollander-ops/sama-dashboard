@@ -20,6 +20,17 @@ interface SiteSummary {
   domain: string | null;
 }
 
+// Mirrors /api/admin/grant-free-access GET response so the PlanBadge can
+// render the right status pill + trail (days left for trial, until-date for
+// admin grants). Kept as a free-standing interface so /c/admin can use it
+// in the planStatuses state and the GET response typing.
+interface PlanStatusEntry {
+  plan: string | null;
+  plan_status: string | null;
+  trial_ends_at: string | null;
+  admin_granted_until: string | null;
+}
+
 interface Account {
   id: string;
   email?: string;
@@ -31,13 +42,7 @@ interface Account {
   has_settings: boolean;
   last_seen_at: string | null;
   sites: SiteSummary[];
-}
-
-interface PlanStatusEntry {
   plan: string | null;
-  plan_status: string | null;
-  trial_ends_at: string | null;
-  admin_granted_until: string | null;
 }
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
@@ -416,10 +421,9 @@ function GrantModal({
 }: {
   account: Account;
   onClose: () => void;
-  onSubmit: (payload: { plan: string; granted_until: string | null; note?: string }) => void;
+  onSubmit: (payload: { granted_until: string | null; note?: string }) => void;
   submitting: boolean;
 }) {
-  const [plan, setPlan] = useState("growth");
   const [duration, setDuration] = useState("unlimited"); // unlimited | 7 | 30 | 90 | custom
   const [customDate, setCustomDate] = useState("");
   const [note, setNote] = useState("");
@@ -459,20 +463,6 @@ function GrantModal({
         </div>
 
         <div className="mt-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Plan</label>
-            <select
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-              disabled={submitting}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="starter">Starter</option>
-              <option value="growth">Growth</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </div>
-
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Duration</label>
             <select
@@ -528,7 +518,6 @@ function GrantModal({
             type="button"
             onClick={() =>
               onSubmit({
-                plan,
                 granted_until: computeUntil(),
                 note: note.trim() || undefined,
               })
@@ -604,7 +593,7 @@ export default function AdminPage() {
   }, []);
 
   const handleGrant = useCallback(
-    async (acc: Account, payload: { plan: string; granted_until: string | null; note?: string }) => {
+    async (acc: Account, payload: { granted_until: string | null; note?: string }) => {
       setPendingId(acc.id);
       setError("");
       try {
@@ -614,14 +603,13 @@ export default function AdminPage() {
           body: JSON.stringify({
             user_id: acc.id,
             action: "grant",
-            plan: payload.plan,
             granted_until: payload.granted_until,
             note: payload.note,
           }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-        setNotice(`Granted free ${payload.plan} access to ${acc.email ?? acc.id}`);
+        setNotice(`Granted free access to ${acc.email ?? acc.id}`);
         setGrantFor(null);
         await load();
       } catch (e) {
@@ -940,7 +928,9 @@ export default function AdminPage() {
                 <th className="px-4 py-3">Created</th>
                 <th className="px-4 py-3">Last sign-in</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="sticky right-0 bg-slate-50 px-4 py-3 text-right shadow-[inset_1px_0_0_0_rgb(226_232_240)]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -963,7 +953,7 @@ export default function AdminPage() {
                 const busy = pendingId === acc.id;
                 const online = isOnline(acc.last_seen_at, now);
                 return (
-                  <tr key={acc.id} className="hover:bg-slate-50/60">
+                  <tr key={acc.id} className="group hover:bg-slate-50/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 font-medium text-slate-900">
                         <span
@@ -1050,32 +1040,34 @@ export default function AdminPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
+                    <td className="sticky right-0 bg-white px-4 py-3 shadow-[inset_1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50/60">
+                      <div className="flex justify-end gap-1.5">
                         <button
                           onClick={() => handleViewAs(acc)}
                           disabled={busy}
                           title="View the customer's dashboard"
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          aria-label="View as"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                         >
-                          <Eye className="h-3 w-3" /> View
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => { setInviteFor(acc); setInviteEmail(""); setError(""); }}
                           disabled={busy}
                           title="Invite a team member to this account"
-                          className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                          aria-label="Invite"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50"
                         >
-                          <UserPlus className="h-3 w-3" /> Invite
+                          <UserPlus className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
                           title="Send password reset"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          aria-label="Reset password"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
-                          Reset
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                         </button>
                         {planStatuses[acc.id]?.plan_status === "admin_granted" ? (
                           <button
@@ -1102,10 +1094,10 @@ export default function AdminPage() {
                           onClick={() => void handleDelete(acc)}
                           disabled={busy || isSelf}
                           title={isSelf ? "Cannot delete your own admin account" : "Delete account"}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          aria-label="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                          Delete
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                       </div>
                     </td>

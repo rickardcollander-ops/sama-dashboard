@@ -33,9 +33,6 @@ const TrafficGraph = dynamic(() => import("@/components/dashboard/TrafficGraph")
 const AnalysisHub = dynamic(() => import("@/components/dashboard/AnalysisHub"), {
   loading: () => <div className="h-72 rounded-xl border bg-white shadow-sm" />,
 });
-const ActivityFeed = dynamic(() => import("@/components/dashboard/ActivityFeed"), {
-  loading: () => <div className="h-64 rounded-xl border bg-white shadow-sm" />,
-});
 const RecentOutcomes = dynamic(() => import("@/components/dashboard/RecentOutcomes"), {
   loading: () => null,
 });
@@ -662,12 +659,6 @@ export default function CustomerDashboard() {
         {user && (
           <div className="mt-8">
             <RecentOutcomes tenantId={effectiveTenantId} />
-          </div>
-        )}
-
-        {user && (
-          <div className="mt-8">
-            <ActivityFeed tenantId={effectiveTenantId} />
           </div>
         )}
       </main>
