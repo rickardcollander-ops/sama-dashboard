@@ -34,6 +34,13 @@ interface Account {
   plan: string | null;
 }
 
+interface PlanStatusEntry {
+  plan_status: string | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+  admin_granted_until: string | null;
+}
+
 // Plan tiers an admin can pin an account to. "free" is comp / internal —
 // effectively unlimited so the tenant doesn't hit a paywall. Backend
 // enforces the same set in sama-agent/shared/usage.py.
