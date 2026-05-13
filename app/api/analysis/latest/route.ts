@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
@@ -46,7 +47,8 @@ async function loadLatestSavedRun(tenantId: string, expectedDomain: string): Pro
  * first) when the backend can't be reached so history still shows up.
  */
 export async function GET(req: NextRequest) {
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
 
   // Workspace's configured domain — used to drop any upstream run that
   // doesn't belong to this tenant.
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/analysis/latest`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(15_000),
       });
       const text = await upstream.text();
@@ -73,9 +75,11 @@ export async function GET(req: NextRequest) {
         }
         // Defense-in-depth: if upstream payload has a domain, it must match
         // the workspace. Synthetic / status-only payloads without a domain
-        // pass through (they don't carry tenant-leakable findings).
+        // pass through (they don't carry tenant-leakable findings). Skip
+        // the comparison entirely when we don't yet know the workspace's
+        // domain — better to surface the live payload than hide it.
         const upstreamDomain = bodyObj.domain as string | undefined;
-        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+        if (upstreamDomain && expectedDomain && !sameDomain(upstreamDomain, expectedDomain)) {
           const saved = await loadLatestSavedRun(tenantId, expectedDomain);
           if (saved) return NextResponse.json({ ...saved, _source: "saved" });
           return NextResponse.json({ status: "empty" });

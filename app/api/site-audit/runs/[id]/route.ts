@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, loadSettings, loadSiteSettings } from "@/lib/integrations/store";
+import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
@@ -43,7 +44,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const tenantId = req.headers.get("X-Tenant-ID") || "";
+  const auth = await buildBackendAuth(req);
+  const tenantId = auth.tenantId;
 
   // Workspace's configured domain — used to refuse audits that don't belong
   // to this tenant, even if the upstream backend returns one.
@@ -55,15 +57,21 @@ export async function GET(
   if (SAMA_API_URL) {
     try {
       const upstream = await fetch(`${SAMA_API_URL}/api/site-audit/runs/${id}`, {
-        headers: { "X-Tenant-ID": tenantId },
+        headers: auth.headers,
         signal: AbortSignal.timeout(15_000),
       });
       const body = await upstream.json().catch(() => ({}));
       if (upstream.ok && body && typeof body === "object") {
         // Completed runs carry a `domain`; "running" status payloads may not
-        // yet — only enforce the check on terminal payloads with a domain.
+        // yet — only enforce the check on terminal payloads with a domain
+        // AND when we know what domain the workspace expects. An empty
+        // expectedDomain means we don't know the workspace's domain yet (no
+        // X-Tenant-ID forwarded, or settings.domain not stored) — fall back
+        // to saved-run lookup rather than hard-404ing valid data.
         const upstreamDomain = (body as { domain?: string }).domain;
-        if (upstreamDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+        if (upstreamDomain && expectedDomain && !sameDomain(upstreamDomain, expectedDomain)) {
+          const saved = await loadSavedAudit(id, tenantId, expectedDomain);
+          if (saved) return NextResponse.json(saved);
           return NextResponse.json({ error: "not found" }, { status: 404 });
         }
         return NextResponse.json(body, { status: upstream.status });

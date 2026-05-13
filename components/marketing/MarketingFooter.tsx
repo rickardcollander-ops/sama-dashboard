@@ -35,7 +35,7 @@ export default function MarketingFooter() {
           </div>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li><Link href="/c/legal/terms" className="hover:text-slate-900">Terms</Link></li>
-            <li><Link href="/c/legal/privacy" className="hover:text-slate-900">Privacy</Link></li>
+            <li><Link href="/c/legal/privacy" className="hover:text-slate-900">Privacy Policy</Link></li>
             <li><Link href="/c/legal/dpa" className="hover:text-slate-900">DPA</Link></li>
           </ul>
         </div>

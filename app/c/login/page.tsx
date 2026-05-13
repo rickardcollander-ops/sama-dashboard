@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -15,7 +16,37 @@ export default function CustomerLoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+
+  const handleGoogle = async () => {
+    setError("");
+    setMessage("");
+    setGoogleLoading(true);
+    try {
+      const supabase = getSupabaseBrowser();
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/c/auth/callback`
+          : undefined;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          queryParams: { access_type: "offline", prompt: "consent" },
+        },
+      });
+      if (oauthError) {
+        setError(oauthError.message);
+        setGoogleLoading(false);
+      }
+      // On success the browser is redirected to Google, so we leave the
+      // loading state set — the page is about to unmount.
+    } catch {
+      setError("Could not start Google sign-in");
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +148,40 @@ export default function CustomerLoginPage() {
             <p className="text-slate-400 text-sm mt-1">{headline}</p>
           </div>
 
+          {mode !== "forgot" && (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={googleLoading || loading}
+                className="w-full mb-4 inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                >
+                  <path
+                    fill="#EA4335"
+                    d="M12 10.2v3.9h5.5c-.24 1.43-1.71 4.2-5.5 4.2-3.31 0-6-2.74-6-6.13s2.69-6.13 6-6.13c1.89 0 3.15.8 3.87 1.48l2.64-2.55C16.99 3.5 14.7 2.5 12 2.5 6.76 2.5 2.5 6.76 2.5 12s4.26 9.5 9.5 9.5c5.49 0 9.12-3.86 9.12-9.29 0-.63-.07-1.1-.16-1.57H12z"
+                  />
+                </svg>
+                {googleLoading
+                  ? "Redirecting…"
+                  : mode === "signup"
+                    ? "Sign up with Google"
+                    : "Continue with Google"}
+              </button>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-xs uppercase tracking-wider text-slate-500">
+                  or
+                </span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+            </>
+          )}
+
           <div className="relative mb-4">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
@@ -217,6 +282,25 @@ export default function CustomerLoginPage() {
             >
               Back to sign in
             </button>
+          )}
+          {mode !== "forgot" && (
+            <p className="mt-6 text-center text-xs text-slate-500">
+              By continuing you accept our{" "}
+              <Link
+                href="/c/legal/terms"
+                className="underline hover:text-slate-300"
+              >
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/c/legal/privacy"
+                className="underline hover:text-slate-300"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
           )}
         </form>
       </div>
