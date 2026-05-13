@@ -9,7 +9,7 @@ export const webflowAdapter: CmsAdapter = {
     const token = cfg.api_token?.trim();
     const collection = cfg.collection_id?.trim();
     if (!token || !collection) {
-      return { ok: false, message: "API-token och collection_id krävs" };
+      return { ok: false, message: "API token and collection_id are required" };
     }
     const res = await fetch(`${API}/collections/${collection}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -22,7 +22,7 @@ export const webflowAdapter: CmsAdapter = {
     const token = cfg.api_token?.trim();
     const collection = cfg.collection_id?.trim();
     if (!token || !collection) {
-      throw new PublishError("Webflow: api_token och collection_id krävs", 400);
+      throw new PublishError("Webflow: api_token and collection_id are required", 400);
     }
 
     const titleField = cfg.field_title || "name";

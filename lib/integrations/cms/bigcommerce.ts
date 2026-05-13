@@ -22,7 +22,7 @@ export const bigcommerceAdapter: CmsAdapter = {
     const hash = cfg.store_hash?.trim();
     const token = cfg.access_token?.trim();
     if (!hash || !token) {
-      return { ok: false, message: "store_hash och access_token krävs" };
+      return { ok: false, message: "store_hash and access_token are required" };
     }
     const res = await fetch(storePath(cfg, "v2", "/store"), {
       headers: buildHeaders(cfg),
@@ -38,7 +38,7 @@ export const bigcommerceAdapter: CmsAdapter = {
     const hash = cfg.store_hash?.trim();
     const token = cfg.access_token?.trim();
     if (!hash || !token) {
-      throw new PublishError("BigCommerce: store_hash och access_token krävs", 400);
+      throw new PublishError("BigCommerce: store_hash and access_token are required", 400);
     }
 
     const html = input.body_html || "";

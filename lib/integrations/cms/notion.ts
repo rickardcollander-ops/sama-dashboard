@@ -91,7 +91,7 @@ export const notionAdapter: CmsAdapter = {
   async validate(cfg) {
     const token = cfg.integration_token?.trim();
     const dbId = cfg.database_id?.trim();
-    if (!token || !dbId) return { ok: false, message: "Token och database_id krävs" };
+    if (!token || !dbId) return { ok: false, message: "token and database_id are required" };
     const res = await fetch(`${API}/databases/${dbId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -108,7 +108,7 @@ export const notionAdapter: CmsAdapter = {
   async publish(cfg, input: PublishInput): Promise<PublishResult> {
     const token = cfg.integration_token?.trim();
     const dbId = cfg.database_id?.trim();
-    if (!token || !dbId) throw new PublishError("Notion: token och database_id krävs", 400);
+    if (!token || !dbId) throw new PublishError("Notion: token and database_id are required", 400);
 
     const titleProp = cfg.title_property || "Name";
     const properties: Record<string, unknown> = {
