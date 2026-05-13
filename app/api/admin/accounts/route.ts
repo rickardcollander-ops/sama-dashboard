@@ -21,6 +21,7 @@ interface AccountRow {
   has_settings: boolean;
   last_seen_at: string | null;
   sites: SiteSummary[];
+  plan: string | null;
 }
 
 export async function GET() {
@@ -50,6 +51,7 @@ export async function GET() {
         has_settings: false,
         last_seen_at: null,
         sites: [],
+        plan: null,
       });
     }
     if (data.users.length < perPage) break;
@@ -64,12 +66,13 @@ export async function GET() {
       .from("user_settings")
       .select("user_id, settings")
       .in("user_id", ids);
-    const byId = new Map<string, { brand_name?: string; domain?: string }>();
+    const byId = new Map<string, { brand_name?: string; domain?: string; plan?: string }>();
     for (const row of settings ?? []) {
       const s = (row as { user_id: string; settings: Record<string, unknown> }).settings || {};
       byId.set((row as { user_id: string }).user_id, {
         brand_name: typeof s.brand_name === "string" ? s.brand_name : undefined,
         domain: typeof s.domain === "string" ? s.domain : undefined,
+        plan: typeof s.plan === "string" ? s.plan : undefined,
       });
     }
     for (const a of accounts) {
@@ -77,6 +80,7 @@ export async function GET() {
       if (match) {
         a.brand_name = match.brand_name ?? null;
         a.domain = match.domain ?? null;
+        a.plan = match.plan ?? null;
         a.has_settings = true;
       }
     }
