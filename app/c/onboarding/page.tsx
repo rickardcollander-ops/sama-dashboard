@@ -334,7 +334,12 @@ export default function OnboardingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(activeSite?.id ? { "X-Sama-Site-Id": activeSite.id } : {}),
+          // Onboarding always targets the current user's own primary site
+          // (id = user.id by convention). Using activeSite.id here would
+          // pick up a customer's site when an admin account has external
+          // sites added under it — causing the onboarding result and
+          // drafted articles to land in the wrong tenant.
+          ...(user?.id ? { "X-Sama-Site-Id": user.id } : {}),
         },
         body: JSON.stringify({
           domain: data.domain.trim().toLowerCase(),

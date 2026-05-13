@@ -357,6 +357,7 @@ Always reply by calling submit_keywords.`;
 Domain: ${input.domain}
 Description: ${input.brand_description || "(none)"}
 Target audience: ${input.target_audience || "(general)"}
+Current year: ${new Date().getFullYear()}
 Output language: ${input.content_language || "en"}
 Competitors: ${input.competitors.join(", ") || "(none)"}
 
@@ -385,9 +386,11 @@ async function generatePlan(
 - have a concrete, click-worthy title in the brand's output language
 - include a one-sentence "angle" explaining the take or hook
 - cover all 12 keywords across the month, weighted toward the higher-priority ones
+- use the actual current year in any titles that reference a specific year (never write stale years)
 Always reply by calling submit_plan.`;
 
-  const user = `Brand: ${input.brand_name}
+  const user = `Today's date: ${new Date().toISOString().slice(0, 10)} (year: ${new Date().getFullYear()})
+Brand: ${input.brand_name}
 Description: ${input.brand_description}
 Target audience: ${input.target_audience}
 Output language: ${input.content_language}
@@ -435,6 +438,7 @@ async function generateDraft(
 - End with a one-paragraph conclusion that ties back to the brand's value
 - Reference the brand by name once or twice where it's natural, never salesy
 - Do NOT invent statistics; if you cite numbers, frame them as illustrative ("studies suggest", "many teams report")
+- Use the actual current year when referencing dates or trends — never write stale years
 - Output ONLY the markdown body. No preamble, no closing remarks outside the article.`;
 
   const user = `Brand: ${input.brand_name}
@@ -442,6 +446,7 @@ Description: ${input.brand_description}
 Target audience: ${input.target_audience}
 Output language: ${input.content_language}
 Tone: helpful, expert, plain-spoken
+Current year: ${new Date().getFullYear()}
 
 Target title: "${targetTitle}"
 Target keyword: ${keyword.text}
