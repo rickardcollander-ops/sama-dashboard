@@ -8,6 +8,7 @@ import {
   Loader2, ChevronDown, ChevronUp, CheckCircle2, ArrowRight,
 } from "lucide-react";
 import { useSite } from "@/lib/hooks/useSite";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 interface Keyword {
   text: string;
@@ -65,16 +66,6 @@ function PriorityBadge({ p }: { p?: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${color}`}>{p || "–"}</span>;
 }
 
-function ContentTypeBadge({ t }: { t: string }) {
-  const map: Record<string, { label: string; bg: string }> = {
-    blog_post: { label: "Blogg", bg: "bg-blue-100 text-blue-700" },
-    linkedin: { label: "LinkedIn", bg: "bg-sky-100 text-sky-700" },
-    epost: { label: "E-post", bg: "bg-violet-100 text-violet-700" },
-  };
-  const e = map[t] || { label: t, bg: "bg-slate-100 text-slate-700" };
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${e.bg}`}>{e.label}</span>;
-}
-
 function isOnboardingResult(value: unknown): value is OnboardingResult {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
@@ -86,19 +77,27 @@ function ReviewInner() {
   const params = useSearchParams();
   const jobId = params.get("job");
   const { activeSite, loading: sitesLoading, reloadSites } = useSite();
+  const { t } = useLanguage();
+  const or = t.onboardingReview;
   const [expandedDraft, setExpandedDraft] = useState<number | null>(0);
   const [jobResult, setJobResult] = useState<OnboardingResult | null>(null);
   const [jobChecked, setJobChecked] = useState(false);
+
+  const contentTypeLabel = (type: string): { label: string; bg: string } => {
+    const map: Record<string, { label: string; bg: string }> = {
+      blog_post: { label: or.typeBlog, bg: "bg-blue-100 text-blue-700" },
+      linkedin: { label: or.typeLinkedin, bg: "bg-sky-100 text-sky-700" },
+      epost: { label: or.typeEmail, bg: "bg-violet-100 text-violet-700" },
+    };
+    return map[type] || { label: type, bg: "bg-slate-100 text-slate-700" };
+  };
 
   // Refresh the site cache so the dashboard picks up the new settings.
   useEffect(() => {
     void reloadSites();
   }, [reloadSites]);
 
-  // Read the result straight off the job row when we have a job id —
-  // avoids a race with the SiteContext cache (the background writer
-  // updates user_sites while the loader page is still active, so
-  // activeSite.settings can lag a few seconds).
+  // Read the result straight off the job row when we have a job id.
   useEffect(() => {
     if (!jobId) {
       setJobChecked(true);
@@ -133,17 +132,13 @@ function ReviewInner() {
     return isOnboardingResult(settings.onboarding_result) ? settings.onboarding_result : null;
   }, [jobResult, activeSite]);
 
-  // Safety net: if we've fully loaded and there's still no result after a
-  // generous window (job query + site reload), send the user back to
-  // onboarding. The window must outlive the longest of the two so we
-  // don't bounce while either source is still in flight.
   useEffect(() => {
     if (result) return;
     if (sitesLoading || !jobChecked) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (!result) router.push("/c/onboarding");
     }, 2000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [result, sitesLoading, jobChecked, router]);
 
   if (!result) {
@@ -154,6 +149,8 @@ function ReviewInner() {
     );
   }
 
+  const brand = result.site_meta.brand_name || result.site_meta.domain;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <div className="mx-auto max-w-5xl px-4 py-12">
@@ -161,18 +158,19 @@ function ReviewInner() {
           <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 className="h-6 w-6 text-emerald-600" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Din plan är klar!</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{or.title}</h1>
           <p className="mt-2 text-sm text-slate-600">
-            {result.site_meta.brand_name || result.site_meta.domain} — vi har analyserat sajten, hittat{" "}
-            {result.keywords.length} relevanta sökord, byggt en {result.plan.length}-dagars plan och skrivit{" "}
-            {result.drafts.length} färdiga utkast.
+            {brand} — {or.subtitlePrefix}{" "}
+            {result.keywords.length} {or.subtitleKeywords}{" "}
+            {result.plan.length}{or.subtitleDayPlan}{" "}
+            {result.drafts.length} {or.subtitleDrafts}
           </p>
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <SummaryCard icon={Tag} label="Sökord" value={result.keywords.length} accent="bg-rose-50 text-rose-700" />
-          <SummaryCard icon={Calendar} label="Dagar i planen" value={result.plan.length} accent="bg-blue-50 text-blue-700" />
-          <SummaryCard icon={FileText} label="Färdiga utkast" value={result.drafts.length} accent="bg-emerald-50 text-emerald-700" />
+          <SummaryCard icon={Tag} label={or.keywordsTitle} value={result.keywords.length} accent="bg-rose-50 text-rose-700" />
+          <SummaryCard icon={Calendar} label={or.planTitle} value={result.plan.length} accent="bg-blue-50 text-blue-700" />
+          <SummaryCard icon={FileText} label={or.draftsTitle} value={result.drafts.length} accent="bg-emerald-50 text-emerald-700" />
         </div>
 
         {(result.tenant_activation || result.backend_sync || result.audits_started) && (
@@ -188,9 +186,7 @@ function ReviewInner() {
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <div className="flex-1">
                   <div className="font-medium">
-                    {result.tenant_activation.succeeded
-                      ? "Tenanten är aktiverad på SAMA-backenden"
-                      : "Tenant-aktivering misslyckades — content och analyser kunde inte sparas"}
+                    {result.tenant_activation.succeeded ? or.tenantActivated : or.tenantFailed}
                   </div>
                   {result.tenant_activation.error && (
                     <div className="mt-1 text-xs opacity-80">{result.tenant_activation.error}</div>
@@ -209,10 +205,10 @@ function ReviewInner() {
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <div className="flex-1">
                   <div className="font-medium">
-                    Kalender-sync:{" "}
+                    {or.syncPrefix}{" "}
                     {result.backend_sync.pieces_failed === 0
-                      ? `${result.backend_sync.pieces_created} poster lades i kalendern`
-                      : `${result.backend_sync.pieces_created} lyckades, ${result.backend_sync.pieces_failed} misslyckades`}
+                      ? `${result.backend_sync.pieces_created} ${or.syncSuccess}`
+                      : `${result.backend_sync.pieces_created} ${or.syncPartial} ${result.backend_sync.pieces_failed} ${or.syncFailed}`}
                   </div>
                   {result.backend_sync.error && (
                     <div className="mt-1 text-xs opacity-80">{result.backend_sync.error}</div>
@@ -232,12 +228,12 @@ function ReviewInner() {
                 <div className="flex-1">
                   <div className="font-medium">
                     {result.audits_started.site_audit_id && result.audits_started.analysis_run_id
-                      ? "Sajtanalys och AI-analys körs i bakgrunden"
+                      ? or.auditsRunning
                       : result.audits_started.site_audit_id
-                        ? "Sajtanalys körs, AI-analys ej startad"
+                        ? or.auditSiteOnly
                         : result.audits_started.analysis_run_id
-                          ? "AI-analys körs, sajtanalys ej startad"
-                          : "Analyserna kunde inte startas automatiskt"}
+                          ? or.auditAiOnly
+                          : or.auditNone}
                   </div>
                   {result.audits_started.error && (
                     <div className="mt-1 text-xs opacity-80">{result.audits_started.error}</div>
@@ -250,12 +246,12 @@ function ReviewInner() {
 
         <section className="mt-10">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Relevanta sökord</h2>
+            <h2 className="text-lg font-semibold">{or.keywordsTitle}</h2>
             <Link
               href="/c/seo"
               className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"
             >
-              Öppna SEO-vyn
+              {or.openSeo}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -284,12 +280,12 @@ function ReviewInner() {
 
         <section className="mt-10">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">30-dagars content-plan</h2>
+            <h2 className="text-lg font-semibold">{or.planTitle}</h2>
             <Link
               href="/c/content/plan"
               className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"
             >
-              Öppna kalendern
+              {or.openCalendar}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -297,24 +293,29 @@ function ReviewInner() {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-2 text-left">Dag</th>
-                  <th className="px-4 py-2 text-left">Titel</th>
-                  <th className="px-4 py-2 text-left">Sökord</th>
-                  <th className="px-4 py-2 text-left">Typ</th>
+                  <th className="px-4 py-2 text-left">{or.colDay}</th>
+                  <th className="px-4 py-2 text-left">{or.colTitle}</th>
+                  <th className="px-4 py-2 text-left">{or.colKeyword}</th>
+                  <th className="px-4 py-2 text-left">{or.colType}</th>
                 </tr>
               </thead>
               <tbody>
-                {result.plan.map((p) => (
-                  <tr key={p.day} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="px-4 py-2 text-xs text-slate-500">
-                      {p.day}
-                      <div className="text-[10px]">{p.scheduled_for}</div>
-                    </td>
-                    <td className="px-4 py-2">{p.title}</td>
-                    <td className="px-4 py-2 text-xs text-slate-600">{p.target_keyword}</td>
-                    <td className="px-4 py-2"><ContentTypeBadge t={p.content_type} /></td>
-                  </tr>
-                ))}
+                {result.plan.map((p) => {
+                  const ct = contentTypeLabel(p.content_type);
+                  return (
+                    <tr key={p.day} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                      <td className="px-4 py-2 text-xs text-slate-500">
+                        {p.day}
+                        <div className="text-[10px]">{p.scheduled_for}</div>
+                      </td>
+                      <td className="px-4 py-2">{p.title}</td>
+                      <td className="px-4 py-2 text-xs text-slate-600">{p.target_keyword}</td>
+                      <td className="px-4 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ct.bg}`}>{ct.label}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -322,12 +323,12 @@ function ReviewInner() {
 
         <section className="mt-10">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Färdiga utkast att granska</h2>
+            <h2 className="text-lg font-semibold">{or.draftsTitle}</h2>
             <Link
               href="/c/content"
               className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"
             >
-              Öppna innehåll
+              {or.openContent}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -345,7 +346,7 @@ function ReviewInner() {
                     <div className="flex-1">
                       <div className="text-sm font-semibold">{d.title}</div>
                       <div className="mt-0.5 text-xs text-slate-500">
-                        {d.word_count} ord · sökord: <span className="font-medium">{d.target_keyword}</span>
+                        {d.word_count} {or.words} · {or.keyword} <span className="font-medium">{d.target_keyword}</span>
                       </div>
                     </div>
                     {open ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -354,15 +355,15 @@ function ReviewInner() {
                     <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-4">
                       <div className="mb-3 grid gap-2 text-xs">
                         <div>
-                          <span className="text-slate-500">Meta-titel: </span>
+                          <span className="text-slate-500">{or.metaTitle} </span>
                           <span className="font-medium">{d.meta_title}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Meta-beskrivning: </span>
+                          <span className="text-slate-500">{or.metaDesc} </span>
                           <span>{d.meta_description}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500">Slug: </span>
+                          <span className="text-slate-500">{or.slug} </span>
                           <code className="rounded bg-white px-1.5 py-0.5 text-[11px]">{d.slug}</code>
                         </div>
                       </div>
@@ -382,11 +383,11 @@ function ReviewInner() {
             href="/c/dashboard"
             className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
           >
-            Till dashboard
+            {or.toDashboard}
             <ExternalLink className="h-4 w-4" />
           </Link>
           <p className="text-xs text-slate-500">
-            Genererad {new Date(result.generated_at).toLocaleString()}
+            {or.generated} {new Date(result.generated_at).toLocaleString()}
           </p>
         </div>
       </div>

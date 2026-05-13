@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useSite } from "@/lib/hooks/useSite";
+import { useLanguage } from "@/lib/hooks/useLanguage";
 
 interface JobStatus {
   id: string;
@@ -23,44 +24,35 @@ interface JobStatus {
   } & Record<string, unknown>;
 }
 
-// Steps shown by the generation phase (driven by the onboarding_jobs row).
-const JOB_STEPS = [
-  { key: "analyzing_site",    label: "Analyserar sajten", sub: "Läser om varumärket, ton och språk", icon: Globe },
-  { key: "analyzing_brand",   label: "Profilerar varumärket", sub: "Verksamhetstyp, USP, tonalitet och land", icon: Briefcase },
-  { key: "finding_keywords",  label: "Hittar relevanta sökord", sub: "12 sökord med affärsvärde för din bransch", icon: Search },
-  { key: "planning_content",  label: "Bygger 30-dagars plan", sub: "En idé per dag, mappad till sökord", icon: ListTree },
-  { key: "writing_article_1", label: "Skriver artikel 1", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
-  { key: "writing_article_2", label: "Skriver artikel 2", sub: "Fullt utkast på 1500-2500 ord med SEO-meta", icon: PenTool },
-  { key: "syncing_calendar",  label: "Lägger i kalendern", sub: "Pushar 30 idéer + 2 utkast till content-vyn", icon: CalendarCheck },
-  { key: "starting_audits",   label: "Startar sajt- och AI-analys", sub: "Audit och synlighetskoll köas på SAMA-backenden", icon: Radar },
-  { key: "saving",            label: "Sparar planen", sub: "All AI-genererad output landar på siten", icon: CheckCircle2 },
+const JOB_STEP_KEYS = [
+  { key: "analyzing_site",    icon: Globe },
+  { key: "analyzing_brand",   icon: Briefcase },
+  { key: "finding_keywords",  icon: Search },
+  { key: "planning_content",  icon: ListTree },
+  { key: "writing_article_1", icon: PenTool },
+  { key: "writing_article_2", icon: PenTool },
+  { key: "syncing_calendar",  icon: CalendarCheck },
+  { key: "starting_audits",   icon: Radar },
+  { key: "saving",            icon: CheckCircle2 },
 ] as const;
 
-// Steps shown AFTER the job is done — we keep polling the SAMA backend
-// until the site audit and AI visibility check have completed too. They
-// run as their own background tasks on the backend (Railway), so the job
-// row reports "done" minutes before they actually finish.
-const AUDIT_STEPS = [
-  { key: "site_audit",  label: "Sajtanalys körs", sub: "Crawl + on-page revision (2-4 min)", icon: ScanLine },
-  { key: "ai_analysis", label: "AI-synlighet körs", sub: "Frågor mot ChatGPT, Claude, Perplexity och Gemini", icon: MessageSquare },
+const AUDIT_STEP_KEYS = [
+  { key: "site_audit",  icon: ScanLine },
+  { key: "ai_analysis", icon: MessageSquare },
 ] as const;
 
 type Phase = "running_job" | "waiting_audits" | "done" | "error";
 
-// Max time we'll spend waiting for audits after the job completes. After
-// this we redirect to review anyway — the user can pick the results up
-// from /c/analysis / /c/geo on their own time.
+// Max time we'll spend waiting for audits after the job completes.
 const AUDIT_WAIT_TIMEOUT_MS = 6 * 60_000;
 
 function jobStepIndex(step: string): number {
-  const i = JOB_STEPS.findIndex((s) => s.key === step);
+  const i = JOB_STEP_KEYS.findIndex((s) => s.key === step);
   return i === -1 ? 0 : i;
 }
 
 interface RunStatus {
   status: "pending" | "running" | "completed" | "error";
-  // Free-text message surfaced under the step when the backend errors,
-  // so the user can see whether to retry or move on.
   detail?: string;
 }
 
@@ -69,11 +61,9 @@ function GeneratingInner() {
   const params = useSearchParams();
   const jobId = params.get("job") || "";
   const { effectiveTenantId } = useSite();
-  // Polls hit /api/{site-audit,analysis}/runs/{id}, which forwards to the
-  // SAMA backend with the user's Supabase bearer. Without a site-id header
-  // the dashboard route can't resolve the workspace's domain and used to
-  // return 404 for every completed run; supply the active site so the
-  // route's domain check works as intended.
+  const { t } = useLanguage();
+  const og = t.onboardingGenerating;
+
   const pollHeaders = useMemo<Record<string, string>>(() => {
     const h: Record<string, string> = {};
     if (effectiveTenantId) {
@@ -82,6 +72,7 @@ function GeneratingInner() {
     }
     return h;
   }, [effectiveTenantId]);
+
   const [job, setJob] = useState<JobStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("running_job");
   const [pollError, setPollError] = useState<string | null>(null);
@@ -91,11 +82,10 @@ function GeneratingInner() {
   const auditPhaseStartedAt = useRef<number | null>(null);
   const [tick, setTick] = useState(0);
 
-  // Repaint once per second so the elapsed counter stays current — the
-  // job poller fires every 2.5s which leaves the timer feeling stuck.
+  // Repaint once per second so the elapsed counter stays current.
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
   }, []);
   void tick;
 
@@ -116,7 +106,7 @@ function GeneratingInner() {
         });
         if (!res.ok) {
           if (res.status === 404) {
-            throw new Error("Jobbet hittades inte. Starta om onboardingen.");
+            throw new Error(og.jobNotFound);
           }
           throw new Error(`HTTP ${res.status}`);
         }
@@ -129,10 +119,8 @@ function GeneratingInner() {
           const audits = json.result?.audits_started;
           const hasSite = !!audits?.site_audit_id;
           const hasAnalysis = !!audits?.analysis_run_id;
-          // Seed each audit's status: "running" if we have an id to
-          // poll, "completed" otherwise so the gate clears it.
-          setSiteAudit({ status: hasSite ? "running" : "completed", detail: hasSite ? undefined : "Hoppades över" });
-          setAiAnalysis({ status: hasAnalysis ? "running" : "completed", detail: hasAnalysis ? undefined : "Inga AI-frågor angivna" });
+          setSiteAudit({ status: hasSite ? "running" : "completed", detail: hasSite ? undefined : og.skipped });
+          setAiAnalysis({ status: hasAnalysis ? "running" : "completed", detail: hasAnalysis ? undefined : og.noQueries });
           auditPhaseStartedAt.current = Date.now();
           setPhase("waiting_audits");
           return;
@@ -144,7 +132,7 @@ function GeneratingInner() {
         timer = setTimeout(poll, 2500);
       } catch (e) {
         if (cancelled) return;
-        setPollError(e instanceof Error ? e.message : "Något gick fel");
+        setPollError(e instanceof Error ? e.message : og.errorTitle);
         timer = setTimeout(poll, 5000);
       }
     };
@@ -155,11 +143,9 @@ function GeneratingInner() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [jobId, phase, router]);
+  }, [jobId, phase, router, og]);
 
-  // Phase 2: poll site audit + analysis runs until both finish (or
-  // time out). Each runs in its own polling loop so a slow audit can't
-  // block an early-completing analysis from being shown as done.
+  // Phase 2: poll site audit + analysis runs until both finish (or time out).
   useEffect(() => {
     if (phase !== "waiting_audits") return;
     const audits = job?.result?.audits_started;
@@ -179,11 +165,8 @@ function GeneratingInner() {
           headers: pollHeaders,
         });
         if (!res.ok) {
-          // 404 from the backend can mean the run was wiped between
-          // kickoff and our first poll — treat as "completed" so the
-          // gate clears rather than spinning forever.
           if (res.status === 404) {
-            if (!cancelled) setter({ status: "completed", detail: "Resultat hittades inte" });
+            if (!cancelled) setter({ status: "completed", detail: og.resultNotFound });
             return;
           }
           throw new Error(`HTTP ${res.status}`);
@@ -199,15 +182,14 @@ function GeneratingInner() {
           return;
         }
         if (status === "error" || status === "failed") {
-          setter({ status: "error", detail: data.error || "Backend rapporterade fel" });
+          setter({ status: "error", detail: data.error || og.backendError });
           return;
         }
         setter({ status: "running" });
         timers.push(setTimeout(() => void pollRun(runId, path, setter), 4000));
       } catch (e) {
         if (cancelled) return;
-        // Transient errors don't abort — try again in 5 s.
-        setter({ status: "running", detail: e instanceof Error ? e.message : "tappade kontakten" });
+        setter({ status: "running", detail: e instanceof Error ? e.message : og.lostConnection });
         timers.push(setTimeout(() => void pollRun(runId, path, setter), 5000));
       }
     };
@@ -221,12 +203,12 @@ function GeneratingInner() {
 
     return () => {
       cancelled = true;
-      for (const t of timers) clearTimeout(t);
+      for (const timer of timers) clearTimeout(timer);
     };
-  }, [phase, job, pollHeaders]);
+  }, [phase, job, pollHeaders, og]);
 
-  // Phase 3: when both audits land in a terminal state (or the wait
-  // window expires), bounce the user to the review page.
+  // Phase 3: when both audits land in a terminal state (or the wait window
+  // expires), bounce the user to the review page.
   useEffect(() => {
     if (phase !== "waiting_audits") return;
     const startedAtAudits = auditPhaseStartedAt.current;
@@ -234,12 +216,11 @@ function GeneratingInner() {
     const aiTerminal = aiAnalysis.status !== "running" && aiAnalysis.status !== "pending";
     const timedOut = startedAtAudits != null && Date.now() - startedAtAudits > AUDIT_WAIT_TIMEOUT_MS;
     if ((siteTerminal && aiTerminal) || timedOut) {
-      // Brief pause so the user sees the green checkmarks before we move on.
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         setPhase("done");
         router.push(`/c/onboarding/review?job=${encodeURIComponent(jobId)}`);
       }, 1500);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
   }, [phase, siteAudit.status, aiAnalysis.status, jobId, router]);
 
@@ -251,9 +232,6 @@ function GeneratingInner() {
   const elapsedSec = Math.floor((Date.now() - startedAt.current) / 1000);
   const elapsed = `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toString().padStart(2, "0")}s`;
 
-  // Coarse progress: 0-90 driven by job.progress while running, 90-100
-  // driven by audit completion afterwards. Keeps the bar moving so the
-  // user doesn't think things stalled.
   const auditFraction = (() => {
     const sDone = siteAudit.status !== "running" && siteAudit.status !== "pending" ? 1 : 0;
     const aDone = aiAnalysis.status !== "running" && aiAnalysis.status !== "pending" ? 1 : 0;
@@ -263,13 +241,26 @@ function GeneratingInner() {
     ? 90 + Math.round(auditFraction * 10)
     : job?.progress ?? 0;
 
+  // Build labelled steps from translations at render time.
+  const jobSteps: { key: string; label: string; sub: string; icon: typeof Globe }[] = [
+    { key: "analyzing_site",    label: og.stepAnalyzingSite,    sub: og.stepAnalyzingSiteSub,    icon: Globe },
+    { key: "analyzing_brand",   label: og.stepAnalyzingBrand,   sub: og.stepAnalyzingBrandSub,   icon: Briefcase },
+    { key: "finding_keywords",  label: og.stepFindingKeywords,  sub: og.stepFindingKeywordsSub,  icon: Search },
+    { key: "planning_content",  label: og.stepPlanningContent,  sub: og.stepPlanningContentSub,  icon: ListTree },
+    { key: "writing_article_1", label: og.stepWritingArticle1,  sub: og.stepWritingArticleSub,   icon: PenTool },
+    { key: "writing_article_2", label: og.stepWritingArticle2,  sub: og.stepWritingArticleSub,   icon: PenTool },
+    { key: "syncing_calendar",  label: og.stepSyncingCalendar,  sub: og.stepSyncingCalendarSub,  icon: CalendarCheck },
+    { key: "starting_audits",   label: og.stepStartingAudits,   sub: og.stepStartingAuditsSub,   icon: Radar },
+    { key: "saving",            label: og.stepSaving,           sub: og.stepSavingSub,           icon: CheckCircle2 },
+  ];
+
+  const auditSteps: { key: string; label: string; sub: string; icon: typeof ScanLine }[] = [
+    { key: "site_audit",  label: og.auditSiteAudit,  sub: og.auditSiteAuditSub,  icon: ScanLine },
+    { key: "ai_analysis", label: og.auditAiAnalysis, sub: og.auditAiAnalysisSub, icon: MessageSquare },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-      {/* Nav is rendered so the layout doesn't jump, but every interaction
-          inside it is blocked until the job finishes — clicking around
-          mid-generation would either confuse the user or kick them out of
-          the onboarding flow. aria-hidden keeps screen readers focused on
-          the live progress panel below. */}
       <div
         aria-hidden="true"
         className="pointer-events-none select-none opacity-60"
@@ -290,25 +281,25 @@ function GeneratingInner() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">
             {isError
-              ? "Något gick fel"
+              ? og.errorTitle
               : isFinishing
-                ? "Allt klart!"
+                ? og.doneTitle
                 : isWaitingAudits
-                  ? "Kör analyserna i bakgrunden"
-                  : "Bygger din SAMA-plan"}
+                  ? og.waitingTitle
+                  : og.pageTitle}
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             {isError
-              ? "Vi kunde inte slutföra genereringen."
+              ? og.errorDesc
               : isFinishing
-                ? "Skickar dig vidare till granskningen…"
+                ? og.doneDesc
                 : isWaitingAudits
-                  ? "Sajten crawlas och dina AI-frågor körs mot ChatGPT, Claude, Perplexity och Gemini. Vänta kvar — vi släpper in dig så fort allt är klart."
-                  : "Stäng inte fliken — vi behöver hålla den öppen tills planen är på plats."}
+                  ? og.waitingDesc
+                  : og.pageSubtitle}
           </p>
           {!isError && !isFinishing && (
             <p className="mt-1 text-xs text-slate-400">
-              Förfluten tid: {elapsed}
+              {og.elapsed} {elapsed}
             </p>
           )}
         </div>
@@ -322,7 +313,7 @@ function GeneratingInner() {
           </div>
 
           <ol className="space-y-3">
-            {JOB_STEPS.map((s, i) => {
+            {jobSteps.map((s, i) => {
               const Icon = s.icon;
               const stepDone = phase !== "running_job" || i < idx || (i === idx && job?.progress === 100);
               const active = phase === "running_job" && !isError && i === idx;
@@ -368,7 +359,7 @@ function GeneratingInner() {
               );
             })}
 
-            {AUDIT_STEPS.map((s) => {
+            {auditSteps.map((s) => {
               const Icon = s.icon;
               const run = s.key === "site_audit" ? siteAudit : aiAnalysis;
               const stepDone =
@@ -436,21 +427,21 @@ function GeneratingInner() {
         {isError && (
           <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
             <p className="text-sm text-red-700">
-              {job?.error || "Okänt fel."}
+              {job?.error || og.errorDesc}
             </p>
             <button
               type="button"
               onClick={() => router.push("/c/onboarding")}
               className="mt-3 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
             >
-              Försök igen
+              {og.retry}
             </button>
           </div>
         )}
 
         {pollError && !isError && (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Tappade kontakten ({pollError}) — försöker igen…
+            {og.pollError} ({pollError}){og.retrying}
           </div>
         )}
       </div>
