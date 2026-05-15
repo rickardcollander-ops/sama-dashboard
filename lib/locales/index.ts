@@ -32,6 +32,7 @@ const sv = {
     team: "Team",
     integrations: "Integrationer",
     billing: "Plan & fakturering",
+    metaAds: "Meta Ads",
   },
   subNavSections: {
     personal: "Personligt",
@@ -413,6 +414,7 @@ const no: typeof sv = {
     team: "Team",
     integrations: "Integrasjoner",
     billing: "Plan & fakturering",
+    metaAds: "Meta Ads",
   },
   subNavSections: {
     personal: "Personlig",
@@ -794,6 +796,7 @@ const da: typeof sv = {
     team: "Team",
     integrations: "Integrationer",
     billing: "Plan & fakturering",
+    metaAds: "Meta Ads",
   },
   subNavSections: {
     personal: "Personligt",
@@ -1175,6 +1178,7 @@ const en: typeof sv = {
     team: "Team",
     integrations: "Integrations",
     billing: "Plan & Billing",
+    metaAds: "Meta Ads",
   },
   subNavSections: {
     personal: "Personal",
@@ -1248,7 +1252,7 @@ const en: typeof sv = {
   dashboard: {
     loadError: "Could not load data. Please try again.",
     runningAgents: "Running agents — follow status in the bottom right.",
-    subtitle: "Here’s how your visibility and content are doing right now. Reach the right tools from here quickly.",
+    subtitle: "Here's how your visibility and content are doing right now. Reach the right tools from here quickly.",
     refreshView: "Refresh view",
     fetching: "Fetching…",
     updateNow: "Update now",
@@ -1323,7 +1327,7 @@ const en: typeof sv = {
     allGood: "Nothing needs your attention right now — agents are working in the background.",
     draftWaiting: "1 draft is waiting for you",
     draftsWaiting: "drafts are waiting for you",
-    draftWhy: "We can’t publish until you approve.",
+    draftWhy: "We can't publish until you approve.",
     review: "Review",
     mentionDrop: "AI assistant visibility has dropped",
     mentionDropWhy: "percentage points lower than last period.",
