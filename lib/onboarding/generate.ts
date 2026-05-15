@@ -665,6 +665,10 @@ async function activateTenant(
  * Every entry goes through /plan/calendar so the calendar is fully
  * populated. The two pre-drafted articles ALSO go through /pieces so
  * the user can open the markdown body right away from the content list.
+ *
+ * Draft articles are pinned to day+1 and day+2 so the user always has
+ * two ready-to-publish posts immediately after completing onboarding,
+ * regardless of where the planner otherwise places those keywords.
  */
 async function syncToBackend(
   siteId: string,
@@ -708,11 +712,28 @@ async function syncToBackend(
   // entries targeting the same keyword skip the field (we still record
   // it in onboarding_result so the review page can show what each post
   // was about — it's just not pushed to plan_items as a hard key).
+  //
+  // Draft articles are pinned to day+1 and day+2 regardless of where the
+  // planner places them, so the user always has two ready-to-publish posts
+  // right after onboarding.
+  const draftDateMap = new Map<string, string>();
+  const usedDraftOverrides = new Set<string>();
+  drafts.forEach((d, idx) => {
+    const kw = d.target_keyword.trim().toLowerCase();
+    if (kw) draftDateMap.set(kw, todayPlus(idx + 1));
+  });
+
   const sentKeywords = new Set<string>();
   for (const p of plan) {
     const kwLower = (p.target_keyword || "").trim().toLowerCase();
     const includeKeyword = kwLower.length > 0 && !sentKeywords.has(kwLower);
     if (includeKeyword) sentKeywords.add(kwLower);
+    const draftOverride =
+      !usedDraftOverrides.has(kwLower) && draftDateMap.has(kwLower)
+        ? draftDateMap.get(kwLower)!
+        : null;
+    if (draftOverride) usedDraftOverrides.add(kwLower);
+    const scheduledForDate = draftOverride ?? p.scheduled_for;
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
@@ -723,7 +744,7 @@ async function syncToBackend(
           ...(includeKeyword ? { target_keyword: p.target_keyword } : {}),
           content_type: calendarContentType(p.content_type),
           priority: "medium",
-          scheduled_for: new Date(`${p.scheduled_for}T09:00:00.000Z`).toISOString(),
+          scheduled_for: new Date(`${scheduledForDate}T09:00:00.000Z`).toISOString(),
           auto_publish_on_schedule: false,
           draft_now: false,
           source: "onboarding",
@@ -892,7 +913,7 @@ async function persistFormInputEarly(
     .select("settings")
     .eq("id", siteId)
     .maybeSingle();
-  const settings = ((row?.settings as Record<string, unknown>) || {}) as Record<string, unknown>;
+  const settings = ((row?.settings as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
 
   const next = {
     ...settings,
@@ -947,7 +968,7 @@ async function saveResultToSite(
     .select("settings")
     .eq("id", siteId)
     .maybeSingle();
-  const settings = ((row?.settings as Record<string, unknown>) || {}) as Record<string, unknown>;
+  const settings = ((row?.settings as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
 
   // Merge AI-inferred brand profile fields into settings only when they
   // weren't already filled in — never overwrite an explicit user choice
