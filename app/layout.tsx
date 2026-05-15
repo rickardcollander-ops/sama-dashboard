@@ -1,7 +1,22 @@
 import type { Metadata } from "next";
+import { Orbitron, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/hooks/useLanguage";
+
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  weight: ["700", "900"],
+  variable: "--font-orbitron",
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Sama AI — Generative Engine Optimization",
@@ -15,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">
+      <body className={`${orbitron.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <LanguageProvider>
           <ToastProvider>
             {children}

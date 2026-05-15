@@ -97,29 +97,29 @@ export default function MarketingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-slate-100 bg-white">
+    <footer className="mkt-footer">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-4">
         {/* Brand column */}
         <div>
           <Link href="/" className="flex items-center gap-2 text-base font-bold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
-              <Sparkles className="h-4 w-4" />
+            <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: "linear-gradient(135deg, var(--neon-orange), var(--neon-purple))" }}>
+              <Sparkles className="h-4 w-4 text-white" />
             </span>
-            <span>Sama AI</span>
+            <span className="mkt-logo-glow">Sama AI</span>
           </Link>
-          <p className="mt-3 max-w-xs text-sm text-slate-500">{f.tagline}</p>
+          <p className="mt-3 max-w-xs text-sm" style={{ color: "var(--text-muted)" }}>{f.tagline}</p>
         </div>
 
         {/* Link columns */}
         {f.columns.map((col) => (
           <div key={col.heading}>
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--neon-orange)" }}>
               {col.heading}
             </div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+            <ul className="mt-3 space-y-2 text-sm">
               {col.links.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="hover:text-slate-900">
+                  <Link href={link.href} className="mkt-footer-link">
                     {link.label}
                   </Link>
                 </li>
@@ -129,8 +129,8 @@ export default function MarketingFooter() {
         ))}
       </div>
 
-      <div className="border-t border-slate-100">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-xs text-slate-400 sm:px-6">
+      <div className="border-t" style={{ borderColor: "var(--border-color)" }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-xs sm:px-6" style={{ color: "var(--text-muted)" }}>
           <span>© {year} Successifier. {f.rights}</span>
         </div>
       </div>
