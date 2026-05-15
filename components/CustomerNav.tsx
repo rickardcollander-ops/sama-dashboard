@@ -118,7 +118,9 @@ const SUB_NAV: Record<SectionId, SubNavConfig> = {
   home: [],
   tech: [],
   social: [],
-  ads: [],
+  ads: [
+    { href: "/c/ads/meta", labelKey: "metaAds" },
+  ],
   // The public /audit page used to live here as "Site Audit". It's been
   // removed because the customer-side site review now runs from /c/analysis
   // and the AI-readability scorecard renders directly under InsightsOverview.
@@ -565,7 +567,16 @@ export default function CustomerNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const showAdmin = isAdminEmail(user?.email);
-  const navItems = showAdmin ? [...TOP_NAV, ADMIN_NAV] : TOP_NAV;
+  const navItems = showAdmin
+    ? [
+        ...TOP_NAV.map((item) =>
+          item.id === "ads"
+            ? { ...item, href: "/c/ads", matchPrefixes: ["/c/ads"], disabled: false }
+            : item
+        ),
+        ADMIN_NAV,
+      ]
+    : TOP_NAV;
   const section = activeSection(pathname, navItems);
 
   return (
