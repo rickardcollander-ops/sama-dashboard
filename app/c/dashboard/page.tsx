@@ -39,6 +39,12 @@ const RecentOutcomes = dynamic(() => import("@/components/dashboard/RecentOutcom
 const OnboardingChecklist = dynamic(() => import("@/components/dashboard/OnboardingChecklist"), {
   loading: () => null,
 });
+const UpcomingDrafts = dynamic(() => import("@/components/dashboard/UpcomingDrafts"), {
+  loading: () => null,
+});
+const AutoApproveToggle = dynamic(() => import("@/components/content/AutoApproveToggle"), {
+  loading: () => null,
+});
 
 interface CustomerSettings {
   brand_name?: string;
@@ -655,6 +661,13 @@ export default function CustomerDashboard() {
             nextStepsInput={nextStepsInput}
           />
         </div>
+
+        {user && (
+          <div className="mt-8 space-y-4">
+            <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
+            <UpcomingDrafts tenantId={effectiveTenantId} />
+          </div>
+        )}
 
         {user && (
           <div className="mt-8">
