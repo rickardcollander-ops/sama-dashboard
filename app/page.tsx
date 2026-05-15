@@ -1,205 +1,292 @@
+"use client";
+
 import Link from "next/link";
-import type { Metadata } from "next";
 import {
   ArrowRight,
   Bot,
   CheckCircle,
-  FileText,
-  Gauge,
+  Clock,
   Globe,
+  Quote,
   Radar,
-  Send,
   Sparkles,
-  Target,
   Zap,
 } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
+import { useLanguage } from "@/lib/hooks/useLanguage";
+import { homeContent } from "@/lib/content/marketing/home";
 
-export const metadata: Metadata = {
-  title: "Sama AI — Get cited by ChatGPT, Perplexity & Google AI",
-  description:
-    "AI has eaten search. Sama is the complete pipeline that audits, plans, writes and publishes the content AI engines actually cite — so your business is the one they recommend.",
-  openGraph: {
-    title: "Sama AI — Get cited by ChatGPT, Perplexity & Google AI",
-    description:
-      "The complete pipeline from audit to publish. Be the brand AI mentions when your customers ask.",
-    type: "website",
-    siteName: "Sama AI",
-  },
+const AI_ENGINES = [
+  "ChatGPT",
+  "Perplexity",
+  "Claude",
+  "Google AI Overviews",
+  "Gemini",
+  "Microsoft Copilot",
+];
+
+const CMS_INTEGRATIONS = [
+  "WordPress",
+  "Shopify",
+  "Webflow",
+  "Framer",
+  "Ghost",
+  "Wix",
+  "GoHighLevel",
+  "Duda",
+  "BigCommerce",
+  "Notion",
+];
+
+const PILLAR_ICONS = [Radar, Globe, Bot, Zap, Sparkles];
+
+const SCHEMA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://sama.successifier.com/#organization",
+      name: "Sama AI",
+      url: "https://sama.successifier.com",
+      logo: "https://sama.successifier.com/logo.png",
+      sameAs: ["https://www.linkedin.com/company/sama-ai"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://sama.successifier.com/#website",
+      url: "https://sama.successifier.com",
+      name: "Sama AI",
+      publisher: { "@id": "https://sama.successifier.com/#organization" },
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Sama AI",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      offers: [
+        { "@type": "Offer", price: "149", priceCurrency: "USD", name: "Starter" },
+        { "@type": "Offer", price: "399", priceCurrency: "USD", name: "Growth" },
+      ],
+      description:
+        "AI marketing platform: GEO, SEO, content, site analysis and reporting on autopilot.",
+    },
+  ],
 };
 
-const FEATURES = [
-  {
-    icon: Gauge,
-    title: "AI visibility audit",
-    desc: "30-second scan that scores how ChatGPT, Perplexity and Google AI see your site. Find every gap before your competitor does.",
-  },
-  {
-    icon: Target,
-    title: "Strategy + GEO insights",
-    desc: "Tracks how often your brand surfaces in AI answers, who outranks you, and what content gaps you need to close.",
-  },
-  {
-    icon: Bot,
-    title: "Autonomous content agent",
-    desc: "Drafts citation-ready articles from your strategy in minutes. You approve, the agent ships — no blank-page syndrome.",
-  },
-  {
-    icon: Send,
-    title: "Publish + weekly reports",
-    desc: "One-click publish to WordPress, Ghost, Webflow or webhook. Weekly mail keeps your team on top of progress.",
-  },
-];
-
-const STEPS = [
-  {
-    icon: Radar,
-    title: "1. We audit your AI footprint",
-    desc: "Free 30-second scan tells you exactly which AI engines mention you, which mention competitors, and why.",
-  },
-  {
-    icon: Sparkles,
-    title: "2. The agent builds the plan",
-    desc: "From audit to strategy: which queries to win, which articles to write, which competitors to outflank.",
-  },
-  {
-    icon: Zap,
-    title: "3. Ship content AI cites",
-    desc: "Approve drafts in a click, publish to your CMS, and watch your AI visibility climb week over week.",
-  },
-];
-
-const TIERS = [
-  {
-    name: "Starter",
-    price: "$149",
-    cadence: "/mo",
-    desc: "For founders and small teams getting into AI search.",
-    features: ["1 site", "Weekly AI visibility scan", "10 content drafts/mo"],
-  },
-  {
-    name: "Growth",
-    price: "$399",
-    cadence: "/mo",
-    desc: "For teams that need to ship content and own the rankings.",
-    features: ["3 sites", "Daily monitoring", "Unlimited drafts", "CMS integrations"],
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    cadence: "",
-    desc: "For multi-brand teams and agencies with scale needs.",
-    features: ["Unlimited sites", "Multi-tenant admin", "Dedicated success"],
-  },
-];
-
 export default function HomePage() {
+  const { language } = useLanguage();
+  const lang = language === "sv" ? "sv" : "en";
+
+  const hero = homeContent.hero[lang];
+  const trust = homeContent.trustStrip[lang];
+  const problem = homeContent.problem[lang];
+  const pillars = homeContent.pillars[lang];
+  const aiGap = homeContent.aiGap[lang];
+  const integrations = homeContent.integrations[lang];
+  const social = homeContent.socialProof[lang];
+  const auditCta = homeContent.auditCta[lang];
+  const pricing = homeContent.pricing[lang];
+  const bottom = homeContent.bottomCta[lang];
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
+      />
       <MarketingHeader />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
-        <div className="mx-auto max-w-5xl px-4 pt-16 pb-12 text-center sm:px-6 sm:pt-24 sm:pb-20">
+        <div className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-24 sm:pb-16">
           <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
             <Bot className="h-3.5 w-3.5" />
-            Generative Engine Optimization, end-to-end
+            {hero.eyebrow}
           </span>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-7xl">
-            AI has eaten search.{" "}
-            <span className="bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-              Be the answer it gives.
-            </span>
+          <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+            {hero.headline.includes(" — ") ? (
+              <>
+                {hero.headline.split(" — ")[0]} —{" "}
+                <span className="bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
+                  {hero.headline.split(" — ")[1]}
+                </span>
+              </>
+            ) : (
+              <span className="bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
+                {hero.headline}
+              </span>
+            )}
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 sm:text-lg">
-            ChatGPT, Perplexity and Google AI now decide which brands customers
-            hear about — and most websites are invisible to them. Sama is the
-            complete pipeline from audit to published article, so your business
-            is the one AI cites.
+            {hero.subhead}
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/audit"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
-              Run free AI audit
+              {hero.cta1}
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/c/onboarding"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Start 14-day trial
+              {hero.cta2}
             </Link>
           </div>
-          <p className="mt-4 text-xs text-slate-400">
-            Free audit · No card · Results in 30 seconds
-          </p>
+          <p className="mt-4 text-xs text-slate-400">{hero.trust}</p>
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how-it-works" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className="text-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            How it works
-          </span>
-          <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">
-            From invisible to cited, in three moves
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">
-            Most tools give you one piece. Sama runs the whole loop — so you
-            don&apos;t hand off between five vendors to ship one article.
-          </p>
-        </div>
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {STEPS.map((s) => (
-            <div
-              key={s.title}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-            >
-              <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-violet-50 text-violet-600">
-                <s.icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">{s.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">{s.desc}</p>
-            </div>
-          ))}
+      {/* AI engines trust strip */}
+      <section className="border-y border-slate-100 bg-slate-50/50 py-5">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-slate-500">
+            <span className="font-medium text-slate-700">{trust.label}</span>
+            {AI_ENGINES.map((engine, i) => (
+              <span key={engine} className="flex items-center gap-1">
+                {i > 0 && <span className="text-slate-300">·</span>}
+                <span className="font-semibold text-slate-800">{engine}</span>
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span className="font-medium">{trust.syncLabel}</span>
+            {trust.syncs.map((s, i) => (
+              <span key={s} className="flex items-center gap-1">
+                {i > 0 && <span className="text-slate-300">·</span>}
+                {s}
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="border-t border-slate-100 bg-slate-50/60">
+      {/* Problem */}
+      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
+        <h2 className="text-2xl font-bold sm:text-3xl">{problem.heading}</h2>
+        <p className="mt-4 text-base text-slate-600 leading-relaxed">{problem.body1}</p>
+        <p className="mt-4 text-base text-slate-600 leading-relaxed">{problem.body2}</p>
+      </section>
+
+      {/* 5 Pillars */}
+      <section className="border-t border-slate-100 bg-slate-50/60">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="text-center">
             <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-              Built for AI search
+              {pillars.eyebrow}
             </span>
-            <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">
-              One pipeline. Every step covered.
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">
-              Audit, strategy, content, publishing, monitoring — all under one
-              roof, all designed for how AI engines actually rank brands today.
-            </p>
+            <h2 className="mt-2 text-3xl font-bold sm:text-4xl">{pillars.heading}</h2>
           </div>
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {pillars.items.map((item, idx) => {
+              const Icon = PILLAR_ICONS[idx % PILLAR_ICONS.length];
+              return (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-violet-200 hover:shadow-md"
+                >
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+                      <Clock className="h-3 w-3" />
+                      {item.schedule}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-semibold group-hover:text-violet-700">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">{item.desc}</p>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="mt-8 text-center">
+            <Link
+              href="/how-it-works"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+            >
+              {pillars.cta}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* AI Gap */}
+      <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-8 sm:p-12">
+          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
+            {aiGap.eyebrow}
+          </span>
+          <h2 className="mt-3 text-2xl font-bold sm:text-3xl">{aiGap.heading}</h2>
+          <p className="mt-4 max-w-2xl text-base text-slate-700">{aiGap.body}</p>
+          <Link
+            href="/ai-gap"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+          >
+            {aiGap.cta}
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Integrations */}
+      <section className="border-t border-slate-100 bg-slate-50/60 py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-center text-xl font-bold">{integrations.heading}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-slate-600">
+            {integrations.body}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {CMS_INTEGRATIONS.map((cms) => (
+              <span
+                key={cms}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm"
               >
-                <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
-                  <f.icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">{f.title}</h3>
-                <p className="mt-2 text-sm text-slate-600">{f.desc}</p>
-              </div>
+                {cms}
+              </span>
             ))}
+            <Link
+              href="/integrations"
+              className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+            >
+              {lang === "sv" ? "+ Fler" : "+ More"} →
+            </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Social proof */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+        <div className="text-center">
+          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
+            {social.eyebrow}
+          </span>
+          <h2 className="mt-2 text-2xl font-bold sm:text-3xl">{social.heading}</h2>
+        </div>
+        <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          {social.stats.map((stat) => (
+            <div
+              key={stat.value}
+              className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm"
+            >
+              <div className="text-4xl font-bold text-violet-600">{stat.value}</div>
+              <p className="mt-2 text-sm text-slate-600">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
+          <Quote className="h-6 w-6 text-violet-300" />
+          <p className="mt-3 text-base italic text-slate-700 sm:text-lg">
+            &ldquo;{social.quote}&rdquo;
+          </p>
         </div>
       </section>
 
@@ -207,43 +294,32 @@ export default function HomePage() {
       <section className="border-t border-slate-100">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 py-14 text-center sm:px-6 sm:py-20 lg:flex-row lg:justify-between lg:text-left">
           <div className="max-w-2xl">
-            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-              See your AI visibility score in 30 seconds
-            </h2>
-            <p className="mt-2 text-sm text-slate-600 sm:text-base">
-              Free, no card, no account. We crawl your homepage and hand you 5
-              AI queries you can test live in Perplexity, ChatGPT and Google AI
-              right now.
-            </p>
+            <h2 className="text-2xl font-bold sm:text-3xl">{auditCta.heading}</h2>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">{auditCta.body}</p>
           </div>
           <Link
             href="/audit"
             className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-slate-800"
           >
             <Globe className="h-4 w-4" />
-            Run free audit
+            {auditCta.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
       {/* Pricing teaser */}
-      <section id="pricing" className="border-t border-slate-100 bg-slate-50/60">
+      <section className="border-t border-slate-100 bg-slate-50/60">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="text-center">
             <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-              Pricing
+              {pricing.eyebrow}
             </span>
-            <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">
-              Start free. Scale when AI starts citing you.
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">
-              All plans include the audit, content agent, and publishing.
-              Choose the size that fits how many sites you run.
-            </p>
+            <h2 className="mt-2 text-3xl font-bold sm:text-4xl">{pricing.heading}</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">{pricing.subhead}</p>
           </div>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
-            {TIERS.map((t) => (
+            {pricing.tiers.map((t) => (
               <div
                 key={t.name}
                 className={`relative rounded-2xl border p-6 shadow-sm ${
@@ -254,21 +330,18 @@ export default function HomePage() {
               >
                 {t.highlight && (
                   <span className="absolute -top-3 left-6 rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold text-white">
-                    Most popular
+                    {lang === "sv" ? "Mest populär" : "Most popular"}
                   </span>
                 )}
-                <h3 className="text-lg font-semibold text-slate-900">{t.name}</h3>
+                <h3 className="text-lg font-semibold">{t.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">{t.desc}</p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-slate-900">{t.price}</span>
+                  <span className="text-4xl font-bold">{t.price}</span>
                   <span className="text-sm text-slate-500">{t.cadence}</span>
                 </div>
                 <ul className="mt-6 space-y-2">
                   {t.features.map((feat) => (
-                    <li
-                      key={feat}
-                      className="flex items-start gap-2 text-sm text-slate-700"
-                    >
+                    <li key={feat} className="flex items-start gap-2 text-sm text-slate-700">
                       <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" />
                       {feat}
                     </li>
@@ -277,12 +350,12 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          <div className="mt-10 text-center">
+          <div className="mt-8 text-center">
             <Link
               href="/c/pricing"
               className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
             >
-              Compare plans in detail
+              {pricing.cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -292,27 +365,22 @@ export default function HomePage() {
       {/* Bottom CTA */}
       <section className="bg-slate-900 text-white">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-24">
-          <FileText className="mx-auto h-10 w-10 text-violet-400" />
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
-            The next time someone asks AI, be the answer.
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300">
-            Start with the free audit. See where you stand, see what to fix,
-            and ship your first AI-cited article this week.
-          </p>
+          <Sparkles className="mx-auto h-10 w-10 text-violet-400" />
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">{bottom.heading}</h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300">{bottom.body}</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/audit"
               className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
             >
-              Run free audit
+              {bottom.cta1}
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/c/onboarding"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
             >
-              Start 14-day trial
+              {bottom.cta2}
             </Link>
           </div>
         </div>

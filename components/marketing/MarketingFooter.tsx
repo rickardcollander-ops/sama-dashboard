@@ -1,48 +1,137 @@
+"use client";
+
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { useLanguage } from "@/lib/hooks/useLanguage";
+
+const FOOTER = {
+  sv: {
+    tagline:
+      "AI har ätit upp sökmotorn. Vi ser till att ert företag är det ChatGPT, Perplexity och Google AI rekommenderar.",
+    columns: [
+      {
+        heading: "Plattformen",
+        links: [
+          { label: "AI-synlighet (GEO)", href: "/platform/ai-visibility" },
+          { label: "SEO + Google", href: "/platform/seo" },
+          { label: "Content", href: "/platform/content" },
+          { label: "Tech", href: "/platform/tech" },
+          { label: "Ads", href: "/platform/ads" },
+          { label: "Social", href: "/platform" },
+        ],
+      },
+      {
+        heading: "Användningsområden",
+        links: [
+          { label: "B2B SaaS", href: "/use-cases/saas" },
+          { label: "E-handel", href: "/use-cases/ecommerce" },
+          { label: "Byråer", href: "/use-cases/agencies" },
+          { label: "Lokala företag", href: "/use-cases/local-business" },
+          { label: "Konsultbolag", href: "/use-cases/consulting" },
+          { label: "Media", href: "/use-cases/media" },
+        ],
+      },
+      {
+        heading: "Resurser & Juridiskt",
+        links: [
+          { label: "Blogg", href: "/blog" },
+          { label: "AI Gap", href: "/ai-gap" },
+          { label: "Vanliga frågor", href: "/faq" },
+          { label: "Om oss", href: "/about" },
+          { label: "Integrationer", href: "/integrations" },
+          { label: "Villkor", href: "/c/legal/terms" },
+          { label: "Integritetspolicy", href: "/c/legal/privacy" },
+          { label: "DPA", href: "/c/legal/dpa" },
+        ],
+      },
+    ],
+    rights: "Alla rättigheter förbehållna.",
+  },
+  en: {
+    tagline:
+      "AI has eaten search. We make sure your business is the one ChatGPT, Perplexity and Google AI mention when customers ask.",
+    columns: [
+      {
+        heading: "Platform",
+        links: [
+          { label: "AI Visibility (GEO)", href: "/platform/ai-visibility" },
+          { label: "SEO + Google", href: "/platform/seo" },
+          { label: "Content", href: "/platform/content" },
+          { label: "Tech", href: "/platform/tech" },
+          { label: "Ads", href: "/platform/ads" },
+          { label: "Social", href: "/platform" },
+        ],
+      },
+      {
+        heading: "Use Cases",
+        links: [
+          { label: "B2B SaaS", href: "/use-cases/saas" },
+          { label: "E-commerce", href: "/use-cases/ecommerce" },
+          { label: "Agencies", href: "/use-cases/agencies" },
+          { label: "Local Business", href: "/use-cases/local-business" },
+          { label: "Consulting", href: "/use-cases/consulting" },
+          { label: "Media", href: "/use-cases/media" },
+        ],
+      },
+      {
+        heading: "Resources & Legal",
+        links: [
+          { label: "Blog", href: "/blog" },
+          { label: "AI Gap", href: "/ai-gap" },
+          { label: "FAQ", href: "/faq" },
+          { label: "About", href: "/about" },
+          { label: "Integrations", href: "/integrations" },
+          { label: "Terms", href: "/c/legal/terms" },
+          { label: "Privacy Policy", href: "/c/legal/privacy" },
+          { label: "DPA", href: "/c/legal/dpa" },
+        ],
+      },
+    ],
+    rights: "All rights reserved.",
+  },
+};
 
 export default function MarketingFooter() {
+  const { language } = useLanguage();
+  const f = FOOTER[language as keyof typeof FOOTER] ?? FOOTER.en;
   const year = new Date().getFullYear();
+
   return (
     <footer className="border-t border-slate-100 bg-white">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="lg:col-span-2">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-4">
+        {/* Brand column */}
+        <div>
           <Link href="/" className="flex items-center gap-2 text-base font-bold">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
               <Sparkles className="h-4 w-4" />
             </span>
             <span>Sama AI</span>
           </Link>
-          <p className="mt-3 max-w-sm text-sm text-slate-500">
-            AI has eaten search. We make sure your business is the one ChatGPT,
-            Perplexity and Google AI mention when customers ask.
-          </p>
+          <p className="mt-3 max-w-xs text-sm text-slate-500">{f.tagline}</p>
         </div>
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Product
+
+        {/* Link columns */}
+        {f.columns.map((col) => (
+          <div key={col.heading}>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {col.heading}
+            </div>
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              {col.links.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="hover:text-slate-900">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            <li><Link href="/audit" className="hover:text-slate-900">Free AI audit</Link></li>
-            <li><Link href="/#features" className="hover:text-slate-900">Features</Link></li>
-            <li><Link href="/#pricing" className="hover:text-slate-900">Pricing</Link></li>
-            <li><Link href="/c/login" className="hover:text-slate-900">Sign in</Link></li>
-          </ul>
-        </div>
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Legal
-          </div>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            <li><Link href="/c/legal/terms" className="hover:text-slate-900">Terms</Link></li>
-            <li><Link href="/c/legal/privacy" className="hover:text-slate-900">Privacy Policy</Link></li>
-            <li><Link href="/c/legal/dpa" className="hover:text-slate-900">DPA</Link></li>
-          </ul>
-        </div>
+        ))}
       </div>
+
       <div className="border-t border-slate-100">
-        <div className="mx-auto max-w-6xl px-4 py-4 text-xs text-slate-400 sm:px-6">
-          © {year} Successifier. All rights reserved.
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-xs text-slate-400 sm:px-6">
+          <span>© {year} Successifier. {f.rights}</span>
         </div>
       </div>
     </footer>
