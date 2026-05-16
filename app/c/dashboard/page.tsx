@@ -446,12 +446,14 @@ export default function CustomerDashboard() {
         label: t.dashboard.googleVisibility,
         tooltip: t.dashboard.googleTooltip,
         caption: t.dashboard.googleCaption,
-        href: "/c/analysis",
-        value: avgPos > 0 ? avgPos.toFixed(1) : "—",
-        trend: <TrendBadge delta={seoStats?.positionDelta ?? null} format="rank" inverted />,
-        hint: avgPos > 0
-          ? `${seoStats?.totalKeywords ?? 0} ${t.dashboard.keywordsTracked}`
-          : t.dashboard.noKeywords,
+        href: googleConnected ? "/c/analysis" : "/c/settings/integrations",
+        value: googleConnected && avgPos > 0 ? avgPos.toFixed(1) : "—",
+        trend: googleConnected ? <TrendBadge delta={seoStats?.positionDelta ?? null} format="rank" inverted /> : undefined,
+        hint: !googleConnected
+          ? t.dashboard.googleNotConnected
+          : avgPos > 0
+            ? `${seoStats?.totalKeywords ?? 0} ${t.dashboard.keywordsTracked}`
+            : t.dashboard.noKeywords,
       },
       {
         key: "content",
@@ -633,8 +635,9 @@ export default function CustomerDashboard() {
               { key: "clicks", label: t.dashboard.clicks, color: "#3b82f6" },
               { key: "impressions", label: t.dashboard.impressions, color: "#8b5cf6" },
             ]}
-            noData={t.dashboard.noData}
-            noDataDesc={t.dashboard.noDataDesc}
+            noData={googleConnected ? t.dashboard.noData : t.dashboard.googleNotConnected}
+            noDataDesc={googleConnected ? t.dashboard.noDataDesc : t.dashboard.googleNotConnectedDesc}
+            noDataHref={googleConnected ? undefined : "/c/settings/integrations"}
             chartStart={t.dashboard.chartStart}
           />
 
@@ -649,8 +652,9 @@ export default function CustomerDashboard() {
               { key: "clicks", label: t.dashboard.clicks, color: "#10b981" },
               { key: "impressions", label: t.dashboard.exposures, color: "#f59e0b" },
             ]}
-            noData={t.dashboard.noData}
-            noDataDesc={t.dashboard.noDataDesc}
+            noData={googleConnected ? t.dashboard.noData : t.dashboard.googleNotConnected}
+            noDataDesc={googleConnected ? t.dashboard.noDataDesc : t.dashboard.googleNotConnectedDesc}
+            noDataHref={googleConnected ? undefined : "/c/settings/integrations"}
             chartStart={t.dashboard.chartStart}
           />
         </div>
