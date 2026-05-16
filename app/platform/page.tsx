@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bot, Globe, Radar, Sparkles, Zap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import { platformContent } from "@/lib/content/marketing/platform";
 
-const MODULE_ICONS = [Radar, Globe, Bot, Zap, Sparkles];
+const MODULE_ICONS = ["📡", "🌐", "🤖", "⚡", "✨"];
 
 export default function PlatformPage() {
   const { language } = useLanguage();
@@ -36,7 +36,7 @@ export default function PlatformPage() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {c.modules.map((mod, idx) => {
-            const Icon = MODULE_ICONS[idx % MODULE_ICONS.length];
+            const icon = MODULE_ICONS[idx % MODULE_ICONS.length];
             return (
               <Link
                 key={mod.href}
@@ -44,7 +44,7 @@ export default function PlatformPage() {
                 className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-violet-200 hover:shadow-md"
               >
                 <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
-                  <Icon className="h-5 w-5" />
+                  <span className="text-xl">{icon}</span>
                 </div>
                 <h2 className="text-lg font-semibold group-hover:text-violet-700">{mod.title}</h2>
                 <p className="mt-2 text-sm text-slate-600">{mod.desc}</p>

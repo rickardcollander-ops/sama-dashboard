@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Search, Zap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { useLanguage } from "@/lib/hooks/useLanguage";
@@ -31,7 +31,7 @@ export default function AiGapPage() {
         {/* What is */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-3">
-            <Search className="h-6 w-6 text-violet-500" />
+            <span className="text-2xl">🔍</span>
             <h2 className="text-xl font-bold">{c.whatIs.heading}</h2>
           </div>
           <p className="mt-3 text-sm text-slate-600 leading-relaxed sm:text-base">{c.whatIs.body}</p>
@@ -40,7 +40,7 @@ export default function AiGapPage() {
         {/* How SAMA finds */}
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-3">
-            <Zap className="h-6 w-6 text-violet-500" />
+            <span className="text-2xl">⚡</span>
             <h2 className="text-xl font-bold">{c.howSama.heading}</h2>
           </div>
           <ol className="mt-4 space-y-3">
@@ -58,7 +58,7 @@ export default function AiGapPage() {
         {/* Example */}
         <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <BookOpen className="h-6 w-6 text-violet-500" />
+            <span className="text-2xl">📖</span>
             <h2 className="text-xl font-bold">{c.example.heading}</h2>
           </div>
           <p className="mt-3 text-sm text-slate-700 leading-relaxed sm:text-base">{c.example.body}</p>

@@ -1,17 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowRight,
-  Bot,
-  CheckCircle,
-  Clock,
-  Globe,
-  Quote,
-  Radar,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { useLanguage } from "@/lib/hooks/useLanguage";
@@ -39,7 +29,7 @@ const CMS_INTEGRATIONS = [
   "Notion",
 ];
 
-const PILLAR_ICONS = [Radar, Globe, Bot, Zap, Sparkles];
+const PILLAR_ICONS = ["📡", "🌐", "🤖", "⚡", "✨"];
 
 const SCHEMA = {
   "@context": "https://schema.org",
@@ -101,7 +91,7 @@ export default function HomePage() {
       <section className="hero-section">
         <div className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-28 sm:pb-20">
           <span className="hero-eyebrow">
-            <Bot className="h-3.5 w-3.5" />
+            <span>🤖</span>
             {hero.eyebrow}
           </span>
           <h1 className="hero-headline mt-6">
@@ -170,15 +160,15 @@ export default function HomePage() {
           </div>
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {pillars.items.map((item, idx) => {
-              const Icon = PILLAR_ICONS[idx % PILLAR_ICONS.length];
+              const icon = PILLAR_ICONS[idx % PILLAR_ICONS.length];
               return (
                 <Link key={item.title} href={item.href} className="pillar-card">
                   <div className="mb-4 flex items-center justify-between">
                     <div className="pillar-card-icon">
-                      <Icon className="h-5 w-5" />
+                      <span className="text-xl">{icon}</span>
                     </div>
                     <span className="time-badge">
-                      <Clock className="h-3 w-3" />
+                      <span>⏱️</span>
                       {item.schedule}
                     </span>
                   </div>
@@ -254,7 +244,7 @@ export default function HomePage() {
             ))}
           </div>
           <div className="testimonial-block mt-10">
-            <Quote className="h-6 w-6" style={{ color: "var(--neon-purple)", opacity: 0.6 }} />
+            <span className="text-2xl" style={{ color: "var(--neon-purple)", opacity: 0.6 }}>❝</span>
             <p className="mt-3 text-base italic sm:text-lg" style={{ color: "var(--text-secondary)" }}>
               &ldquo;{social.quote}&rdquo;
             </p>
@@ -270,7 +260,7 @@ export default function HomePage() {
             <p className="mt-2 text-sm sm:text-base" style={{ color: "var(--text-secondary)" }}>{auditCta.body}</p>
           </div>
           <Link href="/audit" className="cta-banner-btn whitespace-nowrap">
-            <Globe className="h-4 w-4" />
+            <span>🌐</span>
             {auditCta.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>
@@ -305,7 +295,7 @@ export default function HomePage() {
                 <ul className="mt-6 space-y-2">
                   {t.features.map((feat) => (
                     <li key={feat} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                      <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: "var(--neon-blue)" }} />
+                      <span className="mt-0.5 flex-shrink-0">✅</span>
                       {feat}
                     </li>
                   ))}
@@ -331,7 +321,7 @@ export default function HomePage() {
         <div className="bottom-cta-orb bottom-cta-orb-1" />
         <div className="bottom-cta-orb bottom-cta-orb-2" />
         <div className="relative mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-24">
-          <Sparkles className="mx-auto h-10 w-10" style={{ color: "var(--neon-orange)" }} />
+          <span className="mx-auto block text-5xl">✨</span>
           <h2 className="bottom-cta-headline mt-4">{bottom.heading}</h2>
           <p className="mx-auto mt-4 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>{bottom.body}</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

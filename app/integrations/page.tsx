@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Database, Send } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { useLanguage } from "@/lib/hooks/useLanguage";
@@ -30,7 +30,7 @@ export default function IntegrationsPage() {
         {/* Data sources */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-4">
-            <Database className="h-5 w-5 text-violet-500" />
+            <span className="text-xl">💾</span>
             <h2 className="text-xl font-bold">{c.dataSources.heading}</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -49,7 +49,7 @@ export default function IntegrationsPage() {
         {/* Publishing */}
         <div>
           <div className="flex items-center gap-3 mb-4">
-            <Send className="h-5 w-5 text-violet-500" />
+            <span className="text-xl">📤</span>
             <h2 className="text-xl font-bold">{c.publishing.heading}</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
