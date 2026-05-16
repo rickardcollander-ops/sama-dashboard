@@ -9,7 +9,6 @@ import {
   Search, CheckCircle2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
-import CreateContentPlanModal from "@/components/CreateContentPlanModal";
 import EditChipModal, { type EditableChipItem } from "@/components/content/EditChipModal";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -306,8 +305,6 @@ export default function ContentCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [addDate, setAddDate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [latestAnalysisId, setLatestAnalysisId] = useState<string | null>(null);
-  const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
@@ -393,30 +390,6 @@ export default function ContentCalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRuns.runs]);
 
-  // Look up the most recent completed analysis run so the "Skapa plan från
-  // analys" button knows which run to pass into CreateContentPlanModal.
-  // Goes through /api/analysis/runs (Next.js route) which already merges
-  // backend + locally-saved runs, so this works even when the agent
-  // backend is paused.
-  useEffect(() => {
-    if (!effectiveTenantId) return;
-    const ctrl = new AbortController();
-    fetch(`/api/analysis/runs?limit=20`, {
-      headers: { "X-Tenant-ID": effectiveTenantId },
-      signal: ctrl.signal,
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const runs = Array.isArray(data?.runs) ? data.runs : [];
-        const completed = runs.find(
-          (r: { id?: string; status?: string }) =>
-            r?.id && (r.status === "completed" || !r.status),
-        );
-        if (completed?.id) setLatestAnalysisId(completed.id as string);
-      })
-      .catch(() => { /* offline / unauth — button stays disabled */ });
-    return () => ctrl.abort();
-  }, [effectiveTenantId]);
 
   // "Finished" articles in the plan: drafts and approved pieces that have
   // been written but not yet published. The user is supposed to be able to
@@ -589,25 +562,6 @@ export default function ContentCalendarPage() {
             <Link href="/c/content" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               ← Back to content
             </Link>
-            {latestAnalysisId ? (
-              <button
-                onClick={() => setShowPlanModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:from-violet-700 hover:to-blue-700"
-                title="Create the entire 90-day plan from the latest analysis"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Create plan from analysis
-              </button>
-            ) : (
-              <Link
-                href="/c/analysis"
-                className="inline-flex items-center gap-1.5 rounded-md border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
-                title="Run an analysis first to create a plan"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Run analysis first
-              </Link>
-            )}
             <button onClick={goToday} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               Today
             </button>
@@ -889,21 +843,6 @@ export default function ContentCalendarPage() {
             setScheduled(prev => [...prev, item]);
           }}
           tenantClient={tenantClient}
-        />
-      )}
-
-      {showPlanModal && latestAnalysisId && effectiveTenantId && (
-        <CreateContentPlanModal
-          analysisRunId={latestAnalysisId}
-          tenantId={effectiveTenantId}
-          onClose={() => setShowPlanModal(false)}
-          onSuccess={() => {
-            // Plan items land in agent_runs and get inserted asynchronously.
-            // Re-poll the calendar so they show up as soon as the background
-            // task starts writing rows. The user lands on a "Plan skapas!"
-            // success state inside the modal.
-            void fetchRange();
-          }}
         />
       )}
 
