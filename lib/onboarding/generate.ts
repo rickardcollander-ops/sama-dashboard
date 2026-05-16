@@ -131,8 +131,6 @@ type JobStep =
   | "analyzing_brand"
   | "finding_keywords"
   | "planning_content"
-  | "writing_article_1"
-  | "writing_article_2"
   | "syncing_calendar"
   | "starting_audits"
   | "saving"
@@ -140,14 +138,12 @@ type JobStep =
 
 const STEP_PROGRESS: Record<JobStep, number> = {
   queued: 0,
-  analyzing_site: 8,
-  analyzing_brand: 18,
-  finding_keywords: 28,
-  planning_content: 42,
-  writing_article_1: 58,
-  writing_article_2: 78,
-  syncing_calendar: 88,
-  starting_audits: 94,
+  analyzing_site: 10,
+  analyzing_brand: 22,
+  finding_keywords: 38,
+  planning_content: 58,
+  syncing_calendar: 78,
+  starting_audits: 91,
   saving: 97,
   done: 100,
 };
@@ -676,16 +672,12 @@ async function syncToBackend(
   accountId: string,
   input: OnboardingFormInput,
   plan: PlanEntry[],
-  drafts: DraftArticle[],
+  draftKeywords: string[],
 ): Promise<NonNullable<OnboardingResult["backend_sync"]>> {
   let created = 0;
   let failed = 0;
   let firstError: string | undefined;
 
-  // Map the planner's content_type enum onto whatever the backend
-  // accepts. /api/content/plan/calendar in the existing UI uses
-  // "blog_article" rather than "blog_post" — match that to avoid
-  // schema rejection.
   const calendarContentType = (t: PlanEntry["content_type"]): string => {
     switch (t) {
       case "blog_post": return "blog_article";
@@ -703,27 +695,33 @@ async function syncToBackend(
 
   const headers = backendHeaders(siteId, accessToken, accountId);
 
-  // 1. Create all 30 plan/calendar entries. The backend returns
-  // {success, error?} on this route — a 200 with success:false still
-  // means the row didn't land, so we have to look past res.ok.
-  //
-  // The backend enforces a unique index on (tenant_id, lower(target_keyword)),
-  // so only the FIRST plan entry per keyword can include it; subsequent
-  // entries targeting the same keyword skip the field (we still record
-  // it in onboarding_result so the review page can show what each post
-  // was about — it's just not pushed to plan_items as a hard key).
-  //
-  // Draft articles are pinned to day+1 and day+2 regardless of where the
-  // planner places them, so the user always has two ready-to-publish posts
-  // right after onboarding.
+  // The top 2 keywords get pinned to day+1/day+2 and flagged draft_now:true
+  // so the backend generates their articles through the normal proposal flow.
   const draftDateMap = new Map<string, string>();
-  const usedDraftOverrides = new Set<string>();
-  drafts.forEach((d, idx) => {
-    const kw = d.target_keyword.trim().toLowerCase();
-    if (kw) draftDateMap.set(kw, todayPlus(idx + 1));
+  draftKeywords.forEach((kw, idx) => {
+    const kwLower = kw.trim().toLowerCase();
+    if (kwLower) draftDateMap.set(kwLower, todayPlus(idx + 1));
   });
 
+  // Forward pass: compute the final payload for every plan item.
+  // The backend enforces a unique index on (tenant_id, lower(target_keyword))
+  // so only the first plan entry per keyword sends the field.
+  type PlanPayload = {
+    title: string;
+    topic: string;
+    target_keyword?: string;
+    content_type: string;
+    priority: string;
+    scheduled_for: string;
+    auto_publish_on_schedule: boolean;
+    draft_now: boolean;
+    source: string;
+  };
+
   const sentKeywords = new Set<string>();
+  const usedDraftOverrides = new Set<string>();
+  const itemsToCreate: PlanPayload[] = [];
+
   for (const p of plan) {
     const kwLower = (p.target_keyword || "").trim().toLowerCase();
     const includeKeyword = kwLower.length > 0 && !sentKeywords.has(kwLower);
@@ -734,21 +732,30 @@ async function syncToBackend(
         : null;
     if (draftOverride) usedDraftOverrides.add(kwLower);
     const scheduledForDate = draftOverride ?? p.scheduled_for;
+    itemsToCreate.push({
+      title: p.title,
+      topic: p.angle || p.target_keyword || p.title,
+      ...(includeKeyword ? { target_keyword: p.target_keyword } : {}),
+      content_type: calendarContentType(p.content_type),
+      priority: "medium",
+      scheduled_for: new Date(`${scheduledForDate}T09:00:00.000Z`).toISOString(),
+      auto_publish_on_schedule: false,
+      // draft_now triggers the backend's normal article generation flow
+      // (same as when a user approves an idea in /c/content).
+      draft_now: draftOverride !== null,
+      source: "onboarding",
+    });
+  }
+
+  // Insert in reverse order (day 30 → day 1) so that day 1 ends up with
+  // the highest created_at, placing it first in the content list which
+  // the backend returns sorted by created_at DESC.
+  for (const payload of [...itemsToCreate].reverse()) {
     try {
       const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          title: p.title,
-          topic: p.angle || p.target_keyword || p.title,
-          ...(includeKeyword ? { target_keyword: p.target_keyword } : {}),
-          content_type: calendarContentType(p.content_type),
-          priority: "medium",
-          scheduled_for: new Date(`${scheduledForDate}T09:00:00.000Z`).toISOString(),
-          auto_publish_on_schedule: false,
-          draft_now: false,
-          source: "onboarding",
-        }),
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
@@ -768,48 +775,6 @@ async function syncToBackend(
     } catch (e) {
       failed++;
       if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
-    }
-  }
-
-  // 2. Create the 2 pre-drafted pieces so the content list shows them.
-  for (const d of drafts) {
-    const planEntry = plan.find((p) => p.target_keyword.toLowerCase() === d.target_keyword.toLowerCase());
-    try {
-      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/pieces`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          title: d.title,
-          slug: d.slug,
-          content: d.body_markdown,
-          body_markdown: d.body_markdown,
-          meta_title: d.meta_title,
-          meta_description: d.meta_description,
-          target_keyword: d.target_keyword,
-          word_count: d.word_count,
-          content_type: calendarContentType(planEntry?.content_type || "blog_post"),
-          type: calendarContentType(planEntry?.content_type || "blog_post"),
-          status: "draft",
-          language: input.content_language,
-          source: "onboarding",
-        }),
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) {
-        failed++;
-        await recordError(res, "pieces");
-        continue;
-      }
-      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null;
-      if (data && data.success === false) {
-        failed++;
-        if (!firstError) firstError = `pieces: ${data.error || "success:false"}`;
-        continue;
-      }
-      created++;
-    } catch (e) {
-      failed++;
-      if (!firstError) firstError = `pieces: ${e instanceof Error ? e.message : "fetch failed"}`;
     }
   }
 
@@ -1088,23 +1053,6 @@ export async function runOnboardingGeneration(opts: {
     await job.setStep("planning_content");
     const plan = await generatePlan(apiKey, enrichedInput, keywords);
 
-    await job.setStep("writing_article_1");
-    const draft1 = await generateDraft(
-      apiKey,
-      enrichedInput,
-      keywords[0],
-      plan.find((p) => p.target_keyword.toLowerCase() === keywords[0].text.toLowerCase()),
-    );
-
-    await job.setStep("writing_article_2");
-    const secondKw = keywords[1] || keywords[0];
-    const draft2 = await generateDraft(
-      apiKey,
-      enrichedInput,
-      secondKw,
-      plan.find((p) => p.target_keyword.toLowerCase() === secondKw.text.toLowerCase()),
-    );
-
     // Persist the user's form input on the site row BEFORE we touch
     // the SAMA backend. Several backend endpoints (analysis/run,
     // tenant/activate, content/plan/calendar) read brand context from
@@ -1129,9 +1077,14 @@ export async function runOnboardingGeneration(opts: {
       error: activationError,
     };
 
+    // Pass the top 2 keyword texts so syncToBackend can flag those plan
+    // items with draft_now:true, triggering the backend's normal article
+    // generation flow instead of pushing pre-written bodies.
+    const draftKeywords = keywords.slice(0, 2).map((k) => k.text);
+
     let backendSync: OnboardingResult["backend_sync"];
     try {
-      backendSync = await syncToBackend(siteId, userAccessToken, accountId, enrichedInput, plan, [draft1, draft2]);
+      backendSync = await syncToBackend(siteId, userAccessToken, accountId, enrichedInput, plan, draftKeywords);
     } catch (e) {
       backendSync = {
         attempted: true,
@@ -1160,7 +1113,7 @@ export async function runOnboardingGeneration(opts: {
       brand_profile: brandProfile,
       keywords,
       plan,
-      drafts: [draft1, draft2],
+      drafts: [],
       generated_at: new Date().toISOString(),
       tenant_activation: tenantActivation,
       backend_sync: backendSync,

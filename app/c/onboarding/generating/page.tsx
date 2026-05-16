@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Globe, Briefcase, Search, ListTree, PenTool, CalendarCheck, Radar,
+  Globe, Briefcase, Search, ListTree, CalendarCheck, Radar,
   CheckCircle2, AlertCircle, Loader2, MessageSquare, ScanLine,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
@@ -29,8 +29,6 @@ const JOB_STEP_KEYS = [
   { key: "analyzing_brand",   icon: Briefcase },
   { key: "finding_keywords",  icon: Search },
   { key: "planning_content",  icon: ListTree },
-  { key: "writing_article_1", icon: PenTool },
-  { key: "writing_article_2", icon: PenTool },
   { key: "syncing_calendar",  icon: CalendarCheck },
   { key: "starting_audits",   icon: Radar },
   { key: "saving",            icon: CheckCircle2 },
@@ -247,8 +245,6 @@ function GeneratingInner() {
     { key: "analyzing_brand",   label: og.stepAnalyzingBrand,   sub: og.stepAnalyzingBrandSub,   icon: Briefcase },
     { key: "finding_keywords",  label: og.stepFindingKeywords,  sub: og.stepFindingKeywordsSub,  icon: Search },
     { key: "planning_content",  label: og.stepPlanningContent,  sub: og.stepPlanningContentSub,  icon: ListTree },
-    { key: "writing_article_1", label: og.stepWritingArticle1,  sub: og.stepWritingArticleSub,   icon: PenTool },
-    { key: "writing_article_2", label: og.stepWritingArticle2,  sub: og.stepWritingArticleSub,   icon: PenTool },
     { key: "syncing_calendar",  label: og.stepSyncingCalendar,  sub: og.stepSyncingCalendarSub,  icon: CalendarCheck },
     { key: "starting_audits",   label: og.stepStartingAudits,   sub: og.stepStartingAuditsSub,   icon: Radar },
     { key: "saving",            label: og.stepSaving,           sub: og.stepSavingSub,           icon: CheckCircle2 },
