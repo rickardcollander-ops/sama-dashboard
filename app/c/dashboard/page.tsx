@@ -210,6 +210,9 @@ export default function CustomerDashboard() {
     setAnyContentEver(false);
     setPendingApprovals(0);
     setTrafficData({});
+    setGoogleConnected(false);
+    setGithubConnected(false);
+    setCmsConnected(false);
   }, [effectiveTenantId]);
 
   useEffect(() => {
