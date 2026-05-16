@@ -75,6 +75,7 @@ export default function AIReadabilityCard() {
   const [summary, setSummary] = useState<AIReadabilitySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedActionId, setExpandedActionId] = useState<number | null>(null);
+  const [actionPointsExpanded, setActionPointsExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,76 +200,91 @@ export default function AIReadabilityCard() {
       {/* Action points */}
       {summary.action_points && summary.action_points.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-600 mb-3">
-            {ar.actionPointsTitle}
-          </h3>
-          <ul className="space-y-2">
-            {summary.action_points.map((ap, idx) => {
-              const expanded = expandedActionId === idx;
-              const isP1 = ap.priority === "P1";
-              return (
-                <Fragment key={idx}>
-                  <li
-                    className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50/60 cursor-pointer"
-                    onClick={() => setExpandedActionId(expanded ? null : idx)}
-                  >
-                    <div className="flex items-start gap-3 p-3">
-                      <span
-                        className={`flex-shrink-0 inline-flex items-center justify-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${
-                          isP1
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {ap.priority}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900">{ap.title}</p>
-                        <p className="mt-0.5 text-xs text-slate-500 capitalize">
-                          {ar[`subScore_${ap.category}`] ?? ap.category}
-                          {ap.estimated_time ? ` · ${ar.estTime}: ${ap.estimated_time}` : ""}
-                          {ap.estimated_impact ? ` · ${ap.estimated_impact}` : ""}
-                        </p>
-                      </div>
-                      {expanded ? (
-                        <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      )}
-                    </div>
-                    {expanded && (
-                      <div className="border-t border-slate-100 px-3 py-3 space-y-2 bg-slate-50/40">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {ar.descLabel}
+          <button
+            onClick={() => setActionPointsExpanded((v) => !v)}
+            className="flex w-full items-center justify-between mb-3 group"
+          >
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+              {ar.actionPointsTitle}
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 normal-case tracking-normal">
+                {summary.action_points.length}
+              </span>
+            </h3>
+            {actionPointsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
+            )}
+          </button>
+          {actionPointsExpanded && (
+            <ul className="space-y-2">
+              {summary.action_points.map((ap, idx) => {
+                const expanded = expandedActionId === idx;
+                const isP1 = ap.priority === "P1";
+                return (
+                  <Fragment key={idx}>
+                    <li
+                      className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50/60 cursor-pointer"
+                      onClick={() => setExpandedActionId(expanded ? null : idx)}
+                    >
+                      <div className="flex items-start gap-3 p-3">
+                        <span
+                          className={`flex-shrink-0 inline-flex items-center justify-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                            isP1
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {ap.priority}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900">{ap.title}</p>
+                          <p className="mt-0.5 text-xs text-slate-500 capitalize">
+                            {ar[`subScore_${ap.category}`] ?? ap.category}
+                            {ap.estimated_time ? ` · ${ar.estTime}: ${ap.estimated_time}` : ""}
+                            {ap.estimated_impact ? ` · ${ap.estimated_impact}` : ""}
                           </p>
-                          <p className="text-sm text-slate-700">{ap.description}</p>
                         </div>
-                        {ap.why && (
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              {ar.why}
-                            </p>
-                            <p className="text-sm text-slate-700">{ap.why}</p>
-                          </div>
-                        )}
-                        {ap.code_example && (
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              {ar.codeExample}
-                            </p>
-                            <pre className="mt-1 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 text-[12px] leading-relaxed text-slate-700">
-                              <code>{ap.code_example}</code>
-                            </pre>
-                          </div>
+                        {expanded ? (
+                          <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
                         )}
                       </div>
-                    )}
-                  </li>
-                </Fragment>
-              );
-            })}
-          </ul>
+                      {expanded && (
+                        <div className="border-t border-slate-100 px-3 py-3 space-y-2 bg-slate-50/40">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              {ar.descLabel}
+                            </p>
+                            <p className="text-sm text-slate-700">{ap.description}</p>
+                          </div>
+                          {ap.why && (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                {ar.why}
+                              </p>
+                              <p className="text-sm text-slate-700">{ap.why}</p>
+                            </div>
+                          )}
+                          {ap.code_example && (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                {ar.codeExample}
+                              </p>
+                              <pre className="mt-1 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 text-[12px] leading-relaxed text-slate-700">
+                                <code>{ap.code_example}</code>
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  </Fragment>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
 
