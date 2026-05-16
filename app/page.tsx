@@ -90,7 +90,7 @@ export default function HomePage() {
   const bottom = homeContent.bottomCta[lang];
 
   return (
-    <div className="min-h-screen">
+    <div className="mkt-site">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
