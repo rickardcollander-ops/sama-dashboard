@@ -1,8 +1,13 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* ─── Design Tokens — Neon Rave '95 ─────────────────────────────────── */
+/* ─── Base tokens ────────────────────────────────────────────────────── */
+/* Neon Rave '95 palette — defined globally so .mkt-* classes can use    */
+/* them from anywhere, but they do NOT override the app's light theme.   */
 :root {
+  --background: #ffffff;
+  --foreground: #171717;
+
   --bg-base:        #0A0A1A;
   --bg-secondary:   #12062E;
   --bg-card:        rgba(255, 255, 255, 0.025);
@@ -32,45 +37,37 @@
   --glow-orange-xl: 0 0 30px rgba(255, 107, 0, 0.7), 0 0 60px rgba(255, 107, 0, 0.35);
   --glow-blue:      0 0 15px rgba(0, 207, 255, 0.4);
   --glow-purple:    0 0 15px rgba(184, 79, 255, 0.4);
-
-  --background: var(--bg-base);
-  --foreground: var(--text-primary);
 }
 
-/* ─── Tailwind theme overrides ───────────────────────────────────────── */
+/* ─── Tailwind theme ─────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk, "Space Grotesk"), "Inter", -apple-system, sans-serif;
-  --font-mono: "SF Mono", "Fira Code", monospace;
-}
-
-/* ─── Base ───────────────────────────────────────────────────────────── */
-html {
-  scroll-behavior: smooth;
+  --font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
 }
 
 body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* ─── Marketing site wrapper ─────────────────────────────────────────── */
+/* All Neon Rave '95 visual styles are scoped to .mkt-site so they       */
+/* never bleed into the /c/* app routes.                                 */
+
+.mkt-site {
   background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-sans);
+  min-height: 100vh;
   overflow-x: hidden;
+  position: relative;
+  scroll-behavior: smooth;
 }
 
-::selection {
-  background: var(--neon-orange);
-  color: var(--bg-base);
-}
-
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(var(--neon-orange), var(--neon-purple));
-  border-radius: 3px;
-}
-
-/* Neon grid — fixed, full-screen, behind everything */
-body::before {
+/* Neon grid — fixed, full-screen, behind marketing content only */
+.mkt-site::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -82,7 +79,20 @@ body::before {
   background-size: 60px 60px;
 }
 
-header, main, footer, section, nav { position: relative; z-index: 1; }
+.mkt-site ::selection {
+  background: var(--neon-orange);
+  color: var(--bg-base);
+}
+
+.mkt-site header,
+.mkt-site main,
+.mkt-site footer,
+.mkt-site section,
+.mkt-site nav { position: relative; z-index: 1; }
+
+.mkt-site h1, .mkt-site h2, .mkt-site h3, .mkt-site h4 {
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
+}
 
 /* ─── Keyframes ──────────────────────────────────────────────────────── */
 @keyframes neonPulse {
@@ -114,11 +124,6 @@ header, main, footer, section, nav { position: relative; z-index: 1; }
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}
-
-/* ─── Typography overrides ───────────────────────────────────────────── */
-h1, h2, h3, h4 {
-  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
 }
 
 /* ─── Navbar / Header ────────────────────────────────────────────────── */
@@ -670,7 +675,7 @@ h1, h2, h3, h4 {
   color: var(--neon-orange) !important;
 }
 
-/* ─── Legacy dashboard — keep light (no overrides inside /c routes) ─── */
+/* ─── Legacy ─────────────────────────────────────────────────────────── */
 @keyframes slideInRight {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
