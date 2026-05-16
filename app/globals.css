@@ -118,7 +118,7 @@ header, main, footer, section, nav { position: relative; z-index: 1; }
 
 /* ─── Typography overrides ───────────────────────────────────────────── */
 h1, h2, h3, h4 {
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
 }
 
 /* ─── Navbar / Header ────────────────────────────────────────────────── */
@@ -243,7 +243,7 @@ h1, h2, h3, h4 {
 }
 
 .hero-headline {
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif !important;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif !important;
   font-weight: 900;
   background: var(--grad-hero);
   background-size: 200% 200%;
@@ -318,7 +318,7 @@ h1, h2, h3, h4 {
 /* ─── Section eyebrow labels ─────────────────────────────────────────── */
 .neon-eyebrow {
   display: block;
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 0.7rem;
@@ -459,7 +459,7 @@ h1, h2, h3, h4 {
 }
 
 .stat-number {
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif !important;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif !important;
   background: var(--grad-orange);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -572,7 +572,7 @@ h1, h2, h3, h4 {
 }
 
 .pricing-amount {
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif !important;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif !important;
   color: var(--neon-orange) !important;
   text-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
 }
@@ -610,7 +610,7 @@ h1, h2, h3, h4 {
 }
 
 .bottom-cta-headline {
-  font-family: var(--font-orbitron, 'Orbitron'), sans-serif !important;
+  font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif !important;
   background: var(--grad-hero);
   background-size: 200%;
   -webkit-background-clip: text;

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Orbitron, Space_Grotesk } from "next/font/google";
+import { Barlow_Condensed, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/hooks/useLanguage";
 
-const orbitron = Orbitron({
+const barlowCondensed = Barlow_Condensed({
   subsets: ["latin"],
-  weight: ["700", "900"],
-  variable: "--font-orbitron",
+  weight: ["600", "700"],
+  variable: "--font-barlow",
   display: "swap",
 });
 
@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${orbitron.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
+      <body className={`${barlowCondensed.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <LanguageProvider>
           <ToastProvider>
             {children}
