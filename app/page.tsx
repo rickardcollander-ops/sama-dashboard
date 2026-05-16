@@ -90,7 +90,7 @@ export default function HomePage() {
   const bottom = homeContent.bottomCta[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
@@ -98,66 +98,55 @@ export default function HomePage() {
       <MarketingHeader />
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
-        <div className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-24 sm:pb-16">
-          <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+      <section className="hero-section">
+        <div className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-28 sm:pb-20">
+          <span className="hero-eyebrow">
             <Bot className="h-3.5 w-3.5" />
             {hero.eyebrow}
           </span>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+          <h1 className="hero-headline mt-6">
             {hero.headline.includes(" — ") ? (
               <>
                 {hero.headline.split(" — ")[0]} —{" "}
-                <span className="bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-                  {hero.headline.split(" — ")[1]}
-                </span>
+                <span>{hero.headline.split(" — ")[1]}</span>
               </>
             ) : (
-              <span className="bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-                {hero.headline}
-              </span>
+              hero.headline
             )}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 sm:text-lg">
+          <p className="mx-auto mt-6 max-w-2xl text-base sm:text-lg" style={{ color: "var(--text-secondary)" }}>
             {hero.subhead}
           </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/audit"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Link href="/audit" className="hero-cta-primary">
               {hero.cta1}
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/c/onboarding"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
-            >
+            <Link href="/c/onboarding" className="hero-cta-secondary">
               {hero.cta2}
             </Link>
           </div>
-          <p className="mt-4 text-xs text-slate-400">{hero.trust}</p>
+          <p className="mt-4 text-xs" style={{ color: "var(--text-muted)" }}>{hero.trust}</p>
         </div>
       </section>
 
       {/* AI engines trust strip */}
-      <section className="border-y border-slate-100 bg-slate-50/50 py-5">
+      <section className="trust-strip">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-slate-500">
-            <span className="font-medium text-slate-700">{trust.label}</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm">
+            <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{trust.label}</span>
             {AI_ENGINES.map((engine, i) => (
               <span key={engine} className="flex items-center gap-1">
-                {i > 0 && <span className="text-slate-300">·</span>}
-                <span className="font-semibold text-slate-800">{engine}</span>
+                {i > 0 && <span style={{ color: "var(--neon-orange)", opacity: 0.4 }}>·</span>}
+                <span className="font-bold" style={{ color: "var(--neon-blue)" }}>{engine}</span>
               </span>
             ))}
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs" style={{ color: "var(--text-muted)" }}>
             <span className="font-medium">{trust.syncLabel}</span>
             {trust.syncs.map((s, i) => (
               <span key={s} className="flex items-center gap-1">
-                {i > 0 && <span className="text-slate-300">·</span>}
+                {i > 0 && <span style={{ color: "var(--neon-orange)", opacity: 0.4 }}>·</span>}
                 {s}
               </span>
             ))}
@@ -167,42 +156,36 @@ export default function HomePage() {
 
       {/* Problem */}
       <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
-        <h2 className="text-2xl font-bold sm:text-3xl">{problem.heading}</h2>
-        <p className="mt-4 text-base text-slate-600 leading-relaxed">{problem.body1}</p>
-        <p className="mt-4 text-base text-slate-600 leading-relaxed">{problem.body2}</p>
+        <h2 className="text-2xl font-bold sm:text-3xl" style={{ color: "var(--text-primary)" }}>{problem.heading}</h2>
+        <p className="mt-4 text-base leading-relaxed" style={{ color: "var(--text-secondary)" }}>{problem.body1}</p>
+        <p className="mt-4 text-base leading-relaxed" style={{ color: "var(--text-secondary)" }}>{problem.body2}</p>
       </section>
 
       {/* 5 Pillars */}
-      <section className="border-t border-slate-100 bg-slate-50/60">
+      <section style={{ borderTop: "1px solid var(--border-color)" }}>
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="text-center">
-            <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-              {pillars.eyebrow}
-            </span>
-            <h2 className="mt-2 text-3xl font-bold sm:text-4xl">{pillars.heading}</h2>
+            <span className="neon-eyebrow">{pillars.eyebrow}</span>
+            <h2 className="mt-2 text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>{pillars.heading}</h2>
           </div>
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {pillars.items.map((item, idx) => {
               const Icon = PILLAR_ICONS[idx % PILLAR_ICONS.length];
               return (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-violet-200 hover:shadow-md"
-                >
+                <Link key={item.title} href={item.href} className="pillar-card">
                   <div className="mb-4 flex items-center justify-between">
-                    <div className="grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
+                    <div className="pillar-card-icon">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+                    <span className="time-badge">
                       <Clock className="h-3 w-3" />
                       {item.schedule}
                     </span>
                   </div>
-                  <h3 className="text-base font-semibold group-hover:text-violet-700">
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
                     {item.title}
                   </h3>
-                  <p className="mt-2 text-sm text-slate-600">{item.desc}</p>
+                  <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>{item.desc}</p>
                 </Link>
               );
             })}
@@ -210,7 +193,8 @@ export default function HomePage() {
           <div className="mt-8 text-center">
             <Link
               href="/how-it-works"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+              className="inline-flex items-center gap-2 text-sm font-semibold transition"
+              style={{ color: "var(--neon-orange)" }}
             >
               {pillars.cta}
               <ArrowRight className="h-4 w-4" />
@@ -221,15 +205,14 @@ export default function HomePage() {
 
       {/* AI Gap */}
       <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-8 sm:p-12">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {aiGap.eyebrow}
-          </span>
-          <h2 className="mt-3 text-2xl font-bold sm:text-3xl">{aiGap.heading}</h2>
-          <p className="mt-4 max-w-2xl text-base text-slate-700">{aiGap.body}</p>
+        <div className="ai-gap-box">
+          <span className="neon-eyebrow">{aiGap.eyebrow}</span>
+          <h2 className="mt-3 text-2xl font-bold sm:text-3xl" style={{ color: "var(--text-primary)" }}>{aiGap.heading}</h2>
+          <p className="mt-4 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>{aiGap.body}</p>
           <Link
             href="/ai-gap"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold"
+            style={{ color: "var(--neon-orange)" }}
           >
             {aiGap.cta}
             <ArrowRight className="h-4 w-4" />
@@ -238,25 +221,17 @@ export default function HomePage() {
       </section>
 
       {/* Integrations */}
-      <section className="border-t border-slate-100 bg-slate-50/60 py-12">
+      <section style={{ borderTop: "1px solid var(--border-color)" }} className="py-12">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <h2 className="text-center text-xl font-bold">{integrations.heading}</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-slate-600">
+          <h2 className="text-center text-xl font-bold" style={{ color: "var(--text-primary)" }}>{integrations.heading}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm" style={{ color: "var(--text-secondary)" }}>
             {integrations.body}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             {CMS_INTEGRATIONS.map((cms) => (
-              <span
-                key={cms}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm"
-              >
-                {cms}
-              </span>
+              <span key={cms} className="integration-badge">{cms}</span>
             ))}
-            <Link
-              href="/integrations"
-              className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
-            >
+            <Link href="/integrations" className="integration-more-btn">
               {lang === "sv" ? "+ Fler" : "+ More"} →
             </Link>
           </div>
@@ -264,43 +239,37 @@ export default function HomePage() {
       </section>
 
       {/* Social proof */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className="text-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {social.eyebrow}
-          </span>
-          <h2 className="mt-2 text-2xl font-bold sm:text-3xl">{social.heading}</h2>
-        </div>
-        <div className="mt-10 grid gap-6 sm:grid-cols-3">
-          {social.stats.map((stat) => (
-            <div
-              key={stat.value}
-              className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm"
-            >
-              <div className="text-4xl font-bold text-violet-600">{stat.value}</div>
-              <p className="mt-2 text-sm text-slate-600">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
-          <Quote className="h-6 w-6 text-violet-300" />
-          <p className="mt-3 text-base italic text-slate-700 sm:text-lg">
-            &ldquo;{social.quote}&rdquo;
-          </p>
+      <section className="stats-section">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+          <div className="text-center">
+            <span className="neon-eyebrow">{social.eyebrow}</span>
+            <h2 className="mt-2 text-2xl font-bold sm:text-3xl" style={{ color: "var(--text-primary)" }}>{social.heading}</h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            {social.stats.map((stat) => (
+              <div key={stat.value} className="stat-card text-center">
+                <div className="stat-number">{stat.value}</div>
+                <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>{stat.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="testimonial-block mt-10">
+            <Quote className="h-6 w-6" style={{ color: "var(--neon-purple)", opacity: 0.6 }} />
+            <p className="mt-3 text-base italic sm:text-lg" style={{ color: "var(--text-secondary)" }}>
+              &ldquo;{social.quote}&rdquo;
+            </p>
+          </div>
         </div>
       </section>
 
       {/* Audit CTA strip */}
-      <section className="border-t border-slate-100">
+      <section className="cta-banner-section">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 py-14 text-center sm:px-6 sm:py-20 lg:flex-row lg:justify-between lg:text-left">
           <div className="max-w-2xl">
-            <h2 className="text-2xl font-bold sm:text-3xl">{auditCta.heading}</h2>
-            <p className="mt-2 text-sm text-slate-600 sm:text-base">{auditCta.body}</p>
+            <h2 className="text-2xl font-bold sm:text-3xl" style={{ color: "var(--text-primary)" }}>{auditCta.heading}</h2>
+            <p className="mt-2 text-sm sm:text-base" style={{ color: "var(--text-secondary)" }}>{auditCta.body}</p>
           </div>
-          <Link
-            href="/audit"
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-slate-800"
-          >
+          <Link href="/audit" className="cta-banner-btn whitespace-nowrap">
             <Globe className="h-4 w-4" />
             {auditCta.cta}
             <ArrowRight className="h-4 w-4" />
@@ -309,40 +278,34 @@ export default function HomePage() {
       </section>
 
       {/* Pricing teaser */}
-      <section className="border-t border-slate-100 bg-slate-50/60">
+      <section className="pricing-section">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <div className="text-center">
-            <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-              {pricing.eyebrow}
-            </span>
-            <h2 className="mt-2 text-3xl font-bold sm:text-4xl">{pricing.heading}</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">{pricing.subhead}</p>
+            <span className="neon-eyebrow">{pricing.eyebrow}</span>
+            <h2 className="mt-2 text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>{pricing.heading}</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>{pricing.subhead}</p>
           </div>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {pricing.tiers.map((t) => (
               <div
                 key={t.name}
-                className={`relative rounded-2xl border p-6 shadow-sm ${
-                  t.highlight
-                    ? "border-violet-300 bg-white ring-2 ring-violet-200"
-                    : "border-slate-200 bg-white"
-                }`}
+                className={`relative ${t.highlight ? "pricing-card-popular" : "pricing-card"}`}
               >
                 {t.highlight && (
-                  <span className="absolute -top-3 left-6 rounded-full bg-violet-600 px-3 py-1 text-xs font-semibold text-white">
+                  <span className="pricing-popular-badge">
                     {lang === "sv" ? "Mest populär" : "Most popular"}
                   </span>
                 )}
-                <h3 className="text-lg font-semibold">{t.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">{t.desc}</p>
+                <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>{t.name}</h3>
+                <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{t.desc}</p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-bold">{t.price}</span>
-                  <span className="text-sm text-slate-500">{t.cadence}</span>
+                  <span className="pricing-amount">{t.price}</span>
+                  <span className="text-sm" style={{ color: "var(--text-muted)" }}>{t.cadence}</span>
                 </div>
                 <ul className="mt-6 space-y-2">
                   {t.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2 text-sm text-slate-700">
-                      <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" />
+                    <li key={feat} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                      <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: "var(--neon-blue)" }} />
                       {feat}
                     </li>
                   ))}
@@ -353,7 +316,8 @@ export default function HomePage() {
           <div className="mt-8 text-center">
             <Link
               href="/c/pricing"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+              className="inline-flex items-center gap-2 text-sm font-semibold"
+              style={{ color: "var(--neon-orange)" }}
             >
               {pricing.cta}
               <ArrowRight className="h-4 w-4" />
@@ -363,23 +327,19 @@ export default function HomePage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="bg-slate-900 text-white">
-        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-24">
-          <Sparkles className="mx-auto h-10 w-10 text-violet-400" />
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">{bottom.heading}</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300">{bottom.body}</p>
+      <section className="bottom-cta-section">
+        <div className="bottom-cta-orb bottom-cta-orb-1" />
+        <div className="bottom-cta-orb bottom-cta-orb-2" />
+        <div className="relative mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 sm:py-24">
+          <Sparkles className="mx-auto h-10 w-10" style={{ color: "var(--neon-orange)" }} />
+          <h2 className="bottom-cta-headline mt-4">{bottom.heading}</h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>{bottom.body}</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/audit"
-              className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-base font-semibold text-slate-900 hover:bg-slate-100"
-            >
+            <Link href="/audit" className="bottom-cta-primary">
               {bottom.cta1}
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/c/onboarding"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-            >
+            <Link href="/c/onboarding" className="bottom-cta-secondary">
               {bottom.cta2}
             </Link>
           </div>
