@@ -6,7 +6,7 @@ import {
   Sparkles, Loader2, RefreshCw, ChevronRight,
   CheckCircle2, AlertTriangle, TrendingUp, Crown, Skull, Trophy, FileText,
   History as HistoryIcon, Search, Globe, Lock, ChevronDown, ChevronUp,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, Info,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
@@ -513,7 +513,7 @@ export default function AnalysisPage() {
                 </div>
               </div>
             )}
-            <ResultsStage run={visibilityRun} />
+            <ResultsStage run={visibilityRun} onOpenPlanModal={() => setShowPlanModal(true)} />
           </div>
         )}
 
@@ -814,7 +814,7 @@ function AuditScoreTimeline({ runs }: { runs: SiteAuditRunSummary[] }) {
 
 type ResultsTab = "overview" | "matrix" | "gaps" | "recommendations";
 
-function ResultsStage({ run }: { run: AnalysisRun }) {
+function ResultsStage({ run, onOpenPlanModal }: { run: AnalysisRun; onOpenPlanModal: () => void }) {
   const { t } = useLanguage();
   const [tab, setTab] = useState<ResultsTab>("overview");
   const tabs = useMemo<{ id: ResultsTab; label: string; show: boolean }[]>(
@@ -849,7 +849,7 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
 
       {tab === "overview" && <OverviewTab run={run} />}
       {tab === "matrix" && <MatrixTab run={run} />}
-      {tab === "gaps" && <GapsTab run={run} />}
+      {tab === "gaps" && <GapsTab run={run} onOpenPlanModal={onOpenPlanModal} />}
       {tab === "recommendations" && (
         <KeywordGeoRecommendations
           existingKeywords={existingKeywords}
@@ -970,7 +970,7 @@ function MatrixTab({ run }: { run: AnalysisRun }) {
   );
 }
 
-function GapsTab({ run }: { run: AnalysisRun }) {
+function GapsTab({ run, onOpenPlanModal }: { run: AnalysisRun; onOpenPlanModal: () => void }) {
   const grouped = useMemo(() => {
     const map = new Map<GapCategory, typeof run.query_results>();
     for (const q of run.query_results) {
@@ -1011,10 +1011,25 @@ function GapsTab({ run }: { run: AnalysisRun }) {
                 <h3 className="text-sm font-semibold text-slate-800">{meta.title}</h3>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{items.length}</span>
               </div>
-              <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                <FileText className="h-3.5 w-3.5" />
-                {meta.cta}
-              </button>
+              {cat === "both_losers" ? (
+                <span className="flex items-center gap-1.5 text-xs text-slate-400 italic">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Vi anpassar kommande innehåll efter detta
+                </span>
+              ) : cat === "geo_winner_seo_loser" ? (
+                <button
+                  onClick={onOpenPlanModal}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  {meta.cta}
+                </button>
+              ) : (
+                <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                  <FileText className="h-3.5 w-3.5" />
+                  {meta.cta}
+                </button>
+              )}
             </div>
             <ul className="divide-y divide-slate-100">
               {items.map((q, i) => (
