@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -22,11 +23,12 @@ export interface TrafficGraphProps {
   lines: TrafficGraphLine[];
   noData: string;
   noDataDesc: string;
+  noDataHref?: string;
   chartStart: string;
 }
 
 export default function TrafficGraph({
-  title, subtitle, data, projectStartDate, visible, onToggle, lines, noData, noDataDesc, chartStart,
+  title, subtitle, data, projectStartDate, visible, onToggle, lines, noData, noDataDesc, noDataHref, chartStart,
 }: TrafficGraphProps) {
   const hasData = data && data.length > 0;
 
@@ -88,7 +90,11 @@ export default function TrafficGraph({
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <TrendingUp className="h-8 w-8 text-slate-200 mb-2" />
               <p className="text-sm text-slate-400">{noData}</p>
-              <p className="text-xs text-slate-300 mt-1">{noDataDesc}</p>
+              {noDataHref ? (
+                <Link href={noDataHref} className="text-xs text-blue-500 hover:underline mt-1">{noDataDesc}</Link>
+              ) : (
+                <p className="text-xs text-slate-300 mt-1">{noDataDesc}</p>
+              )}
             </div>
           )}
         </div>
