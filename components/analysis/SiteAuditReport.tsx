@@ -5,6 +5,7 @@ import {
   AlertCircle, AlertTriangle, CheckCircle2, Info, ExternalLink,
   Globe, FileWarning, Lightbulb, Activity, Zap,
   Search as SearchIcon, Rocket, Hammer, Eye, Target,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import Gauge from "./Gauge";
 import {
@@ -297,6 +298,8 @@ const IMPACT_TONE: Record<string, string> = {
 };
 
 function RecommendationsGrouped({ run }: { run: SiteAuditRun }) {
+  const [expanded, setExpanded] = useState(false);
+
   // If the backend didn't supply grouped recs (older agent versions), derive
   // the buckets client-side from the flat recommendations[] using each
   // recommendation's `group` field; default to technical_debt.
@@ -330,13 +333,21 @@ function RecommendationsGrouped({ run }: { run: SiteAuditRun }) {
 
   return (
     <section className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-      <div className="flex items-center gap-2">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 group"
+      >
         <Lightbulb className="h-4 w-4 text-violet-600" />
         <h3 className="text-sm font-semibold text-slate-700">Recommendations</h3>
         <span className="ml-1 text-xs text-slate-400">{totalActionable} total</span>
-      </div>
+        {expanded ? (
+          <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-slate-600 ml-auto" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-600 ml-auto" />
+        )}
+      </button>
 
-      {GROUP_ORDER.map((g) => {
+      {expanded && GROUP_ORDER.map((g) => {
         const items = grouped[g] || [];
         if (items.length === 0) return null;
         const Icon = GROUP_ICON[g];
