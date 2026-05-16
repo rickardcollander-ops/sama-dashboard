@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
-  ChevronDown, ChevronUp, Plus,
+  ChevronDown, ChevronUp, Plus, Sparkles,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -267,6 +267,8 @@ export default function CustomerGeoPage() {
     }
   };
 
+  const [showSuggestPanel, setShowSuggestPanel] = useState(false);
+
   const running = !!activeGeoRun;
   const nextAvailableDate =
     lockStatus?.next_available_at ? new Date(lockStatus.next_available_at) : null;
@@ -443,23 +445,6 @@ export default function CustomerGeoPage() {
           </div>
         )}
 
-        {/* AI Recommendations */}
-        <div className="mb-8">
-          <KeywordGeoRecommendations
-            sections={["geo_queries", "long_tail_phrases"]}
-            gapSummary={
-              summary
-                ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
-                : undefined
-            }
-            title={t.geo.recommendTitle}
-            description={`AI suggests new natural-language queries to monitor in ChatGPT, Claude, Perplexity and Gemini. Pick which to add (max ${MAX_GEO_QUERIES} at a time).`}
-            geoTrackedCount={trackedQueries.length}
-            geoMax={MAX_GEO_QUERIES}
-            onAdded={() => loadData()}
-          />
-        </div>
-
         {/* AI-readability scorecard. Hides itself when no site review has
             scored the site yet, so this section is invisible for new
             tenants until their first /c/analysis run completes. */}
@@ -475,16 +460,47 @@ export default function CustomerGeoPage() {
                   {t.geo.trackedDesc} {MAX_GEO_QUERIES} {t.geo.trackedDescSuffix}
                 </p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  trackedQueries.length >= MAX_GEO_QUERIES
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {trackedQueries.length} / {MAX_GEO_QUERIES}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowSuggestPanel((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    showSuggestPanel
+                      ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                      : "bg-violet-600 text-white hover:bg-violet-700"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Suggest with AI
+                </button>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    trackedQueries.length >= MAX_GEO_QUERIES
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {trackedQueries.length} / {MAX_GEO_QUERIES}
+                </span>
+              </div>
             </div>
+
+            {showSuggestPanel && (
+              <div className="mb-4">
+                <KeywordGeoRecommendations
+                  sections={["geo_queries", "long_tail_phrases"]}
+                  gapSummary={
+                    summary
+                      ? `Mention rate ${(summary.mention_rate * 100).toFixed(0)}%, ${summary.open_gaps} open gaps. Top competitors mentioned: ${summary.top_competitors.slice(0, 5).map((c) => c.name).join(", ") || "none yet"}.`
+                      : undefined
+                  }
+                  description={`AI suggests new natural-language queries to monitor in ChatGPT, Claude, Perplexity and Gemini. Pick which to add (max ${MAX_GEO_QUERIES} at a time).`}
+                  geoTrackedCount={trackedQueries.length}
+                  geoMax={MAX_GEO_QUERIES}
+                  onAdded={() => { loadData(); setShowSuggestPanel(false); }}
+                  compact
+                />
+              </div>
+            )}
 
             <form
               onSubmit={(e) => {
