@@ -6,7 +6,7 @@ import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
   Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
-  ArrowRight, Archive, ShieldCheck, BarChart2, Wand2, Target,
+  ArrowRight, Archive, ShieldCheck, BarChart2, Target,
   CalendarPlus, Lightbulb, MessageSquare, Mail, Trash2, Edit3,
 } from "lucide-react";
 import Link from "next/link";
@@ -14,7 +14,6 @@ import CustomerNav from "@/components/CustomerNav";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import PublishDialog from "@/components/PublishDialog";
 import PiecePerformance from "@/components/content/PiecePerformance";
-import RefineDialog from "@/components/content/RefineDialog";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -148,7 +147,6 @@ function CustomerContentInner() {
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
-  const [refineId, setRefineId] = useState<string | null>(null);
   // Calendar scheduling: when set, the date-picker dialog is open for this
   // piece. Saving creates a content_plan_items row that links to the piece
   // so it shows up in /c/content/plan.
@@ -182,8 +180,7 @@ function CustomerContentInner() {
   };
 
   const nextStatusLabel = (s: string) => {
-    if (s === "draft") return t.content.actionSendReview;
-    if (s === "review") return t.content.actionApprove;
+    if (s === "draft" || s === "review") return t.content.actionApprove;
     if (s === "approved") return t.content.actionMarkPublished;
     return null;
   };
@@ -602,7 +599,7 @@ function CustomerContentInner() {
   // approved → published here would surface a third "publish" action
   // next to those two, which is what made the row feel illogical.
   const STATUS_FLOW: Record<string, string> = {
-    draft: "review",
+    draft: "approved",
     review: "approved",
   };
 
@@ -1278,12 +1275,6 @@ function CustomerContentInner() {
                           Score {piece.article_score}/100
                         </Link>
                       )}
-                      {piece.created_at && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(piece.created_at).toLocaleDateString()}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
@@ -1301,17 +1292,6 @@ function CustomerContentInner() {
                           <ArrowRight className="h-3.5 w-3.5" />
                         )}
                         {nextStatusLabel(piece.status)}
-                      </button>
-                    )}
-
-                    {/* Refine with AI (C5) — for unpublished drafts */}
-                    {piece.status !== "published" && piece.status !== "archived" && (
-                      <button
-                        onClick={() => setRefineId(piece.id)}
-                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-purple-600 hover:bg-purple-50 transition-colors"
-                        title="Refine with AI"
-                      >
-                        <Wand2 className="h-3.5 w-3.5" />
                       </button>
                     )}
 
@@ -1456,17 +1436,6 @@ function CustomerContentInner() {
             ))}
           </div>
         ))}
-
-        {/* Refine dialog (C5) */}
-        {refineId && user && (
-          <RefineDialog
-            open
-            onClose={() => setRefineId(null)}
-            tenantId={user.id}
-            pieceId={refineId}
-            onSaved={() => fetchContent()}
-          />
-        )}
 
         {/* Idea edit dialog — title, angle, keyword, scheduled date. */}
         {editingIdea && (
