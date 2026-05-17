@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, LogIn, Menu, Sparkles, X } from "lucide-react";
+import { ChevronDown, LogIn, Menu, X } from "lucide-react";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 
 const NAV = {
@@ -104,7 +104,7 @@ export default function MarketingHeader({ variant = "default" }: Props) {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 text-base font-bold">
           <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: "linear-gradient(135deg, var(--neon-orange), var(--neon-purple))" }}>
-            <Sparkles className="h-4 w-4 text-white" />
+            <span className="text-sm">✨</span>
           </span>
           <span className="mkt-logo-glow">Sama AI</span>
         </Link>

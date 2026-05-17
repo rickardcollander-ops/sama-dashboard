@@ -4,12 +4,9 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity, BarChart2, Settings, LogOut, Menu, X,
-  FileText, Sparkles, Shield, ChevronDown, Globe, ChevronRight, Code2,
-  Users, Megaphone, Share2,
-  User, CreditCard, Palette, Link2,
+  LogOut, Menu, X,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -23,7 +20,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 interface NavItem {
   id: SectionId;
   href: string;
-  icon: LucideIcon;
+  icon: string;
   matchPrefixes: string[];
   disabled?: boolean;
 }
@@ -31,7 +28,7 @@ interface NavItem {
 interface SubNavItem {
   href: string;
   labelKey: keyof Translations["subNav"];
-  icon?: LucideIcon;
+  icon?: string;
   exact?: boolean;
 }
 
@@ -61,13 +58,13 @@ const TOP_NAV: NavItem[] = [
   {
     id: "home",
     href: "/c/dashboard",
-    icon: BarChart2,
+    icon: "📊",
     matchPrefixes: ["/c/dashboard"],
   },
   {
     id: "insights",
     href: "/c/analysis",
-    icon: Sparkles,
+    icon: "✨",
     // /audit is the public free-audit landing page; it's intentionally not
     // part of the customer insights area, so don't highlight Insights when
     // a user ends up on that route.
@@ -76,33 +73,33 @@ const TOP_NAV: NavItem[] = [
   {
     id: "content",
     href: "/c/content",
-    icon: FileText,
+    icon: "📝",
     matchPrefixes: ["/c/content"],
   },
   {
     id: "tech",
     href: "/c/tech",
-    icon: Code2,
+    icon: "🔧",
     matchPrefixes: ["/c/tech"],
   },
   {
     id: "social",
     href: "#",
-    icon: Share2,
+    icon: "📱",
     matchPrefixes: [],
     disabled: true,
   },
   {
     id: "ads",
     href: "#",
-    icon: Megaphone,
+    icon: "📣",
     matchPrefixes: [],
     disabled: true,
   },
   {
     id: "settings",
     href: "/c/settings",
-    icon: Settings,
+    icon: "⚙️",
     matchPrefixes: ["/c/settings"],
   },
 ];
@@ -110,7 +107,7 @@ const TOP_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem = {
   id: "admin",
   href: "/c/admin",
-  icon: Shield,
+  icon: "🛡️",
   matchPrefixes: ["/c/admin"],
 };
 
@@ -138,17 +135,17 @@ const SUB_NAV: Record<SectionId, SubNavConfig> = {
     {
       titleKey: "personal",
       items: [
-        { href: "/c/settings", labelKey: "account", icon: User, exact: true },
-        { href: "/c/settings/billing", labelKey: "billing", icon: CreditCard },
+        { href: "/c/settings", labelKey: "account", icon: "👤", exact: true },
+        { href: "/c/settings/billing", labelKey: "billing", icon: "💳" },
       ],
     },
     {
       titleKey: "business",
       items: [
-        { href: "/c/settings/branding", labelKey: "branding", icon: Palette },
-        { href: "/c/settings/sites", labelKey: "sites", icon: Globe },
-        { href: "/c/settings/team", labelKey: "team", icon: Users },
-        { href: "/c/settings/integrations", labelKey: "integrations", icon: Link2 },
+        { href: "/c/settings/branding", labelKey: "branding", icon: "🎨" },
+        { href: "/c/settings/sites", labelKey: "sites", icon: "🌐" },
+        { href: "/c/settings/team", labelKey: "team", icon: "👥" },
+        { href: "/c/settings/integrations", labelKey: "integrations", icon: "🔗" },
       ],
     },
   ],
@@ -247,7 +244,7 @@ function AccountSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
       >
-        <Users className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        <span className="text-sm flex-shrink-0">👥</span>
         <span className="truncate flex-1 text-left">{label}</span>
         {myRole && myRole !== "owner" && (
           <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500 uppercase">
@@ -360,7 +357,7 @@ function SiteSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
       >
-        <Globe className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        <span className="text-sm flex-shrink-0">🌐</span>
         <span className="truncate flex-1 text-left">{label}</span>
         <ChevronDown className={`h-3.5 w-3.5 text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
@@ -437,7 +434,7 @@ function SidebarContent({
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 px-4 border-b border-slate-100">
         <Link href="/c/dashboard" className="flex items-center gap-2" onClick={onClose}>
-          <Activity className="h-6 w-6 text-blue-600" />
+          <span className="text-xl">⚡</span>
           <span className="text-lg font-bold text-slate-900">SAMA</span>
         </Link>
         <div className="ml-auto flex items-center gap-1">
@@ -465,7 +462,7 @@ function SidebarContent({
                 title={t.common.comingSoon}
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 cursor-not-allowed"
               >
-                <item.icon className="h-4.5 w-4.5 flex-shrink-0 text-slate-300" style={{ width: "1.125rem", height: "1.125rem" }} />
+                <span className="text-base leading-none flex-shrink-0 opacity-40">{item.icon}</span>
                 <span className="flex-1">{t.nav[item.id]}</span>
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500 uppercase">
                   {t.common.comingSoon}
@@ -488,7 +485,7 @@ function SidebarContent({
                 }`}
               >
                 {SubIcon && (
-                  <SubIcon className={`h-4 w-4 flex-shrink-0 ${subActive ? "text-blue-600" : "text-slate-400"}`} />
+                  <span className="text-sm leading-none flex-shrink-0">{SubIcon}</span>
                 )}
                 <span>{t.subNav[sub.labelKey]}</span>
               </Link>
@@ -505,7 +502,7 @@ function SidebarContent({
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <item.icon className={`h-4.5 w-4.5 flex-shrink-0 ${isActive ? "text-blue-600" : "text-slate-400"}`} style={{ width: "1.125rem", height: "1.125rem" }} />
+                <span className="text-base leading-none flex-shrink-0">{item.icon}</span>
                 <span className="flex-1">{t.nav[item.id]}</span>
                 {hasSubItems && (
                   <ChevronRight className={`h-3.5 w-3.5 text-slate-300 transition-transform ${isActive ? "rotate-90" : ""}`} />
@@ -597,7 +594,7 @@ export default function CustomerNav() {
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <Link href="/c/dashboard" className="flex items-center gap-2">
-            <Activity className="h-6 w-6 text-blue-600" />
+            <span className="text-xl">⚡</span>
             <span className="text-lg font-bold text-slate-900">SAMA</span>
           </Link>
         </div>

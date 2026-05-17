@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { useLanguage } from "@/lib/hooks/useLanguage";
@@ -39,7 +39,7 @@ export default function PersonaPage({ sv, en }: Props) {
           <ul className="mt-8 space-y-3">
             {c.bullets.map((b) => (
               <li key={b} className="flex items-start gap-3 text-sm text-slate-700 sm:text-base">
-                <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-violet-500" />
+                <span className="mt-0.5 flex-shrink-0">✅</span>
                 {b}
               </li>
             ))}
