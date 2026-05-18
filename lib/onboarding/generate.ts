@@ -327,7 +327,7 @@ const PLAN_TOOL_SCHEMA = {
           target_keyword: { type: "string" },
           content_type: {
             type: "string",
-            enum: ["blog_post", "linkedin", "epost"],
+            enum: ["blog_post"],
           },
           angle: { type: "string" },
         },
@@ -378,7 +378,7 @@ async function generatePlan(
 ): Promise<PlanEntry[]> {
   const system = `You are a content strategist. Given a brand and a ranked list of target keywords, produce a 30-day content calendar with one piece per day. Each piece must:
 - target one specific keyword from the provided list (no inventing new ones)
-- vary content_type sensibly: roughly 60% blog_post, 25% linkedin, 15% epost
+- set content_type to blog_post for every entry
 - have a concrete, click-worthy title in the brand's output language
 - include a one-sentence "angle" explaining the take or hook
 - cover all 12 keywords across the month, weighted toward the higher-priority ones
@@ -411,6 +411,7 @@ Produce a 30-day plan with day = 1..30 (day 1 = today + 0 days, day 2 = +1 day, 
     .slice(0, 30)
     .map((p) => ({
       ...p,
+      content_type: "blog_post" as const,
       scheduled_for: todayPlus(Math.max(0, (p.day ?? 1) - 1)),
     }));
 }
