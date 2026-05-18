@@ -145,6 +145,8 @@ function CustomerContentInner() {
   const [publishError, setPublishError] = useState<{ id: string; message: string } | null>(null);
   const [cmsDialog, setCmsDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
+  const [viewDialog, setViewDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
+  const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   // Calendar scheduling: when set, the date-picker dialog is open for this
@@ -797,6 +799,23 @@ function CustomerContentInner() {
     setCmsDialog({ piece, body: body || `# ${piece.title}\n\n` });
   };
 
+  const openViewDialog = async (piece: ContentPiece) => {
+    if (!user) return;
+    setLoadingViewId(piece.id);
+    let body = "";
+    try {
+      const client = tenantClient;
+      const data = await client.get<{ piece?: { body?: string; content?: string; markdown?: string } }>(
+        `/api/content/pieces/${piece.id}`,
+      );
+      body = data.piece?.body || data.piece?.content || data.piece?.markdown || "";
+    } catch {
+      // fall through with empty body
+    }
+    setLoadingViewId(null);
+    setViewDialog({ piece, body });
+  };
+
   if (userLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -1216,6 +1235,16 @@ function CustomerContentInner() {
                         >
                           {piece.title}
                         </Link>
+                      ) : (piece.content_type === "linkedin_post" || piece.content_type === "email" || piece.type === "linkedin_post" || piece.type === "email") ? (
+                        <button
+                          onClick={() => openViewDialog(piece)}
+                          disabled={loadingViewId === piece.id}
+                          className="font-semibold text-slate-900 truncate hover:text-purple-700 text-left disabled:opacity-50"
+                        >
+                          {loadingViewId === piece.id ? (
+                            <span className="flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin inline" /> {piece.title}</span>
+                          ) : piece.title}
+                        </button>
                       ) : (
                         <h3 className="font-semibold text-slate-900 truncate">{piece.title}</h3>
                       )}
@@ -1763,6 +1792,40 @@ function CustomerContentInner() {
                         {t.content.modalSave}
                       </button>
                     </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* View LinkedIn/Email content dialog */}
+        {viewDialog && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40"
+              onClick={() => setViewDialog(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-2xl max-h-[90vh] rounded-2xl border bg-white shadow-2xl flex flex-col">
+                <div className="flex items-center justify-between border-b px-6 py-4 flex-shrink-0">
+                  <h3 className="text-lg font-semibold text-slate-900 truncate pr-4">
+                    {viewDialog.piece.title}
+                  </h3>
+                  <button
+                    onClick={() => setViewDialog(null)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex-shrink-0"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto flex-1">
+                  {viewDialog.body ? (
+                    <pre className="whitespace-pre-wrap text-sm text-slate-800 font-sans leading-relaxed">
+                      {viewDialog.body}
+                    </pre>
+                  ) : (
+                    <p className="text-sm text-slate-400 italic">Inget innehåll hittades.</p>
                   )}
                 </div>
               </div>
