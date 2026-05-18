@@ -9,7 +9,6 @@ import {
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
-import { api } from "@/lib/api";
 
 type Status = "connected" | "not_connected" | "error" | "loading";
 
@@ -124,9 +123,9 @@ export default function IntegrationsPage() {
     if (!user || !effectiveTenantId) return;
     (async () => {
       try {
-        const data = await api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(
-          `/api/auth/google/status?tenant_id=${effectiveTenantId}`,
-        );
+        const res = await fetch(`/api/auth/google/status?tenant_id=${effectiveTenantId}`);
+        if (!res.ok) throw new Error("status");
+        const data = await res.json() as Record<string, { connected?: boolean; account_email?: string | null }>;
         setGoogleStatus({
           search_console: data?.search_console?.connected ? "connected" : "not_connected",
           analytics: data?.analytics?.connected ? "connected" : "not_connected",
@@ -161,7 +160,7 @@ export default function IntegrationsPage() {
   const connectGoogle = (service: string) => {
     if (!user || !effectiveTenantId) return;
     const returnUrl = `${window.location.origin}/c/settings/integrations`;
-    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
+    window.location.href = `/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
   };
 
   return (
