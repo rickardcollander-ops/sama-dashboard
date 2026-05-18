@@ -32,6 +32,7 @@ type CallStatus =
   | "called"
   | "callback"
   | "phone_missing"
+  | "answering_machine"
   | "not_interested"
   | "meeting_booked"
   | "converted";
@@ -61,6 +62,7 @@ const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] 
   { value: "called", label: "Uppringd", tone: "bg-blue-100 text-blue-700" },
   { value: "callback", label: "Ring tillbaka", tone: "bg-amber-100 text-amber-700" },
   { value: "phone_missing", label: "Telefonnummer saknas", tone: "bg-orange-100 text-orange-700" },
+  { value: "answering_machine", label: "Telesvarare", tone: "bg-yellow-100 text-yellow-700" },
   { value: "not_interested", label: "Ej intresserad", tone: "bg-rose-100 text-rose-700" },
   { value: "meeting_booked", label: "Möte bokat", tone: "bg-violet-100 text-violet-700" },
   { value: "converted", label: "Konverterad", tone: "bg-emerald-100 text-emerald-700" },

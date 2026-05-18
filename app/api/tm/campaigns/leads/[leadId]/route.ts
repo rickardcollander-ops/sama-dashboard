@@ -11,6 +11,7 @@ const ALLOWED_CALL_STATUSES = new Set([
   "called",
   "callback",
   "phone_missing",
+  "answering_machine",
   "not_interested",
   "meeting_booked",
   "converted",
