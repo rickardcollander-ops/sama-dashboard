@@ -86,6 +86,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const stopRequested = useRef(false);
   const [auditingLeadId, setAuditingLeadId] = useState<string | null>(null);
   const [pdfLeadId, setPdfLeadId] = useState<string | null>(null);
+  const [activeNotes, setActiveNotes] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
 
   const load = useCallback(async () => {
@@ -520,22 +521,36 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                               <Mail className="h-3 w-3" /> Maila info
                             </a>
                           )}
+                          <button
+                            onClick={() => setActiveNotes(activeNotes === lead.id ? null : lead.id)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            {activeNotes === lead.id ? "Dölj" : "Anteckningar"}
+                          </button>
                         </div>
                       </td>
                     </tr>
                     <tr className="bg-slate-50/60">
                       <td colSpan={7} className="px-4 py-3">
-                        <textarea
-                          defaultValue={lead.call_notes || ""}
-                          onBlur={(e) => {
-                            if (e.target.value !== (lead.call_notes || "")) {
-                              void updateLead(lead.id, { call_notes: e.target.value });
-                            }
-                          }}
-                          placeholder="Notes from the call — saved when you click outside the box."
-                          rows={2}
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                        />
+                        {activeNotes === lead.id ? (
+                          <textarea
+                            autoFocus
+                            defaultValue={lead.call_notes || ""}
+                            onBlur={(e) => {
+                              if (e.target.value !== (lead.call_notes || "")) {
+                                void updateLead(lead.id, { call_notes: e.target.value });
+                              }
+                              setActiveNotes(null);
+                            }}
+                            placeholder="Notes from the call — saved when you click outside the box."
+                            rows={2}
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                          />
+                        ) : (
+                          <p className="min-h-[1.25rem] text-sm text-slate-600 whitespace-pre-wrap">
+                            {lead.call_notes || <span className="text-slate-400 italic">Inga anteckningar</span>}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   </Fragment>
