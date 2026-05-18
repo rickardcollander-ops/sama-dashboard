@@ -756,7 +756,7 @@ async function syncToBackend(
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(45_000),
       });
       if (!res.ok) {
         failed++;
