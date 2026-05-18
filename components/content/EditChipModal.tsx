@@ -183,11 +183,9 @@ export default function EditChipModal({
   };
 
   const handleApprove = async () => {
-    if (!isIdea) {
-      // Already drafted — just open the editor.
-      if (item.content_piece_id) {
-        router.push(`/c/content/${item.content_piece_id}`);
-      }
+    if (!isIdea && item.content_piece_id) {
+      // Already drafted — open the editor.
+      router.push(`/c/content/article/${item.content_piece_id}`);
       return;
     }
     // Persist edits first so the draft is generated from the latest title/topic.
@@ -212,7 +210,7 @@ export default function EditChipModal({
       onSaved(updated);
       onApproved?.(updated, pieceId ?? "");
       onClose();
-      if (pieceId) router.push(`/c/content/${pieceId}`);
+      if (pieceId) router.push(`/c/content/article/${pieceId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not approve");
     } finally {
