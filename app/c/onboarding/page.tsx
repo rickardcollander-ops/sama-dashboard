@@ -92,7 +92,7 @@ function clearDraft() {
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
-  const { activeSite } = useSite();
+  const { activeSite, effectiveTenantId } = useSite();
   const { t } = useLanguage();
   const ow = t.onboardingWizard;
 
@@ -331,12 +331,7 @@ export default function OnboardingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Onboarding always targets the current user's own primary site
-          // (id = user.id by convention). Using activeSite.id here would
-          // pick up a customer's site when an admin account has external
-          // sites added under it — causing the onboarding result and
-          // drafted articles to land in the wrong tenant.
-          ...(user?.id ? { "X-Sama-Site-Id": user.id } : {}),
+          ...(effectiveTenantId ? { "X-Sama-Site-Id": effectiveTenantId } : {}),
         },
         body: JSON.stringify({
           domain: data.domain.trim().toLowerCase(),
