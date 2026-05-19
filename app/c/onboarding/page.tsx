@@ -92,7 +92,7 @@ function clearDraft() {
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
-  const { activeSite } = useSite();
+  const { activeSite, effectiveTenantId } = useSite();
   const { t } = useLanguage();
   // Allow re-running onboarding (e.g. from the Settings "Run Onboarding" button)
   // by appending ?rerun=1 to the URL.
@@ -335,12 +335,7 @@ export default function OnboardingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Use activeSite.id so onboarding targets the site the user is
-          // actually viewing. When an admin runs onboarding for a customer
-          // via Settings, activeSite.id is the customer's site id, not the
-          // admin's own user.id — that distinction is what routes the result
-          // to the right tenant.
-          ...(activeSite?.id ? { "X-Sama-Site-Id": activeSite.id } : user?.id ? { "X-Sama-Site-Id": user.id } : {}),
+          ...(effectiveTenantId ? { "X-Sama-Site-Id": effectiveTenantId } : {}),
         },
         body: JSON.stringify({
           domain: data.domain.trim().toLowerCase(),
