@@ -94,6 +94,11 @@ export default function OnboardingPage() {
   const { user, loading: userLoading } = useUser();
   const { activeSite, effectiveTenantId } = useSite();
   const { t } = useLanguage();
+  // Allow re-running onboarding (e.g. from the Settings "Run Onboarding" button)
+  // by appending ?rerun=1 to the URL.
+  const isRerun =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("rerun");
   const ow = t.onboardingWizard;
 
   const initial = typeof window !== "undefined" ? loadDraft() : null;
@@ -124,17 +129,16 @@ export default function OnboardingPage() {
     if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
 
-  // If this user has already completed onboarding, route them away. The
-  // wizard is one-shot — re-running it would re-trigger a 2-5 min Claude
-  // job and could overwrite curated keywords/plan. To reset, the user
-  // should clear settings.onboarding_completed_at in /c/settings.
+  // If this user has already completed onboarding, route them away — unless
+  // they explicitly re-entered the wizard via ?rerun=1 (e.g. from Settings).
   useEffect(() => {
+    if (isRerun) return;
     if (!activeSite) return;
     const s = (activeSite.settings as Record<string, unknown> | undefined) || {};
     if (typeof s.onboarding_completed_at === "string" && s.onboarding_completed_at) {
       router.replace("/c/dashboard");
     }
-  }, [activeSite, router]);
+  }, [activeSite, isRerun, router]);
 
   // Pre-fill from existing site row on first availability (without clobbering a local draft).
   useEffect(() => {
