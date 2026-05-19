@@ -259,10 +259,12 @@ export default function CustomerDashboard() {
     await Promise.all([
       (async () => {
         try {
-          const data = await tenantClient.get<{ search_console?: boolean; analytics?: boolean; ads?: boolean }>(
-            "/api/auth/google/status",
-          );
-          setGoogleConnected(!!(data?.search_console || data?.analytics || data?.ads));
+          const data = await tenantClient.get<{
+            search_console?: { connected: boolean };
+            analytics?: { connected: boolean };
+            ads?: { connected: boolean };
+          }>("/api/auth/google/status");
+          setGoogleConnected(!!(data?.search_console?.connected || data?.analytics?.connected || data?.ads?.connected));
         } catch { /* silent */ }
       })(),
       (async () => {
