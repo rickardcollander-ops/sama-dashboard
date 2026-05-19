@@ -13,40 +13,58 @@ export default function TechPage() {
   const c = platformContent.tech[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <MarketingHeader />
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,207,255,0.08) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {c.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-600 sm:text-lg">{c.body}</p>
+          <span className="neon-eyebrow">{c.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {c.heading}
+          </h1>
+          <p
+            className="mt-4 max-w-2xl text-base sm:text-lg"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {c.body}
+          </p>
           <ul className="mt-8 space-y-3">
             {c.bullets.map((b) => (
-              <li key={b} className="flex items-start gap-3 text-sm text-slate-700 sm:text-base">
-                <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-violet-500" />
+              <li
+                key={b}
+                className="flex items-start gap-3 text-sm sm:text-base"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <CheckCircle
+                  className="mt-0.5 h-5 w-5 flex-shrink-0"
+                  style={{ color: "var(--neon-blue)" }}
+                />
                 {b}
               </li>
             ))}
           </ul>
-          <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
+          <div
+            className="mt-6 flex items-center gap-2 text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             <Clock className="h-4 w-4" />
             {c.schedule}
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/c/onboarding"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-            >
+            <Link href="/c/onboarding" className="hero-cta-primary">
               {c.cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/platform"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
-            >
+            <Link href="/platform" className="hero-cta-secondary">
               {lang === "sv" ? "← Alla moduler" : "← All modules"}
             </Link>
           </div>

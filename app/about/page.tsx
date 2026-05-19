@@ -25,7 +25,7 @@ export default function AboutPage() {
   const c = supportingContent.about[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
@@ -33,13 +33,25 @@ export default function AboutPage() {
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(184,79,255,0.12) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {c.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
-          <p className="mt-5 max-w-2xl text-base text-slate-600 leading-relaxed sm:text-lg">
+          <span className="neon-eyebrow">{c.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {c.heading}
+          </h1>
+          <p
+            className="mt-5 max-w-2xl text-base leading-relaxed sm:text-lg"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {c.body}
           </p>
         </div>
@@ -48,7 +60,11 @@ export default function AboutPage() {
       <section className="mx-auto max-w-3xl px-4 pb-20 sm:px-6">
         <ul className="space-y-4">
           {c.principles.map((p) => (
-            <li key={p} className="flex items-start gap-3 text-sm text-slate-700 sm:text-base">
+            <li
+              key={p}
+              className="flex items-start gap-3 text-sm sm:text-base"
+              style={{ color: "var(--text-secondary)" }}
+            >
               <span className="mt-0.5 flex-shrink-0">✅</span>
               {p}
             </li>
@@ -56,10 +72,7 @@ export default function AboutPage() {
         </ul>
 
         <div className="mt-10">
-          <Link
-            href="/audit"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-          >
+          <Link href="/audit" className="hero-cta-primary">
             {c.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>

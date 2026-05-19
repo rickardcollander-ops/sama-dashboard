@@ -128,7 +128,10 @@ body {
 
 /* ─── Navbar / Header ────────────────────────────────────────────────── */
 .mkt-header {
-  background: rgba(10, 10, 26, 0.85) !important;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(10, 10, 26, 0.92) !important;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--border-orange) !important;
@@ -152,9 +155,16 @@ body {
 .mkt-dropdown-panel {
   border-radius: 0.75rem;
   padding: 0.5rem 0;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-  background: rgba(10, 10, 26, 0.97) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  background: rgba(10, 10, 26, 0.98) !important;
   border: 1px solid var(--border-subtle) !important;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.group:hover .mkt-dropdown-panel {
+  opacity: 1;
+  pointer-events: auto;
 }
 .mkt-dropdown-item {
   display: block;
