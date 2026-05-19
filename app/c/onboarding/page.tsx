@@ -94,6 +94,11 @@ export default function OnboardingPage() {
   const { user, loading: userLoading } = useUser();
   const { activeSite } = useSite();
   const { t } = useLanguage();
+  // Allow re-running onboarding (e.g. from the Settings "Run Onboarding" button)
+  // by appending ?rerun=1 to the URL.
+  const isRerun =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("rerun");
   const ow = t.onboardingWizard;
 
   const initial = typeof window !== "undefined" ? loadDraft() : null;
@@ -124,17 +129,16 @@ export default function OnboardingPage() {
     if (!userLoading && !user) router.push("/c/login");
   }, [user, userLoading, router]);
 
-  // If this user has already completed onboarding, route them away. The
-  // wizard is one-shot — re-running it would re-trigger a 2-5 min Claude
-  // job and could overwrite curated keywords/plan. To reset, the user
-  // should clear settings.onboarding_completed_at in /c/settings.
+  // If this user has already completed onboarding, route them away — unless
+  // they explicitly re-entered the wizard via ?rerun=1 (e.g. from Settings).
   useEffect(() => {
+    if (isRerun) return;
     if (!activeSite) return;
     const s = (activeSite.settings as Record<string, unknown> | undefined) || {};
     if (typeof s.onboarding_completed_at === "string" && s.onboarding_completed_at) {
       router.replace("/c/dashboard");
     }
-  }, [activeSite, router]);
+  }, [activeSite, isRerun, router]);
 
   // Pre-fill from existing site row on first availability (without clobbering a local draft).
   useEffect(() => {
@@ -331,12 +335,12 @@ export default function OnboardingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Onboarding always targets the current user's own primary site
-          // (id = user.id by convention). Using activeSite.id here would
-          // pick up a customer's site when an admin account has external
-          // sites added under it — causing the onboarding result and
-          // drafted articles to land in the wrong tenant.
-          ...(user?.id ? { "X-Sama-Site-Id": user.id } : {}),
+          // Use activeSite.id so onboarding targets the site the user is
+          // actually viewing. When an admin runs onboarding for a customer
+          // via Settings, activeSite.id is the customer's site id, not the
+          // admin's own user.id — that distinction is what routes the result
+          // to the right tenant.
+          ...(activeSite?.id ? { "X-Sama-Site-Id": activeSite.id } : user?.id ? { "X-Sama-Site-Id": user.id } : {}),
         },
         body: JSON.stringify({
           domain: data.domain.trim().toLowerCase(),
