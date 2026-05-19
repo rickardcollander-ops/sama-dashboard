@@ -49,7 +49,7 @@ export default async function BlogArticlePage({ params }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
@@ -60,14 +60,18 @@ export default async function BlogArticlePage({ params }: Props) {
         {/* Back */}
         <Link
           href="/blog"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"
+          className="inline-flex items-center gap-1.5 text-sm font-medium transition"
+          style={{ color: "var(--text-muted)" }}
         >
           <ArrowLeft className="h-4 w-4" />
           Blog
         </Link>
 
         {/* Meta */}
-        <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <div
+          className="mt-6 flex flex-wrap items-center gap-3 text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
             {new Date(post.date).toLocaleDateString("en-GB", {
@@ -77,7 +81,10 @@ export default async function BlogArticlePage({ params }: Props) {
             })}
           </span>
           {post.language && (
-            <span className="rounded-full border border-slate-200 px-2 py-0.5 font-medium uppercase">
+            <span
+              className="rounded-full px-2 py-0.5 font-medium uppercase"
+              style={{ border: "1px solid var(--border-subtle)" }}
+            >
               {post.language}
             </span>
           )}
@@ -91,14 +98,32 @@ export default async function BlogArticlePage({ params }: Props) {
 
         {/* Author */}
         {post.author && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+          <div
+            className="mt-4 flex items-center gap-2 text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             <User className="h-4 w-4" />
             <span>{post.author}</span>
           </div>
         )}
 
+        {/* Title */}
+        <h1
+          className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {post.title}
+        </h1>
+
         {/* Content */}
-        <div className="prose prose-slate mt-8 max-w-none prose-headings:font-bold prose-a:text-violet-700 prose-a:no-underline hover:prose-a:underline prose-code:bg-slate-100 prose-code:px-1 prose-code:rounded prose-img:rounded-xl">
+        <div className="prose prose-invert mt-8 max-w-none prose-headings:font-bold prose-a:text-orange-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:px-1 prose-img:rounded-xl"
+          style={{
+            "--tw-prose-body": "var(--text-secondary)",
+            "--tw-prose-headings": "var(--text-primary)",
+            "--tw-prose-code": "var(--neon-blue)",
+            "--tw-prose-pre-bg": "rgba(10,10,26,0.8)",
+          } as React.CSSProperties}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw, rehypeSlug]}
@@ -108,17 +133,14 @@ export default async function BlogArticlePage({ params }: Props) {
         </div>
 
         {/* CTA */}
-        <div className="mt-12 rounded-2xl border border-violet-200 bg-violet-50 p-6 sm:p-8">
-          <p className="text-base font-semibold text-slate-900">
+        <div className="mt-12 ai-gap-box">
+          <p className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
             Ready to see how AI sees your site?
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
             Run a free 30-second audit and get your first AI Gap angles.
           </p>
-          <Link
-            href="/audit"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-          >
+          <Link href="/audit" className="mt-4 hero-cta-primary inline-flex">
             Run free audit →
           </Link>
         </div>

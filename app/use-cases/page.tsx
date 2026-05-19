@@ -22,17 +22,31 @@ export default function UseCasesPage() {
   const hub = useCasesContent.hub[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,107,0,0.1) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 text-center sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {hub.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{hub.heading}</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">{hub.subhead}</p>
+          <span className="neon-eyebrow">{hub.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {hub.heading}
+          </h1>
+          <p
+            className="mx-auto mt-4 max-w-2xl text-base"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {hub.subhead}
+          </p>
         </div>
       </section>
 
@@ -41,19 +55,24 @@ export default function UseCasesPage() {
           {PERSONAS.map(({ key, href }) => {
             const p = useCasesContent.personas[key][lang];
             return (
-              <Link
-                key={href}
-                href={href}
-                className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-violet-200 hover:shadow-md"
-              >
-                <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-                  {p.eyebrow}
-                </span>
-                <h2 className="mt-2 text-lg font-bold leading-snug group-hover:text-violet-700">
+              <Link key={href} href={href} className="pillar-card">
+                <span className="neon-eyebrow">{p.eyebrow}</span>
+                <h2
+                  className="mt-2 text-lg font-bold leading-snug"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   {p.heading}
                 </h2>
-                <p className="mt-2 text-sm text-slate-600 line-clamp-3">{p.subhead}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-600">
+                <p
+                  className="mt-2 text-sm line-clamp-3"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {p.subhead}
+                </p>
+                <span
+                  className="mt-4 inline-flex items-center gap-1 text-xs font-semibold"
+                  style={{ color: "var(--neon-orange)" }}
+                >
                   {lang === "sv" ? "Läs mer" : "Learn more"}
                   <ArrowRight className="h-3 w-3" />
                 </span>

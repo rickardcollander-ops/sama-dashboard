@@ -24,21 +24,39 @@ export default function PersonaPage({ sv, en }: Props) {
   const c = language === "sv" ? sv : en;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,107,0,0.1) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {c.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-600 sm:text-lg">{c.subhead}</p>
+          <span className="neon-eyebrow">{c.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {c.heading}
+          </h1>
+          <p
+            className="mt-4 max-w-2xl text-base sm:text-lg"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {c.subhead}
+          </p>
 
           <ul className="mt-8 space-y-3">
             {c.bullets.map((b) => (
-              <li key={b} className="flex items-start gap-3 text-sm text-slate-700 sm:text-base">
+              <li
+                key={b}
+                className="flex items-start gap-3 text-sm sm:text-base"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 <span className="mt-0.5 flex-shrink-0">✅</span>
                 {b}
               </li>
@@ -46,17 +64,11 @@ export default function PersonaPage({ sv, en }: Props) {
           </ul>
 
           <div className="mt-10 flex flex-wrap gap-3">
-            <Link
-              href="/audit"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-            >
+            <Link href="/audit" className="hero-cta-primary">
               {c.cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/use-cases"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
-            >
+            <Link href="/use-cases" className="hero-cta-secondary">
               {language === "sv" ? "← Alla användningsområden" : "← All use cases"}
             </Link>
           </div>

@@ -15,18 +15,31 @@ export default function PlatformPage() {
   const c = platformContent.overview[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,107,0,0.1) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 text-center sm:px-6 sm:pt-24 sm:pb-20">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600 sm:text-lg">{c.subhead}</p>
-          <Link
-            href="/c/onboarding"
-            className="mt-8 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
+          <h1
+            className="text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
           >
+            {c.heading}
+          </h1>
+          <p
+            className="mx-auto mt-4 max-w-2xl text-base sm:text-lg"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {c.subhead}
+          </p>
+          <Link href="/c/onboarding" className="mt-8 hero-cta-primary inline-flex">
             {c.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>
@@ -38,17 +51,26 @@ export default function PlatformPage() {
           {c.modules.map((mod, idx) => {
             const icon = MODULE_ICONS[idx % MODULE_ICONS.length];
             return (
-              <Link
-                key={mod.href}
-                href={mod.href}
-                className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-violet-200 hover:shadow-md"
-              >
-                <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-white">
+              <Link key={mod.href} href={mod.href} className="pillar-card">
+                <div className="mb-4 pillar-card-icon">
                   <span className="text-xl">{icon}</span>
                 </div>
-                <h2 className="text-lg font-semibold group-hover:text-violet-700">{mod.title}</h2>
-                <p className="mt-2 text-sm text-slate-600">{mod.desc}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-600">
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {mod.title}
+                </h2>
+                <p
+                  className="mt-2 text-sm"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {mod.desc}
+                </p>
+                <span
+                  className="mt-4 inline-flex items-center gap-1 text-xs font-semibold"
+                  style={{ color: "var(--neon-orange)" }}
+                >
                   {lang === "sv" ? "Läs mer" : "Learn more"}
                   <ArrowRight className="h-3 w-3" />
                 </span>
@@ -57,8 +79,16 @@ export default function PlatformPage() {
           })}
         </div>
 
-        <div className="mt-12 rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
-          <p className="text-sm text-slate-600 sm:text-base">{c.syncedNote}</p>
+        <div
+          className="mt-12 rounded-2xl p-6 sm:p-8"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          <p className="text-sm sm:text-base" style={{ color: "var(--text-secondary)" }}>
+            {c.syncedNote}
+          </p>
         </div>
       </section>
 

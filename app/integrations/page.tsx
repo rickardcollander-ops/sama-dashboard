@@ -13,16 +13,25 @@ export default function IntegrationsPage() {
   const c = supportingContent.integrations[lang];
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,207,255,0.08) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {c.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
+          <span className="neon-eyebrow">{c.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {c.heading}
+          </h1>
         </div>
       </section>
 
@@ -31,16 +40,28 @@ export default function IntegrationsPage() {
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-4">
             <span className="text-xl">💾</span>
-            <h2 className="text-xl font-bold">{c.dataSources.heading}</h2>
+            <h2
+              className="text-xl font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {c.dataSources.heading}
+            </h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {c.dataSources.items.map((item) => (
-              <div
-                key={item.name}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
+              <div key={item.name} className="pillar-card">
+                <p
+                  className="font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {item.name}
+                </p>
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
@@ -50,26 +71,35 @@ export default function IntegrationsPage() {
         <div>
           <div className="flex items-center gap-3 mb-4">
             <span className="text-xl">📤</span>
-            <h2 className="text-xl font-bold">{c.publishing.heading}</h2>
+            <h2
+              className="text-xl font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {c.publishing.heading}
+            </h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {c.publishing.items.map((item) => (
-              <div
-                key={item.name}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <p className="font-semibold text-slate-900">{item.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
+              <div key={item.name} className="pillar-card">
+                <p
+                  className="font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {item.name}
+                </p>
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
         </div>
 
         <div className="mt-10">
-          <Link
-            href="/c/onboarding"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-          >
+          <Link href="/c/onboarding" className="hero-cta-primary">
             {c.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>

@@ -78,7 +78,7 @@ function Dropdown({ label, items }: DropdownProps) {
         {label}
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover:rotate-180" />
       </button>
-      <div className="mkt-dropdown-panel invisible absolute left-0 top-full z-50 min-w-[200px] group-hover:visible">
+      <div className="mkt-dropdown-panel absolute left-0 top-full min-w-[200px]">
         {items.map((item) => (
           <Link key={item.href} href={item.href} className="mkt-dropdown-item">
             {item.label}

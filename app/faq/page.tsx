@@ -23,7 +23,7 @@ export default function FaqPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="mkt-site">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
@@ -31,29 +31,52 @@ export default function FaqPage() {
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(184,79,255,0.12) 0%, transparent 60%)",
+          }}
+        />
         <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24 sm:pb-20">
-          <span className="text-xs font-semibold uppercase tracking-wider text-violet-600">
-            {c.eyebrow}
-          </span>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.heading}</h1>
+          <span className="neon-eyebrow">{c.eyebrow}</span>
+          <h1
+            className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {c.heading}
+          </h1>
         </div>
       </section>
 
       <section className="mx-auto max-w-3xl px-4 pb-20 sm:px-6">
-        <div className="space-y-4">
+        <div className="space-y-3">
           {c.items.map((item) => (
             <details
               key={item.q}
-              className="group rounded-xl border border-slate-200 bg-white open:border-violet-200"
+              className="group rounded-xl"
+              style={{
+                border: "1px solid var(--border-subtle)",
+                background: "var(--bg-card)",
+                backdropFilter: "blur(8px)",
+              }}
             >
-              <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-base font-semibold list-none">
+              <summary
+                className="flex cursor-pointer items-center justify-between px-5 py-4 text-base font-semibold list-none"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {item.q}
-                <span className="ml-4 flex-shrink-0 text-violet-500 group-open:rotate-180 transition-transform">
+                <span
+                  className="ml-4 flex-shrink-0 transition-transform group-open:rotate-180"
+                  style={{ color: "var(--neon-orange)" }}
+                >
                   ▾
                 </span>
               </summary>
-              <p className="px-5 pb-5 text-sm text-slate-600 leading-relaxed sm:text-base">
+              <p
+                className="px-5 pb-5 text-sm leading-relaxed sm:text-base"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 {item.a}
               </p>
             </details>
@@ -61,10 +84,7 @@ export default function FaqPage() {
         </div>
 
         <div className="mt-10">
-          <Link
-            href="/audit"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
-          >
+          <Link href="/audit" className="hero-cta-primary">
             {c.cta}
             <ArrowRight className="h-4 w-4" />
           </Link>
