@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Space_Grotesk } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/hooks/useLanguage";
@@ -30,6 +31,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-B2N3S9V9SN"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-B2N3S9V9SN');
+          `}
+        </Script>
+      </head>
       <body className={`${barlowCondensed.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <LanguageProvider>
           <ToastProvider>
