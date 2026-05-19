@@ -20,7 +20,6 @@ interface OnboardingData {
   target_audience: string;
   competitors: string[];
   brand_color: string;
-  example_article_url: string;
   geo_queries: string[];
 }
 
@@ -32,7 +31,6 @@ const INITIAL: OnboardingData = {
   target_audience: "",
   competitors: [],
   brand_color: "#4F46E5",
-  example_article_url: "",
   geo_queries: [],
 };
 
@@ -156,7 +154,6 @@ export default function OnboardingPage() {
       seed.geo_queries = s.geo_queries.filter((x): x is string => typeof x === "string");
     }
     if (typeof s.brand_color === "string") seed.brand_color = s.brand_color;
-    if (typeof s.example_article_url === "string") seed.example_article_url = s.example_article_url;
     if (Object.keys(seed).length > 0) {
       setData((prev) => ({ ...prev, ...seed }));
     }
@@ -350,7 +347,6 @@ export default function OnboardingPage() {
           competitors: data.competitors,
           geo_queries: data.geo_queries,
           brand_color: data.brand_color,
-          example_article_url: data.example_article_url,
         }),
       });
       if (!res.ok) {
@@ -595,20 +591,6 @@ export default function OnboardingPage() {
                     className="flex-1 border-0 bg-transparent text-sm focus:outline-none"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  {ow.exampleUrlLabel}{" "}
-                  <span className="font-normal text-slate-400">{ow.optionalLabel}</span>
-                </label>
-                <input
-                  type="url"
-                  value={data.example_article_url}
-                  onChange={(e) => update("example_article_url", e.target.value)}
-                  placeholder="https://yourcompany.com/blog/great-article"
-                  className="w-full rounded-full border border-slate-300 px-5 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                />
-                <p className="mt-1.5 text-xs text-slate-500">{ow.exampleUrlHint}</p>
               </div>
             </div>
           )}

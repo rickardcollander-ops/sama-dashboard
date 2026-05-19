@@ -83,8 +83,6 @@ export async function POST(req: NextRequest) {
     competitors: pickStringArray(body.competitors).slice(0, 10),
     geo_queries: pickStringArray(body.geo_queries).slice(0, 10),
     brand_color: typeof body.brand_color === "string" ? body.brand_color.trim() : "",
-    example_article_url:
-      typeof body.example_article_url === "string" ? body.example_article_url.trim() : "",
   };
 
   const siteId = resolveSiteId(req, user.id);
