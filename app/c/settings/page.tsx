@@ -16,6 +16,7 @@ import { api, tenantApi, watchAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
 import PublishingDestinations from "@/components/PublishingDestinations";
 import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
+import GoogleSearchConsolePropertyPicker from "@/components/GoogleSearchConsolePropertyPicker";
 import TeamManagementPanel from "@/components/TeamManagementPanel";
 
 interface UserSettings {
@@ -728,6 +729,7 @@ function CustomerSettingsPageInner() {
                       </div>
                     </div>
                     {key === "analytics" && connected && user && <GoogleAnalyticsPropertyPicker tenantId={user.id} />}
+                    {key === "search_console" && connected && user && <GoogleSearchConsolePropertyPicker tenantId={user.id} />}
                   </div>
                 );
               })}
