@@ -745,14 +745,28 @@ async function syncToBackend(
   // Insert in reverse order (day 30 → day 1) so that day 1 ends up with
   // the highest created_at, placing it first in the content list which
   // the backend returns sorted by created_at DESC.
-  for (const payload of [...itemsToCreate].reverse()) {
-    try {
-      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
+  const postCalendarItem = async (payload: PlanPayload): Promise<Response> => {
+    const attempt = () =>
+      fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(60_000),
       });
+    try {
+      return await attempt();
+    } catch (e) {
+      // Retry once on timeout/abort — transient backend slowness.
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        return await attempt();
+      }
+      throw e;
+    }
+  };
+
+  for (const payload of [...itemsToCreate].reverse()) {
+    try {
+      const res = await postCalendarItem(payload);
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const isDuplicate =
