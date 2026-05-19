@@ -3,6 +3,25 @@ import { requireAdmin } from "@/lib/admin-guard";
 
 export const dynamic = "force-dynamic";
 
+function describeError(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === "string") {
+    const t = err.trim();
+    return !t || t === "{}" || t === "[]" || t === "[object Object]" ? fallback : t;
+  }
+  if (typeof err === "object") {
+    const e = err as { message?: unknown; error_description?: unknown; code?: unknown };
+    const c =
+      (typeof e.message === "string" && e.message) ||
+      (typeof e.error_description === "string" && e.error_description) ||
+      (typeof e.code === "string" && e.code) ||
+      "";
+    const t = c.trim();
+    return !t || t === "{}" || t === "[]" || t === "[object Object]" ? fallback : t;
+  }
+  return fallback;
+}
+
 interface SiteSummary {
   id: string;
   site_name: string;
@@ -170,18 +189,22 @@ export async function POST(req: NextRequest) {
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
       if (error) {
         console.error("[admin:accounts:create] inviteUserByEmail failed", { email, error });
-        const msg = error.message && error.message !== "{}"
-          ? error.message
-          : "Could not invite user. Check Supabase email config or rate limits.";
-        return NextResponse.json({ error: msg }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: describeError(
+              error,
+              "Could not invite user. Check Supabase email config or rate limits.",
+            ),
+          },
+          { status: 400 },
+        );
       }
       userId = data.user.id;
       invited = true;
     } catch (e) {
       console.error("[admin:accounts:create] inviteUserByEmail threw", { email, error: e });
-      const msg = e instanceof Error ? e.message : "";
       return NextResponse.json(
-        { error: msg && msg !== "{}" ? msg : "Failed to send invitation" },
+        { error: describeError(e, "Failed to send invitation") },
         { status: 500 },
       );
     }

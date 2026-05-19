@@ -3,6 +3,37 @@ import { requireAccount } from "@/lib/account";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Some upstream auth errors come back with a non-string ``.message`` or the
+ * literal string ``"{}"`` (e.g. when Supabase returns an empty JSON body for
+ * rate limits or pre-flight failures). Normalize those to a useful fallback so
+ * the dashboard never surfaces ``{}`` to the operator.
+ */
+function describeError(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === "string") {
+    const trimmed = err.trim();
+    if (!trimmed || trimmed === "{}" || trimmed === "[]" || trimmed === "[object Object]") {
+      return fallback;
+    }
+    return trimmed;
+  }
+  if (typeof err === "object") {
+    const e = err as { message?: unknown; error_description?: unknown; code?: unknown };
+    const candidate =
+      (typeof e.message === "string" && e.message) ||
+      (typeof e.error_description === "string" && e.error_description) ||
+      (typeof e.code === "string" && e.code) ||
+      "";
+    const trimmed = candidate.trim();
+    if (!trimmed || trimmed === "{}" || trimmed === "[]" || trimmed === "[object Object]") {
+      return fallback;
+    }
+    return trimmed;
+  }
+  return fallback;
+}
+
 interface MemberRow {
   id: string;
   account_id: string;
@@ -221,9 +252,10 @@ export async function POST(req: NextRequest) {
             });
             return NextResponse.json(
               {
-                error:
-                  error.message ||
+                error: describeError(
+                  error,
                   "Could not invite user. Check Supabase email config or rate limits.",
+                ),
               },
               { status: 400 },
             );
@@ -234,7 +266,15 @@ export async function POST(req: NextRequest) {
             accountId,
             error,
           });
-          return NextResponse.json({ error: error.message }, { status: 400 });
+          return NextResponse.json(
+            {
+              error: describeError(
+                error,
+                "Could not invite user. Check Supabase email config or rate limits.",
+              ),
+            },
+            { status: 400 },
+          );
         }
       } else {
         invitedUserId = data.user.id;
@@ -246,9 +286,8 @@ export async function POST(req: NextRequest) {
         accountId,
         error: e,
       });
-      const msg = e instanceof Error ? e.message : "Failed to send invitation";
       return NextResponse.json(
-        { error: msg && msg !== "{}" ? msg : "Failed to send invitation" },
+        { error: describeError(e, "Failed to send invitation") },
         { status: 500 },
       );
     }
@@ -273,7 +312,18 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (insertErr) {
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    console.error("[members:invite] insert failed", { email, accountId, error: insertErr });
+    // Most common cause: the email is already a pending invite or active
+    // member on this account (race with our pre-checks). Surface a friendly
+    // message rather than the raw Postgres constraint code.
+    const raw = describeError(insertErr, "Could not add the member");
+    const looksDuplicate =
+      raw.toLowerCase().includes("duplicate") ||
+      (insertErr as { code?: string }).code === "23505";
+    return NextResponse.json(
+      { error: looksDuplicate ? "That user is already on this account" : raw },
+      { status: looksDuplicate ? 409 : 500 },
+    );
   }
 
   return NextResponse.json({ member: inserted, invited: inviteSent });
