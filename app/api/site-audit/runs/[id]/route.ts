@@ -4,7 +4,10 @@ import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { SiteAuditRun } from "@/app/c/analysis/audit-types";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
+const SAMA_API_URL =
+  process.env.SAMA_API_URL ||
+  process.env.NEXT_PUBLIC_SAMA_API_URL ||
+  "";
 
 async function loadSavedAudit(id: string, tenantId: string, expectedDomain: string): Promise<SiteAuditRun | null> {
   try {
