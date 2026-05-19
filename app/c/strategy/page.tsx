@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import RoadmapTimeline from "@/components/strategy/RoadmapTimeline";
 import EditableSection from "@/components/strategy/EditableSection";
 import StrategyEvaluation from "@/components/strategy/StrategyEvaluation";
@@ -341,14 +342,7 @@ export default function StrategyPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="mt-20 flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (

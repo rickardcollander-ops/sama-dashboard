@@ -14,6 +14,7 @@ import { useSite } from "@/lib/hooks/useSite";
 import { useLanguage } from "@/lib/hooks/useLanguage";
 import { api, tenantApi, watchAgentRun } from "@/lib/api";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import PublishingDestinations from "@/components/PublishingDestinations";
 import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
 import GoogleSearchConsolePropertyPicker from "@/components/GoogleSearchConsolePropertyPicker";
@@ -440,12 +441,7 @@ function CustomerSettingsPageInner() {
   const togglePlatform = (p: string) => setSettings((prev) => ({ ...prev, geo_platforms: prev.geo_platforms.includes(p) ? prev.geo_platforms.filter((x) => x !== p) : [...prev.geo_platforms, p] }));
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>
-      </div>
-    );
+    return <CustomerPageShellSkeleton maxWidth="max-w-4xl" />;
   }
 
   return (
