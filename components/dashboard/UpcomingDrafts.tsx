@@ -19,6 +19,10 @@ interface PieceRow {
 
 interface UpcomingDraftsProps {
   tenantId: string;
+  // When the dashboard already fetched /api/content/pieces, it threads the
+  // result through so this component doesn't refetch the same endpoint.
+  // `null` means "still loading"; an array (possibly empty) means "done".
+  pieces?: PieceRow[] | null;
 }
 
 const LOCALE_MAP: Record<Language, string> = {
@@ -28,9 +32,10 @@ const LOCALE_MAP: Record<Language, string> = {
   en: "en-GB",
 };
 
-export default function UpcomingDrafts({ tenantId }: UpcomingDraftsProps) {
+export default function UpcomingDrafts({ tenantId, pieces: piecesProp }: UpcomingDraftsProps) {
   const { language } = useLanguage();
   const [pieces, setPieces] = useState<PieceRow[] | null>(null);
+  const usingParentPieces = piecesProp !== undefined;
 
   function fmtDate(iso?: string | null): string {
     if (!iso) return "";
@@ -41,6 +46,7 @@ export default function UpcomingDrafts({ tenantId }: UpcomingDraftsProps) {
   }
 
   useEffect(() => {
+    if (usingParentPieces) return;
     let cancelled = false;
     (async () => {
       try {
@@ -48,23 +54,25 @@ export default function UpcomingDrafts({ tenantId }: UpcomingDraftsProps) {
           "/api/content/pieces?limit=50",
         );
         if (cancelled) return;
-        const drafts = (data.pieces || [])
-          .filter((p) => p.status === "draft" || p.status === "review")
-          .sort((a, b) => {
-            const ta = new Date(a.scheduled_for || a.created_at || 0).getTime();
-            const tb = new Date(b.scheduled_for || b.created_at || 0).getTime();
-            return ta - tb;
-          })
-          .slice(0, 2);
-        setPieces(drafts);
+        setPieces(data.pieces || []);
       } catch {
         if (!cancelled) setPieces([]);
       }
     })();
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, usingParentPieces]);
 
-  if (pieces === null || pieces.length === 0) return null;
+  const source = usingParentPieces ? piecesProp : pieces;
+  if (source == null) return null;
+  const drafts = source
+    .filter((p) => p.status === "draft" || p.status === "review")
+    .sort((a, b) => {
+      const ta = new Date(a.scheduled_for || a.created_at || 0).getTime();
+      const tb = new Date(b.scheduled_for || b.created_at || 0).getTime();
+      return ta - tb;
+    })
+    .slice(0, 2);
+  if (drafts.length === 0) return null;
 
   return (
     <section>
@@ -72,7 +80,7 @@ export default function UpcomingDrafts({ tenantId }: UpcomingDraftsProps) {
         Kommande artiklar
       </h2>
       <ul className="space-y-2">
-        {pieces.map((p) => {
+        {drafts.map((p) => {
           const dateStr = fmtDate(p.scheduled_for || p.created_at);
           const typeLabel = p.content_type || p.type || "artikel";
           return (

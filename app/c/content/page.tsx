@@ -77,18 +77,42 @@ interface PlanIdea {
   } | null;
 }
 
-export default function CustomerContentPage() {
+function ContentShellSkeleton() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-          <CustomerNav />
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
+      <CustomerNav />
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <div className="h-8 w-40 rounded-lg bg-slate-200 animate-pulse" />
+            <div className="mt-2 h-4 w-64 rounded bg-slate-200 animate-pulse" />
+          </div>
+          <div className="hidden sm:flex gap-2">
+            <div className="h-10 w-32 rounded-lg bg-slate-200 animate-pulse" />
+            <div className="h-10 w-32 rounded-lg bg-slate-200 animate-pulse" />
           </div>
         </div>
-      }
-    >
+        <div className="grid gap-4 sm:grid-cols-3 mb-8">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-xl border bg-white p-5 shadow-sm">
+              <div className="h-4 w-24 rounded bg-slate-200 animate-pulse" />
+              <div className="mt-3 h-7 w-16 rounded bg-slate-200 animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 rounded-xl border bg-white shadow-sm animate-pulse" />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function CustomerContentPage() {
+  return (
+    <Suspense fallback={<ContentShellSkeleton />}>
       <CustomerContentInner />
     </Suspense>
   );
@@ -798,14 +822,9 @@ function CustomerContentInner() {
   };
 
   if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+    // Same skeleton as the Suspense fallback — keeps the page chrome stable
+    // from first paint through auth resolving so layout doesn't shift.
+    return <ContentShellSkeleton />;
   }
 
   return (

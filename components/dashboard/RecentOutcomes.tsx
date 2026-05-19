@@ -23,6 +23,10 @@ interface PieceRow {
 
 interface RecentOutcomesProps {
   tenantId: string;
+  // When the dashboard already fetched /api/content/pieces, it threads the
+  // result through so this component doesn't refetch the same endpoint.
+  // `null` means "still loading"; an array (possibly empty) means "done".
+  pieces?: PieceRow[] | null;
 }
 
 const LOCALE_MAP: Record<Language, string> = {
@@ -32,9 +36,10 @@ const LOCALE_MAP: Record<Language, string> = {
   en: "en-GB",
 };
 
-export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
+export default function RecentOutcomes({ tenantId, pieces: piecesProp }: RecentOutcomesProps) {
   const { t, language } = useLanguage();
   const [pieces, setPieces] = useState<PieceRow[] | null>(null);
+  const usingParentPieces = piecesProp !== undefined;
 
   function fmtRelative(iso?: string | null): string {
     if (!iso) return "";
@@ -49,6 +54,7 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
   }
 
   useEffect(() => {
+    if (usingParentPieces) return;
     let cancelled = false;
     (async () => {
       try {
@@ -56,23 +62,25 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
           "/api/content/pieces?limit=50",
         );
         if (cancelled) return;
-        const published = (data.pieces || [])
-          .filter((p) => p.status === "published")
-          .sort((a, b) => {
-            const ta = new Date(a.published_at || a.created_at || 0).getTime();
-            const tb = new Date(b.published_at || b.created_at || 0).getTime();
-            return tb - ta;
-          })
-          .slice(0, 3);
-        setPieces(published);
+        setPieces(data.pieces || []);
       } catch {
         if (!cancelled) setPieces([]);
       }
     })();
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, usingParentPieces]);
 
-  if (pieces === null || pieces.length === 0) return null;
+  const source = usingParentPieces ? piecesProp : pieces;
+  if (source == null) return null;
+  const published = source
+    .filter((p) => p.status === "published")
+    .sort((a, b) => {
+      const ta = new Date(a.published_at || a.created_at || 0).getTime();
+      const tb = new Date(b.published_at || b.created_at || 0).getTime();
+      return tb - ta;
+    })
+    .slice(0, 3);
+  if (published.length === 0) return null;
 
   return (
     <section>
@@ -80,7 +88,7 @@ export default function RecentOutcomes({ tenantId }: RecentOutcomesProps) {
         {t.recentOutcomes.title}
       </h2>
       <ul className="space-y-2">
-        {pieces.map((p) => {
+        {published.map((p) => {
           const motivation = p.source_gap_title || p.source_strategy_topic;
           const impressions = p.impressions_30d ?? 0;
           const clicks = p.clicks_30d ?? 0;
