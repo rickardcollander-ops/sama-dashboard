@@ -803,28 +803,28 @@ async function syncToBackend(
         if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
         continue;
       }
-      failed++;
-      if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
-      continue;
-    }
-    const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
-    if (data && data.success === false) {
-      // 23505 = unique_violation: the keyword already exists for this tenant.
-      // Treat as success — the content is already there.
-      const isDuplicate =
-        String(data.code) === "23505" ||
-        (typeof data.message === "string" && data.message.includes("duplicate key"));
-      if (isDuplicate) {
-        created++;
+      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
+      if (data && data.success === false) {
+        // 23505 = unique_violation: the keyword already exists for this tenant.
+        // Treat as success — the content is already there.
+        const isDuplicate =
+          String(data.code) === "23505" ||
+          (typeof data.message === "string" && data.message.includes("duplicate key"));
+        if (isDuplicate) {
+          created++;
+          continue;
+        }
+        failed++;
+        if (!firstError) {
+          firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
+        }
         continue;
       }
+      created++;
+    } catch (e) {
       failed++;
-      if (!firstError) {
-        firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
-      }
-      continue;
+      if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
     }
-    created++;
   }
 
   return {
