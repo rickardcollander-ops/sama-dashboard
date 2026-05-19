@@ -28,6 +28,20 @@ function fmtDate(iso: string | null): string {
   return d.toLocaleDateString();
 }
 
+// Admin-created accounts that don't have a real email use a placeholder of
+// the form ``<domain>-<timestamp>@accounts.internal``. Hide the placeholder
+// from the team panel and show a friendlier label instead.
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  return !!email && email.toLowerCase().endsWith("@accounts.internal");
+}
+
+function displayMemberLabel(m: { email: string | null; invited_email: string | null }): string {
+  const raw = m.email || m.invited_email;
+  if (!raw) return "(no email)";
+  if (isPlaceholderEmail(raw)) return "Account owner (no email yet)";
+  return raw;
+}
+
 interface TeamManagementPanelProps {
   /** Render in compact mode (inside another section card) — drops the outer header. */
   compact?: boolean;
@@ -232,7 +246,9 @@ export default function TeamManagementPanel({ compact = false }: TeamManagementP
                       {isOwner && (
                         <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                       )}
-                      <span>{m.email || m.invited_email || "(unknown)"}</span>
+                      <span className={isPlaceholderEmail(m.email || m.invited_email) ? "italic text-slate-500" : ""}>
+                        {displayMemberLabel(m)}
+                      </span>
                       {isSelf && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                           you

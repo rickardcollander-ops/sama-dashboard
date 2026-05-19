@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
   CheckCircle2, Loader2, X, Eye, Globe, ChevronRight, Phone,
-  Gift, Ban, KeyRound, Copy, AtSign,
+  Gift, Ban, KeyRound, Copy, AtSign, MoreHorizontal,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -822,6 +822,69 @@ function ChangeEmailModal({
   );
 }
 
+// ── Row actions dropdown ──────────────────────────────────────────────────────
+
+interface MoreMenuItem {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+}
+
+function MoreMenu({ items, disabled }: { items: MoreMenuItem[]; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        title="Fler åtgärder"
+        aria-label="Fler åtgärder"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((it, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                if (it.disabled) return;
+                setOpen(false);
+                it.onClick();
+              }}
+              disabled={it.disabled}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs ${
+                it.disabled
+                  ? "cursor-not-allowed text-slate-300"
+                  : it.destructive
+                    ? "text-red-600 hover:bg-red-50"
+                    : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span className="flex-shrink-0">{it.icon}</span>
+              <span>{it.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Admin page ─────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -1356,29 +1419,11 @@ export default function AdminPage() {
                         <button
                           onClick={() => handleViewAs(acc)}
                           disabled={busy}
-                          title="View the customer's dashboard"
+                          title="Visa kundens dashboard"
                           aria-label="View as"
                           className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => { setInviteFor(acc); setInviteEmail(""); setError(""); }}
-                          disabled={busy}
-                          title="Invite a team member to this account"
-                          aria-label="Invite"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => void handleResetPassword(acc)}
-                          disabled={busy || !acc.email}
-                          title="Skicka återställningsmail"
-                          aria-label="Skicka återställningsmail"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                         </button>
                         <button
                           onClick={() => setSetPasswordFor(acc)}
@@ -1389,56 +1434,69 @@ export default function AdminPage() {
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          onClick={() => setChangeEmailFor(acc)}
-                          disabled={busy}
-                          title="Ändra e-postadress"
-                          aria-label="Ändra e-post"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          <AtSign className="h-3.5 w-3.5" />
-                        </button>
-                        {!acc.email_confirmed_at && (
-                          <button
-                            onClick={() => void handleConfirmEmail(acc)}
-                            disabled={busy || !acc.email}
-                            title="Bekräfta e-post manuellt"
-                            aria-label="Bekräfta e-post"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
                         {planStatuses[acc.id]?.plan_status === "admin_granted" ? (
                           <button
                             onClick={() => void handleRevoke(acc)}
                             disabled={busy}
-                            title="Revoke free access"
+                            title="Återkalla gratis åtkomst"
                             className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 hover:bg-amber-100 disabled:opacity-50"
                           >
                             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
-                            Revoke
+                            Återkalla
                           </button>
                         ) : (
                           <button
                             onClick={() => setGrantFor(acc)}
                             disabled={busy}
-                            title="Grant free access"
+                            title="Bevilja gratis åtkomst"
                             className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                           >
                             <Gift className="h-3 w-3" />
-                            Grant
+                            Bevilja
                           </button>
                         )}
-                        <button
-                          onClick={() => void handleDelete(acc)}
-                          disabled={busy || isSelf}
-                          title={isSelf ? "Cannot delete your own admin account" : "Delete account"}
-                          aria-label="Delete"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </button>
+                        <MoreMenu
+                          disabled={busy}
+                          items={[
+                            {
+                              label: "Bjud in teammedlem",
+                              icon: <UserPlus className="h-3.5 w-3.5 text-violet-600" />,
+                              onClick: () => {
+                                setInviteFor(acc);
+                                setInviteEmail("");
+                                setError("");
+                              },
+                            },
+                            {
+                              label: "Skicka återställningsmail",
+                              icon: <Mail className="h-3.5 w-3.5 text-slate-500" />,
+                              onClick: () => void handleResetPassword(acc),
+                              disabled: !acc.email,
+                            },
+                            {
+                              label: "Ändra e-postadress",
+                              icon: <AtSign className="h-3.5 w-3.5 text-blue-600" />,
+                              onClick: () => setChangeEmailFor(acc),
+                            },
+                            ...(!acc.email_confirmed_at
+                              ? [
+                                  {
+                                    label: "Bekräfta e-post manuellt",
+                                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />,
+                                    onClick: () => void handleConfirmEmail(acc),
+                                    disabled: !acc.email,
+                                  },
+                                ]
+                              : []),
+                            {
+                              label: isSelf ? "Kan inte radera dig själv" : "Radera konto",
+                              icon: <Trash2 className="h-3.5 w-3.5" />,
+                              onClick: () => void handleDelete(acc),
+                              disabled: isSelf,
+                              destructive: true,
+                            },
+                          ]}
+                        />
                       </div>
                     </td>
                   </tr>
