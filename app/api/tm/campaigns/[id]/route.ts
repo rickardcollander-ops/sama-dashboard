@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const { data: leads, error: lErr } = await admin
     .from("apollo_leads")
     .select(
-      "id, company_name, domain, contact_first_name, contact_last_name, contact_title, contact_email, contact_phone, industry, company_size, city, country, linkedin_url, audit_score, audited_at, call_status, call_notes",
+      "id, company_name, domain, contact_first_name, contact_last_name, contact_title, contact_email, contact_phone, industry, company_size, city, country, linkedin_url, audit_score, audit_id, audited_at, call_status, call_notes",
     )
     .eq("campaign_id", id)
     .order("company_name", { ascending: true });

@@ -52,6 +52,7 @@ interface Lead {
   country: string | null;
   linkedin_url: string | null;
   audit_score: number | null;
+  audit_id: string | null;
   audited_at: string | null;
   call_status: CallStatus;
   call_notes: string | null;
@@ -334,11 +335,24 @@ export default function TmCampaignDetailPage({
                     </td>
                     <td className="px-4 py-3">
                       {lead.audit_score != null ? (
-                        <div
-                          className={`text-2xl font-bold tabular-nums ${scoreTone(lead.audit_score)}`}
-                        >
-                          {lead.audit_score}
-                        </div>
+                        lead.audit_id ? (
+                          <a
+                            href={`/audit/r/${lead.audit_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Öppna fullständig rapport"
+                            className={`inline-flex items-center gap-1 text-2xl font-bold tabular-nums hover:underline ${scoreTone(lead.audit_score)}`}
+                          >
+                            {lead.audit_score}
+                            <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+                          </a>
+                        ) : (
+                          <div
+                            className={`text-2xl font-bold tabular-nums ${scoreTone(lead.audit_score)}`}
+                          >
+                            {lead.audit_score}
+                          </div>
+                        )
                       ) : (
                         <span className="text-xs text-slate-300">—</span>
                       )}
