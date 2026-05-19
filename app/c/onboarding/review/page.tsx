@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Sparkles, FileText, Calendar, Tag, ExternalLink,
-  Loader2, ChevronDown, ChevronUp, CheckCircle2, ArrowRight,
+  Loader2, ChevronDown, ChevronUp, CheckCircle2, ArrowRight, LayoutDashboard,
 } from "lucide-react";
 import { useSite } from "@/lib/hooks/useSite";
 import { useLanguage } from "@/lib/hooks/useLanguage";
+import CustomerNav from "@/components/CustomerNav";
 
 interface Keyword {
   text: string;
@@ -152,8 +153,19 @@ function ReviewInner() {
   const brand = result.site_meta.brand_name || result.site_meta.domain;
 
   return (
+    <>
+    <CustomerNav />
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <div className="mx-auto max-w-5xl px-4 py-12">
+        <div className="mb-6 flex justify-end">
+          <Link
+            href="/c/dashboard"
+            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            {or.toDashboard}
+          </Link>
+        </div>
         <div className="text-center">
           <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 className="h-6 w-6 text-emerald-600" />
@@ -392,6 +404,7 @@ function ReviewInner() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

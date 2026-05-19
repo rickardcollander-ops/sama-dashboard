@@ -768,32 +768,39 @@ async function syncToBackend(
 
   // Insert in reverse order (day 30 → day 1) so that day 1 ends up with
   // the highest created_at, placing it first in the content list which
-  // the backend returns sorted by created_at DESC. Run all requests in
-  // parallel so a single slow backend response doesn't block the rest.
-  const results = await Promise.allSettled(
-    [...itemsToCreate].reverse().map((payload) =>
+  // the backend returns sorted by created_at DESC.
+  const postCalendarItem = async (payload: PlanPayload): Promise<Response> => {
+    const attempt = () =>
       fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(45_000),
-      }),
-    ),
-  );
-
-  for (const result of results) {
-    if (result.status === "rejected") {
-      failed++;
-      if (!firstError) firstError = `plan/calendar: ${result.reason instanceof Error ? result.reason.message : "fetch failed"}`;
-      continue;
+        signal: AbortSignal.timeout(60_000),
+      });
+    try {
+      return await attempt();
+    } catch (e) {
+      // Retry once on timeout/abort — transient backend slowness.
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        return await attempt();
+      }
+      throw e;
     }
-    const res = result.value;
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      const isDuplicate =
-        body.includes("23505") || body.includes("duplicate key");
-      if (isDuplicate) {
-        created++;
+  };
+
+  for (const payload of [...itemsToCreate].reverse()) {
+    try {
+      const res = await postCalendarItem(payload);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const isDuplicate =
+          body.includes("23505") || body.includes("duplicate key");
+        if (isDuplicate) {
+          created++;
+          continue;
+        }
+        failed++;
+        if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
         continue;
       }
       failed++;
