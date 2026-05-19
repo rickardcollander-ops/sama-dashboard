@@ -181,15 +181,77 @@ export async function POST(req: NextRequest) {
       req.headers.get("origin") ||
       new URL(req.url).origin;
     const redirectTo = `${appUrl}/c/auth/reset-password`;
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { invited_to_account_id: accountId },
-    });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: { invited_to_account_id: accountId },
+      });
+      if (error) {
+        // Some Supabase deployments respond with an empty error body when the
+        // user already exists. Retry by looking up the user directly so we can
+        // add them as a member without forcing a re-invite.
+        const msg = (error.message || "").toLowerCase();
+        const looksLikeExists =
+          msg.includes("already") ||
+          msg.includes("registered") ||
+          msg.includes("exists");
+        if (looksLikeExists || !error.message || error.message === "{}") {
+          let lookupPage = 1;
+          while (lookupPage <= 50) {
+            const { data: list, error: listErr } = await admin.auth.admin.listUsers({
+              page: lookupPage,
+              perPage,
+            });
+            if (listErr) break;
+            const found = list.users.find(
+              (u) => (u.email ?? "").toLowerCase() === email,
+            );
+            if (found) {
+              invitedUserId = found.id;
+              break;
+            }
+            if (list.users.length < perPage) break;
+            lookupPage += 1;
+          }
+          if (!invitedUserId) {
+            console.error("[members:invite] inviteUserByEmail failed", {
+              email,
+              accountId,
+              error,
+            });
+            return NextResponse.json(
+              {
+                error:
+                  error.message ||
+                  "Could not invite user. Check Supabase email config or rate limits.",
+              },
+              { status: 400 },
+            );
+          }
+        } else {
+          console.error("[members:invite] inviteUserByEmail failed", {
+            email,
+            accountId,
+            error,
+          });
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+      } else {
+        invitedUserId = data.user.id;
+        inviteSent = true;
+      }
+    } catch (e) {
+      console.error("[members:invite] inviteUserByEmail threw", {
+        email,
+        accountId,
+        error: e,
+      });
+      const msg = e instanceof Error ? e.message : "Failed to send invitation";
+      return NextResponse.json(
+        { error: msg && msg !== "{}" ? msg : "Failed to send invitation" },
+        { status: 500 },
+      );
     }
-    invitedUserId = data.user.id;
-    inviteSent = true;
   }
 
   // Insert the member row. If the auth user already existed we mark them
