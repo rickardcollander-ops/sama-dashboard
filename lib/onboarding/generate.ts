@@ -768,49 +768,56 @@ async function syncToBackend(
 
   // Insert in reverse order (day 30 → day 1) so that day 1 ends up with
   // the highest created_at, placing it first in the content list which
-  // the backend returns sorted by created_at DESC.
-  for (const payload of [...itemsToCreate].reverse()) {
-    try {
-      const res = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
+  // the backend returns sorted by created_at DESC. Run all requests in
+  // parallel so a single slow backend response doesn't block the rest.
+  const results = await Promise.allSettled(
+    [...itemsToCreate].reverse().map((payload) =>
+      fetch(`${SAMA_BACKEND_URL}/api/content/plan/calendar`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(45_000),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        const isDuplicate =
-          body.includes("23505") || body.includes("duplicate key");
-        if (isDuplicate) {
-          created++;
-          continue;
-        }
-        failed++;
-        if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
-        continue;
-      }
-      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
-      if (data && data.success === false) {
-        // 23505 = unique_violation: the keyword already exists for this tenant.
-        // Treat as success — the content is already there.
-        const isDuplicate =
-          String(data.code) === "23505" ||
-          (typeof data.message === "string" && data.message.includes("duplicate key"));
-        if (isDuplicate) {
-          created++;
-          continue;
-        }
-        failed++;
-        if (!firstError) {
-          firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
-        }
-        continue;
-      }
-      created++;
-    } catch (e) {
+      }),
+    ),
+  );
+
+  for (const result of results) {
+    if (result.status === "rejected") {
       failed++;
-      if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
+      if (!firstError) firstError = `plan/calendar: ${result.reason instanceof Error ? result.reason.message : "fetch failed"}`;
+      continue;
     }
+    const res = result.value;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const isDuplicate =
+        body.includes("23505") || body.includes("duplicate key");
+      if (isDuplicate) {
+        created++;
+        continue;
+      }
+      failed++;
+      if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
+      continue;
+    }
+    const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
+    if (data && data.success === false) {
+      // 23505 = unique_violation: the keyword already exists for this tenant.
+      // Treat as success — the content is already there.
+      const isDuplicate =
+        String(data.code) === "23505" ||
+        (typeof data.message === "string" && data.message.includes("duplicate key"));
+      if (isDuplicate) {
+        created++;
+        continue;
+      }
+      failed++;
+      if (!firstError) {
+        firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
+      }
+      continue;
+    }
+    created++;
   }
 
   return {
