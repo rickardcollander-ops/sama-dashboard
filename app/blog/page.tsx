@@ -82,14 +82,8 @@ export default function BlogPage() {
                 >
                   <Link
                     href={`/blog/${post.slug}`}
-                    className="transition-colors"
+                    className="transition-colors hover:text-[var(--neon-orange)]"
                     style={{ color: "var(--text-primary)" }}
-                    onMouseEnter={(e) =>
-                      ((e.target as HTMLElement).style.color = "var(--neon-orange)")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.target as HTMLElement).style.color = "var(--text-primary)")
-                    }
                   >
                     {post.title}
                   </Link>
