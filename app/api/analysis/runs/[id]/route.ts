@@ -4,7 +4,10 @@ import { buildBackendAuth } from "@/lib/integrations/backend-auth";
 import { sameDomain } from "@/lib/domain";
 import type { AnalysisRun } from "@/app/c/analysis/types";
 
-const SAMA_API_URL = process.env.NEXT_PUBLIC_SAMA_API_URL || "";
+const SAMA_API_URL =
+  process.env.SAMA_API_URL ||
+  process.env.NEXT_PUBLIC_SAMA_API_URL ||
+  "";
 
 async function loadSavedRun(id: string, tenantId: string, expectedDomain: string): Promise<AnalysisRun | null> {
   try {

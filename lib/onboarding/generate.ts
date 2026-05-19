@@ -688,12 +688,6 @@ async function syncToBackend(
     }
   };
 
-  const recordError = async (res: Response, label: string) => {
-    if (firstError) return;
-    const body = await res.text().catch(() => "");
-    firstError = `${label}: HTTP ${res.status} ${body.slice(0, 200)}`;
-  };
-
   const headers = backendHeaders(siteId, accessToken, accountId);
 
   // The top 2 keywords get pinned to day+1/day+2 and flagged draft_now:true
@@ -760,15 +754,31 @@ async function syncToBackend(
         signal: AbortSignal.timeout(45_000),
       });
       if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const isDuplicate =
+          body.includes("23505") || body.includes("duplicate key");
+        if (isDuplicate) {
+          created++;
+          continue;
+        }
         failed++;
-        await recordError(res, "plan/calendar");
+        if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
         continue;
       }
-      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null;
+      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
       if (data && data.success === false) {
+        // 23505 = unique_violation: the keyword already exists for this tenant.
+        // Treat as success — the content is already there.
+        const isDuplicate =
+          String(data.code) === "23505" ||
+          (typeof data.message === "string" && data.message.includes("duplicate key"));
+        if (isDuplicate) {
+          created++;
+          continue;
+        }
         failed++;
         if (!firstError) {
-          firstError = `plan/calendar: ${data.error || "success:false"}`;
+          firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
         }
         continue;
       }
