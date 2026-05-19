@@ -460,7 +460,7 @@ function CustomerSettingsPageInner() {
             <p className="mt-1 text-sm text-slate-500">{t.settings.subtitle}</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => window.location.href = "/c/onboarding"} className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
+            <button onClick={() => window.location.href = "/c/onboarding?rerun=1"} className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
               <Rocket className="h-4 w-4" />{t.settings.runOnboarding}
             </button>
             <button onClick={saveSettings} disabled={saving} className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 shadow-sm transition-colors">

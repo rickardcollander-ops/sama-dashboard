@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
   CheckCircle2, Loader2, X, Eye, Globe, ChevronRight, Phone,
-  Gift, Ban, KeyRound, Copy, AtSign, MoreHorizontal,
+  Gift, Ban, KeyRound, Copy, AtSign, MoreHorizontal, Eraser,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -1023,6 +1023,26 @@ export default function AdminPage() {
     };
   }, [isAdmin, load]);
 
+  const handleClearContent = async (acc: Account) => {
+    if (!confirm(`Rensa allt innehåll för ${acc.brand_name ?? acc.email ?? acc.id}? Artiklar och innehållsplan raderas permanent från SAMA-backenden. Onboarding-flaggan återställs.`)) return;
+    setPendingId(acc.id);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/clear-site-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId: acc.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setNotice(`Innehåll rensat för ${acc.brand_name ?? acc.email ?? acc.id}${body.errors ? ` (varningar: ${body.errors.join(", ")})` : ""}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte rensa innehåll");
+    } finally {
+      setPendingId(null);
+    }
+  };
+
   const handleDelete = async (acc: Account) => {
     if (!confirm(`Delete account ${acc.email ?? acc.id}? This cannot be undone.`)) return;
     setPendingId(acc.id);
@@ -1477,6 +1497,12 @@ export default function AdminPage() {
                               label: "Ändra e-postadress",
                               icon: <AtSign className="h-3.5 w-3.5 text-blue-600" />,
                               onClick: () => setChangeEmailFor(acc),
+                            },
+                            {
+                              label: "Rensa allt innehåll",
+                              icon: <Eraser className="h-3.5 w-3.5 text-orange-600" />,
+                              onClick: () => void handleClearContent(acc),
+                              destructive: true,
                             },
                             ...(!acc.email_confirmed_at
                               ? [

@@ -483,7 +483,11 @@ interface SiteMetaScrape {
   // Plain-text excerpt of the rendered page body, used by the brand
   // profiler. Empty string when scraping failed.
   body_text: string;
+  // First article/blog URL found on the homepage, if any.
+  example_article_url: string;
 }
+
+const ARTICLE_PATH_RE = /\/(blog|article|articles|post|posts|news|insights|resources|learn|guides|guide)\//i;
 
 async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
   const host = domain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
@@ -509,11 +513,31 @@ async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 3000);
+
+    // Find the first internal link that looks like a blog/article page.
+    let exampleArticleUrl = "";
+    const linkRe = /<a[^>]+href=["']([^"'#?]{10,300})["']/gi;
+    let match: RegExpExecArray | null;
+    while ((match = linkRe.exec(html)) !== null) {
+      const href = match[1].trim();
+      try {
+        const url = new URL(href, `https://${host}`);
+        if (url.hostname !== host) continue;
+        if (ARTICLE_PATH_RE.test(url.pathname) && url.pathname.split("/").length >= 3) {
+          exampleArticleUrl = url.href;
+          break;
+        }
+      } catch {
+        // malformed href — skip
+      }
+    }
+
     return {
       brand_name: (og("og:site_name") || title.split(/[|–\-—]/)[0]).trim().slice(0, 80),
       brand_description: (og("og:description") || meta("description")).slice(0, 500),
       content_language: lang || "",
       body_text: bodyText,
+      example_article_url: exampleArticleUrl,
     };
   } catch {
     return null;
@@ -779,28 +803,28 @@ async function syncToBackend(
         if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
         continue;
       }
-      const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
-      if (data && data.success === false) {
-        // 23505 = unique_violation: the keyword already exists for this tenant.
-        // Treat as success — the content is already there.
-        const isDuplicate =
-          String(data.code) === "23505" ||
-          (typeof data.message === "string" && data.message.includes("duplicate key"));
-        if (isDuplicate) {
-          created++;
-          continue;
-        }
-        failed++;
-        if (!firstError) {
-          firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
-        }
+      failed++;
+      if (!firstError) firstError = `plan/calendar: HTTP ${res.status} ${body.slice(0, 200)}`;
+      continue;
+    }
+    const data = (await res.json().catch(() => null)) as { success?: boolean; error?: string; code?: string | number; message?: string } | null;
+    if (data && data.success === false) {
+      // 23505 = unique_violation: the keyword already exists for this tenant.
+      // Treat as success — the content is already there.
+      const isDuplicate =
+        String(data.code) === "23505" ||
+        (typeof data.message === "string" && data.message.includes("duplicate key"));
+      if (isDuplicate) {
+        created++;
         continue;
       }
-      created++;
-    } catch (e) {
       failed++;
-      if (!firstError) firstError = `plan/calendar: ${e instanceof Error ? e.message : "fetch failed"}`;
+      if (!firstError) {
+        firstError = `plan/calendar: ${data.error || data.message || "success:false"}`;
+      }
+      continue;
     }
+    created++;
   }
 
   return {
@@ -1057,6 +1081,7 @@ export async function runOnboardingGeneration(opts: {
       brand_name: input.brand_name || scrape?.brand_name || input.domain,
       brand_description: input.brand_description || scrape?.brand_description || "",
       content_language: input.content_language || scrape?.content_language || "en",
+      example_article_url: input.example_article_url || scrape?.example_article_url || "",
     };
 
     await job.setStep("analyzing_brand");

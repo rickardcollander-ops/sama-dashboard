@@ -81,6 +81,13 @@ export async function GET(
       }
       const saved = await loadSavedAudit(id, tenantId, expectedDomain);
       if (saved) return NextResponse.json(saved);
+      // The backend removes run rows when they finish (instead of updating
+      // status to "completed"). Return a synthetic completed response so the
+      // browser console doesn't flood with red 404 errors — callers already
+      // treat a missing run as done.
+      if (upstream.status === 404) {
+        return NextResponse.json({ id, status: "completed", _source: "not_found" });
+      }
       return NextResponse.json(body, { status: upstream.status });
     } catch {
       const saved = await loadSavedAudit(id, tenantId, expectedDomain);

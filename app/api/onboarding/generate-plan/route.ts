@@ -83,16 +83,27 @@ export async function POST(req: NextRequest) {
     competitors: pickStringArray(body.competitors).slice(0, 10),
     geo_queries: pickStringArray(body.geo_queries).slice(0, 10),
     brand_color: typeof body.brand_color === "string" ? body.brand_color.trim() : "",
-    example_article_url:
-      typeof body.example_article_url === "string" ? body.example_article_url.trim() : "",
   };
 
   const siteId = resolveSiteId(req, user.id);
 
+  // When an admin runs onboarding on behalf of a customer the siteId differs
+  // from user.id. Look up the site's actual owner so rows land under the
+  // correct account rather than the admin's.
+  let ownerId = user.id;
+  if (siteId !== user.id) {
+    const { data: siteRow } = await admin
+      .from("user_sites")
+      .select("user_id")
+      .eq("id", siteId)
+      .maybeSingle();
+    if (siteRow?.user_id) ownerId = siteRow.user_id;
+  }
+
   const { data: job, error: jobError } = await admin
     .from("onboarding_jobs")
     .insert({
-      user_id: user.id,
+      user_id: ownerId,
       site_id: siteId,
       status: "queued",
       step: "queued",
@@ -114,7 +125,7 @@ export async function POST(req: NextRequest) {
     await runOnboardingGeneration({
       admin,
       jobId: job.id,
-      userId: user.id,
+      userId: ownerId,
       siteId,
       input,
       apiKey,
