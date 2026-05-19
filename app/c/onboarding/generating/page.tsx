@@ -58,7 +58,7 @@ function GeneratingInner() {
   const router = useRouter();
   const params = useSearchParams();
   const jobId = params.get("job") || "";
-  const { effectiveTenantId } = useSite();
+  const { effectiveTenantId, activeAccountId } = useSite();
   const { t } = useLanguage();
   const og = t.onboardingGenerating;
 
@@ -68,8 +68,13 @@ function GeneratingInner() {
       h["X-Tenant-ID"] = effectiveTenantId;
       h["X-Sama-Site-Id"] = effectiveTenantId;
     }
+    // Needed in admin view-as mode: without it buildBackendAuth falls back to
+    // the admin's own user_id, mismatching the account that owns the audit run.
+    if (activeAccountId) {
+      h["X-Sama-Account-Id"] = activeAccountId;
+    }
     return h;
-  }, [effectiveTenantId]);
+  }, [effectiveTenantId, activeAccountId]);
 
   const [job, setJob] = useState<JobStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("running_job");
