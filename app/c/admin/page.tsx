@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Shield, Trash2, Mail, RefreshCw, UserPlus, AlertCircle,
   CheckCircle2, Loader2, X, Eye, Globe, ChevronRight, Phone,
-  Gift, Ban,
+  Gift, Ban, KeyRound, Copy, AtSign,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
@@ -534,6 +534,294 @@ function GrantModal({
   );
 }
 
+// ── Set password modal ─────────────────────────────────────────────────────────
+
+function SetPasswordModal({
+  account,
+  onClose,
+  onDone,
+  onError,
+}: {
+  account: Account;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [customPassword, setCustomPassword] = useState("");
+  const [useCustom, setUseCustom] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const payload: Record<string, string> = {};
+      if (useCustom) {
+        if (customPassword.length < 8) {
+          onError("Lösenordet måste vara minst 8 tecken.");
+          setSubmitting(false);
+          return;
+        }
+        payload.password = customPassword;
+      }
+      const res = await fetch(`/api/admin/accounts/${account.id}/set-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setResult(body.password);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Kunde inte sätta lösenord");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — admin can copy manually */
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-amber-600" />
+              Sätt nytt lösenord
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {account.email ?? account.brand_name ?? account.id}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {result ? (
+          <div className="mt-5 space-y-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+              Lösenordet är nu satt. Visa det för användaren — det visas inte igen.
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Nytt lösenord</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={result}
+                  className="flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-900 focus:outline-none"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => void handleCopy()}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copied ? "Kopierat!" : "Kopiera"}
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => {
+                  onDone(`Nytt lösenord satt för ${account.email ?? account.id}`);
+                }}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Klar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              Sätter ett nytt lösenord på kontot direkt och markerar e-posten som bekräftad.
+              Användaren kan logga in med det nya lösenordet omedelbart.
+            </div>
+            <label className="flex items-start gap-2 cursor-pointer rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+              <input
+                type="radio"
+                checked={!useCustom}
+                onChange={() => setUseCustom(false)}
+                disabled={submitting}
+                className="mt-0.5 accent-amber-600"
+              />
+              <div className="text-sm">
+                <div className="font-medium text-slate-900">Generera slumpmässigt</div>
+                <div className="text-xs text-slate-500">
+                  14 tecken, säkert. Visas en gång efteråt så du kan kopiera/skicka.
+                </div>
+              </div>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+              <input
+                type="radio"
+                checked={useCustom}
+                onChange={() => setUseCustom(true)}
+                disabled={submitting}
+                className="mt-0.5 accent-amber-600"
+              />
+              <div className="flex-1 text-sm">
+                <div className="font-medium text-slate-900">Välj själv</div>
+                {useCustom && (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={customPassword}
+                    onChange={(e) => setCustomPassword(e.target.value)}
+                    placeholder="Minst 8 tecken"
+                    disabled={submitting}
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                )}
+              </div>
+            </label>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={onClose}
+                disabled={submitting}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => void handleSubmit()}
+                disabled={submitting || (useCustom && customPassword.length < 8)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                Sätt lösenord
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Change email modal ────────────────────────────────────────────────────────
+
+function ChangeEmailModal({
+  account,
+  onClose,
+  onDone,
+  onError,
+}: {
+  account: Account;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [email, setEmail] = useState(account.email ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const next = email.trim().toLowerCase();
+    if (!next || !next.includes("@")) {
+      onError("Giltig e-post krävs");
+      return;
+    }
+    if (next === (account.email ?? "").toLowerCase()) {
+      onError("E-postadressen är oförändrad");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/accounts/${account.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: next }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      onDone(`E-post ändrad till ${next}`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Kunde inte ändra e-post");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <AtSign className="h-5 w-5 text-blue-600" />
+              Ändra e-post
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Nuvarande: {account.email ?? "(saknas)"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">
+            Den nya adressen markeras som bekräftad direkt — användaren behöver inte klicka på någon
+            verifieringslänk för att logga in.
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Ny e-post</label>
+            <input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={submitting}
+              placeholder="user@company.com"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+              onKeyDown={(e) => e.key === "Enter" && !submitting && void handleSubmit()}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              onClick={onClose}
+              disabled={submitting}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+            >
+              Avbryt
+            </button>
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={submitting || !email.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />}
+              Spara
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Admin page ─────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -555,6 +843,8 @@ export default function AdminPage() {
   const [inviting, setInviting] = useState(false);
   const [planStatuses, setPlanStatuses] = useState<Record<string, PlanStatusEntry>>({});
   const [grantFor, setGrantFor] = useState<Account | null>(null);
+  const [setPasswordFor, setSetPasswordFor] = useState<Account | null>(null);
+  const [changeEmailFor, setChangeEmailFor] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -730,6 +1020,27 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "Could not send invitation");
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleConfirmEmail = async (acc: Account) => {
+    if (!confirm(`Markera ${acc.email ?? acc.id} som e-postbekräftad?`)) return;
+    setPendingId(acc.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/accounts/${acc.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm_email: true }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setNotice(`E-post bekräftad för ${acc.email ?? acc.id}`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte bekräfta e-post");
+    } finally {
+      setPendingId(null);
     }
   };
 
@@ -1063,12 +1374,41 @@ export default function AdminPage() {
                         <button
                           onClick={() => void handleResetPassword(acc)}
                           disabled={busy || !acc.email}
-                          title="Send password reset"
-                          aria-label="Reset password"
+                          title="Skicka återställningsmail"
+                          aria-label="Skicka återställningsmail"
                           className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                         >
                           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                         </button>
+                        <button
+                          onClick={() => setSetPasswordFor(acc)}
+                          disabled={busy}
+                          title="Sätt nytt lösenord direkt"
+                          aria-label="Sätt nytt lösenord"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setChangeEmailFor(acc)}
+                          disabled={busy}
+                          title="Ändra e-postadress"
+                          aria-label="Ändra e-post"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <AtSign className="h-3.5 w-3.5" />
+                        </button>
+                        {!acc.email_confirmed_at && (
+                          <button
+                            onClick={() => void handleConfirmEmail(acc)}
+                            disabled={busy || !acc.email}
+                            title="Bekräfta e-post manuellt"
+                            aria-label="Bekräfta e-post"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         {planStatuses[acc.id]?.plan_status === "admin_granted" ? (
                           <button
                             onClick={() => void handleRevoke(acc)}
@@ -1121,6 +1461,36 @@ export default function AdminPage() {
           onClose={() => setGrantFor(null)}
           onSubmit={(payload) => void handleGrant(grantFor, payload)}
           submitting={pendingId === grantFor.id}
+        />
+      )}
+
+      {setPasswordFor && (
+        <SetPasswordModal
+          account={setPasswordFor}
+          onClose={() => setSetPasswordFor(null)}
+          onDone={(msg) => {
+            setSetPasswordFor(null);
+            setNotice(msg);
+            void load();
+          }}
+          onError={(msg) => {
+            setError(msg);
+          }}
+        />
+      )}
+
+      {changeEmailFor && (
+        <ChangeEmailModal
+          account={changeEmailFor}
+          onClose={() => setChangeEmailFor(null)}
+          onDone={(msg) => {
+            setChangeEmailFor(null);
+            setNotice(msg);
+            void load();
+          }}
+          onError={(msg) => {
+            setError(msg);
+          }}
         />
       )}
 

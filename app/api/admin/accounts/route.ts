@@ -166,12 +166,25 @@ export async function POST(req: NextRequest) {
   if (email) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get("origin") || new URL(req.url).origin;
     const redirectTo = `${appUrl}/c/auth/reset-password`;
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
+      if (error) {
+        console.error("[admin:accounts:create] inviteUserByEmail failed", { email, error });
+        const msg = error.message && error.message !== "{}"
+          ? error.message
+          : "Could not invite user. Check Supabase email config or rate limits.";
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      userId = data.user.id;
+      invited = true;
+    } catch (e) {
+      console.error("[admin:accounts:create] inviteUserByEmail threw", { email, error: e });
+      const msg = e instanceof Error ? e.message : "";
+      return NextResponse.json(
+        { error: msg && msg !== "{}" ? msg : "Failed to send invitation" },
+        { status: 500 },
+      );
     }
-    userId = data.user.id;
-    invited = true;
   } else {
     // No email supplied — generate an internal placeholder so the auth row exists
     // but no invite is sent. Admin can add real credentials later.
