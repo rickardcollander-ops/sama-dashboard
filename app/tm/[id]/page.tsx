@@ -105,7 +105,7 @@ export default function TmCampaignDetailPage({
     return acc;
   }, {});
 
-  const buildMailto = (lead: Lead): string => {
+  const buildEmailParts = (lead: Lead): { to: string; subject: string; body: string } => {
     const to = lead.contact_email ?? "";
     const company = lead.company_name || lead.domain || "";
     const subject = `Information om er sajt${company ? ` — ${company}` : ""}`;
@@ -114,7 +114,17 @@ export default function TmCampaignDetailPage({
       ? `Vi körde en snabb AI-läsbarhetsanalys av ${lead.domain || "er sajt"} och fick en score på ${lead.audit_score}/100. Jag tänkte dela vad vi hittade och prata om hur ni kan lyfta synligheten.`
       : `Vi har tittat på ${lead.domain || "er sajt"} och har några konkreta förbättringar för synlighet i Google och AI-assistenter (ChatGPT, Claude, Perplexity).`;
     const body = `${greeting}\n\n${auditLine}\n\nFinns det 15 minuter nästa vecka för en kort genomgång?\n\n— SAMA-teamet`;
+    return { to, subject, body };
+  };
+
+  const buildMailto = (lead: Lead): string => {
+    const { to, subject, body } = buildEmailParts(lead);
     return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const buildGmailCompose = (lead: Lead): string => {
+    const { to, subject, body } = buildEmailParts(lead);
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const load = useCallback(async () => {
@@ -377,13 +387,24 @@ export default function TmCampaignDetailPage({
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5">
                         {lead.contact_email && (
-                          <a
-                            href={buildMailto(lead)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
-                            title="Öppna ett färdigt mail till denna lead"
-                          >
-                            <Mail className="h-3 w-3" /> Maila info
-                          </a>
+                          <div className="inline-flex rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
+                            <a
+                              href={buildGmailCompose(lead)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                              title="Öppna ett färdigt mail i Gmail"
+                            >
+                              <Mail className="h-3 w-3" /> Gmail
+                            </a>
+                            <a
+                              href={buildMailto(lead)}
+                              className="inline-flex items-center border-l border-violet-200 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                              title="Öppna i standardmailklient"
+                            >
+                              mailto
+                            </a>
+                          </div>
                         )}
                           <button
                             onClick={() => setActiveNotes(activeNotes === lead.id ? null : lead.id)}
