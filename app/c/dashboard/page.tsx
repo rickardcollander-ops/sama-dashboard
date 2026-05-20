@@ -23,9 +23,11 @@ import type { AnalysisStatusInputs, RequirementChecks } from "@/lib/analyses";
 
 // Recharts is ~150 kB gzipped — load it on the client only after the page
 // shell paints so the headline numbers (StatScoreboard) appear immediately.
+// Placeholder height matches the expanded chart (header ~56px + chart 224px +
+// padding) so hydration doesn't shift content below.
 const TrafficGraph = dynamic(() => import("@/components/dashboard/TrafficGraph"), {
   ssr: false,
-  loading: () => <div className="h-[88px] rounded-xl border bg-white shadow-sm" />,
+  loading: () => <div className="h-[304px] rounded-xl border bg-white shadow-sm" />,
 });
 
 // Below-the-fold sections — split so the initial JS payload only includes
@@ -97,6 +99,25 @@ interface ContentStats {
   updated_at?: string;
 }
 
+// Shape consumed by RecentOutcomes / UpcomingDrafts. Keep it loose so the
+// shared fetch here doesn't have to mirror every column they read — they
+// each pick their own fields.
+interface DashboardPieceRow {
+  id: string;
+  title: string;
+  type?: string;
+  content_type?: string;
+  status: string;
+  published_at?: string | null;
+  scheduled_for?: string | null;
+  created_at?: string;
+  source_gap_id?: string | null;
+  source_gap_title?: string | null;
+  source_strategy_topic?: string | null;
+  impressions_30d?: number;
+  clicks_30d?: number;
+}
+
 export default function CustomerDashboard() {
   const { user, loading: userLoading } = useUser();
   const {
@@ -120,6 +141,9 @@ export default function CustomerDashboard() {
   const [seoStats, setSeoStats] = useState<SeoStats | null>(null);
   const [contentStats, setContentStats] = useState<ContentStats | null>(null);
   const [anyContentEver, setAnyContentEver] = useState(false);
+  // Single fetch shared with RecentOutcomes + UpcomingDrafts so the two
+  // below-the-fold sections don't each fire their own /api/content/pieces.
+  const [recentPieces, setRecentPieces] = useState<DashboardPieceRow[] | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState(0);
   // Integration connection status — only used post-onboarding to drive the
   // "Kvar att göra" checklist (Google services, GitHub, CMS). Cheap calls,
@@ -208,6 +232,7 @@ export default function CustomerDashboard() {
     setSeoStats(null);
     setContentStats(null);
     setAnyContentEver(false);
+    setRecentPieces(null);
     setPendingApprovals(0);
     setTrafficData({});
     setGoogleConnected(false);
@@ -323,9 +348,14 @@ export default function CustomerDashboard() {
     // Run both calls in parallel — they're independent, and the original
     // sequential pattern was adding a full extra round-trip to the
     // slowest leg of loadData() on every dashboard refresh.
+    // The pieces fetch is bumped to limit=50 so RecentOutcomes and
+    // UpcomingDrafts can reuse the response instead of refetching the
+    // same endpoint twice from below the fold.
     const [statsResult, piecesResult] = await Promise.allSettled([
       tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`),
-      tenantClient.get<Record<string, unknown>>("/api/content/pieces?limit=1"),
+      tenantClient.get<{ pieces?: DashboardPieceRow[]; total?: number }>(
+        "/api/content/pieces?limit=50",
+      ),
     ]);
     if (statsResult.status === "fulfilled" && statsResult.value) {
       const data = statsResult.value;
@@ -339,10 +369,14 @@ export default function CustomerDashboard() {
       });
     }
     if (piecesResult.status === "fulfilled" && piecesResult.value) {
-      const pieces = piecesResult.value;
-      const list = pieces?.pieces as unknown[] | undefined;
-      const allTimeTotal = (pieces?.total ?? list?.length ?? 0) as number;
+      const list = piecesResult.value.pieces ?? [];
+      const allTimeTotal = piecesResult.value.total ?? list.length;
       setAnyContentEver(allTimeTotal > 0);
+      setRecentPieces(list);
+    } else {
+      // Surface an empty array so the children stop showing their loading
+      // state instead of hanging on `null` forever after a failed fetch.
+      setRecentPieces([]);
     }
   };
 
@@ -546,8 +580,8 @@ export default function CustomerDashboard() {
             ))}
           </div>
           <div className="mt-8 space-y-4">
-            <div className="h-[88px] rounded-xl border bg-white shadow-sm" />
-            <div className="h-[88px] rounded-xl border bg-white shadow-sm" />
+            <div className="h-[304px] rounded-xl border bg-white shadow-sm" />
+            <div className="h-[304px] rounded-xl border bg-white shadow-sm" />
           </div>
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2 h-64 rounded-xl border bg-white shadow-sm" />
@@ -674,13 +708,13 @@ export default function CustomerDashboard() {
         {user && (
           <div className="mt-8 space-y-4">
             <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
-            <UpcomingDrafts tenantId={effectiveTenantId} />
+            <UpcomingDrafts tenantId={effectiveTenantId} pieces={recentPieces} />
           </div>
         )}
 
         {user && (
           <div className="mt-8">
-            <RecentOutcomes tenantId={effectiveTenantId} />
+            <RecentOutcomes tenantId={effectiveTenantId} pieces={recentPieces} />
           </div>
         )}
       </main>

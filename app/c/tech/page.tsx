@@ -8,6 +8,7 @@ import {
   FileDown, Eye,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import CodeBlock, { type CodeBlockLanguage } from "@/components/tech/CodeBlock";
@@ -277,14 +278,7 @@ export default function TechAgentPage() {
   const otherFindings = auditFindings.filter((f) => f.severity !== "critical");
 
   if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (

@@ -10,6 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import AIReadabilityCard from "@/components/analysis/AIReadabilityCard";
 import { useUser } from "@/lib/hooks/useUser";
@@ -286,14 +287,7 @@ export default function CustomerGeoPage() {
     queriesStaleDays >= GEO_QUERIES_STALE_DAYS;
 
   if (userLoading || loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+    return <CustomerPageShellSkeleton maxWidth="max-w-6xl" />;
   }
 
   return (
