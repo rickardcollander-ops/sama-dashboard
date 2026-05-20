@@ -50,11 +50,32 @@ export async function GET(req: NextRequest) {
     cookies: { getAll: () => [], setAll: () => {} },
   });
 
+  // Scheduled publishes are stored in user_sites.settings (written by
+  // appendScheduled in lib/integrations/store.ts). The old cron read from
+  // user_settings which is the wrong table — nothing was ever processed.
   const { data: rows, error } = await admin
-    .from("user_settings")
-    .select("user_id, settings");
+    .from("user_sites")
+    .select("id, user_id, settings");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Brand name lives in user_settings, not user_sites. Load it once per user
+  // so we can pass it to the JSON-LD builder without a query per item.
+  const userIds = [...new Set((rows || []).map((r) => (r as { user_id: string }).user_id))];
+  const brandByUserId = new Map<string, string | undefined>();
+  if (userIds.length) {
+    const { data: userSettingsRows } = await admin
+      .from("user_settings")
+      .select("user_id, settings")
+      .in("user_id", userIds);
+    for (const ur of userSettingsRows || []) {
+      const s = ((ur as { settings?: Record<string, unknown> }).settings || {}) as Record<string, unknown>;
+      brandByUserId.set(
+        (ur as { user_id: string }).user_id,
+        typeof s.brand_name === "string" ? (s.brand_name as string) : undefined,
+      );
+    }
   }
 
   const now = Date.now();
@@ -65,10 +86,14 @@ export async function GET(req: NextRequest) {
   };
 
   for (const row of rows || []) {
+    const siteId = (row as { id: string }).id;
+    const userId = (row as { user_id: string }).user_id;
     const settings = ((row as { settings?: SettingsRow }).settings || {}) as SettingsRow;
     const scheduled: ScheduledRow[] = settings.scheduled_publishes || [];
     const destinations: DestinationRow[] = settings.publishing_destinations || [];
     if (!scheduled.length) continue;
+
+    const brandName = brandByUserId.get(userId);
 
     let mutated = false;
     for (const item of scheduled) {
@@ -97,8 +122,8 @@ export async function GET(req: NextRequest) {
           image: str("featured_image_url"),
           language: str("language"),
           keywords: arr("tags"),
-          author_name: settings.brand_name,
-          publisher_name: settings.brand_name,
+          author_name: brandName,
+          publisher_name: brandName,
         });
         const input: PublishInput = {
           title: str("title") || "",
@@ -129,9 +154,9 @@ export async function GET(req: NextRequest) {
     if (mutated) {
       const next = { ...settings, scheduled_publishes: scheduled };
       await admin
-        .from("user_settings")
+        .from("user_sites")
         .update({ settings: next, updated_at: new Date().toISOString() })
-        .eq("user_id", row.user_id);
+        .eq("id", siteId);
     }
   }
 
