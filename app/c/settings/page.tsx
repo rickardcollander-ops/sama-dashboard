@@ -724,8 +724,8 @@ function CustomerSettingsPageInner() {
                         )}
                       </div>
                     </div>
-                    {key === "analytics" && connected && user && <GoogleAnalyticsPropertyPicker tenantId={user.id} />}
-                    {key === "search_console" && connected && user && <GoogleSearchConsolePropertyPicker tenantId={user.id} />}
+                    {key === "analytics" && connected && user && <GoogleAnalyticsPropertyPicker tenantId={effectiveTenantId ?? user.id} />}
+                    {key === "search_console" && connected && user && <GoogleSearchConsolePropertyPicker tenantId={effectiveTenantId ?? user.id} />}
                   </div>
                 );
               })}
