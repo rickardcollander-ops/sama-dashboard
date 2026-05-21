@@ -8,6 +8,7 @@ import {
   Phone,
   ChevronRight,
   FileSpreadsheet,
+  TrendingUp,
 } from "lucide-react";
 
 interface CampaignRow {
@@ -45,18 +46,26 @@ export default function TmCampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
+  const [changesToday, setChangesToday] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setFetching(true);
     setError("");
     try {
-      const res = await fetch("/api/tm/campaigns", { cache: "no-store" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
+      const [campaignsRes, statsRes] = await Promise.all([
+        fetch("/api/tm/campaigns", { cache: "no-store" }),
+        fetch("/api/tm/stats", { cache: "no-store" }),
+      ]);
+      if (!campaignsRes.ok) {
+        const body = await campaignsRes.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${campaignsRes.status}`);
       }
-      const body = (await res.json()) as { campaigns: CampaignRow[] };
+      const body = (await campaignsRes.json()) as { campaigns: CampaignRow[] };
       setCampaigns(body.campaigns);
+      if (statsRes.ok) {
+        const stats = (await statsRes.json()) as { changes_today: number };
+        setChangesToday(stats.changes_today);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte ladda kampanjer");
     } finally {
@@ -71,13 +80,28 @@ export default function TmCampaignsPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
       <header className="mb-8 border-b border-slate-200 pb-6">
-        <h1 className="flex items-center gap-2 text-2xl sm:text-3xl font-bold text-slate-900">
-          <Phone className="h-7 w-7 text-violet-600" />
-          TM-kampanjlistor
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Logga ringningar, uppdatera status och anteckningar per kontakt.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl sm:text-3xl font-bold text-slate-900">
+              <Phone className="h-7 w-7 text-violet-600" />
+              TM-kampanjlistor
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Logga ringningar, uppdatera status och anteckningar per kontakt.
+            </p>
+          </div>
+          {changesToday !== null && (
+            <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+              <TrendingUp className="h-5 w-5 text-violet-600" />
+              <div>
+                <div className="text-2xl font-bold tabular-nums text-violet-700">
+                  {changesToday}
+                </div>
+                <div className="text-xs text-violet-500">ändringar idag</div>
+              </div>
+            </div>
+          )}
+        </div>
       </header>
 
       {error && (
