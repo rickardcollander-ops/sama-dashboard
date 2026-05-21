@@ -11,7 +11,10 @@ const CSP_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://web-production-5324a.up.railway.app https://*.vercel.app https://challenges.cloudflare.com https://www.google-analytics.com",
+  // GA4 (gtag) routes hits to regional collectors — region1/region2.google-
+  // analytics.com and analytics.google.com — not just www. Scope the wildcard
+  // to the analytics vendors so enabling CSP_ENFORCE doesn't break tracking.
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://web-production-5324a.up.railway.app https://*.vercel.app https://challenges.cloudflare.com https://*.google-analytics.com https://*.analytics.google.com",
   "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "form-action 'self'",
