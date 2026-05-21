@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, ArrowUp, Download, Edit3, Globe, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, Download, Edit3, Globe, Loader2, X } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -79,6 +79,40 @@ function BackToTop() {
   );
 }
 
+function AutoTextarea({
+  value,
+  onChange,
+  className,
+  placeholder,
+  maxLength,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  placeholder?: string;
+  maxLength?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.style.height = "auto";
+      ref.current.style.height = ref.current.scrollHeight + "px";
+    }
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      rows={1}
+      style={{ overflow: "hidden" }}
+    />
+  );
+}
+
 function ArticleInner({ id }: { id: string }) {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
@@ -86,6 +120,15 @@ function ArticleInner({ id }: { id: string }) {
   const [piece, setPiece] = useState<PieceFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editMetaDescription, setEditMetaDescription] = useState("");
+  const [editIntroMd, setEditIntroMd] = useState("");
+  const [editSections, setEditSections] = useState<Array<{ id: string; heading: string; body_md: string; image?: any }>>([]);
+  const [editMarkdown, setEditMarkdown] = useState("");
 
   useEffect(() => {
     if (userLoading) return;
@@ -158,6 +201,54 @@ function ArticleInner({ id }: { id: string }) {
   const markdown = piece.content || piece.body || piece.markdown || "";
   const intro = (articleData as any).intro_md as string | undefined;
 
+  const startEdit = () => {
+    setEditTitle(piece.title);
+    setEditMetaDescription(piece.meta_description || "");
+    setEditIntroMd(intro || "");
+    setEditSections(hasStructured ? JSON.parse(JSON.stringify(articleData.sections)) : []);
+    setEditMarkdown(markdown);
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => setEditMode(false);
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      const sb = (await import("@/lib/supabase-browser")).getSupabaseBrowser();
+      const updates: Record<string, any> = {
+        title: editTitle,
+        meta_description: editMetaDescription || null,
+      };
+      if (hasStructured) {
+        updates.article_data = {
+          ...articleData,
+          intro_md: editIntroMd,
+          sections: editSections,
+        };
+      } else {
+        updates.content = editMarkdown;
+      }
+      const { error: sbErr } = await sb.from("content_pieces").update(updates).eq("id", piece.id);
+      if (sbErr) throw sbErr;
+      setPiece((prev) => {
+        if (!prev) return prev;
+        const next: PieceFull = { ...prev, title: editTitle, meta_description: editMetaDescription || null };
+        if (hasStructured) {
+          next.article_data = { ...articleData, intro_md: editIntroMd, sections: editSections } as ArticleData;
+        } else {
+          next.content = editMarkdown;
+        }
+        return next;
+      });
+      setEditMode(false);
+    } catch (err: any) {
+      alert(err.message || "Kunde inte spara ändringar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleExport = () => {
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -168,12 +259,20 @@ function ArticleInner({ id }: { id: string }) {
     URL.revokeObjectURL(url);
   };
 
+  const updateSection = (i: number, field: "heading" | "body_md", value: string) => {
+    setEditSections((prev) => {
+      const next = [...prev];
+      next[i] = { ...next[i], [field]: value };
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <ReadingProgress />
       <CustomerNav />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Top toolbar — always visible above the grid */}
+        {/* Top toolbar */}
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <button
@@ -183,13 +282,38 @@ function ArticleInner({ id }: { id: string }) {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <Link
-              href={`/c/content?edit=${piece.id}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 text-sm font-medium shadow-sm"
-            >
-              <Edit3 className="h-4 w-4" />
-              Edit
-            </Link>
+            {editMode ? (
+              <>
+                <button
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Avbryt
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 text-sm font-medium shadow-sm transition-colors disabled:opacity-70"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  {saving ? "Sparar…" : "Spara"}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={startEdit}
+                className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 text-sm font-medium shadow-sm transition-colors"
+              >
+                <Edit3 className="h-4 w-4" />
+                Edit
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -212,16 +336,28 @@ function ArticleInner({ id }: { id: string }) {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-10">
           {/* Article column */}
           <div className="min-w-0">
-            <ArticleHero
-              title={piece.title}
-              date={dateStr}
-              primaryKeyword={articleData.primary_keyword || piece.target_keyword || undefined}
-              wordCount={
-                articleData.score?.metrics?.word_count ?? piece.word_count ?? undefined
-              }
-              score={typeof piece.article_score === "number" ? piece.article_score : undefined}
-              contentType={piece.content_type || undefined}
-            />
+            {/* Title */}
+            {editMode ? (
+              <header className="mb-10">
+                <AutoTextarea
+                  value={editTitle}
+                  onChange={setEditTitle}
+                  className="w-full text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.1] mb-5 bg-white border-2 border-orange-300 rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-orange-500 transition-colors"
+                  placeholder="Artikelrubrik…"
+                />
+              </header>
+            ) : (
+              <ArticleHero
+                title={piece.title}
+                date={dateStr}
+                primaryKeyword={articleData.primary_keyword || piece.target_keyword || undefined}
+                wordCount={
+                  articleData.score?.metrics?.word_count ?? piece.word_count ?? undefined
+                }
+                score={typeof piece.article_score === "number" ? piece.article_score : undefined}
+                contentType={piece.content_type || undefined}
+              />
+            )}
 
             {piece.featured_image_url && (
               <figure className="mb-10">
@@ -235,28 +371,102 @@ function ArticleInner({ id }: { id: string }) {
               </figure>
             )}
 
-            {/* Structured rendering when article_data is available;
-                otherwise fall back to the merged markdown body for legacy pieces. */}
             {hasStructured ? (
-              <>
-                {intro && (
-                  <div className="prose prose-slate prose-lg max-w-none prose-p:text-slate-700 prose-p:leading-relaxed mb-4">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{intro}</ReactMarkdown>
+              editMode ? (
+                <div className="space-y-8">
+                  {/* Intro */}
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Introduktion</div>
+                    <AutoTextarea
+                      value={editIntroMd}
+                      onChange={setEditIntroMd}
+                      className="w-full text-slate-700 text-base leading-relaxed bg-white border border-slate-200 rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-orange-400 transition-colors font-mono text-sm"
+                      placeholder="Introduktionstext (Markdown)…"
+                    />
                   </div>
-                )}
-                {articleData.table_of_contents && articleData.table_of_contents.length > 0 && (
-                  <ArticleTOC items={articleData.table_of_contents as any} />
-                )}
-                {articleData.key_takeaways && articleData.key_takeaways.length > 0 && (
-                  <KeyTakeawaysGrid items={articleData.key_takeaways as any} />
-                )}
-                {(articleData.sections as any[]).map((section, i) => (
-                  <ArticleSection key={section.id || i} section={section} />
-                ))}
-                {articleData.faq && articleData.faq.length > 0 && (
-                  <ArticleFAQ items={articleData.faq as any} />
-                )}
-              </>
+
+                  {/* Sections */}
+                  {editSections.map((section, i) => (
+                    <div key={section.id || i} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">H2-rubrik</div>
+                        <input
+                          type="text"
+                          value={section.heading}
+                          onChange={(e) => updateSection(i, "heading", e.target.value)}
+                          className="w-full text-2xl font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors"
+                          placeholder="Sektionsrubrik…"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Innehåll (Markdown)</div>
+                        <AutoTextarea
+                          value={section.body_md}
+                          onChange={(v) => updateSection(i, "body_md", v)}
+                          className="w-full text-slate-700 text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-orange-400 transition-colors font-mono min-h-[160px]"
+                          placeholder="Sektionsinnehåll (Markdown)…"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Meta description in edit mode */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Meta-beskrivning</div>
+                    <AutoTextarea
+                      value={editMetaDescription}
+                      onChange={setEditMetaDescription}
+                      className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-orange-400 transition-colors"
+                      placeholder="Meta-beskrivning för sökmotorer…"
+                      maxLength={160}
+                    />
+                    <div className="text-[11px] text-slate-400 text-right mt-1">{editMetaDescription.length}/160</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {intro && (
+                    <div className="prose prose-slate prose-lg max-w-none prose-p:text-slate-700 prose-p:leading-relaxed mb-4">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{intro}</ReactMarkdown>
+                    </div>
+                  )}
+                  {articleData.table_of_contents && articleData.table_of_contents.length > 0 && (
+                    <ArticleTOC items={articleData.table_of_contents as any} />
+                  )}
+                  {articleData.key_takeaways && articleData.key_takeaways.length > 0 && (
+                    <KeyTakeawaysGrid items={articleData.key_takeaways as any} />
+                  )}
+                  {(articleData.sections as any[]).map((section, i) => (
+                    <ArticleSection key={section.id || i} section={section} />
+                  ))}
+                  {articleData.faq && articleData.faq.length > 0 && (
+                    <ArticleFAQ items={articleData.faq as any} />
+                  )}
+                </>
+              )
+            ) : editMode ? (
+              <div className="space-y-6">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Artikelinnehåll (Markdown)</div>
+                  <AutoTextarea
+                    value={editMarkdown}
+                    onChange={setEditMarkdown}
+                    className="w-full text-slate-700 text-sm leading-relaxed bg-white border border-slate-200 rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-orange-400 transition-colors font-mono min-h-[400px]"
+                    placeholder="Artikelinnehåll (Markdown)…"
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Meta-beskrivning</div>
+                  <AutoTextarea
+                    value={editMetaDescription}
+                    onChange={setEditMetaDescription}
+                    className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-orange-400 transition-colors"
+                    placeholder="Meta-beskrivning för sökmotorer…"
+                    maxLength={160}
+                  />
+                  <div className="text-[11px] text-slate-400 text-right mt-1">{editMetaDescription.length}/160</div>
+                </div>
+              </div>
             ) : (
               <MarkdownArticle markdown={markdown} />
             )}
@@ -268,7 +478,7 @@ function ArticleInner({ id }: { id: string }) {
               score={score}
               articleData={articleData}
               slug={piece.slug}
-              metaDescription={piece.meta_description}
+              metaDescription={editMode ? editMetaDescription : piece.meta_description}
               featuredImageUrl={piece.featured_image_url}
               publishedDate={dateStr}
             />
