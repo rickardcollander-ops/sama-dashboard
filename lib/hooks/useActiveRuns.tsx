@@ -167,24 +167,26 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
     runsRef.current = runs;
   }, [runs]);
 
+  const userId = user?.id ?? "";
+
   // Load from localStorage when user becomes available — one-time hydration
   // per user. The setState here is the React-recommended way to seed state
   // from a per-user external source where the key is only known after auth.
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRuns(loadFromStorage(user.id));
-    setHydratedUserId(user.id);
-  }, [user]);
+    setRuns(loadFromStorage(userId));
+    setHydratedUserId(userId);
+  }, [userId]);
 
   // Persist whenever runs change — but only after we've actually
   // hydrated for this user, so we don't clobber storage with the
   // initial empty array on mount.
   useEffect(() => {
-    if (!user) return;
-    if (hydratedUserId !== user.id) return;
-    saveToStorage(user.id, runs);
-  }, [runs, user, hydratedUserId]);
+    if (!userId) return;
+    if (hydratedUserId !== userId) return;
+    saveToStorage(userId, runs);
+  }, [runs, userId, hydratedUserId]);
 
   const updateRun = useCallback((id: string, patch: Partial<ActiveRun>) => {
     setRuns((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -192,7 +194,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
 
   const triggerRun = useCallback<ActiveRunsContextValue["triggerRun"]>(
     async (agent, endpoint, options) => {
-      if (!user) return undefined;
+      if (!userId) return undefined;
       const id = `${agent}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const defaults = AGENT_DEFAULTS[agent];
       const newRun: ActiveRun = {
@@ -232,12 +234,12 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
         return id;
       }
     },
-    [user, updateRun, apiTenantId, activeAccountId],
+    [userId, updateRun, apiTenantId, activeAccountId],
   );
 
   const registerRun = useCallback<ActiveRunsContextValue["registerRun"]>(
     (agent, runId, options) => {
-      if (!user) return undefined;
+      if (!userId) return undefined;
       // De-dupe: if we're already tracking this backend run, don't add again.
       const existing = runsRef.current.find((r) => r.run_id === runId && r.agent === agent);
       if (existing) return existing.id;
@@ -255,7 +257,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
       setRuns((prev) => [...prev, newRun]);
       return id;
     },
-    [user],
+    [userId],
   );
 
   const dismissRun = useCallback((id: string) => {
@@ -270,7 +272,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
   // drops completed runs that have been visible long enough so the banner
   // doesn't accumulate yesterday's results.
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let cancelled = false;
     const reconcile = (
       prev: ActiveRun[],
@@ -458,7 +460,7 @@ export function ActiveRunsProvider({ children }: { children: React.ReactNode }) 
       cancelled = true;
       clearInterval(interval);
     };
-  }, [user, apiTenantId, activeAccountId]);
+  }, [userId, apiTenantId, activeAccountId]);
 
   const value = useMemo<ActiveRunsContextValue>(
     () => ({ runs, triggerRun, registerRun, dismissRun, clearCompleted }),

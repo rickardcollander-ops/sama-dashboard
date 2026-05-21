@@ -26,9 +26,14 @@ const listeners = new Set<() => void>();
 let initialized = false;
 
 function emit(next: AuthState) {
-  // Preserve referential stability when nothing changed so useSyncExternalStore
-  // doesn't schedule pointless re-renders across every consumer.
-  if (next.user === state.user && next.loading === state.loading) return;
+  // Re-render only when auth status meaningfully changes: loading flag flips,
+  // user goes null↔present, or the signed-in identity switches. Ignoring
+  // TOKEN_REFRESHED events (same user.id, new token object reference) avoids
+  // cascading re-renders of all ~30 consumers on every hourly token refresh.
+  if (
+    next.loading === state.loading &&
+    next.user?.id === state.user?.id
+  ) return;
   state = next;
   listeners.forEach((l) => l());
 }
