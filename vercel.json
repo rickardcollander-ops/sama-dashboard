@@ -16,6 +16,14 @@
     {
       "path": "/api/integrations/cron/weekly-agents",
       "schedule": "30 6 * * 1"
+    },
+    {
+      "path": "/api/integrations/cron/daily-content",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/integrations/cron/daily-content",
+      "schedule": "0 5 * * *"
     }
   ]
 }
