@@ -96,6 +96,12 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     }
   });
 
+  // Stable primitive deps — prevents hooks from being recreated on every
+  // TOKEN_REFRESHED event (new User object reference, same id) which would
+  // otherwise trigger cascading re-renders and extra API calls per hourly refresh.
+  const userId = user?.id ?? "";
+  const userEmail = user?.email ?? "";
+
   // sessionStorage survives sign-out/sign-in within the same tab. If a
   // non-admin lands on the dashboard with a stale view-as left over from
   // a previous admin session, every request will be tagged with the wrong
@@ -103,19 +109,19 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   // for non-admins, so they have no way to clear it. Drop it as soon as we
   // know who's logged in.
   useEffect(() => {
-    if (!user) return;
-    if (isAdminEmail(user.email)) return;
+    if (!userId) return;
+    if (isAdminEmail(userEmail)) return;
     if (typeof window === "undefined") return;
     if (!sessionStorage.getItem(VIEW_AS_KEY)) return;
     try {
       sessionStorage.removeItem(VIEW_AS_KEY);
     } catch { /* ignore */ }
     setViewAsState(null);
-  }, [user]);
+  }, [userId, userEmail]);
 
   // Load (and reconcile) the accounts the user has access to.
   const loadAccounts = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setAccounts([]);
       setActiveAccountIdState("");
       setAccountsLoading(false);
@@ -135,16 +141,16 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         typeof window !== "undefined" ? localStorage.getItem(ACTIVE_ACCOUNT_KEY) : null;
       const valid = stored && body.accounts.some((a) => a.account_id === stored);
       const fallback =
-        body.accounts.find((a) => a.account_id === user.id)?.account_id ??
+        body.accounts.find((a) => a.account_id === userId)?.account_id ??
         body.accounts[0]?.account_id ??
-        user.id;
+        userId;
       setActiveAccountIdState(valid ? stored : fallback);
     } catch (err) {
       console.error("[useSite] failed to load accounts:", err);
     } finally {
       setAccountsLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     void loadAccounts();
@@ -217,20 +223,20 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
     // Auto-migrate from user_settings if no sites exist yet (only when looking
     // at the user's own account — never invent sites for an account they joined).
-    if ((!data || data.length === 0) && effectiveOwnerId === user?.id) {
+    if ((!data || data.length === 0) && effectiveOwnerId === userId) {
       // maybeSingle so brand-new users (no user_settings row) don't get a
       // 406 in the console for the expected "no row" case.
       const { data: legacyRow } = await supabase
         .from("user_settings")
         .select("settings")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (legacyRow?.settings) {
         const s = legacyRow.settings as Record<string, unknown>;
         const { error: insertError } = await supabase.from("user_sites").insert({
-          id: user.id,
-          user_id: user.id,
+          id: userId,
+          user_id: userId,
           site_name: (s.brand_name as string) || "Webbsida 1",
           settings: s,
         });
@@ -238,7 +244,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
           const { data: fresh } = await supabase
             .from("user_sites")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .order("created_at", { ascending: true });
           data = fresh;
         }
@@ -263,7 +269,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     }
 
     setLoading(false);
-  }, [effectiveOwnerId, viewAs, user]);
+  }, [effectiveOwnerId, viewAs, userId]);
 
   // Gate site loading on accounts being resolved first — unless we're in
   // view-as mode (where effectiveOwnerId comes from viewAs, not accounts).
