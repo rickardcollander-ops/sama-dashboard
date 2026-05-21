@@ -20,6 +20,15 @@ const WEEKLY_TRIGGERS: AgentTrigger[] = [
   { agent: "analytics", endpoint: "/api/tenant/agents/analytics/trigger" },
 ];
 
+/** ISO week number (1–53) for a given date. */
+function isoWeekNumber(d: Date): number {
+  const jan4 = new Date(d.getUTCFullYear(), 0, 4);
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const diff = d.getTime() - startOfWeek1.getTime();
+  return 1 + Math.floor(diff / (7 * 24 * 60 * 60 * 1000));
+}
+
 /**
  * Weekly cron — fires every Monday 07:30 Europe/Stockholm time, year-round.
  *
@@ -133,6 +142,52 @@ export async function GET(req: NextRequest) {
           agent: trigger.agent,
           error: e instanceof Error ? e.message : "fetch failed",
         });
+      }
+    }
+
+    // Content autopilot — only for users who have explicitly enabled it.
+    const ap = (settings.content_autopilot ?? {}) as Record<string, unknown>;
+    if (ap.enabled === true) {
+      const cadence = typeof ap.cadence === "string" ? ap.cadence : "weekly";
+      const thisWeek = isoWeekNumber(new Date());
+      const shouldRunThisWeek = cadence !== "biweekly" || thisWeek % 2 === 1;
+
+      if (shouldRunThisWeek) {
+        summary.triggers_attempted += 1;
+        try {
+          const target = `${SAMA_API_URL.replace(/\/$/, "")}/api/tenant/agents/content/trigger`;
+          const res = await fetch(target, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Tenant-ID": userId,
+              "X-Sama-Intent": "user-action",
+            },
+            body: JSON.stringify({
+              source: "weekly_cron",
+              ideas_per_run: ap.ideas_per_run ?? 6,
+              auto_draft_top_n: ap.auto_draft_top_n ?? 3,
+              auto_publish: ap.auto_publish ?? false,
+              min_score_for_publish: ap.min_score_for_publish ?? 70,
+            }),
+          });
+          if (res.ok) {
+            summary.triggers_succeeded += 1;
+          } else {
+            const detail = await res.text().catch(() => "");
+            summary.failures.push({
+              user_id: userId,
+              agent: "content",
+              error: `${res.status} ${detail.slice(0, 120)}`,
+            });
+          }
+        } catch (e) {
+          summary.failures.push({
+            user_id: userId,
+            agent: "content",
+            error: e instanceof Error ? e.message : "fetch failed",
+          });
+        }
       }
     }
   }
