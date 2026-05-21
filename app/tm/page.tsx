@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FileSpreadsheet,
   TrendingUp,
+  Clock,
 } from "lucide-react";
 
 interface CampaignRow {
@@ -23,11 +24,48 @@ interface CampaignRow {
   updated_at: string;
 }
 
+interface RecentChange {
+  id: string;
+  company_name: string;
+  call_status: string;
+  call_notes: string | null;
+  updated_at: string;
+  campaign_id: string;
+}
+
+interface TmStats {
+  changes_today: number;
+  by_status: Record<string, number>;
+  recent: RecentChange[];
+}
+
 const STATUS_TONE: Record<CampaignRow["status"], string> = {
   pending: "bg-slate-100 text-slate-600",
   running: "bg-blue-100 text-blue-700",
   completed: "bg-emerald-100 text-emerald-700",
   failed: "bg-rose-100 text-rose-700",
+};
+
+const CALL_STATUS_LABELS: Record<string, string> = {
+  new: "Ny",
+  called: "Uppringd",
+  callback: "Ring tillbaka",
+  phone_missing: "Telefon saknas",
+  answering_machine: "Telesvarare",
+  not_interested: "Ej intresserad",
+  meeting_booked: "Möte bokat",
+  converted: "Konverterad",
+};
+
+const CALL_STATUS_TONE: Record<string, string> = {
+  new: "bg-slate-100 text-slate-600",
+  called: "bg-blue-100 text-blue-700",
+  callback: "bg-amber-100 text-amber-700",
+  phone_missing: "bg-orange-100 text-orange-700",
+  answering_machine: "bg-yellow-100 text-yellow-700",
+  not_interested: "bg-rose-100 text-rose-700",
+  meeting_booked: "bg-violet-100 text-violet-700",
+  converted: "bg-emerald-100 text-emerald-700",
 };
 
 function fmtRelative(iso: string): string {
@@ -46,7 +84,7 @@ export default function TmCampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
-  const [changesToday, setChangesToday] = useState<number | null>(null);
+  const [stats, setStats] = useState<TmStats | null>(null);
 
   const load = useCallback(async () => {
     setFetching(true);
@@ -63,8 +101,7 @@ export default function TmCampaignsPage() {
       const body = (await campaignsRes.json()) as { campaigns: CampaignRow[] };
       setCampaigns(body.campaigns);
       if (statsRes.ok) {
-        const stats = (await statsRes.json()) as { changes_today: number };
-        setChangesToday(stats.changes_today);
+        setStats((await statsRes.json()) as TmStats);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte ladda kampanjer");
@@ -76,6 +113,10 @@ export default function TmCampaignsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const statusBreakdown = stats
+    ? Object.entries(stats.by_status).sort((a, b) => b[1] - a[1])
+    : [];
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
@@ -90,24 +131,76 @@ export default function TmCampaignsPage() {
               Logga ringningar, uppdatera status och anteckningar per kontakt.
             </p>
           </div>
-          {changesToday !== null && (
+          {stats !== null && (
             <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
               <TrendingUp className="h-5 w-5 text-violet-600" />
               <div>
                 <div className="text-2xl font-bold tabular-nums text-violet-700">
-                  {changesToday}
+                  {stats.changes_today}
                 </div>
                 <div className="text-xs text-violet-500">ändringar idag</div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Status breakdown */}
+        {statusBreakdown.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {statusBreakdown.map(([status, count]) => (
+              <span
+                key={status}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${CALL_STATUS_TONE[status] ?? "bg-slate-100 text-slate-600"}`}
+              >
+                {CALL_STATUS_LABELS[status] ?? status}
+                <span className="font-bold tabular-nums">{count}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </header>
 
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <span className="flex-1">{error}</span>
+        </div>
+      )}
+
+      {/* Recent changes */}
+      {stats && stats.recent.length > 0 && (
+        <div className="mb-6 rounded-xl border bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <Clock className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-700">Senaste ändringar idag</h2>
+          </div>
+          <ul className="divide-y divide-slate-50">
+            {stats.recent.map((change) => (
+              <li key={change.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div className="min-w-0">
+                  <Link
+                    href={`/tm/${change.campaign_id}`}
+                    className="block truncate text-sm font-medium text-slate-800 hover:text-violet-700"
+                  >
+                    {change.company_name}
+                  </Link>
+                  {change.call_notes && (
+                    <p className="truncate text-xs text-slate-400 mt-0.5">{change.call_notes}</p>
+                  )}
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CALL_STATUS_TONE[change.call_status] ?? "bg-slate-100 text-slate-600"}`}
+                  >
+                    {CALL_STATUS_LABELS[change.call_status] ?? change.call_status}
+                  </span>
+                  <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap">
+                    {fmtRelative(change.updated_at)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

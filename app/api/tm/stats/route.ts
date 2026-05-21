@@ -16,30 +16,31 @@ export async function GET() {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
 
-  // Count leads where call_status or call_notes were changed today.
-  // updated_at is bumped by a DB trigger on every UPDATE. Leads that were
-  // just imported have call_status = 'new'; operators change that field or
-  // add call_notes, which bumps updated_at. We therefore count leads that
-  // have been updated today AND have moved beyond the default 'new' state.
-  const { count: statusCount, error: e1 } = await admin
+  // Fetch all leads touched by a TM operator today.
+  // Proxy for "operator touched": call_status moved beyond 'new', or notes were added.
+  // updated_at is bumped by a DB trigger on every UPDATE.
+  const { data, error } = await admin
     .from("apollo_leads")
-    .select("id", { count: "exact", head: true })
+    .select(
+      "id, company_name, call_status, call_notes, updated_at, campaign_id",
+    )
     .gte("updated_at", todayStart.toISOString())
-    .neq("call_status", "new");
+    .or("call_status.neq.new,call_notes.not.is.null")
+    .order("updated_at", { ascending: false });
 
-  if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Also capture leads that kept 'new' status but had notes added.
-  const { count: notesCount, error: e2 } = await admin
-    .from("apollo_leads")
-    .select("id", { count: "exact", head: true })
-    .gte("updated_at", todayStart.toISOString())
-    .eq("call_status", "new")
-    .not("call_notes", "is", null);
+  const leads = data ?? [];
 
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+  // Aggregate by call_status
+  const by_status: Record<string, number> = {};
+  for (const lead of leads) {
+    by_status[lead.call_status] = (by_status[lead.call_status] ?? 0) + 1;
+  }
 
   return NextResponse.json({
-    changes_today: (statusCount ?? 0) + (notesCount ?? 0),
+    changes_today: leads.length,
+    by_status,
+    recent: leads.slice(0, 20),
   });
 }
