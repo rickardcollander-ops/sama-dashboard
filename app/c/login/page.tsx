@@ -8,6 +8,32 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 type Mode = "login" | "signup" | "forgot";
 
+const CONNECTION_ERROR_MESSAGE =
+  "We can't reach the sign-in service right now. Check your connection and try again in a moment.";
+
+// Supabase wraps network failures (DNS, CORS, 5xx like the Cloudflare 522 that
+// surfaces when the auth origin is unreachable) as AuthRetryableFetchError with
+// the raw "Failed to fetch" message. Surfacing that verbatim to users is
+// useless — map every such case to one clear, actionable line.
+function isNetworkError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: string; message?: string; status?: number };
+  if (e.name === "AuthRetryableFetchError") return true;
+  if (typeof e.status === "number" && (e.status === 0 || e.status >= 500)) {
+    return true;
+  }
+  return /failed to fetch|fetch failed|network ?error|load failed|err_failed|err_connection|err_timed_out|err_network/i.test(
+    e.message ?? "",
+  );
+}
+
+function describeAuthError(err: unknown): string {
+  if (isNetworkError(err)) return CONNECTION_ERROR_MESSAGE;
+  const message = (err as { message?: string })?.message ?? "";
+  if (message === "Invalid login credentials") return "Wrong email or password";
+  return message || CONNECTION_ERROR_MESSAGE;
+}
+
 export default function CustomerLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,13 +63,17 @@ export default function CustomerLoginPage() {
         },
       });
       if (oauthError) {
-        setError(oauthError.message);
+        setError(describeAuthError(oauthError));
         setGoogleLoading(false);
       }
       // On success the browser is redirected to Google, so we leave the
       // loading state set — the page is about to unmount.
-    } catch {
-      setError("Could not start Google sign-in");
+    } catch (err) {
+      setError(
+        isNetworkError(err)
+          ? CONNECTION_ERROR_MESSAGE
+          : "Could not start Google sign-in",
+      );
       setGoogleLoading(false);
     }
   };
@@ -67,7 +97,7 @@ export default function CustomerLoginPage() {
           password,
         });
         if (signUpError) {
-          setError(signUpError.message);
+          setError(describeAuthError(signUpError));
         } else {
           setMessage("Account created! You can now sign in.");
           setMode("login");
@@ -82,7 +112,7 @@ export default function CustomerLoginPage() {
           { redirectTo }
         );
         if (resetError) {
-          setError(resetError.message);
+          setError(describeAuthError(resetError));
         } else {
           setMessage(
             "If the account exists, a reset link has been sent to the email."
@@ -94,18 +124,14 @@ export default function CustomerLoginPage() {
           password,
         });
         if (signInError) {
-          setError(
-            signInError.message === "Invalid login credentials"
-              ? "Wrong email or password"
-              : signInError.message
-          );
+          setError(describeAuthError(signInError));
         } else {
           router.push("/c/dashboard");
           router.refresh();
         }
       }
-    } catch {
-      setError("Could not connect");
+    } catch (err) {
+      setError(describeAuthError(err));
     } finally {
       setLoading(false);
     }
