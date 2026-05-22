@@ -55,7 +55,7 @@ interface AnalyticsData {
 
 export default function CustomerAnalyticsPage() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, activeAccountId } = useSite();
   const { period, setPeriod, days } = usePeriod();
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
@@ -426,6 +426,7 @@ export default function CustomerAnalyticsPage() {
             <GoogleDataDiagnostics
               service="analytics"
               tenantId={effectiveTenantId}
+              accountId={activeAccountId}
               agentName="analytics"
               trackedCount={(data.channels?.length || 0) + (data.daily?.length || 0)}
               onSynced={fetchAnalytics}
