@@ -54,6 +54,7 @@ const SOURCE_META: Record<string, SourceMeta> = {
 };
 
 type SourceFilter = "all" | "ai_generated" | "analysis_gap" | "competitor_gap" | "manual" | "ai_visibility_gap";
+type ScheduleFilter = "all" | "unscheduled" | "scheduled" | "this_week" | "this_month";
 
 function typeIcon(t: string) {
   if (t === "blog_article" || t === "blog_post") return <FileText className="h-4 w-4 text-blue-600" />;
@@ -78,6 +79,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
   const [count, setCount] = useState(6);
   const [statusFilter, setStatusFilter] = useState<"all" | "idea" | "draft" | "published">("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
 
   const fetchItems = async () => {
     try {
@@ -176,8 +178,53 @@ export default function ContentPlanTab({ apiUrl }: Props) {
   const filtered = items.filter(it => {
     if (statusFilter !== "all" && it.status !== statusFilter) return false;
     if (sourceFilter !== "all" && (it.source || "manual") !== sourceFilter) return false;
+    if (scheduleFilter !== "all") {
+      const sf = it.scheduled_for ? new Date(it.scheduled_for) : null;
+      if (scheduleFilter === "unscheduled" && sf) return false;
+      if (scheduleFilter === "scheduled" && !sf) return false;
+      if (scheduleFilter === "this_week" || scheduleFilter === "this_month") {
+        if (!sf) return false;
+        const now = new Date();
+        if (scheduleFilter === "this_week") {
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Monday
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+          if (sf < startOfWeek || sf > endOfWeek) return false;
+        } else {
+          if (sf.getFullYear() !== now.getFullYear() || sf.getMonth() !== now.getMonth()) return false;
+        }
+      }
+    }
     return true;
   });
+
+  const scheduleChips: { value: ScheduleFilter; label: string }[] = [
+    { value: "all", label: "Alla" },
+    { value: "unscheduled", label: "Ej schemalagda" },
+    { value: "scheduled", label: "Schemalagda" },
+    { value: "this_week", label: "Denna veckan" },
+    { value: "this_month", label: "Denna månaden" },
+  ];
+
+  const ScheduleChip = ({ value, label }: { value: ScheduleFilter; label: string }) => {
+    const active = scheduleFilter === value;
+    return (
+      <button
+        onClick={() => setScheduleFilter(value)}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+          active
+            ? "border-blue-500 bg-blue-50 text-blue-700"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        {value !== "all" && <Calendar className="h-3 w-3" />}
+        {label}
+      </button>
+    );
+  };
 
   const SourceChip = ({ value, label }: { value: SourceFilter; label: string }) => {
     const active = sourceFilter === value;
@@ -278,6 +325,11 @@ export default function ContentPlanTab({ apiUrl }: Props) {
           <SourceChip value="competitor_gap" label="Competitor" />
           <SourceChip value="ai_visibility_gap" label="AI gap" />
           <SourceChip value="manual" label="Manual" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-3">
+          <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Schema</span>
+          {scheduleChips.map(c => <ScheduleChip key={c.value} value={c.value} label={c.label} />)}
         </div>
 
         {error && (
