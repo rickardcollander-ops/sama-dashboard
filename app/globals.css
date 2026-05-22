@@ -1,9 +1,7 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* ─── Base tokens ────────────────────────────────────────────────────── */
-/* Neon Rave '95 palette — defined globally so .mkt-* classes can use    */
-/* them from anywhere, but they do NOT override the app's light theme.   */
+/* ─── Base tokens ───────────────────────────────────────────────────────────────── */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -39,7 +37,7 @@
   --glow-purple:    0 0 15px rgba(184, 79, 255, 0.4);
 }
 
-/* ─── Tailwind theme ─────────────────────────────────────────────────── */
+/* ─── Tailwind theme ──────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -53,15 +51,15 @@ body {
   font-family: var(--font-sans);
 }
 
-/* ─── Marketing site wrapper ─────────────────────────────────────────── */
-/* All Neon Rave '95 visual styles are scoped to .mkt-site so they       */
-/* never bleed into the /c/* app routes.                                 */
-
+/* ─── Marketing site wrapper ────────────────────────────────────────────── */
 .mkt-site {
   background-color: var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
-  overflow-x: hidden;
+  /* overflow-x: clip instead of hidden so position:sticky on the header
+     is not broken (overflow:hidden creates a new scroll container which
+     silently disables sticky behaviour in all browsers). */
+  overflow-x: clip;
   position: relative;
   scroll-behavior: smooth;
 }
@@ -94,7 +92,7 @@ body {
   font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
 }
 
-/* ─── Keyframes ──────────────────────────────────────────────────────── */
+/* ─── Keyframes ───────────────────────────────────────────────────────────────── */
 @keyframes neonPulse {
   0%, 100% { box-shadow: var(--glow-orange); }
   50%       { box-shadow: var(--glow-orange-xl); }
@@ -126,7 +124,7 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-/* ─── Navbar / Header ────────────────────────────────────────────────── */
+/* ─── Navbar / Header ────────────────────────────────────────────────────── */
 .mkt-header {
   position: sticky;
   top: 0;
@@ -161,6 +159,7 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
+  z-index: 200;
 }
 .group:hover .mkt-dropdown-panel {
   opacity: 1;
@@ -230,7 +229,7 @@ body {
   box-shadow: var(--glow-orange-xl);
 }
 
-/* ─── Hero ───────────────────────────────────────────────────────────── */
+/* ─── Hero ──────────────────────────────────────────────────────────────────────── */
 .hero-section {
   background:
     radial-gradient(ellipse 80% 60% at 75% 10%, rgba(255, 107, 0, 0.14) 0%, transparent 60%),
@@ -241,7 +240,6 @@ body {
   overflow: hidden;
 }
 
-/* CRT scanlines overlay */
 .hero-section::after {
   content: '';
   position: absolute;
@@ -323,14 +321,12 @@ body {
   box-shadow: var(--glow-blue);
 }
 
-/* ─── Trust strip ────────────────────────────────────────────────────── */
 .trust-strip {
   border-top: 1px solid var(--border-subtle) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
   background: rgba(18, 6, 46, 0.6) !important;
 }
 
-/* ─── Section eyebrow labels ─────────────────────────────────────────── */
 .neon-eyebrow {
   display: block;
   font-family: var(--font-barlow, 'Barlow Condensed'), sans-serif;
@@ -341,7 +337,6 @@ body {
   color: var(--neon-orange) !important;
 }
 
-/* ─── Pillar cards ───────────────────────────────────────────────────── */
 .pillar-card {
   display: block;
   border-radius: 1rem;
@@ -403,7 +398,6 @@ body {
   border: 1px solid rgba(255, 107, 0, 0.2) !important;
 }
 
-/* ─── AI Gap box ─────────────────────────────────────────────────────── */
 .ai-gap-box {
   border-radius: 1rem;
   padding: 2rem;
@@ -426,7 +420,6 @@ body {
   background: linear-gradient(90deg, transparent, var(--neon-orange), var(--neon-purple), transparent);
 }
 
-/* ─── Integration badges ─────────────────────────────────────────────── */
 .integration-badge {
   display: inline-block;
   border-radius: 0.5rem;
@@ -459,7 +452,6 @@ body {
   background: rgba(184, 79, 255, 0.12) !important;
 }
 
-/* ─── Stats section ──────────────────────────────────────────────────── */
 .stats-section {
   background:
     radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255, 107, 0, 0.07) 0%, transparent 70%),
@@ -482,7 +474,6 @@ body {
   filter: drop-shadow(0 0 18px rgba(255, 107, 0, 0.55));
 }
 
-/* ─── Testimonial / Quote ────────────────────────────────────────────── */
 .testimonial-block {
   border-radius: 1rem;
   padding: 1.5rem 2rem;
@@ -510,7 +501,6 @@ body {
   pointer-events: none;
 }
 
-/* ─── Mid-page CTA banner ────────────────────────────────────────────── */
 .cta-banner-section {
   background:
     radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255, 107, 0, 0.06) 0%, transparent 70%),
@@ -536,7 +526,6 @@ body {
   box-shadow: var(--glow-orange-xl);
 }
 
-/* ─── Pricing ────────────────────────────────────────────────────────── */
 .pricing-section {
   background: var(--bg-base);
 }
@@ -600,7 +589,6 @@ body {
   animation: neonPulse 2.5s ease-in-out infinite;
 }
 
-/* ─── Bottom CTA ─────────────────────────────────────────────────────── */
 .bottom-cta-section {
   background:
     radial-gradient(ellipse 80% 80% at 50% 50%,
@@ -671,7 +659,6 @@ body {
   background: rgba(0, 207, 255, 0.08) !important;
 }
 
-/* ─── Footer ─────────────────────────────────────────────────────────── */
 .mkt-footer {
   background: var(--bg-secondary) !important;
   border-top: 1px solid var(--border-subtle) !important;
@@ -685,7 +672,6 @@ body {
   color: var(--neon-orange) !important;
 }
 
-/* ─── Legacy ─────────────────────────────────────────────────────────── */
 @keyframes slideInRight {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }

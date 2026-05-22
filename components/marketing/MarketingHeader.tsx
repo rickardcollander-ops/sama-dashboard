@@ -101,7 +101,6 @@ export default function MarketingHeader({ variant = "default" }: Props) {
   return (
     <header className={`mkt-header ${variant === "transparent" ? "border-transparent" : ""}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 text-base font-bold">
           <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: "linear-gradient(135deg, var(--neon-orange), var(--neon-purple))" }}>
             <span className="text-sm">✨</span>
@@ -110,7 +109,7 @@ export default function MarketingHeader({ variant = "default" }: Props) {
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Main navigation">
           <Dropdown label={nav.platform} items={nav.platformItems} />
           <Dropdown label={nav.useCases} items={nav.useCaseItems} />
           <Dropdown label={nav.resources} items={nav.resourceItems} />
@@ -119,7 +118,6 @@ export default function MarketingHeader({ variant = "default" }: Props) {
           </Link>
         </nav>
 
-        {/* Right side */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setLanguage(language === "sv" ? "en" : "sv")}
@@ -140,6 +138,8 @@ export default function MarketingHeader({ variant = "default" }: Props) {
             style={{ color: "var(--text-secondary)" }}
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Toggle menu"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -148,7 +148,12 @@ export default function MarketingHeader({ variant = "default" }: Props) {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t px-4 pb-4 md:hidden" style={{ borderColor: "var(--border-color)", background: "var(--bg-card)" }}>
+        <nav
+          id="mobile-nav"
+          aria-label="Mobile navigation"
+          className="border-t px-4 pb-4 md:hidden"
+          style={{ borderColor: "var(--border-color)", background: "var(--bg-card)" }}
+        >
           <div className="mt-2 space-y-1">
             <p className="px-2 pt-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               {nav.platform}
@@ -201,7 +206,7 @@ export default function MarketingHeader({ variant = "default" }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );
