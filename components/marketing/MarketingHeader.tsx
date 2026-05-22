@@ -101,7 +101,6 @@ export default function MarketingHeader({ variant = "default" }: Props) {
   return (
     <header className={`mkt-header ${variant === "transparent" ? "border-transparent" : ""}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 text-base font-bold">
           <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: "linear-gradient(135deg, var(--neon-orange), var(--neon-purple))" }}>
             <span className="text-sm">✨</span>
@@ -119,7 +118,6 @@ export default function MarketingHeader({ variant = "default" }: Props) {
           </Link>
         </nav>
 
-        {/* Right side */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setLanguage(language === "sv" ? "en" : "sv")}
