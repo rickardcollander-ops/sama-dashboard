@@ -41,8 +41,8 @@ const RecentOutcomes = dynamic(() => import("@/components/dashboard/RecentOutcom
 const OnboardingChecklist = dynamic(() => import("@/components/dashboard/OnboardingChecklist"), {
   loading: () => null,
 });
-const UpcomingDrafts = dynamic(() => import("@/components/dashboard/UpcomingDrafts"), {
-  loading: () => null,
+const ContentPipeline = dynamic(() => import("@/components/dashboard/ContentPipeline"), {
+  loading: () => <div className="h-28 animate-pulse rounded-xl border bg-white shadow-sm" />,
 });
 const AutoApproveToggle = dynamic(() => import("@/components/content/AutoApproveToggle"), {
   loading: () => null,
@@ -707,8 +707,12 @@ export default function CustomerDashboard() {
 
         {user && (
           <div className="mt-8 space-y-4">
+            <ContentPipeline
+              tenantId={effectiveTenantId}
+              pieces={recentPieces}
+              pendingApprovals={pendingApprovals}
+            />
             <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
-            <UpcomingDrafts tenantId={effectiveTenantId} pieces={recentPieces} />
           </div>
         )}
 
