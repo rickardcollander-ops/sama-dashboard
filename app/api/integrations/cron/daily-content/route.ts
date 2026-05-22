@@ -94,6 +94,19 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
+    // Skip users who onboarded < 30 days ago — onboarding already generates
+    // a 30-day content plan, so firing the daily cron on top would duplicate.
+    const onboardedAt = typeof settings.onboarding_completed_at === "string"
+      ? settings.onboarding_completed_at
+      : null;
+    if (onboardedAt) {
+      const daysSince = (Date.now() - new Date(onboardedAt).getTime()) / 86_400_000;
+      if (daysSince < 30) {
+        summary.users_skipped += 1;
+        continue;
+      }
+    }
+
     summary.users_processed += 1;
     summary.triggers_attempted += 1;
 
