@@ -33,6 +33,9 @@ interface Props {
   service: Service;
   /** Tenant / user id (Supabase auth user id). */
   tenantId: string;
+  /** Account owner id — required in admin view-as mode so the proxy resolves
+   *  the correct tenant context instead of falling back to the admin's own account. */
+  accountId?: string;
   /** Backend agent name to trigger for a manual sync. */
   agentName: "seo" | "analytics" | "ads";
   /** Number of items currently tracked (keywords / metrics / campaigns). */
@@ -50,7 +53,7 @@ const SERVICE_META: Record<Service, { label: string; settingsAnchor: string }> =
 };
 
 export default function GoogleDataDiagnostics(props: Props) {
-  const { service, tenantId, agentName, trackedCount, onSynced, showImportFromGsc } = props;
+  const { service, tenantId, accountId, agentName, trackedCount, onSynced, showImportFromGsc } = props;
   const meta = SERVICE_META[service];
 
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -90,11 +93,11 @@ export default function GoogleDataDiagnostics(props: Props) {
     try {
       const calls: Promise<unknown>[] = [
         api.get<Record<string, { connected?: boolean; account_email?: string | null }>>(`/api/auth/google/status?tenant_id=${tenantId}`),
-        tenantApi(tenantId).get<{ runs?: AgentRun[] }>(`/api/tenant/agent-runs?limit=20`),
+        tenantApi(tenantId, accountId).get<{ runs?: AgentRun[] }>(`/api/tenant/agent-runs?limit=20`),
       ];
       if (service === "analytics") {
         calls.push(
-          tenantApi(tenantId).get<{ selected_property_id?: string | null; connected_account_email?: string | null }>(
+          tenantApi(tenantId, accountId).get<{ selected_property_id?: string | null; connected_account_email?: string | null }>(
             `/api/integrations/google/analytics/properties`,
           ),
         );
@@ -153,7 +156,7 @@ export default function GoogleDataDiagnostics(props: Props) {
     setProbing(true);
     setProbeError(null);
     try {
-      const data = await tenantApi(tenantId).get<typeof probe>(`/api/analytics/probe`);
+      const data = await tenantApi(tenantId, accountId).get<typeof probe>(`/api/analytics/probe`);
       setProbe(data);
     } catch (e) {
       setProbeError(e instanceof Error ? e.message : "Probe failed");
@@ -166,7 +169,7 @@ export default function GoogleDataDiagnostics(props: Props) {
     setError(null);
     setFeedback(null);
     try {
-      const client = tenantApi(tenantId);
+      const client = tenantApi(tenantId, accountId);
       const resp = await client.post<{ run_id?: string; status?: string }>(
         `/api/tenant/agents/${agentName}/trigger`,
         undefined,

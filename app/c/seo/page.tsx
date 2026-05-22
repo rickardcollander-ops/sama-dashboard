@@ -35,7 +35,7 @@ interface Keyword {
 
 export default function CustomerSeoPage() {
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, activeAccountId } = useSite();
   const { t } = useLanguage();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [loading, setLoading] = useState(true);
@@ -595,6 +595,7 @@ export default function CustomerSeoPage() {
             <GoogleDataDiagnostics
               service="search_console"
               tenantId={effectiveTenantId}
+              accountId={activeAccountId}
               agentName="seo"
               trackedCount={keywords.length}
               onSynced={fetchKeywords}
