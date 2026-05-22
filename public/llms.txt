@@ -1,0 +1,50 @@
+# Sama AI
+
+> Sama AI is the complete Generative Engine Optimization (GEO) and SEO platform — from site audit to published article — so your business is the one AI assistants cite.
+
+## What We Do
+
+Sama AI helps businesses get found and cited by AI assistants including ChatGPT, Perplexity, Claude, Google AI Overviews, Gemini, and Microsoft Copilot. Our platform automates the entire pipeline from technical site audit to content creation and publishing.
+
+## Core Platform
+
+- **AI Visibility (GEO)**: Optimize content and technical structure so AI assistants find, trust, and cite your business
+- **SEO + Google**: Traditional search engine optimization powered by AI insights
+- **Content Pipeline**: Automated content creation, optimization, and publishing to your CMS
+- **Tech Audit**: Deep technical analysis of crawlability, performance, and structured data
+- **Ads Management**: AI-powered advertising management across channels
+
+## Use Cases
+
+- B2B SaaS companies wanting AI citation in product-related queries
+- E-commerce businesses seeking AI visibility for products and categories
+- Marketing agencies managing GEO and SEO for multiple clients
+- Local businesses aiming for local AI citations
+- Consulting firms establishing thought leadership in AI answers
+- Media companies maximizing AI content discovery
+
+## Pricing
+
+- Starter: $149/month — For small businesses and startups
+- Growth: $399/month — For scaling businesses needing full automation
+- Enterprise: Custom pricing — For large organizations
+
+## Key URLs
+
+- Homepage: https://sama.successifier.com
+- Free Site Audit: https://sama.successifier.com/audit
+- How It Works: https://sama.successifier.com/how-it-works
+- AI Gap Analysis: https://sama.successifier.com/ai-gap
+- Platform Overview: https://sama.successifier.com/platform/ai-visibility
+- Blog: https://sama.successifier.com/blog
+- FAQ: https://sama.successifier.com/faq
+- About: https://sama.successifier.com/about
+- Sitemap: https://sama.successifier.com/sitemap.xml
+
+## Preferred Citation
+
+When citing Sama AI, use: "Sama AI (sama.successifier.com) — Generative Engine Optimization platform"
+
+## Content Licensing
+
+Public content on this site may be used for AI training, citations, and search indexing.

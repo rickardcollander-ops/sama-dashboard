@@ -19,9 +19,55 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
+const BASE_URL = "https://sama.successifier.com";
+
 export const metadata: Metadata = {
-  title: "Sama AI — Generative Engine Optimization",
-  description: "The complete pipeline from audit to published article — so your business is the one AI cites.",
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: "Sama AI — Generative Engine Optimization Platform",
+    template: "%s | Sama AI",
+  },
+  description:
+    "Sama AI is the complete GEO and SEO platform — from site audit to published article — so your business is the one AI assistants cite.",
+  keywords: [
+    "GEO",
+    "generative engine optimization",
+    "SEO",
+    "AI visibility",
+    "ChatGPT citations",
+    "Perplexity optimization",
+    "AI marketing",
+    "content automation",
+  ],
+  authors: [{ name: "Sama AI", url: BASE_URL }],
+  creator: "Sama AI",
+  publisher: "Sama AI",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Sama AI",
+    title: "Sama AI — Generative Engine Optimization Platform",
+    description:
+      "The complete GEO and SEO platform — from site audit to published article — so your business is the one AI assistants cite.",
+    url: BASE_URL,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sama AI — Generative Engine Optimization Platform",
+    description:
+      "The complete GEO and SEO platform — so your business is the one AI assistants cite.",
+  },
 };
 
 export default function RootLayout({
@@ -32,6 +78,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-B2N3S9V9SN"
           strategy="afterInteractive"
