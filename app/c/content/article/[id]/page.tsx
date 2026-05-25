@@ -116,10 +116,12 @@ function AutoTextarea({
 function ArticleInner({ id }: { id: string }) {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, viewAs } = useSite();
   const [piece, setPiece] = useState<PieceFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Guards the one-shot internal-link weaving per loaded article.
+  const enrichedRef = useRef<string | null>(null);
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false);
@@ -178,6 +180,80 @@ function ArticleInner({ id }: { id: string }) {
       cancelled = true;
     };
   }, [id, effectiveTenantId, user, userLoading, tenantClient, router]);
+
+  // Weave internal links from the site's sitemap into the article so they show
+  // up where the user reads it. Best-effort: persists to Supabase when the row
+  // exists, but always updates the in-view copy so links appear regardless.
+  // Skipped while editing and in admin view-as. Idempotent — existing internal
+  // links count toward the cap, so re-running converges.
+  useEffect(() => {
+    if (!piece || editMode || viewAs || !effectiveTenantId) return;
+    if (enrichedRef.current === piece.id) return;
+    enrichedRef.current = piece.id;
+
+    const ad = (piece.article_data || {}) as ArticleData & { intro_md?: string };
+    const structured = Array.isArray(ad.sections) && ad.sections.length > 0;
+    const md = piece.content || piece.body || piece.markdown || "";
+    const introMd = ad.intro_md;
+    if (!structured && !md.trim()) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const payload: Record<string, unknown> = {
+          self_href: piece.slug ? `/${piece.slug}` : undefined,
+        };
+        if (structured) {
+          payload.intro_md = introMd || "";
+          payload.sections = (ad.sections ?? []).map((s) => ({
+            id: s.id,
+            heading: s.heading,
+            body_md: s.body_md,
+          }));
+        } else {
+          payload.markdown = md;
+        }
+
+        const res = await fetch("/api/content/internal-links", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          links_added?: number;
+          markdown?: string;
+          intro_md?: string;
+          sections?: Array<{ body_md?: string }>;
+        };
+        if (cancelled || (data.links_added ?? 0) <= 0) return;
+
+        const sb = (await import("@/lib/supabase-browser")).getSupabaseBrowser();
+        if (structured) {
+          const mergedSections = (ad.sections ?? []).map((s, i) => ({
+            ...s,
+            body_md: data.sections?.[i]?.body_md ?? s.body_md,
+          }));
+          const newArticleData = {
+            ...ad,
+            intro_md: data.intro_md ?? introMd,
+            sections: mergedSections,
+          } as ArticleData;
+          await sb.from("content_pieces").update({ article_data: newArticleData }).eq("id", piece.id);
+          if (!cancelled) setPiece((prev) => (prev ? { ...prev, article_data: newArticleData } : prev));
+        } else {
+          const newContent = data.markdown ?? md;
+          await sb.from("content_pieces").update({ content: newContent }).eq("id", piece.id);
+          if (!cancelled) setPiece((prev) => (prev ? { ...prev, content: newContent } : prev));
+        }
+      } catch {
+        // best-effort — never block the article render on link weaving
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [piece, editMode, viewAs, effectiveTenantId]);
 
   if (loading || userLoading) return <LoadingShell />;
 

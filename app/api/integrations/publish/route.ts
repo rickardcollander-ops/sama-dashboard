@@ -10,6 +10,7 @@ import { getAdapter } from "@/lib/integrations/cms";
 import { excerptFromMarkdown, markdownToHtml, slugify } from "@/lib/integrations/cms/markdown";
 import { buildArticleJsonLd } from "@/lib/integrations/jsonld";
 import { PublishError, PublishInput } from "@/lib/integrations/cms/types";
+import { fetchSitemapEntries, injectInternalLinks, resolveSiteOrigin } from "@/lib/integrations/internal-links";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -40,7 +41,6 @@ export async function POST(req: NextRequest) {
 
   const slug = body.slug || slugify(title);
   const excerpt = body.excerpt || excerptFromMarkdown(bodyMd);
-  const html = markdownToHtml(bodyMd);
   const language = body.language || settingStr("content_language") || "en";
   const tags: string[] = Array.isArray(body.tags) ? body.tags : [];
   const featuredImage = body.featured_image_url as string | undefined;
@@ -52,6 +52,20 @@ export async function POST(req: NextRequest) {
   const canonicalUrl = canonicalBase
     ? `${canonicalBase.replace(/\/$/, "")}/${slug}`
     : undefined;
+
+  // Weave internal links from the site's own sitemap into the body before it
+  // ships to the CMS. Best-effort — falls back to the original markdown.
+  let finalMd = bodyMd;
+  const linkOrigin = resolveSiteOrigin(blogUrl, domain);
+  if (linkOrigin) {
+    try {
+      const entries = await fetchSitemapEntries(linkOrigin);
+      finalMd = injectInternalLinks(bodyMd, entries, { selfHref: canonicalUrl ?? `/${slug}` }).markdown;
+    } catch {
+      finalMd = bodyMd;
+    }
+  }
+  const html = markdownToHtml(finalMd);
 
   const brandName = settingStr("brand_name");
   const jsonld = buildArticleJsonLd({
@@ -78,7 +92,7 @@ export async function POST(req: NextRequest) {
       payload: {
         title,
         slug,
-        body_markdown: bodyMd,
+        body_markdown: finalMd,
         excerpt,
         meta_description: body.meta_description || excerpt,
         tags,
@@ -95,7 +109,7 @@ export async function POST(req: NextRequest) {
   const input: PublishInput = {
     title,
     slug,
-    body_markdown: bodyMd,
+    body_markdown: finalMd,
     body_html: html,
     excerpt,
     meta_description: body.meta_description || excerpt,
