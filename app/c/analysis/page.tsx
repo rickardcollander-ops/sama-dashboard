@@ -9,7 +9,6 @@ import {
   Info,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
-import KeywordGeoRecommendations from "@/components/KeywordGeoRecommendations";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
@@ -747,13 +746,10 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       { id: "overview", label: t.insights.auditTabOverview, show: true },
       { id: "matrix", label: t.insights.auditTabMatrix, show: true },
       { id: "gaps", label: t.insights.auditTabGaps, show: true },
-      { id: "recommendations", label: t.insights.auditTabRecommendations, show: true },
+      { id: "recommendations", label: t.insights.auditTabRecommendations, show: false },
     ],
     [t],
   );
-
-  const gapSummary = useMemo(() => buildGapSummary(run), [run]);
-  const existingKeywords = useMemo(() => run.query_results.map((q) => q.query), [run]);
 
   return (
     <div>
@@ -775,14 +771,6 @@ function ResultsStage({ run }: { run: AnalysisRun }) {
       {tab === "overview" && <OverviewTab run={run} />}
       {tab === "matrix" && <MatrixTab run={run} />}
       {tab === "gaps" && <GapsTab run={run} />}
-      {tab === "recommendations" && (
-        <KeywordGeoRecommendations
-          existingKeywords={existingKeywords}
-          gapSummary={gapSummary}
-          title="Recommended additions to track"
-          description="Based on your gaps, AI suggests new keywords and AI queries to add."
-        />
-      )}
     </div>
   );
 }
