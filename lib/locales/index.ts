@@ -33,10 +33,12 @@ const sv = {
     integrations: "Integrationer",
     billing: "Plan & fakturering",
     metaAds: "Meta Ads",
+    agents: "Agenter",
   },
   subNavSections: {
     personal: "Personligt",
     business: "Företag",
+    automation: "Automatisering",
   },
   analyses: {
     title: "Analyser & checks",
@@ -417,10 +419,12 @@ const no: typeof sv = {
     integrations: "Integrasjoner",
     billing: "Plan & fakturering",
     metaAds: "Meta Ads",
+    agents: "Agenter",
   },
   subNavSections: {
     personal: "Personlig",
     business: "Selskap",
+    automation: "Automatisering",
   },
   analyses: {
     title: "Analyser & sjekker",
@@ -801,10 +805,12 @@ const da: typeof sv = {
     integrations: "Integrationer",
     billing: "Plan & fakturering",
     metaAds: "Meta Ads",
+    agents: "Agenter",
   },
   subNavSections: {
     personal: "Personligt",
     business: "Virksomhed",
+    automation: "Automatisering",
   },
   analyses: {
     title: "Analyser & tjek",
@@ -1185,10 +1191,12 @@ const en: typeof sv = {
     integrations: "Integrations",
     billing: "Plan & Billing",
     metaAds: "Meta Ads",
+    agents: "Agents",
   },
   subNavSections: {
     personal: "Personal",
     business: "Business",
+    automation: "Automation",
   },
   analyses: {
     title: "Analyses & checks",

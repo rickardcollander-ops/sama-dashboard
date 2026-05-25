@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, ArrowUp, Check, Download, Edit3, Globe, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, Download, Edit3, Globe, Image, Loader2, X } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -129,6 +129,7 @@ function ArticleInner({ id }: { id: string }) {
   const [editIntroMd, setEditIntroMd] = useState("");
   const [editSections, setEditSections] = useState<Array<{ id: string; heading: string; body_md: string; image?: any }>>([]);
   const [editMarkdown, setEditMarkdown] = useState("");
+  const [editFeaturedImageUrl, setEditFeaturedImageUrl] = useState("");
 
   useEffect(() => {
     if (userLoading) return;
@@ -207,6 +208,7 @@ function ArticleInner({ id }: { id: string }) {
     setEditIntroMd(intro || "");
     setEditSections(hasStructured ? JSON.parse(JSON.stringify(articleData.sections)) : []);
     setEditMarkdown(markdown);
+    setEditFeaturedImageUrl(piece.featured_image_url || "");
     setEditMode(true);
   };
 
@@ -219,6 +221,7 @@ function ArticleInner({ id }: { id: string }) {
       const updates: Record<string, any> = {
         title: editTitle,
         meta_description: editMetaDescription || null,
+        featured_image_url: editFeaturedImageUrl.trim() || null,
       };
       if (hasStructured) {
         updates.article_data = {
@@ -233,7 +236,7 @@ function ArticleInner({ id }: { id: string }) {
       if (sbErr) throw sbErr;
       setPiece((prev) => {
         if (!prev) return prev;
-        const next: PieceFull = { ...prev, title: editTitle, meta_description: editMetaDescription || null };
+        const next: PieceFull = { ...prev, title: editTitle, meta_description: editMetaDescription || null, featured_image_url: editFeaturedImageUrl.trim() || null };
         if (hasStructured) {
           next.article_data = { ...articleData, intro_md: editIntroMd, sections: editSections } as ArticleData;
         } else {
@@ -263,6 +266,15 @@ function ArticleInner({ id }: { id: string }) {
     setEditSections((prev) => {
       const next = [...prev];
       next[i] = { ...next[i], [field]: value };
+      return next;
+    });
+  };
+
+  const updateSectionImage = (i: number, field: "url" | "alt", value: string) => {
+    setEditSections((prev) => {
+      const next = [...prev];
+      const img = next[i].image ? { ...next[i].image } : {};
+      next[i] = { ...next[i], image: { ...img, [field]: value } };
       return next;
     });
   };
@@ -374,6 +386,41 @@ function ArticleInner({ id }: { id: string }) {
             {hasStructured ? (
               editMode ? (
                 <div className="space-y-8">
+                  {/* Featured image */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                      <Image className="h-3.5 w-3.5" />
+                      Omslagsbild
+                    </div>
+                    <input
+                      type="url"
+                      value={editFeaturedImageUrl}
+                      onChange={(e) => setEditFeaturedImageUrl(e.target.value)}
+                      className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors"
+                      placeholder="https://… (lämna tom för ingen bild)"
+                    />
+                    {editFeaturedImageUrl.trim() && (
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={editFeaturedImageUrl.trim()}
+                          alt="Förhandsvisning"
+                          className="w-full rounded-xl border border-slate-200 object-cover"
+                          style={{ aspectRatio: "16/9" }}
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = ""; }}
+                        />
+                        <button
+                          onClick={() => setEditFeaturedImageUrl("")}
+                          className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow border border-slate-200 text-slate-500 hover:text-red-500 transition-colors"
+                          title="Ta bort bild"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Intro */}
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Introduktion</div>
@@ -406,6 +453,28 @@ function ArticleInner({ id }: { id: string }) {
                           className="w-full text-slate-700 text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-orange-400 transition-colors font-mono min-h-[160px]"
                           placeholder="Sektionsinnehåll (Markdown)…"
                         />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                          <Image className="h-3 w-3" />
+                          Sektionsbild
+                        </div>
+                        <input
+                          type="url"
+                          value={section.image?.url || ""}
+                          onChange={(e) => updateSectionImage(i, "url", e.target.value)}
+                          className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors mb-1.5"
+                          placeholder="Bild-URL (lämna tom för ingen bild)…"
+                        />
+                        {section.image?.url && (
+                          <input
+                            type="text"
+                            value={section.image?.alt || ""}
+                            onChange={(e) => updateSectionImage(i, "alt", e.target.value)}
+                            className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors"
+                            placeholder="Alt-text (beskrivning av bilden)…"
+                          />
+                        )}
                       </div>
                     </div>
                   ))}
@@ -446,6 +515,40 @@ function ArticleInner({ id }: { id: string }) {
               )
             ) : editMode ? (
               <div className="space-y-6">
+                {/* Featured image for plain markdown */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <Image className="h-3.5 w-3.5" />
+                    Omslagsbild
+                  </div>
+                  <input
+                    type="url"
+                    value={editFeaturedImageUrl}
+                    onChange={(e) => setEditFeaturedImageUrl(e.target.value)}
+                    className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors"
+                    placeholder="https://… (lämna tom för ingen bild)"
+                  />
+                  {editFeaturedImageUrl.trim() && (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editFeaturedImageUrl.trim()}
+                        alt="Förhandsvisning"
+                        className="w-full rounded-xl border border-slate-200 object-cover"
+                        style={{ aspectRatio: "16/9" }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = ""; }}
+                      />
+                      <button
+                        onClick={() => setEditFeaturedImageUrl("")}
+                        className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow border border-slate-200 text-slate-500 hover:text-red-500 transition-colors"
+                        title="Ta bort bild"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Artikelinnehåll (Markdown)</div>
                   <AutoTextarea
@@ -479,7 +582,7 @@ function ArticleInner({ id }: { id: string }) {
               articleData={articleData}
               slug={piece.slug}
               metaDescription={editMode ? editMetaDescription : piece.meta_description}
-              featuredImageUrl={piece.featured_image_url}
+              featuredImageUrl={editMode ? (editFeaturedImageUrl || null) : piece.featured_image_url}
               publishedDate={dateStr}
             />
           </div>
