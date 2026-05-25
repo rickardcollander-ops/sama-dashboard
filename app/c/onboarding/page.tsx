@@ -454,10 +454,6 @@ export default function OnboardingPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           {step === 0 && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-                <span className="font-semibold">{ow.betaTitle}</span>{" "}
-                {ow.betaDesc}
-              </div>
               <label className="block text-sm font-medium text-slate-700">
                 {ow.domainLabel}
                 {prefilling && (
