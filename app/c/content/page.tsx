@@ -379,7 +379,12 @@ function CustomerContentInner() {
       const data = await client.get<{ items?: PlanIdea[] }>(
         "/api/content/plan?status=idea",
       );
-      setIdeas(data.items || []);
+      const sorted = (data.items || []).slice().sort((a, b) => {
+        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+        return ta - tb;
+      });
+      setIdeas(sorted);
     } catch (err) {
       console.error("Failed to fetch ideas:", err);
       setIdeas([]);
