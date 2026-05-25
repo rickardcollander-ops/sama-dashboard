@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, FileText, MessageSquare, Mail, BarChart3,
-  Sparkles, Rocket, X, ArrowRight, Calendar as CalendarIcon, Wand2, Lightbulb, GripVertical,
+  Sparkles, Rocket, X, Calendar as CalendarIcon, Wand2, Lightbulb, GripVertical,
   Search, CheckCircle2,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
@@ -145,9 +145,9 @@ function AddModal({ date, onClose, onAdded, tenantClient }: AddModalProps) {
       if (!data.success) throw new Error(data.error || "Failed to add to plan");
 
       onAdded(data.item);
-      // If we drafted right now, jump straight into the editor.
+      // If we drafted right now, jump straight into the article view.
       if (draftNow && data.content_piece_id) {
-        router.push(`/c/content/${data.content_piece_id}`);
+        router.push(`/c/content/article/${data.content_piece_id}`);
         return;
       }
       onClose();
@@ -456,7 +456,7 @@ export default function ContentCalendarPage() {
 
   const handlePieceClick = (p: PublishedPiece, e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/c/content/${p.id}`);
+    router.push(`/c/content/article/${p.id}`);
   };
 
   const handleDayClick = (d: Date) => {
@@ -881,7 +881,6 @@ function FinishedArticleRow({
 }) {
   const pieceId = item.content_piece_id;
   const articleHref = pieceId ? `/c/content/article/${pieceId}` : null;
-  const editorHref = pieceId ? `/c/content/${pieceId}` : null;
   const score = typeof item.article_score === "number" ? item.article_score : null;
   const pieceStatus = (item.piece_status || item.status || "").toLowerCase();
 
@@ -992,18 +991,9 @@ function FinishedArticleRow({
         {articleHref && (
           <Link
             href={articleHref}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Visa
-          </Link>
-        )}
-        {editorHref && (
-          <Link
-            href={editorHref}
             className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
           >
-            Öppna redigerare
-            <ArrowRight className="h-3 w-3" />
+            Visa
           </Link>
         )}
         <button
