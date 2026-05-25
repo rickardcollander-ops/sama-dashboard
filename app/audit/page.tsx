@@ -10,6 +10,76 @@ import PublicAuditResult, { type AuditResult } from "@/components/analysis/Publi
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 
+const SCHEMA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://sama.successifier.com/audit",
+      url: "https://sama.successifier.com/audit",
+      name: "Free AI & SEO Audit — Analyze Your Site",
+      description:
+        "Get a free instant audit of your website's AI visibility, SEO health, and GEO readiness. See exactly how your site appears to ChatGPT, Perplexity, and Google AI Overviews — and what to fix first.",
+      isPartOf: { "@id": "https://sama.successifier.com/#website" },
+      breadcrumb: {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: "https://sama.successifier.com",
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Audit",
+            item: "https://sama.successifier.com/audit",
+          },
+        ],
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://sama.successifier.com/#website",
+      url: "https://sama.successifier.com",
+      name: "Sama AI",
+      publisher: { "@id": "https://sama.successifier.com/#organization" },
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://sama.successifier.com/#organization",
+      name: "Sama AI",
+      url: "https://sama.successifier.com",
+      logo: "https://sama.successifier.com/logo.png",
+      sameAs: ["https://www.linkedin.com/company/sama-ai"],
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Sama AI & SEO Audit Tool",
+      url: "https://sama.successifier.com/audit",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "Analyze your website for AI search visibility, SEO health, and GEO readiness. Get a free report with prioritized recommendations.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+        availability: "https://schema.org/InStock",
+      },
+      provider: { "@id": "https://sama.successifier.com/#organization" },
+      featureList: [
+        "AI visibility analysis",
+        "SEO health checks",
+        "GEO readiness assessment",
+        "Schema markup detection",
+        "Actionable recommendations",
+      ],
+    },
+  ],
+};
+
 export default function AuditLandingPage() {
   const [domain, setDomain] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,6 +116,10 @@ export default function AuditLandingPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
+      />
       <MarketingHeader />
 
       <section className="relative overflow-hidden">
