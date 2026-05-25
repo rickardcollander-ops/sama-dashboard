@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const rawLocations = Array.isArray(body.target_locations) ? body.target_locations : [];
+  const rawLocations: unknown[] = Array.isArray(body.target_locations) ? body.target_locations : [];
   const target_locations: TargetLocation[] = rawLocations
     .filter((l): l is Record<string, unknown> => !!l && typeof l === "object")
     .map((l) => ({
