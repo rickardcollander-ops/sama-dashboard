@@ -145,7 +145,13 @@ const SUB_NAV: Record<SectionId, SubNavConfig> = {
         { href: "/c/settings/branding", labelKey: "branding", icon: "🎨" },
         { href: "/c/settings/sites", labelKey: "sites", icon: "🌐" },
         { href: "/c/settings/team", labelKey: "team", icon: "👥" },
+      ],
+    },
+    {
+      titleKey: "automation",
+      items: [
         { href: "/c/settings/integrations", labelKey: "integrations", icon: "🔗" },
+        { href: "/c/settings/agents", labelKey: "agents", icon: "🤖" },
       ],
     },
   ],
