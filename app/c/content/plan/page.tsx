@@ -637,7 +637,7 @@ export default function ContentCalendarPage() {
                   onDragOver={(e) => handleDayDragOver(d, e)}
                   onDragLeave={() => handleDayDragLeave(d)}
                   onDrop={(e) => handleDayDrop(d, e)}
-                  className={`group min-h-[110px] cursor-pointer border-b border-r p-2 transition-colors ${
+                  className={`group min-h-[140px] cursor-pointer border-b border-r p-2 transition-colors ${
                     inMonth ? "bg-white hover:bg-blue-50/40" : "bg-slate-50/50 text-slate-400"
                   } ${isToday ? "ring-2 ring-inset ring-blue-300" : ""} ${
                     isDropTarget ? "bg-blue-100/70 ring-2 ring-inset ring-blue-500" : ""
@@ -661,7 +661,7 @@ export default function ContentCalendarPage() {
                   </div>
 
                   {bucket && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {bucket.plan.slice(0, 3).map(it => {
                         const isDragging = draggingId === it.id;
                         const isMoving = reschedulingId === it.id;
@@ -674,7 +674,7 @@ export default function ContentCalendarPage() {
                           onDragEnd={handleDragEnd}
                           onClick={(e) => handleItemClick(it, e)}
                           title={`${it.title}\n(drag to reschedule)`}
-                          className={`group/chip flex w-full cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] active:cursor-grabbing ${
+                          className={`group/chip flex w-full cursor-grab items-center gap-1 truncate rounded px-1.5 py-1 text-left text-[11px] active:cursor-grabbing ${
                             STATUS_BADGE[it.status] || STATUS_BADGE.idea
                           } ${isDragging ? "opacity-40" : ""} ${isMoving ? "animate-pulse" : ""}`}
                         >
@@ -708,7 +708,7 @@ export default function ContentCalendarPage() {
                           key={p.id}
                           onClick={(e) => handlePieceClick(p, e)}
                           title={p.title}
-                          className="flex w-full items-center gap-1 truncate rounded bg-green-100 px-1.5 py-0.5 text-left text-[11px] text-green-700"
+                          className="flex w-full items-center gap-1 truncate rounded bg-green-100 px-1.5 py-1 text-left text-[11px] text-green-700"
                         >
                           {thumb ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
