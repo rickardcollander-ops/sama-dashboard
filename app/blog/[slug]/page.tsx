@@ -116,7 +116,7 @@ export default async function BlogArticlePage({ params }: Props) {
         </h1>
 
         {/* Content */}
-        <div className="prose prose-invert mt-8 max-w-none prose-headings:font-bold prose-a:text-orange-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:px-1 prose-img:rounded-xl"
+        <div className="prose prose-invert mt-8 max-w-none prose-headings:font-bold prose-a:text-orange-400 prose-a:no-underline hover:prose-a:underline prose-code:rounded prose-code:px-1 prose-img:rounded-xl [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto"
           style={{
             "--tw-prose-body": "var(--text-secondary)",
             "--tw-prose-headings": "var(--text-primary)",

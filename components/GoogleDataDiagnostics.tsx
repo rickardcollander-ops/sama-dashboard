@@ -724,7 +724,7 @@ export default function GoogleDataDiagnostics(props: Props) {
               <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-700 select-none">
                 Recent {agentName} agent runs ({recentRuns.length})
               </summary>
-              <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden">
+              <div className="mt-2 rounded-lg border border-slate-200 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500">

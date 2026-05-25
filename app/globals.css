@@ -676,3 +676,14 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
 }
+
+/* StatScoreboard — responsive column count driven by inline CSS vars.
+   Collapses to at most 2 columns on phones so headline numbers stay legible. */
+.stat-scoreboard {
+  grid-template-columns: repeat(var(--sb-cols-m, 2), minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  .stat-scoreboard {
+    grid-template-columns: repeat(var(--sb-cols, 1), minmax(0, 1fr));
+  }
+}

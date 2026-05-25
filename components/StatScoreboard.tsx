@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 
 // Sprint 1a (X5) — shared horizontal "scoreboard" row for top-of-page stats.
@@ -56,8 +56,13 @@ export default function StatScoreboard({ stats, className = "" }: StatScoreboard
 
   return (
     <div
-      className={`grid gap-px overflow-hidden rounded-xl border bg-slate-200 shadow-sm ${className}`}
-      style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}
+      className={`stat-scoreboard grid gap-px overflow-hidden rounded-xl border bg-slate-200 shadow-sm ${className}`}
+      style={
+        {
+          "--sb-cols-m": Math.min(stats.length, 2),
+          "--sb-cols": stats.length,
+        } as CSSProperties
+      }
     >
       {stats.map((s, idx) => {
         const baseClass = "flex flex-col gap-1 bg-white px-4 py-4 sm:px-5";

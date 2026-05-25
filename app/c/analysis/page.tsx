@@ -555,7 +555,8 @@ function CombinedHistory({
         ) : visRuns.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-400">{t.insights.historyNoVisibility}</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">{t.insights.historyColDate}</th>
@@ -589,6 +590,7 @@ function CombinedHistory({
               ))}
             </tbody>
           </table>
+          </div>
         )
       )}
 
@@ -600,7 +602,8 @@ function CombinedHistory({
         ) : (
           <>
             <AuditScoreTimeline runs={auditRuns} />
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">{t.insights.historyColDate}</th>
@@ -636,6 +639,7 @@ function CombinedHistory({
                 ))}
               </tbody>
             </table>
+            </div>
           </>
         )
       )}

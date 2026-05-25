@@ -570,7 +570,7 @@ export default function CustomerDashboard() {
               <div className="h-7 w-28 rounded-lg bg-slate-200 animate-pulse" />
             </div>
           </div>
-          <div className="grid gap-px overflow-hidden rounded-xl bg-slate-200" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-slate-200 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white p-5">
                 <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />

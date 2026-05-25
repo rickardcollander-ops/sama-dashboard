@@ -831,7 +831,7 @@ useEffect(() => {
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <FileText className="h-7 w-7 text-purple-500" />
@@ -841,7 +841,7 @@ useEffect(() => {
               {t.content.subtitle}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/c/content/plan"
               className="flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
