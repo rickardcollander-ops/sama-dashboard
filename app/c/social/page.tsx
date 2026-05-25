@@ -7,6 +7,7 @@ import {
   Sparkles, Save,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import SuggestionsPanel from "@/components/SuggestionsPanel";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -52,6 +53,10 @@ export default function CustomerSocialPage() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [stats, setStats] = useState<SocialStats | null>(null);
   const [loading, setLoading] = useState(true);
+  // True until the first posts/stats fetch resolves. Gates the full-page
+  // skeleton so later refreshes only swap inline spinners instead of
+  // flashing the whole page back to a skeleton.
+  const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Create post modal state
@@ -107,6 +112,7 @@ export default function CustomerSocialPage() {
       }
     }
     setLoading(false);
+    setFirstLoad(false);
   };
 
   const handleGenerateAI = async () => {
@@ -168,15 +174,8 @@ export default function CustomerSocialPage() {
     }
   };
 
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+  if (userLoading || (loading && firstLoad)) {
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (

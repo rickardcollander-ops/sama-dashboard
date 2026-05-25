@@ -11,6 +11,7 @@ import {
   LineChart, Line,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -59,6 +60,10 @@ export default function CustomerAnalyticsPage() {
   const { period, setPeriod, days } = usePeriod();
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
+  // True until the first analytics fetch resolves. Gates the full-page
+  // skeleton so period/compare changes only swap the inline chart spinner
+  // instead of flashing the whole page (and its controls) back to a skeleton.
+  const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [compare, setCompare] = useState(false);
 
@@ -150,6 +155,7 @@ export default function CustomerAnalyticsPage() {
       }
     }
     setLoading(false);
+    setFirstLoad(false);
   };
 
   const totals = data.totals || { clicks: 0, impressions: 0, conversions: 0, spend: 0 };
@@ -175,15 +181,8 @@ export default function CustomerAnalyticsPage() {
     );
   };
 
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+  if (userLoading || (loading && firstLoad)) {
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (

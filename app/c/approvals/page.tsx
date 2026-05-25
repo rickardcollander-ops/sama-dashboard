@@ -5,6 +5,7 @@ import {
   CheckCircle2, XCircle, Loader2, ShieldCheck, FileText, Share2, Star, AlertTriangle,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 
@@ -37,6 +38,10 @@ export default function ApprovalsPage() {
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"pending" | "approved" | "rejected">("pending");
+  // True until the first fetch resolves. Gates the full-page skeleton so
+  // switching tabs only swaps the list's inline spinner instead of flashing
+  // the whole page (header + tabs) back to a skeleton.
+  const [firstLoad, setFirstLoad] = useState(true);
 
   const load = async () => {
     if (!user || !effectiveTenantId) return;
@@ -50,6 +55,8 @@ export default function ApprovalsPage() {
     } catch {
       setError("Could not fetch drafts.");
       setApprovals([]);
+    } finally {
+      setFirstLoad(false);
     }
   };
 
@@ -95,19 +102,12 @@ export default function ApprovalsPage() {
     setWorking(null);
   };
 
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+  if (userLoading || (approvals === null && firstLoad)) {
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="mb-6">
