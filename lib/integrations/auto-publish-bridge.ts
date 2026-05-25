@@ -123,7 +123,6 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
   );
 
   const due = rows.filter((r) => {
-    if (!r.auto_publish_on_schedule) return false;
     if (!r.content_piece_id) return false;
     if (r.piece_status !== "approved") return false;
     if (!r.scheduled_for) return false;
