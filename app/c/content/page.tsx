@@ -1092,7 +1092,16 @@ function CustomerContentInner() {
             </div>
           ) : (
             <div className="space-y-3">
-              {ideas.map((idea) => {
+              {[...ideas]
+                .sort((a, b) => {
+                  // Scheduled ideas first (chronological); unscheduled sink to
+                  // the bottom. Without this the backend's order floats
+                  // unscheduled rows to the top so the list looks unplanned.
+                  const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+                  const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+                  return ta - tb;
+                })
+                .map((idea) => {
                 const isSocial = (idea.content_type || "").startsWith("social_");
                 const platform = idea.metadata?.platform || idea.content_type?.replace(/^social_/, "");
                 const Icon = isSocial
