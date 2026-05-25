@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   AlertCircle,
+  AlertTriangle,
   X,
   Phone,
   RefreshCw,
@@ -37,6 +38,12 @@ type CallStatus =
   | "meeting_booked"
   | "converted";
 
+interface PriorCampaign {
+  campaign_id: string;
+  campaign_name: string;
+  call_status: string;
+}
+
 interface Lead {
   id: string;
   company_name: string;
@@ -56,6 +63,7 @@ interface Lead {
   audited_at: string | null;
   call_status: CallStatus;
   call_notes: string | null;
+  prior_campaigns: PriorCampaign[];
 }
 
 const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] = [
@@ -95,10 +103,13 @@ export default function TmCampaignDetailPage({
   const [error, setError] = useState("");
   const [activeNotes, setActiveNotes] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
 
-  const visibleLeads = statusFilter === "all"
-    ? leads
-    : leads.filter((l) => l.call_status === statusFilter);
+  const visibleLeads = leads
+    .filter((l) => statusFilter === "all" || l.call_status === statusFilter)
+    .filter((l) => !duplicatesOnly || (l.prior_campaigns ?? []).length > 0);
+
+  const duplicateCount = leads.filter((l) => (l.prior_campaigns ?? []).length > 0).length;
 
   const statusCounts = leads.reduce<Record<string, number>>((acc, l) => {
     acc[l.call_status] = (acc[l.call_status] ?? 0) + 1;
@@ -243,6 +254,19 @@ export default function TmCampaignDetailPage({
             </button>
           );
         })}
+        {duplicateCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setDuplicatesOnly((v) => !v)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              duplicatesOnly
+                ? "bg-slate-900 text-white"
+                : "bg-amber-100 text-amber-700 border border-amber-200 hover:opacity-80"
+            }`}
+          >
+            Dubbletter ({duplicateCount})
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
@@ -299,6 +323,25 @@ export default function TmCampaignDetailPage({
                               {lead.country && `, ${lead.country}`}
                             </>
                           )}
+                        </div>
+                      )}
+                      {(lead.prior_campaigns ?? []).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {lead.prior_campaigns.map((p) => (
+                            <a
+                              key={p.campaign_id}
+                              href={`/tm/${p.campaign_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700 hover:bg-amber-100"
+                            >
+                              <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                              {p.campaign_name}
+                              <span className={`ml-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${callStatusTone(p.call_status as CallStatus)}`}>
+                                {CALL_STATUS_OPTIONS.find((o) => o.value === p.call_status)?.label ?? p.call_status}
+                              </span>
+                            </a>
+                          ))}
                         </div>
                       )}
                     </td>
