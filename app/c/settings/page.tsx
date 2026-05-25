@@ -6,8 +6,9 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles, Image,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles, MapPin,
 } from "lucide-react";
+import type { TargetLocation } from "@/lib/types/location";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -19,6 +20,7 @@ import PublishingDestinations from "@/components/PublishingDestinations";
 import GoogleAnalyticsPropertyPicker from "@/components/GoogleAnalyticsPropertyPicker";
 import GoogleSearchConsolePropertyPicker from "@/components/GoogleSearchConsolePropertyPicker";
 import TeamManagementPanel from "@/components/TeamManagementPanel";
+import LocalMarketEditor from "@/components/LocalMarketEditor";
 
 interface UserSettings {
   brand_name: string;
@@ -43,7 +45,7 @@ interface UserSettings {
   publish_email_recipient: string;
   publish_email_recipient_name: string;
   team_members: string[];
-  image_provider: string;
+  target_locations?: TargetLocation[];
 }
 
 const CONTENT_LANGUAGES = [
@@ -681,6 +683,14 @@ function CustomerSettingsPageInner() {
                 </span>
               ))}
             </div>
+          </Section>
+
+          {/* ── Local market ── */}
+          <Section icon={MapPin} title="Lokal marknad" desc="Fysiska platser för lokal SEO — genererar stadsspecifika nyckelord, innehåll och LocalBusiness-schema.">
+            <LocalMarketEditor
+              locations={settings.target_locations ?? []}
+              onChange={(locs) => setSettings((prev) => ({ ...prev, target_locations: locs }))}
+            />
           </Section>
 
           {/* ── Team members ── */}
