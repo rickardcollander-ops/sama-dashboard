@@ -256,7 +256,7 @@ export default function ContentPlanTab({ apiUrl }: Props) {
               Persistent backlog of content ideas — fed automatically by analysis runs and your manual generates. Click a card to draft it into a full article, or use the plan to schedule the publish date.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/c/content/plan"
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

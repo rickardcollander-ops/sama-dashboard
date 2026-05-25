@@ -197,6 +197,23 @@ export default function MarketingHeader({ variant = "default" }: Props) {
                 {item.label}
               </Link>
             ))}
+            <Link
+              href="/c/pricing"
+              className="mt-3 block rounded-md px-2 py-1.5 text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+              onClick={() => setMobileOpen(false)}
+            >
+              {nav.pricing}
+            </Link>
+            <Link
+              href="/c/login"
+              className="mt-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+              onClick={() => setMobileOpen(false)}
+            >
+              <LogIn className="h-4 w-4" />
+              {nav.signIn}
+            </Link>
             <div className="pt-3 flex items-center gap-2">
               <button
                 onClick={() => setLanguage(language === "sv" ? "en" : "sv")}

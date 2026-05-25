@@ -459,7 +459,7 @@ function CustomerSettingsPageInner() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <CustomerNav />
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3">
               <Settings className="h-7 w-7 text-slate-400" />
@@ -467,7 +467,7 @@ function CustomerSettingsPageInner() {
             </h1>
             <p className="mt-1 text-sm text-slate-500">{t.settings.subtitle}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button onClick={() => window.location.href = "/c/onboarding?rerun=1"} className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
               <Rocket className="h-4 w-4" />{t.settings.runOnboarding}
             </button>
@@ -542,7 +542,7 @@ function CustomerSettingsPageInner() {
                 {agentRuns.length > 0 && (
                   <div className="mt-5">
                     <h3 className="text-sm font-medium text-slate-700 mb-2">{t.settings.recentRuns}</h3>
-                    <div className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="rounded-lg border border-slate-200 overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500">
@@ -808,8 +808,8 @@ function CustomerSettingsPageInner() {
               <div className="border-t border-slate-100 px-4 py-4">
                 {ghStatus.connected ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div><span className="text-slate-500 text-xs">{t.settings.repository}</span><p className="font-medium text-slate-900">{ghStatus.repo}</p></div>
+                    <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                      <div><span className="text-slate-500 text-xs">{t.settings.repository}</span><p className="font-medium text-slate-900 break-words">{ghStatus.repo}</p></div>
                       <div><span className="text-slate-500 text-xs">{t.settings.branch}</span><p className="font-medium text-slate-900">{ghStatus.branch}</p></div>
                       <div><span className="text-slate-500 text-xs">{t.settings.blogPath}</span><p className="font-medium text-slate-900 font-mono text-xs">{ghStatus.blog_path}</p></div>
                     </div>
@@ -847,7 +847,7 @@ function CustomerSettingsPageInner() {
                             </select>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">{t.settings.blogPath}</label>
                             <input type="text" value={ghBlogPath} onChange={(e) => setGhBlogPath(e.target.value)} placeholder="content/blog" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />

@@ -611,7 +611,8 @@ export default function ContentCalendarPage() {
 
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
-        <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
+          <div className="min-w-[640px]">
           {/* Weekday header */}
           <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
             {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => (
@@ -738,6 +739,7 @@ export default function ContentCalendarPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
 
@@ -884,7 +886,7 @@ function FinishedArticleRow({
   const pieceStatus = (item.piece_status || item.status || "").toLowerCase();
 
   return (
-    <li className="flex items-start gap-4 p-4 hover:bg-slate-50/60">
+    <li className="flex flex-col gap-3 p-4 hover:bg-slate-50/60 sm:flex-row sm:items-start sm:gap-4">
       {item.featured_image_url ? (
         articleHref ? (
           <Link
@@ -986,7 +988,7 @@ function FinishedArticleRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {articleHref && (
           <Link
             href={articleHref}

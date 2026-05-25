@@ -75,12 +75,12 @@ export default function SiteAuditReport({ run }: { run: SiteAuditRun }) {
 
       {unreachable && <UnreachableBanner run={run} />}
 
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
         {tabs.filter((t) => t.show).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`relative flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
+            className={`relative flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.id ? "text-violet-700" : "text-slate-500 hover:text-slate-800"
             }`}
           >
