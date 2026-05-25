@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -834,20 +835,50 @@ interface MoreMenuItem {
 
 function MoreMenu({ items, disabled }: { items: MoreMenuItem[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // The button lives inside a `sticky` table cell, which establishes its own
+  // stacking context. An absolutely-positioned menu can't escape it, so a later
+  // row's sticky cell paints over it. Render the menu in a portal with fixed
+  // positioning anchored to the button instead.
+  const place = useCallback(() => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estHeight = items.length * 30 + 8;
+    const below = rect.bottom + 4;
+    const flipUp = below + estHeight > window.innerHeight && rect.top - estHeight - 4 > 0;
+    setCoords({
+      top: flipUp ? rect.top - estHeight - 4 : below,
+      right: window.innerWidth - rect.right,
+    });
+  }, [items.length]);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    place();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
-    window.addEventListener("mousedown", handler);
-    return () => window.removeEventListener("mousedown", handler);
-  }, [open]);
+    const close = () => setOpen(false);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, place]);
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         title="Fler åtgärder"
@@ -856,32 +887,39 @@ function MoreMenu({ items, disabled }: { items: MoreMenuItem[]; disabled?: boole
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-          {items.map((it, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                if (it.disabled) return;
-                setOpen(false);
-                it.onClick();
-              }}
-              disabled={it.disabled}
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs ${
-                it.disabled
-                  ? "cursor-not-allowed text-slate-300"
-                  : it.destructive
-                    ? "text-red-600 hover:bg-red-50"
-                    : "text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <span className="flex-shrink-0">{it.icon}</span>
-              <span>{it.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: "fixed", top: coords.top, right: coords.right }}
+            className="z-50 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          >
+            {items.map((it, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  if (it.disabled) return;
+                  setOpen(false);
+                  it.onClick();
+                }}
+                disabled={it.disabled}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs ${
+                  it.disabled
+                    ? "cursor-not-allowed text-slate-300"
+                    : it.destructive
+                      ? "text-red-600 hover:bg-red-50"
+                      : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span className="flex-shrink-0">{it.icon}</span>
+                <span>{it.label}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
