@@ -46,6 +46,7 @@ interface UserSettings {
   publish_email_recipient_name: string;
   team_members: string[];
   target_locations?: TargetLocation[];
+  image_provider?: string;
 }
 
 const CONTENT_LANGUAGES = [
