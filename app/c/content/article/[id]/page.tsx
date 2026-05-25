@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, ArrowUp, Check, Download, Edit3, Globe, Image, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, Download, Edit3, Globe, HelpCircle, Image, Loader2, Plus, Trash2, X } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -130,6 +130,7 @@ function ArticleInner({ id }: { id: string }) {
   const [editMetaDescription, setEditMetaDescription] = useState("");
   const [editIntroMd, setEditIntroMd] = useState("");
   const [editSections, setEditSections] = useState<Array<{ id: string; heading: string; body_md: string; image?: any }>>([]);
+  const [editFaq, setEditFaq] = useState<Array<{ q: string; a: string }>>([]);
   const [editMarkdown, setEditMarkdown] = useState("");
   const [editFeaturedImageUrl, setEditFeaturedImageUrl] = useState("");
 
@@ -283,6 +284,7 @@ function ArticleInner({ id }: { id: string }) {
     setEditMetaDescription(piece.meta_description || "");
     setEditIntroMd(intro || "");
     setEditSections(hasStructured ? JSON.parse(JSON.stringify(articleData.sections)) : []);
+    setEditFaq(Array.isArray(articleData.faq) ? JSON.parse(JSON.stringify(articleData.faq)) : []);
     setEditMarkdown(markdown);
     setEditFeaturedImageUrl(piece.featured_image_url || "");
     setEditMode(true);
@@ -299,11 +301,13 @@ function ArticleInner({ id }: { id: string }) {
         meta_description: editMetaDescription || null,
         featured_image_url: editFeaturedImageUrl.trim() || null,
       };
+      const cleanedFaq = editFaq.filter((f) => f.q.trim() || f.a.trim());
       if (hasStructured) {
         updates.article_data = {
           ...articleData,
           intro_md: editIntroMd,
           sections: editSections,
+          faq: cleanedFaq,
         };
       } else {
         updates.content = editMarkdown;
@@ -314,7 +318,7 @@ function ArticleInner({ id }: { id: string }) {
         if (!prev) return prev;
         const next: PieceFull = { ...prev, title: editTitle, meta_description: editMetaDescription || null, featured_image_url: editFeaturedImageUrl.trim() || null };
         if (hasStructured) {
-          next.article_data = { ...articleData, intro_md: editIntroMd, sections: editSections } as ArticleData;
+          next.article_data = { ...articleData, intro_md: editIntroMd, sections: editSections, faq: cleanedFaq } as ArticleData;
         } else {
           next.content = editMarkdown;
         }
@@ -354,6 +358,18 @@ function ArticleInner({ id }: { id: string }) {
       return next;
     });
   };
+
+  const updateFaq = (i: number, field: "q" | "a", value: string) => {
+    setEditFaq((prev) => {
+      const next = [...prev];
+      next[i] = { ...next[i], [field]: value };
+      return next;
+    });
+  };
+
+  const addFaq = () => setEditFaq((prev) => [...prev, { q: "", a: "" }]);
+
+  const removeFaq = (i: number) => setEditFaq((prev) => prev.filter((_, idx) => idx !== i));
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -554,6 +570,47 @@ function ArticleInner({ id }: { id: string }) {
                       </div>
                     </div>
                   ))}
+
+                  {/* FAQ */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <HelpCircle className="h-3.5 w-3.5" />
+                      Frequently Asked Questions
+                    </div>
+                    {editFaq.map((item, i) => (
+                      <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="text"
+                            value={item.q}
+                            onChange={(e) => updateFaq(i, "q", e.target.value)}
+                            className="flex-1 text-sm font-medium text-slate-900 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-400 transition-colors"
+                            placeholder="Fråga…"
+                          />
+                          <button
+                            onClick={() => removeFaq(i)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors"
+                            title="Ta bort fråga"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <AutoTextarea
+                          value={item.a}
+                          onChange={(v) => updateFaq(i, "a", v)}
+                          className="w-full text-sm text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-orange-400 transition-colors font-mono"
+                          placeholder="Svar (Markdown)…"
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={addFaq}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-orange-400 hover:text-orange-600 px-3 py-2 text-sm font-medium transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Lägg till fråga
+                    </button>
+                  </div>
 
                   {/* Meta description in edit mode */}
                   <div className="rounded-2xl border border-slate-200 bg-white p-5">
