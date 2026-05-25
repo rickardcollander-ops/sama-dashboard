@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/integrations/store";
-import { appendScheduled, getDestinations } from "@/lib/integrations/store";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 const BACKEND =
@@ -46,9 +45,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "items array required" }, { status: 400 });
   }
 
-  const destinations = await getDestinations(tenantId, user.id);
-  const defaultDestination = destinations[0];
-
   let created = 0;
   let failed = 0;
   const pieceIds: string[] = [];
@@ -81,29 +77,6 @@ export async function POST(req: NextRequest) {
         const pieceData = await pieceRes.json().catch(() => ({}));
         pieceId = pieceData?.id || pieceData?.piece?.id;
         if (pieceId) pieceIds.push(pieceId);
-      }
-
-      // Schedule in calendar if date is set — destination is optional for planning entries
-      if (item.scheduled_date) {
-        const scheduledAt = new Date(item.scheduled_date);
-        scheduledAt.setHours(9, 0, 0, 0);
-        if (scheduledAt.getTime() > Date.now() - 86400_000) {
-          await appendScheduled(tenantId, user.id, {
-            piece_id: pieceId || `strategy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            destination_id: defaultDestination?.id ?? "",
-            scheduled_at: scheduledAt.toISOString(),
-            payload: {
-              title: item.title,
-              slug: item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
-              body_markdown: "",
-              excerpt: "",
-              meta_description: "",
-              tags: [],
-              language: "sv",
-              status: "draft",
-            },
-          });
-        }
       }
 
       created++;
