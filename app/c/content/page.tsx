@@ -1181,11 +1181,6 @@ function CustomerContentInner() {
                             </span>
                           )}
                         </div>
-                        {!isSocial && (
-                          <p className="mt-2 text-[11px] italic text-slate-400">
-                            {t.content.ideaCascadeNote}
-                          </p>
-                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         {!isSocial && (
