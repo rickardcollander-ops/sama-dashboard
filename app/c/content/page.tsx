@@ -179,6 +179,7 @@ function CustomerContentInner() {
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
+  const [autoPublish, setAutoPublish] = useState(false);
 
   const TYPE_LABELS: Record<string, string> = {
     linkedin_post: t.content.typeLinkedin,
@@ -211,6 +212,20 @@ function CustomerContentInner() {
 
   useEffect(() => {
     if (user && effectiveTenantId) fetchContent();
+  }, [user, effectiveTenantId]);
+
+  useEffect(() => {
+    if (!user || !effectiveTenantId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await tenantApi(effectiveTenantId).get<{ settings?: { content_autopilot?: { auto_publish?: boolean } } }>(
+          `/api/settings/${user.id}`,
+        );
+        if (!cancelled) setAutoPublish(data?.settings?.content_autopilot?.auto_publish ?? false);
+      } catch { /* default false */ }
+    })();
+    return () => { cancelled = true; };
   }, [user, effectiveTenantId]);
 
   // While a content_plan run is in flight (e.g. user just clicked
@@ -1077,7 +1092,16 @@ function CustomerContentInner() {
             </div>
           ) : (
             <div className="space-y-3">
-              {ideas.map((idea) => {
+              {[...ideas]
+                .sort((a, b) => {
+                  // Scheduled ideas first (chronological); unscheduled sink to
+                  // the bottom. Without this the backend's order floats
+                  // unscheduled rows to the top so the list looks unplanned.
+                  const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+                  const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+                  return ta - tb;
+                })
+                .map((idea) => {
                 const isSocial = (idea.content_type || "").startsWith("social_");
                 const platform = idea.metadata?.platform || idea.content_type?.replace(/^social_/, "");
                 const Icon = isSocial
@@ -1095,6 +1119,8 @@ function CustomerContentInner() {
                   ? `${(platform || "social").charAt(0).toUpperCase()}${(platform || "").slice(1)} post`
                   : formatTypeLabel(idea.content_type);
                 const sched = idea.scheduled_for ? new Date(idea.scheduled_for) : null;
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const draftEst = sched ? new Date(sched.getTime() - 2 * 24 * 60 * 60 * 1000) : null;
                 return (
                   <div
                     key={idea.id}
@@ -1116,12 +1142,27 @@ function CustomerContentInner() {
                           </p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {sched
-                              ? `${t.content.ideaScheduledOn} ${sched.toLocaleDateString(undefined, { dateStyle: "medium" })}`
-                              : t.content.ideaUnscheduled}
-                          </span>
+                          {sched ? (
+                            <>
+                              {draftEst && draftEst > today && (
+                                <span className="inline-flex items-center gap-1">
+                                  <PenTool className="h-3 w-3" />
+                                  {`${t.content.ideaDraftedAround} ${draftEst.toLocaleDateString(undefined, { dateStyle: "medium" })}`}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1">
+                                {autoPublish ? <Sparkles className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
+                                {autoPublish
+                                  ? `${t.content.ideaAutoPublish} ${sched.toLocaleDateString(undefined, { dateStyle: "medium" })}`
+                                  : `${t.content.ideaScheduledOn} ${sched.toLocaleDateString(undefined, { dateStyle: "medium" })}`}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {t.content.ideaUnscheduled}
+                            </span>
+                          )}
                           {idea.target_keyword && (
                             <span className="inline-flex items-center gap-1">
                               <Search className="h-3 w-3" />
@@ -1140,11 +1181,6 @@ function CustomerContentInner() {
                             </span>
                           )}
                         </div>
-                        {!isSocial && (
-                          <p className="mt-2 text-[11px] italic text-slate-400">
-                            {t.content.ideaCascadeNote}
-                          </p>
-                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         {!isSocial && (

@@ -94,9 +94,16 @@ const DEFAULT_SETTINGS: UserSettings = {
   publish_email_recipient: "",
   publish_email_recipient_name: "",
   team_members: [],
+  image_provider: "unsplash",
 };
 
 const AVAILABLE_PLATFORMS = ["ChatGPT", "Perplexity", "Claude", "Google AIO", "Gemini", "Microsoft Copilot"];
+
+const IMAGE_PROVIDERS = [
+  { code: "unsplash", label: "Unsplash", desc: "Gratis högkvalitativa stockfoton" },
+  { code: "pexels", label: "Pexels", desc: "Gratis stockfoton och videor" },
+  { code: "none", label: "Ingen bild", desc: "Generera artiklar utan bilder" },
+];
 
 interface GoogleServiceStatus {
   search_console: boolean;
@@ -699,6 +706,26 @@ function CustomerSettingsPageInner() {
                 return (
                   <button key={p} onClick={() => togglePlatform(p)} className={`rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-all ${active ? "border-violet-500 bg-violet-100 text-violet-800 shadow-sm ring-1 ring-violet-200" : "border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}>
                     {active && <span className="mr-1.5">&#10003;</span>}{p}
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* ── Image Provider ── */}
+          <Section icon={Image} title="Bildleverantör" desc="Välj varifrån SAMA hämtar bilder när artiklar genereras automatiskt.">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {IMAGE_PROVIDERS.map((p) => {
+                const active = (settings.image_provider || "unsplash") === p.code;
+                return (
+                  <button
+                    key={p.code}
+                    onClick={() => updateField("image_provider", p.code)}
+                    className={`rounded-xl border-2 p-4 text-left transition-all ${active ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}
+                  >
+                    <div className={`text-sm font-semibold mb-1 ${active ? "text-blue-800" : "text-slate-900"}`}>{p.label}</div>
+                    <div className={`text-xs leading-relaxed ${active ? "text-blue-600" : "text-slate-500"}`}>{p.desc}</div>
+                    {active && <div className="mt-2 text-[10px] font-medium text-blue-500 uppercase tracking-wide">Aktiv</div>}
                   </button>
                 );
               })}

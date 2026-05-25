@@ -1,7 +1,7 @@
 ---
 title: "What Is a Generative Engine Optimization Platform, and Why Every B2B Marketer Needs One in 2026"
 slug: "what-is-a-generative-engine-optimization-platform-and-why-every-b2b-marketer-nee"
-date: 2026-05-20T14:29:22.628Z
+date: 2026-05-25T09:13:42.123Z
 excerpt: "What Is a Generative Engine Optimization Platform, and Why Every B2B Marketer Needs One in 2026 Search is changing faster than most marketing teams are…"
 description: "What Is a Generative Engine Optimization Platform, and Why Every B2B Marketer Needs One in 2026 Search is changing faster than most marketing teams are…"
 language: "en"
