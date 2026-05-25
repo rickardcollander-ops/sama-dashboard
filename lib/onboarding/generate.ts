@@ -34,6 +34,16 @@ const SAMA_BACKEND_URL =
   process.env.NEXT_PUBLIC_SAMA_API_URL ||
   "https://web-production-5324a.up.railway.app";
 
+export interface TargetLocation {
+  city: string;
+  region?: string;
+  country: string;
+  address?: string;
+  postal_code?: string;
+  phone?: string;
+  is_primary?: boolean;
+}
+
 export interface OnboardingFormInput {
   domain: string;
   brand_name: string;
@@ -44,6 +54,7 @@ export interface OnboardingFormInput {
   geo_queries: string[];
   brand_color?: string;
   example_article_url?: string;
+  target_locations?: TargetLocation[];
 }
 
 // Mirrors the enum values the existing settings page uses so the AI-filled
@@ -342,12 +353,24 @@ async function generateKeywords(
   apiKey: string,
   input: OnboardingFormInput,
 ): Promise<GeneratedKeyword[]> {
+  const locations = input.target_locations ?? [];
+  const primaryLoc = locations.find((l) => l.is_primary) ?? locations[0];
+  const hasLocal = locations.length > 0 && !!primaryLoc?.city;
+
+  const localInstruction = hasLocal
+    ? `\n- This is a LOCAL business serving ${primaryLoc!.city}, ${primaryLoc!.country}. Include ${Math.min(4, Math.floor(12 / 2))} geo-modified keywords (e.g. "[service] i ${primaryLoc!.city}", "bästa [service] i ${primaryLoc!.city}", "[service] ${primaryLoc!.city} pris"). Mix local-intent and broader terms.`
+    : "";
+
   const system = `You are a senior SEO strategist. Given a brand's description and audience, you propose the 12 most commercially valuable search keywords the brand should rank for in Google. Bias toward:
 - realistic head and long-tail terms a real prospect would type
 - terms with clear buyer intent (problem, comparison, "best X for Y")
 - terms where this brand has a believable chance of ranking based on its description and audience
-- NEVER include the brand's own name or domain — those are not opportunities, they're navigational
+- NEVER include the brand's own name or domain — those are not opportunities, they're navigational${localInstruction}
 Always reply by calling submit_keywords.`;
+
+  const locationLine = hasLocal
+    ? `\nPrimary market: ${primaryLoc!.city}, ${primaryLoc!.country}${locations.length > 1 ? ` (+${locations.length - 1} more locations)` : ""}`
+    : "";
 
   const user = `Brand: ${input.brand_name || "(unknown)"}
 Domain: ${input.domain}
@@ -355,7 +378,7 @@ Description: ${input.brand_description || "(none)"}
 Target audience: ${input.target_audience || "(general)"}
 Current year: ${new Date().getFullYear()}
 Output language: ${input.content_language || "en"}
-Competitors: ${input.competitors.join(", ") || "(none)"}
+Competitors: ${input.competitors.join(", ") || "(none)"}${locationLine}
 
 Produce exactly 12 keywords as a JSON tool call. Prioritise so the top entries are the highest-value ones for this brand.`;
 
@@ -376,20 +399,31 @@ async function generatePlan(
   input: OnboardingFormInput,
   keywords: GeneratedKeyword[],
 ): Promise<PlanEntry[]> {
+  const locations = input.target_locations ?? [];
+  const primaryLoc = locations.find((l) => l.is_primary) ?? locations[0];
+  const hasLocal = locations.length > 0 && !!primaryLoc?.city;
+  const localPlanNote = hasLocal
+    ? `\n- For geo-modified keywords (those containing "${primaryLoc!.city}"), write local landing-page style titles: direct, service-focused, with the city name prominent.`
+    : "";
+
   const system = `You are a content strategist. Given a brand and a ranked list of target keywords, produce a 30-day content calendar with one piece per day. Each piece must:
 - target one specific keyword from the provided list (no inventing new ones)
 - set content_type to blog_post for every entry
 - have a concrete, click-worthy title in the brand's output language
 - include a one-sentence "angle" explaining the take or hook
 - cover all 12 keywords across the month, weighted toward the higher-priority ones
-- use the actual current year in any titles that reference a specific year (never write stale years)
+- use the actual current year in any titles that reference a specific year (never write stale years)${localPlanNote}
 Always reply by calling submit_plan.`;
+
+  const locationLine = hasLocal
+    ? `\nPrimary market: ${primaryLoc!.city}, ${primaryLoc!.country}`
+    : "";
 
   const user = `Today's date: ${new Date().toISOString().slice(0, 10)} (year: ${new Date().getFullYear()})
 Brand: ${input.brand_name}
 Description: ${input.brand_description}
 Target audience: ${input.target_audience}
-Output language: ${input.content_language}
+Output language: ${input.content_language}${locationLine}
 
 Available keywords (priority high→low):
 ${keywords.map((k, i) => `${i + 1}. ${k.text} [${k.priority}/${k.intent}]`).join("\n")}

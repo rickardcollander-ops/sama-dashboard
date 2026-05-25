@@ -5,6 +5,7 @@ import { resolveSiteId } from "@/lib/integrations/site-context";
 import {
   runOnboardingGeneration,
   type OnboardingFormInput,
+  type TargetLocation,
 } from "@/lib/onboarding/generate";
 
 export const runtime = "nodejs";
@@ -74,6 +75,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const rawLocations = Array.isArray(body.target_locations) ? body.target_locations : [];
+  const target_locations: TargetLocation[] = rawLocations
+    .filter((l): l is Record<string, unknown> => !!l && typeof l === "object")
+    .map((l) => ({
+      city: String(l.city ?? "").trim(),
+      country: String(l.country ?? "").trim().toUpperCase().slice(0, 2),
+      ...(l.region ? { region: String(l.region).trim() } : {}),
+      ...(l.address ? { address: String(l.address).trim() } : {}),
+      ...(l.postal_code ? { postal_code: String(l.postal_code).trim() } : {}),
+      ...(l.phone ? { phone: String(l.phone).trim() } : {}),
+      is_primary: l.is_primary === true,
+    }))
+    .filter((l) => l.city && l.country)
+    .slice(0, 5);
+
   const input: OnboardingFormInput = {
     domain,
     brand_name: String(body.brand_name ?? "").trim(),
@@ -83,6 +99,7 @@ export async function POST(req: NextRequest) {
     competitors: pickStringArray(body.competitors).slice(0, 10),
     geo_queries: pickStringArray(body.geo_queries).slice(0, 10),
     brand_color: typeof body.brand_color === "string" ? body.brand_color.trim() : "",
+    target_locations,
   };
 
   const siteId = resolveSiteId(req, user.id);
