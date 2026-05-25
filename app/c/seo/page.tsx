@@ -10,6 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import CustomerNav from "@/components/CustomerNav";
+import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import GoogleDataDiagnostics from "@/components/GoogleDataDiagnostics";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -39,6 +40,10 @@ export default function CustomerSeoPage() {
   const { t } = useLanguage();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [loading, setLoading] = useState(true);
+  // True until the first keyword fetch resolves. Gates the full-page skeleton
+  // so later refreshes (add/delete keyword) only swap the table's inline
+  // spinner instead of flashing the whole page back to a skeleton.
+  const [firstLoad, setFirstLoad] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedKeyword, setSelectedKeyword] = useState<Keyword | null>(null);
@@ -116,6 +121,7 @@ export default function CustomerSeoPage() {
       }
     }
     setLoading(false);
+    setFirstLoad(false);
   };
 
   const triggerCheck = async () => {
@@ -278,15 +284,8 @@ export default function CustomerSeoPage() {
     );
   };
 
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-        <CustomerNav />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      </div>
-    );
+  if (userLoading || (loading && firstLoad)) {
+    return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
   return (
