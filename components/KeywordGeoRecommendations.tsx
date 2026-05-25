@@ -60,10 +60,10 @@ const SECTION_META: Record<
   },
   long_tail_phrases: {
     label: "Long-tail phrases",
-    description: "5+ word buyer-intent phrases — also added as keywords.",
+    description: "5+ word buyer-intent phrases — tracked as GEO queries.",
     icon: MessageSquare,
     tone: "emerald",
-    addBucket: "keywords",
+    addBucket: "geo",
   },
 };
 
@@ -95,7 +95,10 @@ export default function KeywordGeoRecommendations(props: Props) {
 
   const geoCapEnabled = typeof geoMax === "number" && typeof geoTrackedCount === "number";
   const geoRemaining = geoCapEnabled ? Math.max(0, (geoMax as number) - (geoTrackedCount as number)) : Infinity;
-  const selectedGeoCount = Array.from(selected).filter((id) => id.startsWith("geo_queries::")).length;
+  const selectedGeoCount = Array.from(selected).filter((id) => {
+    const section = id.split("::")[0] as keyof typeof SECTION_META;
+    return SECTION_META[section]?.addBucket === "geo";
+  }).length;
   const exceedsGeoCap = geoCapEnabled && selectedGeoCount > geoRemaining;
 
   const fetchRecs = async () => {
