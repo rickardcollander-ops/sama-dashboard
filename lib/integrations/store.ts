@@ -13,7 +13,7 @@ interface StoredGitHubConfig {
   connected_at?: string;
 }
 
-function buildGithubVirtualDestination(
+export function buildGithubVirtualDestination(
   settings: SettingsJson,
 ): CmsDestination | null {
   const raw = settings[GITHUB_SETTINGS_KEY];
