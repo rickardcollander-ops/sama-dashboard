@@ -44,6 +44,9 @@ const OnboardingChecklist = dynamic(() => import("@/components/dashboard/Onboard
 const ContentPipeline = dynamic(() => import("@/components/dashboard/ContentPipeline"), {
   loading: () => <div className="h-28 animate-pulse rounded-xl border bg-white shadow-sm" />,
 });
+const AutomationStatus = dynamic(() => import("@/components/dashboard/AutomationStatus"), {
+  loading: () => <div className="h-14 animate-pulse rounded-xl border bg-white shadow-sm" />,
+});
 const AutoApproveToggle = dynamic(() => import("@/components/content/AutoApproveToggle"), {
   loading: () => null,
 });
@@ -707,6 +710,13 @@ export default function CustomerDashboard() {
 
         {user && (
           <div className="mt-8 space-y-4">
+            <AutomationStatus
+              tenantId={effectiveTenantId}
+              userId={user.id}
+              pieces={recentPieces}
+              active={hasSetup}
+              onboardingCompletedAt={settings.onboarding_completed_at}
+            />
             <ContentPipeline
               tenantId={effectiveTenantId}
               pieces={recentPieces}
