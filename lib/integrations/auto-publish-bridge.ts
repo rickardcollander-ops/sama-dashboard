@@ -2,6 +2,12 @@ import { CmsDestination } from "./cms/types";
 import { buildArticleJsonLd } from "./jsonld";
 import { excerptFromMarkdown, markdownToHtml, slugify } from "./cms/markdown";
 import {
+  SitemapEntry,
+  fetchSitemapEntries,
+  injectInternalLinks,
+  resolveSiteOrigin,
+} from "./internal-links";
+import {
   ScheduledPublish,
   SettingsJson,
   buildGithubVirtualDestination,
@@ -140,6 +146,20 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     return result;
   }
 
+  // Resolve sitemap entries once for the whole batch (cached per origin) so we
+  // can weave internal links into each article body before it ships.
+  const blogUrlSetting = typeof ctx.settings.blog_url === "string" ? (ctx.settings.blog_url as string) : undefined;
+  const domainSetting = typeof ctx.settings.domain === "string" ? (ctx.settings.domain as string) : undefined;
+  const linkOrigin = resolveSiteOrigin(blogUrlSetting, domainSetting);
+  let sitemapEntries: SitemapEntry[] = [];
+  if (linkOrigin) {
+    try {
+      sitemapEntries = await fetchSitemapEntries(linkOrigin);
+    } catch {
+      sitemapEntries = [];
+    }
+  }
+
   for (const row of due) {
     const pieceId = row.content_piece_id as string;
 
@@ -191,6 +211,11 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     const canonicalBase = blogUrl || (domain ? `https://${domain}` : "");
     const canonicalUrl = canonicalBase ? `${canonicalBase.replace(/\/$/, "")}/${slug}` : undefined;
 
+    const finalMd =
+      sitemapEntries.length > 0
+        ? injectInternalLinks(bodyMd, sitemapEntries, { selfHref: canonicalUrl ?? `/${slug}` }).markdown
+        : bodyMd;
+
     const jsonld = buildArticleJsonLd({
       title: metaTitle,
       description: excerpt,
@@ -211,8 +236,8 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       payload: {
         title: metaTitle,
         slug,
-        body_markdown: bodyMd,
-        body_html: markdownToHtml(bodyMd),
+        body_markdown: finalMd,
+        body_html: markdownToHtml(finalMd),
         excerpt,
         meta_description: excerpt,
         tags,
