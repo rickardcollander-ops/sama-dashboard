@@ -12,6 +12,8 @@ import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import CodeBlock, { type CodeBlockLanguage } from "@/components/tech/CodeBlock";
+import TechReportDocument from "@/components/tech/TechReportDocument";
+import type { SiteAuditFinding, SiteAuditRun } from "@/app/c/analysis/audit-types";
 
 interface TechSuggestion {
   title: string;
@@ -59,15 +61,6 @@ interface GitHubStatus {
   branch?: string;
 }
 
-interface AuditFinding {
-  title: string;
-  severity: "critical" | "warning" | "info";
-  category?: string;
-  description?: string;
-  affected_urls?: string[];
-  how_to_fix?: string | null;
-}
-
 interface SuggestResponse {
   suggestions?: TechSuggestion[];
   github_connected?: boolean;
@@ -98,7 +91,8 @@ export default function TechAgentPage() {
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
 
-  const [auditFindings, setAuditFindings] = useState<AuditFinding[]>([]);
+  const [auditRun, setAuditRun] = useState<SiteAuditRun | null>(null);
+  const [auditFindings, setAuditFindings] = useState<SiteAuditFinding[]>([]);
   const [auditId, setAuditId] = useState<string | null>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
@@ -149,13 +143,11 @@ export default function TechAgentPage() {
         headers: effectiveTenantId ? { "X-Tenant-ID": effectiveTenantId } : {},
       });
       if (res.ok) {
-        const data = (await res.json()) as {
-          run?: { id?: string; findings?: AuditFinding[] };
-          findings?: AuditFinding[];
-          id?: string;
-        };
-        setAuditFindings(data?.run?.findings || data?.findings || []);
-        setAuditId(data?.run?.id || data?.id || null);
+        const data = (await res.json()) as { run?: SiteAuditRun | null };
+        const run = data?.run ?? null;
+        setAuditRun(run);
+        setAuditFindings(run?.findings ?? []);
+        setAuditId(run?.id ?? null);
       }
     } catch {
       // no audit data yet
@@ -245,7 +237,7 @@ export default function TechAgentPage() {
     setLoadingPreview(false);
   };
 
-  const sendFindingToAgent = (finding: AuditFinding) => {
+  const sendFindingToAgent = (finding: SiteAuditFinding) => {
     // Promote the audit finding into a suggestion shell so the existing
     // execute/preview flow can pick it up. The backend will splice in
     // the how_to_fix template when generating the file change.
@@ -265,17 +257,21 @@ export default function TechAgentPage() {
     window.print();
   };
 
-  const severityIcon = (severity: AuditFinding["severity"]) => {
+  const severityIcon = (severity: SiteAuditFinding["severity"]) => {
     if (severity === "critical") return <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />;
     if (severity === "warning") return <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />;
     return <Info className="h-4 w-4 text-blue-400 flex-shrink-0" />;
   };
 
-  const severityLabel = (s: AuditFinding["severity"]) =>
+  const severityLabel = (s: SiteAuditFinding["severity"]) =>
     s === "critical" ? "Critical" : s === "warning" ? "Warning" : "Info";
 
-  const criticalFindings = auditFindings.filter((f) => f.severity === "critical");
-  const otherFindings = auditFindings.filter((f) => f.severity !== "critical");
+  // Passing checks ("success") are positive signals, not actionable issues —
+  // keep them out of the on-screen list and the report's issue count.
+  const visibleFindings = auditFindings.filter((f) => f.severity !== "success");
+  const criticalFindings = visibleFindings.filter((f) => f.severity === "critical");
+  const otherFindings = visibleFindings.filter((f) => f.severity !== "critical");
+  const hasReport = visibleFindings.length > 0 || exportItems.length > 0;
 
   if (userLoading) {
     return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
@@ -310,75 +306,7 @@ export default function TechAgentPage() {
 
       {/* PDF export document (hidden on screen, visible on print) */}
       <div id="pdf-export">
-        <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
-          Technical actions – SAMA
-        </h1>
-        <p style={{ color: "#64748b", marginBottom: "2rem", fontSize: "0.875rem" }}>
-          Generated {new Date().toLocaleDateString()}
-        </p>
-        {exportItems.map((item, i) => (
-          <div key={i} style={{ marginBottom: "2rem", pageBreakInside: "avoid" }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: "600", marginBottom: "0.25rem" }}>
-              {i + 1}. {item.title}
-            </h2>
-            <p style={{ color: "#475569", marginBottom: "0.5rem", fontSize: "0.875rem" }}>
-              {item.description}
-            </p>
-            {item.target_url && (
-              <p style={{ color: "#7c3aed", marginBottom: "1rem", fontSize: "0.75rem" }}>
-                Page: {item.target_url}
-              </p>
-            )}
-            {item.current_snippet && (
-              <div style={{ marginBottom: "0.75rem" }}>
-                <p style={{ fontWeight: 600, fontSize: "0.75rem", color: "#475569", marginBottom: "0.25rem" }}>
-                  Before (current code)
-                </p>
-                <pre style={{
-                  background: "#fff1f2", border: "1px solid #fecdd3",
-                  borderRadius: "0.375rem", padding: "0.75rem",
-                  fontSize: "0.7rem", whiteSpace: "pre-wrap", wordBreak: "break-all",
-                }}>
-                  {item.current_snippet}
-                </pre>
-              </div>
-            )}
-            {item.suggested_snippet && (
-              <div style={{ marginBottom: "0.75rem" }}>
-                <p style={{ fontWeight: 600, fontSize: "0.75rem", color: "#065f46", marginBottom: "0.25rem" }}>
-                  After (paste this)
-                </p>
-                <pre style={{
-                  background: "#ecfdf5", border: "1px solid #a7f3d0",
-                  borderRadius: "0.375rem", padding: "0.75rem",
-                  fontSize: "0.7rem", whiteSpace: "pre-wrap", wordBreak: "break-all",
-                }}>
-                  {item.suggested_snippet}
-                </pre>
-              </div>
-            )}
-            {item.files.map((f, fi) => (
-              <div key={fi} style={{ marginBottom: "1rem" }}>
-                <p style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#64748b", marginBottom: "0.25rem" }}>
-                  📄 {f.path}
-                </p>
-                <pre style={{
-                  background: "#f8fafc", border: "1px solid #e2e8f0",
-                  borderRadius: "0.375rem", padding: "1rem",
-                  fontSize: "0.7rem", whiteSpace: "pre-wrap", wordBreak: "break-all",
-                  maxHeight: "400px", overflow: "hidden",
-                }}>
-                  {f.content}
-                </pre>
-              </div>
-            ))}
-          </div>
-        ))}
-        {exportItems.length === 0 && (
-          <p style={{ color: "#94a3b8" }}>
-            No previewed changes yet. Click "Show code" on a suggestion and then export.
-          </p>
-        )}
+        <TechReportDocument run={auditRun} codeChanges={exportItems} />
       </div>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -397,13 +325,14 @@ export default function TechAgentPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {exportItems.length > 0 && (
+              {hasReport && (
                 <button
                   onClick={exportToPdf}
                   className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+                  title="Download a PDF report of every issue, the pages it affects and how to fix it"
                 >
                   <FileDown className="h-4 w-4" />
-                  Export PDF ({exportItems.length})
+                  Export PDF report
                 </button>
               )}
               <button
