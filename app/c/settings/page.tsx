@@ -6,7 +6,7 @@ import {
   Settings, Key, Globe, Users, Search, Bot, Save, CheckCircle,
   AlertCircle, Eye, EyeOff, Plus, X, Loader2, Megaphone,
   ChevronDown, ChevronUp, Unplug, BarChart2, ExternalLink, Rocket,
-  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles, MapPin,
+  Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles, MapPin, Image,
 } from "lucide-react";
 import type { TargetLocation } from "@/lib/types/location";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -46,6 +46,7 @@ interface UserSettings {
   publish_email_recipient_name: string;
   team_members: string[];
   target_locations?: TargetLocation[];
+  image_provider?: string;
 }
 
 const CONTENT_LANGUAGES = [
