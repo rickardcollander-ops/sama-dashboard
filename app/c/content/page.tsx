@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
   PenTool, Search, X, Sparkles, Save, AlertCircle,
-  Maximize2, Minimize2, ExternalLink, Code2, Send, Eye,
+  Maximize2, Minimize2, Send, Eye,
   ArrowRight, Archive, ShieldCheck, BarChart2, Target,
   CalendarPlus, Lightbulb, MessageSquare, Mail, Trash2, Edit3,
 } from "lucide-react";
@@ -163,10 +163,6 @@ function CustomerContentInner() {
   // Insikter or a topic on Strategi.
   const [sourceGap, setSourceGap] = useState<{ id: string; title: string } | null>(null);
   const [sourceStrategyTopic, setSourceStrategyTopic] = useState<string | null>(null);
-  const [ghConnected, setGhConnected] = useState(false);
-  const [publishingId, setPublishingId] = useState<string | null>(null);
-  const [publishResult, setPublishResult] = useState<{ id: string; pr_url: string } | null>(null);
-  const [publishError, setPublishError] = useState<{ id: string; message: string } | null>(null);
   const [cmsDialog, setCmsDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
@@ -283,11 +279,7 @@ function CustomerContentInner() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (user) checkGitHubStatus();
-  }, [user]);
-
-  useEffect(() => {
+useEffect(() => {
     if (!user || !effectiveTenantId) return;
     setPendingApprovalsCount(0);
     (async () => {
@@ -304,39 +296,6 @@ function CustomerContentInner() {
       }
     })();
   }, [user, effectiveTenantId]);
-
-  const checkGitHubStatus = async () => {
-    if (!user) return;
-    try {
-      const client = tenantClient;
-      const data = await client.get<{ connected: boolean }>("/api/integrations/github/status");
-      setGhConnected(data.connected);
-    } catch {
-      setGhConnected(false);
-    }
-  };
-
-  const handlePublish = async (pieceId: string) => {
-    if (!user) return;
-    setPublishingId(pieceId);
-    setPublishResult(null);
-    setPublishError(null);
-    try {
-      const client = tenantClient;
-      const result = await client.post<{ pr_url: string; branch: string; file_path: string }>(
-        "/api/integrations/github/publish",
-        { content_id: pieceId }
-      );
-      setPublishResult({ id: pieceId, pr_url: result.pr_url });
-      // Update piece status locally
-      setPieces((prev) =>
-        prev.map((p) => (p.id === pieceId ? { ...p, status: "published" } : p))
-      );
-    } catch (err: any) {
-      setPublishError({ id: pieceId, message: err?.message || "Kunde inte publicera" });
-    }
-    setPublishingId(null);
-  };
 
   useEffect(() => {
     if (error) {
@@ -1437,43 +1396,6 @@ function CustomerContentInner() {
                       </>
                     )}
 
-                    {/* Publish to GitHub (only for approved/published) */}
-                    {(piece.status === "approved" || piece.status === "published") && (
-                      ghConnected ? (
-                        publishingId === piece.id ? (
-                          <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.content.publishing}
-                          </span>
-                        ) : publishResult?.id === piece.id ? (
-                          <a
-                            href={publishResult.pr_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
-                          >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            {t.content.prCreated}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => handlePublish(piece.id)}
-                            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            {t.content.publishViaGitHub}
-                          </button>
-                        )
-                      ) : (
-                        <span className="text-xs text-slate-400" title="Connect GitHub in Settings to publish">
-                          <Code2 className="h-3.5 w-3.5 inline mr-1" />
-                          {t.content.connectGitHub}
-                        </span>
-                      )
-                    )}
-                    {publishError?.id === piece.id && (
-                      <span className="text-xs text-red-600">{publishError.message}</span>
-                    )}
                   </div>
                 </div>
 
@@ -1688,6 +1610,14 @@ function CustomerContentInner() {
           <PublishDialog
             open
             onClose={() => setCmsDialog(null)}
+            onPublished={() => {
+              setPieces((prev) =>
+                prev.map((p) =>
+                  p.id === cmsDialog.piece.id ? { ...p, status: "published" } : p,
+                ),
+              );
+              setCmsDialog(null);
+            }}
             title={cmsDialog.piece.title}
             body={cmsDialog.body}
             pieceId={cmsDialog.piece.id}

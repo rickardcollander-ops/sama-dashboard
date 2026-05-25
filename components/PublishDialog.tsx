@@ -19,6 +19,8 @@ interface Destination {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Called when the piece is successfully published (not just scheduled). */
+  onPublished?: () => void;
   title: string;
   body: string;
   pieceId?: string;
@@ -32,7 +34,7 @@ type PublishPath = "cms" | "mail";
 
 export default function PublishDialog(props: Props) {
   const {
-    open, onClose, title, body, pieceId, defaultExcerpt, defaultTags,
+    open, onClose, onPublished, title, body, pieceId, defaultExcerpt, defaultTags,
     defaultMailRecipient,
   } = props;
   const { t } = useLanguage();
@@ -111,6 +113,7 @@ export default function PublishDialog(props: Props) {
         setResult({ scheduled: true });
       } else {
         setResult({ url: data.result?.url });
+        onPublished?.();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t.publishDialog.publishFailed);
