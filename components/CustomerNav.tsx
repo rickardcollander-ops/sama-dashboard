@@ -421,6 +421,43 @@ function SiteSwitcher() {
   );
 }
 
+function BrandMark({ onClose }: { onClose?: () => void }) {
+  const { activeSite } = useSite();
+  const [imgError, setImgError] = useState(false);
+
+  const settings = activeSite?.settings as Record<string, unknown> | undefined;
+  const logoUrl =
+    typeof settings?.publisher_logo_url === "string"
+      ? settings.publisher_logo_url.trim()
+      : "";
+  const brandName =
+    typeof settings?.brand_name === "string" ? settings.brand_name.trim() : "";
+  const showLogo = logoUrl !== "" && !imgError;
+
+  return (
+    <Link
+      href="/c/dashboard"
+      className="flex min-w-0 items-center gap-2"
+      onClick={onClose}
+    >
+      {showLogo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt={brandName || "SAMA"}
+          onError={() => setImgError(true)}
+          className="max-h-8 w-auto max-w-[160px] object-contain"
+        />
+      ) : (
+        <>
+          <span className="text-xl">⚡</span>
+          <span className="text-lg font-bold text-slate-900">SAMA</span>
+        </>
+      )}
+    </Link>
+  );
+}
+
 function SidebarContent({
   navItems,
   section,
@@ -439,10 +476,7 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 px-4 border-b border-slate-100">
-        <Link href="/c/dashboard" className="flex items-center gap-2" onClick={onClose}>
-          <span className="text-xl">⚡</span>
-          <span className="text-lg font-bold text-slate-900">SAMA</span>
-        </Link>
+        <BrandMark onClose={onClose} />
         <div className="ml-auto flex items-center gap-1">
           <NotificationBell />
         </div>
@@ -599,10 +633,7 @@ export default function CustomerNav() {
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <Link href="/c/dashboard" className="flex items-center gap-2">
-            <span className="text-xl">⚡</span>
-            <span className="text-lg font-bold text-slate-900">SAMA</span>
-          </Link>
+          <BrandMark />
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
