@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 // Content-Security-Policy is rolled out in Report-Only mode first (set CSP_ENFORCE=1
 // to flip to enforcement once Sentry shows a clean violation report). The directive
 // list is intentionally explicit — wildcards are easy mistakes to make.
+const CSP_ENFORCE = process.env.CSP_ENFORCE === "1";
+
 const CSP_DIRECTIVES = [
   "default-src 'self'",
   // Next.js inlines critical CSS and uses a small inline runtime; 'unsafe-inline'
@@ -20,10 +22,11 @@ const CSP_DIRECTIVES = [
   "form-action 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "upgrade-insecure-requests",
+  // `upgrade-insecure-requests` is ignored in report-only mode and the browser
+  // logs a console warning when it appears there, so only emit it once CSP is
+  // actually enforced.
+  ...(CSP_ENFORCE ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
-
-const CSP_ENFORCE = process.env.CSP_ENFORCE === "1";
 
 const securityHeaders = [
   {

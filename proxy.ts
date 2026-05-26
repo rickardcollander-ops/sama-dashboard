@@ -35,17 +35,25 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
-async function refreshSupabaseSession(req: NextRequest): Promise<NextResponse> {
+/**
+ * Refreshes the Supabase access-token cookie and reports whether a valid user
+ * is present. Never throws or redirects — callers decide what to do with an
+ * unauthenticated request (pages redirect to /c/login; API routes pass through
+ * so the handler can return proper JSON).
+ */
+async function refreshSupabaseSession(
+  req: NextRequest,
+): Promise<{ res: NextResponse; authed: boolean }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const res = NextResponse.next({ request: req });
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(new URL("/c/login", req.url));
+    return { res, authed: false };
   }
 
   try {
     const { createServerClient } = await import("@supabase/ssr");
-    const res = NextResponse.next({ request: req });
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
@@ -65,13 +73,9 @@ async function refreshSupabaseSession(req: NextRequest): Promise<NextResponse> {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.redirect(new URL("/c/login", req.url));
-    }
-
-    return res;
+    return { res, authed: Boolean(user) };
   } catch {
-    return NextResponse.redirect(new URL("/c/login", req.url));
+    return { res, authed: false };
   }
 }
 
@@ -92,7 +96,21 @@ export async function proxy(req: NextRequest) {
     ) {
       return applySecurityHeaders(NextResponse.next());
     }
-    const res = await refreshSupabaseSession(req);
+    const { res, authed } = await refreshSupabaseSession(req);
+    if (!authed) {
+      return applySecurityHeaders(NextResponse.redirect(new URL("/c/login", req.url)));
+    }
+    return applySecurityHeaders(res);
+  }
+
+  // Admin API routes enforce auth via requireAdmin() -> supabase.auth.getUser(),
+  // but — unlike /c/* pages and the /api/sama proxy (which refreshes per
+  // request) — nothing refreshes their access-token cookie. Once the ~1h token
+  // lapses that read returns no user and the route 401s even for a signed-in
+  // admin. Refresh here so the handler sees a fresh cookie; never redirect,
+  // since the handler already returns proper 401/403 JSON.
+  if (pathname.startsWith("/api/admin/")) {
+    const { res } = await refreshSupabaseSession(req);
     return applySecurityHeaders(res);
   }
 
