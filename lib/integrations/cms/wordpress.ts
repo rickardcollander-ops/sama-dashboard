@@ -3,6 +3,10 @@ import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
 function normalizeBase(url: string): string {
   let u = url.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//.test(u)) u = `https://${u}`;
+  // WP REST API lives at the site root. Users often paste the admin/login URL
+  // (e.g. https://site.com/admin), which would push requests to a path that
+  // 404s. Strip the common admin/login/REST suffixes.
+  u = u.replace(/\/(wp-admin|wp-login\.php|admin|wp-json)\/?$/i, "");
   return u;
 }
 
