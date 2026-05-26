@@ -171,6 +171,7 @@ const sv = {
     progressSteps: "steg klara",
     show: "Visa",
     hide: "Dölj",
+    dismiss: "Ta bort",
     start: "Starta",
   },
   activity: {
@@ -557,6 +558,7 @@ const no: typeof sv = {
     progressSteps: "steg fullført",
     show: "Vis",
     hide: "Skjul",
+    dismiss: "Fjern",
     start: "Start",
   },
   activity: {
@@ -943,6 +945,7 @@ const da: typeof sv = {
     progressSteps: "trin færdige",
     show: "Vis",
     hide: "Skjul",
+    dismiss: "Fjern",
     start: "Start",
   },
   activity: {
@@ -1329,6 +1332,7 @@ const en: typeof sv = {
     progressSteps: "steps done",
     show: "Show",
     hide: "Hide",
+    dismiss: "Dismiss",
     start: "Start",
   },
   activity: {

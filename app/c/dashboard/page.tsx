@@ -157,6 +157,17 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+  // Persisted dismissal of the in-dashboard onboarding/checklist card.
+  // Without this the X only collapsed via local state and the card came
+  // back on every reload. Mirrors WeeklyRhythm's localStorage approach.
+  const [onboardingDismissed, setOnboardingDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("sama_onboarding_checklist_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [trafficData, setTrafficData] = useState<TrafficData>({});
@@ -410,6 +421,14 @@ export default function CustomerDashboard() {
   };
 
   const hasSetup = !!(settings.brand_name && settings.domain);
+
+  const dismissOnboarding = () => {
+    try {
+      window.localStorage.setItem("sama_onboarding_checklist_dismissed", "1");
+    } catch { /* private mode */ }
+    setOnboardingDismissed(true);
+  };
+
   const mentionRate = geoSummary?.mention_rate ?? 0;
   const mentionRateDelta =
     geoSummary?.mention_rate_delta ??
@@ -641,11 +660,12 @@ export default function CustomerDashboard() {
           </div>
         )}
 
-        {hasSetup && (
+        {hasSetup && !onboardingDismissed && (
           <OnboardingChecklist
             items={checklistItems}
             title={onboardingCompleted ? "Kvar att göra" : undefined}
             hideWhenAllDone={onboardingCompleted}
+            onDismiss={dismissOnboarding}
           />
         )}
 
