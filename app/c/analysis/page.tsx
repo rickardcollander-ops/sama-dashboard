@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   Sparkles, Loader2, RefreshCw, ChevronRight,
@@ -129,37 +130,40 @@ export default function AnalysisPage() {
   const { user, loading: userLoading } = useUser();
   const { effectiveTenantId, activeSite } = useSite();
   const { registerRun } = useActiveRuns();
-  const [brand, setBrand] = useState<BrandSettings | null>(null);
   const [running, setRunning] = useState(false);
-  const [visibilityRun, setVisibilityRun] = useState<AnalysisRun | null>(null);
-  const [auditRun, setAuditRun] = useState<SiteAuditRun | null>(null);
   const [error, setError] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  // The displayed run starts as the latest cached result but can be overridden
+  // by running a new analysis or opening a history item. Overrides are local
+  // state so they reset when the page unmounts (e.g. on tenant switch, which
+  // reloads), falling back to the cached latest on return.
+  const [overrideVisibility, setOverrideVisibility] = useState<AnalysisRun | null>(null);
+  const [overrideAudit, setOverrideAudit] = useState<SiteAuditRun | null>(null);
 
-  // Clear results when workspace changes so old site's data isn't shown
-  useEffect(() => {
-    setVisibilityRun(null);
-    setAuditRun(null);
-    setInitialLoading(true);
-  }, [effectiveTenantId]);
+  const brand = useMemo<BrandSettings | null>(() => {
+    if (!user || !effectiveTenantId) return null;
+    const s = (activeSite?.settings || {}) as Record<string, unknown>;
+    return {
+      brand_name: (s.brand_name as string) || "",
+      domain: (s.domain as string) || "",
+      brand_description: (s.brand_description as string) || "",
+      unique_selling_points: (s.unique_selling_points as string) || "",
+      target_audience: (s.target_audience as string) || "",
+      competitors: Array.isArray(s.competitors) ? (s.competitors as string[]) : [],
+    };
+  }, [user, effectiveTenantId, activeSite]);
 
-  // Load brand settings + latest results
-  useEffect(() => {
-    if (!user || !effectiveTenantId) return;
-    (async () => {
-      const s = (activeSite?.settings || {}) as Record<string, unknown>;
-      setBrand({
-        brand_name: (s.brand_name as string) || "",
-        domain: (s.domain as string) || "",
-        brand_description: (s.brand_description as string) || "",
-        unique_selling_points: (s.unique_selling_points as string) || "",
-        target_audience: (s.target_audience as string) || "",
-        competitors: Array.isArray(s.competitors) ? s.competitors as string[] : [],
-      });
+  const expectedDomain = brand?.domain ?? "";
 
-      const expectedDomain = (s.domain as string) || "";
-
+  // Latest completed runs, cached by React Query keyed on tenant + domain so
+  // returning to the page paints the last results instantly instead of
+  // refetching from an empty state. Keying on tenant also replaces the old
+  // "clear results on workspace change" effect.
+  const latestQuery = useQuery({
+    queryKey: ["analysis", "latest", effectiveTenantId, expectedDomain],
+    queryFn: async () => {
+      let visibilityRun: AnalysisRun | null = null;
+      let auditRun: SiteAuditRun | null = null;
       try {
         // /api/analysis/latest returns either the most recent completed
         // analysis_runs row (augmented with ai_visibility_checks) or a
@@ -173,7 +177,7 @@ export default function AnalysisPage() {
         if (res.ok) {
           const run = await res.json();
           if (run?.status === "completed" && sameDomain(run.domain, expectedDomain)) {
-            setVisibilityRun(run);
+            visibilityRun = run;
           }
         }
       } catch { /* not critical */ }
@@ -192,7 +196,7 @@ export default function AnalysisPage() {
             if (full.ok) {
               const run = await full.json();
               if (run?.status === "completed" && sameDomain(run.domain, expectedDomain)) {
-                setAuditRun(run);
+                auditRun = run;
                 void persistSiteAuditRun(run, effectiveTenantId);
               }
             }
@@ -200,9 +204,14 @@ export default function AnalysisPage() {
         }
       } catch { /* not critical */ }
 
-      setInitialLoading(false);
-    })();
-  }, [user, effectiveTenantId, activeSite]);
+      return { visibilityRun, auditRun };
+    },
+    enabled: !!user && !!effectiveTenantId && brand !== null,
+  });
+
+  const visibilityRun = overrideVisibility ?? latestQuery.data?.visibilityRun ?? null;
+  const auditRun = overrideAudit ?? latestQuery.data?.auditRun ?? null;
+  const initialLoading = latestQuery.isPending;
 
   const handleRun = async () => {
     if (!brand || !brand.domain) return;
@@ -257,14 +266,14 @@ export default function AnalysisPage() {
         if (Array.isArray((vData as AnalysisRun).query_results)) {
           const run = vData as AnalysisRun;
           if (sameDomain(run.domain, expectedDomain)) {
-            setVisibilityRun(run);
+            setOverrideVisibility(run);
             void persistAnalysisRun(run, effectiveTenantId);
           }
         } else if ((vData as { id?: string }).id) {
           polls.push(
             pollAnalysisRun(effectiveTenantId, (vData as { id: string }).id).then((r) => {
               if (r?.status === "completed" && sameDomain(r.domain, expectedDomain)) {
-                setVisibilityRun(r);
+                setOverrideVisibility(r);
                 void persistAnalysisRun(r, effectiveTenantId);
               }
             })
@@ -282,7 +291,7 @@ export default function AnalysisPage() {
           polls.push(
             pollSiteAuditRun(effectiveTenantId, auditId).then((r) => {
               if (r?.status === "completed" && sameDomain(r.domain, expectedDomain)) {
-                setAuditRun(r);
+                setOverrideAudit(r);
                 void persistSiteAuditRun(r, effectiveTenantId);
               }
             })
@@ -394,7 +403,7 @@ export default function AnalysisPage() {
                       setError("That analysis belongs to a different site. Refresh and try again.");
                       return;
                     }
-                    setVisibilityRun(d);
+                    setOverrideVisibility(d);
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   } else {
@@ -414,7 +423,7 @@ export default function AnalysisPage() {
                       setError("That audit belongs to a different site. Refresh and try again.");
                       return;
                     }
-                    setAuditRun(d);
+                    setOverrideAudit(d);
                     setShowHistory(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   } else {
@@ -516,19 +525,44 @@ function CombinedHistory({
   onOpenAudit: (id: string) => void;
 }) {
   const { t } = useLanguage();
-  const [visRuns, setVisRuns] = useState<AnalysisRunSummary[] | null>(null);
-  const [auditRuns, setAuditRuns] = useState<SiteAuditRunSummary[] | null>(null);
   const [activeTab, setActiveTab] = useState<"visibility" | "audit">("visibility");
 
-  useEffect(() => {
-    if (!tenantId) return;
-    Promise.all([
-      fetch("/api/analysis/runs?limit=20", { headers: { "X-Tenant-ID": tenantId } })
-        .then((r) => r.json()).then((d) => setVisRuns(d.runs || [])).catch(() => setVisRuns([])),
-      fetch("/api/site-audit/runs?limit=20", { headers: { "X-Tenant-ID": tenantId } })
-        .then((r) => r.json()).then((d) => setAuditRuns(d.runs || [])).catch(() => setAuditRuns([])),
-    ]);
-  }, [tenantId]);
+  // Both history lists are cached by React Query keyed on tenant, so reopening
+  // the panel (or returning to the page) shows them instantly from cache.
+  const visRunsQuery = useQuery({
+    queryKey: ["analysis", "history", "visibility", tenantId],
+    queryFn: async (): Promise<AnalysisRunSummary[]> => {
+      try {
+        const r = await fetch("/api/analysis/runs?limit=20", {
+          headers: { "X-Tenant-ID": tenantId },
+        });
+        const d = await r.json();
+        return d.runs || [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!tenantId,
+  });
+  const auditRunsQuery = useQuery({
+    queryKey: ["analysis", "history", "audit", tenantId],
+    queryFn: async (): Promise<SiteAuditRunSummary[]> => {
+      try {
+        const r = await fetch("/api/site-audit/runs?limit=20", {
+          headers: { "X-Tenant-ID": tenantId },
+        });
+        const d = await r.json();
+        return d.runs || [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!tenantId,
+  });
+  // null while the first fetch is in flight → drives the spinner; [] on
+  // empty/failure → drives the empty-state copy.
+  const visRuns = visRunsQuery.data ?? null;
+  const auditRuns = auditRunsQuery.data ?? null;
 
   return (
     <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
