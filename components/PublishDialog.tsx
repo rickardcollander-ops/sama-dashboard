@@ -107,8 +107,9 @@ export default function PublishDialog(props: Props) {
         headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || t.publishDialog.publishFailed);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `${t.publishDialog.publishFailed} (HTTP ${res.status})`);
+      if (!data) throw new Error(t.publishDialog.publishFailed);
       if (data.scheduled) {
         setResult({ scheduled: true });
       } else {

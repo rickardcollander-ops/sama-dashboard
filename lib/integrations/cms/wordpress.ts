@@ -3,6 +3,10 @@ import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
 function normalizeBase(url: string): string {
   let u = url.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//.test(u)) u = `https://${u}`;
+  // WP REST API lives at the site root. Users often paste the admin/login URL
+  // (e.g. https://site.com/admin), which would push requests to a path that
+  // 404s. Strip the common admin/login/REST suffixes.
+  u = u.replace(/\/(wp-admin|wp-login\.php|admin|wp-json)\/?$/i, "");
   return u;
 }
 
@@ -25,9 +29,19 @@ export const wordpressAdapter: CmsAdapter = {
       const res = await fetch(`${base}/wp-json/wp/v2/users/me?context=edit`, {
         headers: { Authorization: buildAuthHeader(cfg) },
       });
+      const text = await res.text().catch(() => "");
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
         return { ok: false, message: `WordPress ${res.status}: ${text.slice(0, 160)}` };
+      }
+      // A 200 with an HTML body means a security plugin/cache served a page
+      // instead of the REST API — treat it as a failure, not a success.
+      try {
+        const me = JSON.parse(text);
+        if (!me || typeof me.id === "undefined") {
+          return { ok: false, message: "WordPress REST API reachable but returned an unexpected response. Make sure the REST API is enabled." };
+        }
+      } catch {
+        return { ok: false, message: `WordPress returned a non-JSON response. The REST API is likely disabled or blocked by a security plugin — verify ${base}/wp-json/wp/v2/ is reachable.` };
       }
       return { ok: true };
     } catch (e) {
@@ -63,11 +77,23 @@ export const wordpressAdapter: CmsAdapter = {
       },
       body: JSON.stringify(payload),
     });
+    const text = await res.text().catch(() => "");
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new PublishError(`WordPress publish failed (${res.status})`, res.status, text);
+      throw new PublishError(`WordPress publish failed (${res.status})`, res.status, text.slice(0, 300));
     }
-    const data = await res.json();
+    let data: { link?: string; id?: number | string; status?: string };
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // 200 OK with an HTML body — a security plugin/cache intercepted the
+      // request, or the REST API is disabled. Surface something actionable
+      // instead of a raw "Unexpected token '<'" JSON parse error.
+      throw new PublishError(
+        `WordPress returned a non-JSON response (HTTP ${res.status}). The REST API is likely disabled or blocked by a security plugin — verify ${base}/wp-json/wp/v2/ is reachable.`,
+        502,
+        text.slice(0, 300),
+      );
+    }
     return {
       url: data.link,
       external_id: String(data.id),
