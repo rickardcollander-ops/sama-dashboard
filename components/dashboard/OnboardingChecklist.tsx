@@ -88,7 +88,8 @@ export default function OnboardingChecklist({
             <button
               onClick={onDismiss}
               className="rounded-lg p-1.5 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
-              title={t.onboarding.hide}
+              title={t.onboarding.dismiss}
+              aria-label={t.onboarding.dismiss}
             >
               <X className="h-4 w-4" />
             </button>
