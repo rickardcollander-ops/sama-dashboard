@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Search, RefreshCw, ArrowRight, AlertCircle, X, Check, Zap,
@@ -140,23 +141,10 @@ export default function CustomerDashboard() {
     () => (activeSite?.settings as CustomerSettings) || {},
     [activeSite],
   );
-  const [geoSummary, setGeoSummary] = useState<GeoSummary | null>(null);
-  const [seoStats, setSeoStats] = useState<SeoStats | null>(null);
-  const [contentStats, setContentStats] = useState<ContentStats | null>(null);
-  const [anyContentEver, setAnyContentEver] = useState(false);
-  // Single fetch shared with RecentOutcomes + UpcomingDrafts so the two
-  // below-the-fold sections don't each fire their own /api/content/pieces.
-  const [recentPieces, setRecentPieces] = useState<DashboardPieceRow[] | null>(null);
-  const [pendingApprovals, setPendingApprovals] = useState(0);
-  // Integration connection status — only used post-onboarding to drive the
-  // "Kvar att göra" checklist (Google services, GitHub, CMS). Cheap calls,
-  // run once on first load and never refreshed (settings page refetches).
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(false);
-  const [cmsConnected, setCmsConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+  // Local override so the user can dismiss the "everything failed" banner;
+  // reset whenever they trigger a manual refresh.
+  const [errorDismissed, setErrorDismissed] = useState(false);
   // Persisted dismissal of the in-dashboard onboarding/checklist card.
   // Without this the X only collapsed via local state and the card came
   // back on every reload. Mirrors WeeklyRhythm's localStorage approach.
@@ -168,9 +156,7 @@ export default function CustomerDashboard() {
       return false;
     }
   });
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [trafficData, setTrafficData] = useState<TrafficData>({});
   const [showTotalTraffic, setShowTotalTraffic] = useState(true);
   const [showSeoTraffic, setShowSeoTraffic] = useState(true);
   const { runs, triggerRun } = useActiveRuns();
@@ -239,32 +225,239 @@ export default function CustomerDashboard() {
     setCheckedOnboarding(true);
   }, [user, userLoading, sitesLoading, sites.length, settings, router]);
 
-  // Clear cached metrics when the active site changes so we never render the
-  // previous site's numbers while the new fetch is still in flight.
-  useEffect(() => {
-    setGeoSummary(null);
-    setSeoStats(null);
-    setContentStats(null);
-    setAnyContentEver(false);
-    setRecentPieces(null);
-    setPendingApprovals(0);
-    setTrafficData({});
-    setGoogleConnected(false);
-    setGithubConnected(false);
-    setCmsConnected(false);
-  }, [effectiveTenantId]);
+  // Once onboarding is resolved and we know which tenant we're looking at,
+  // every metric below is fetched — and cached — by React Query. Cache keys
+  // include effectiveTenantId + days, so switching site or period yields a
+  // distinct entry and the previous tenant's numbers never bleed through.
+  // That keying is why the old "clear all state on tenant change" effect is
+  // gone, and why leaving the page and returning paints instantly from cache
+  // while a background refetch (gated by staleTime) keeps the numbers fresh.
+  const baseEnabled = !!user && checkedOnboarding && !!effectiveTenantId;
 
-  useEffect(() => {
-    if (user && checkedOnboarding && effectiveTenantId) loadData();
+  const geoQuery = useQuery({
+    queryKey: ["dashboard", "geo-summary", effectiveTenantId, days],
+    queryFn: () =>
+      tenantClient.get<GeoSummary>(`/api/ai-visibility/summary?days=${days}`),
+    enabled: baseEnabled,
+  });
+
+  const seoQuery = useQuery<SeoStats | null>({
+    queryKey: ["dashboard", "seo-stats", effectiveTenantId, days],
+    queryFn: async () => {
+      const data = await tenantClient.get<Record<string, unknown>>(
+        `/api/seo/stats?days=${days}`,
+      );
+      if (!data) return null;
+      return {
+        totalKeywords: (data.total_keywords ?? data.totalKeywords ?? 0) as number,
+        avgPosition: (data.avg_position ?? data.avgPosition ?? 0) as number,
+        totalClicks: (data.total_clicks ?? data.totalClicks ?? 0) as number,
+        clicksDelta: (data.clicks_delta ?? data.clicksDelta) as number | undefined,
+        positionDelta: (data.position_delta ?? data.positionDelta) as number | undefined,
+        updated_at: data.updated_at as string | undefined,
+      };
+    },
+    enabled: baseEnabled,
+  });
+
+  // One request feeds both the scoreboard's content stat AND the shared
+  // `pieces` list that RecentOutcomes/UpcomingDrafts read below the fold.
+  // allSettled so a failed stats call doesn't blank out the pieces list.
+  const contentQuery = useQuery({
+    queryKey: ["dashboard", "content", effectiveTenantId, days],
+    queryFn: async () => {
+      const [statsResult, piecesResult] = await Promise.allSettled([
+        tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`),
+        tenantClient.get<{ pieces?: DashboardPieceRow[]; total?: number }>(
+          "/api/content/pieces?limit=50",
+        ),
+      ]);
+      let stats: ContentStats | null = null;
+      if (statsResult.status === "fulfilled" && statsResult.value) {
+        const data = statsResult.value;
+        const pcs = data.pieces as unknown[] | undefined;
+        stats = {
+          total: (data.total ?? pcs?.length ?? 0) as number,
+          published: (data.published ?? 0) as number,
+          drafts: (data.drafts ?? 0) as number,
+          delta: (data.delta_percent ?? data.delta) as number | undefined,
+          updated_at: data.updated_at as string | undefined,
+        };
+      }
+      let pieces: DashboardPieceRow[] = [];
+      let anyContent = false;
+      if (piecesResult.status === "fulfilled" && piecesResult.value) {
+        pieces = piecesResult.value.pieces ?? [];
+        anyContent = (piecesResult.value.total ?? pieces.length) > 0;
+      }
+      return { stats, pieces, anyContent };
+    },
+    enabled: baseEnabled,
+  });
+
+  const approvalsQuery = useQuery({
+    queryKey: ["dashboard", "approvals", effectiveTenantId],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/approvals?status=pending", {
+          headers: { "X-Tenant-ID": effectiveTenantId },
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { approvals?: unknown[] };
+          return data.approvals?.length ?? 0;
+        }
+      } catch { /* silent */ }
+      return 0;
+    },
+    enabled: baseEnabled,
+  });
+
+  const trafficQuery = useQuery<TrafficData>({
+    queryKey: ["dashboard", "traffic", effectiveTenantId, days],
+    queryFn: async () => {
+      try {
+        const data = await tenantClient.get<TrafficData>(
+          `/api/analytics/overview?days=${days}`,
+        );
+        return data ?? {};
+      } catch {
+        return {};
+      }
+    },
+    enabled: baseEnabled,
+  });
+
+  // Integration connection status drives the post-onboarding "Kvar att göra"
+  // checklist. Each leg swallows its own error so a flaky GitHub status can't
+  // blank out Google/CMS.
+  const integrationQuery = useQuery({
+    queryKey: ["dashboard", "integrations", effectiveTenantId],
+    queryFn: async () => {
+      const [google, github, cms] = await Promise.all([
+        (async () => {
+          try {
+            const data = await tenantClient.get<{
+              search_console?: { connected: boolean };
+              analytics?: { connected: boolean };
+              ads?: { connected: boolean };
+            }>("/api/auth/google/status");
+            return !!(
+              data?.search_console?.connected ||
+              data?.analytics?.connected ||
+              data?.ads?.connected
+            );
+          } catch {
+            return false;
+          }
+        })(),
+        (async () => {
+          try {
+            const data = await tenantClient.get<{ connected?: boolean }>(
+              "/api/integrations/github/status",
+            );
+            return !!data?.connected;
+          } catch {
+            return false;
+          }
+        })(),
+        (async () => {
+          try {
+            const res = await fetch("/api/integrations/destinations", {
+              headers: {
+                "X-Sama-Site-Id": effectiveTenantId,
+                "X-Tenant-ID": effectiveTenantId,
+              },
+            });
+            if (res.ok) {
+              const data = (await res.json().catch(() => ({}))) as {
+                destinations?: unknown[];
+              };
+              return Array.isArray(data.destinations) && data.destinations.length > 0;
+            }
+          } catch { /* silent */ }
+          return false;
+        })(),
+      ]);
+      return { google, github, cms };
+    },
+    enabled: baseEnabled,
+  });
+
+  // Derived views over the cached query data — the rest of the component reads
+  // these exactly as it read the old useState values.
+  const geoSummary = geoQuery.data ?? null;
+  const seoStats = seoQuery.data ?? null;
+  const contentStats = contentQuery.data?.stats ?? null;
+  const anyContentEver = contentQuery.data?.anyContent ?? false;
+  // null while the first fetch is in flight; [] once it settles (even on
+  // failure) so the below-the-fold children stop showing their loading state.
+  const recentPieces = contentQuery.data ? contentQuery.data.pieces : null;
+  const pendingApprovals = approvalsQuery.data ?? 0;
+  const trafficData = trafficQuery.data ?? {};
+  const googleConnected = integrationQuery.data?.google ?? false;
+  const githubConnected = integrationQuery.data?.github ?? false;
+  const cmsConnected = integrationQuery.data?.cms ?? false;
+
+  // Spinner state: treat the page as loading until the tenant is resolved,
+  // then follow whether any query is actually hitting the network.
+  const loading =
+    !baseEnabled ||
+    geoQuery.isFetching ||
+    seoQuery.isFetching ||
+    contentQuery.isFetching ||
+    approvalsQuery.isFetching ||
+    trafficQuery.isFetching ||
+    integrationQuery.isFetching;
+
+  // Faithful to the old behaviour: only surface the blocking error banner when
+  // BOTH headline metrics fail (the other legs swallow their own errors).
+  const allFailed =
+    baseEnabled &&
+    !geoQuery.isFetching &&
+    !seoQuery.isFetching &&
+    geoQuery.isError &&
+    seoQuery.isError;
+  const error = allFailed && !errorDismissed ? t.dashboard.loadError : "";
+
+  const lastRefresh = useMemo(() => {
+    const ts = Math.max(
+      geoQuery.dataUpdatedAt,
+      seoQuery.dataUpdatedAt,
+      contentQuery.dataUpdatedAt,
+      approvalsQuery.dataUpdatedAt,
+      trafficQuery.dataUpdatedAt,
+      integrationQuery.dataUpdatedAt,
+    );
+    return ts > 0 ? new Date(ts) : new Date();
+  }, [
+    geoQuery.dataUpdatedAt,
+    seoQuery.dataUpdatedAt,
+    contentQuery.dataUpdatedAt,
+    approvalsQuery.dataUpdatedAt,
+    trafficQuery.dataUpdatedAt,
+    integrationQuery.dataUpdatedAt,
+  ]);
+
+  // The "Uppdatera vy" button: force a fresh fetch of every metric. The
+  // queries dedupe and update their cache entries in place, so children keep
+  // their last-good data on screen until the new response lands.
+  const loadData = useCallback(() => {
+    setErrorDismissed(false);
+    void geoQuery.refetch();
+    void seoQuery.refetch();
+    void contentQuery.refetch();
+    void approvalsQuery.refetch();
+    void trafficQuery.refetch();
+    void integrationQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, checkedOnboarding, days, effectiveTenantId]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
+  }, [
+    geoQuery.refetch,
+    seoQuery.refetch,
+    contentQuery.refetch,
+    approvalsQuery.refetch,
+    trafficQuery.refetch,
+    integrationQuery.refetch,
+  ]);
 
   useEffect(() => {
     if (actionFeedback) {
@@ -272,140 +465,6 @@ export default function CustomerDashboard() {
       return () => clearTimeout(timer);
     }
   }, [actionFeedback]);
-
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    const results = await Promise.allSettled([
-      loadGeoSummary(),
-      loadSeoStats(),
-      loadContentStats(),
-      loadPendingApprovals(),
-      loadTrafficData(),
-      loadIntegrationStatus(),
-    ]);
-    if (results.every((r) => r.status === "rejected")) {
-      setError(t.dashboard.loadError);
-    }
-    setLastRefresh(new Date());
-    setLoading(false);
-  };
-
-  // Fires the three integration status calls in parallel. Each one swallows
-  // its own errors so a flaky GitHub status doesn't blank out Google/CMS.
-  const loadIntegrationStatus = async () => {
-    if (!effectiveTenantId) return;
-    await Promise.all([
-      (async () => {
-        try {
-          const data = await tenantClient.get<{
-            search_console?: { connected: boolean };
-            analytics?: { connected: boolean };
-            ads?: { connected: boolean };
-          }>("/api/auth/google/status");
-          setGoogleConnected(!!(data?.search_console?.connected || data?.analytics?.connected || data?.ads?.connected));
-        } catch { /* silent */ }
-      })(),
-      (async () => {
-        try {
-          const data = await tenantClient.get<{ connected?: boolean }>(
-            "/api/integrations/github/status",
-          );
-          setGithubConnected(!!data?.connected);
-        } catch { /* silent */ }
-      })(),
-      (async () => {
-        try {
-          const res = await fetch("/api/integrations/destinations", {
-            headers: effectiveTenantId ? { "X-Sama-Site-Id": effectiveTenantId, "X-Tenant-ID": effectiveTenantId } : {},
-          });
-          if (res.ok) {
-            const data = (await res.json().catch(() => ({}))) as { destinations?: unknown[] };
-            setCmsConnected(Array.isArray(data.destinations) && data.destinations.length > 0);
-          }
-        } catch { /* silent */ }
-      })(),
-    ]);
-  };
-
-  const loadTrafficData = async () => {
-    if (!user) return;
-    try {
-      const data = await tenantClient.get<TrafficData>(`/api/analytics/overview?days=${days}`);
-      if (data) setTrafficData(data);
-    } catch { /* silent */ }
-  };
-
-  const loadGeoSummary = async () => {
-    if (!user) return;
-    const data = await tenantClient.get<GeoSummary>(`/api/ai-visibility/summary?days=${days}`);
-    if (data) setGeoSummary(data);
-  };
-
-  const loadSeoStats = async () => {
-    if (!user) return;
-    const data = await tenantClient.get<Record<string, unknown>>(`/api/seo/stats?days=${days}`);
-    if (data) {
-      setSeoStats({
-        totalKeywords: (data.total_keywords ?? data.totalKeywords ?? 0) as number,
-        avgPosition: (data.avg_position ?? data.avgPosition ?? 0) as number,
-        totalClicks: (data.total_clicks ?? data.totalClicks ?? 0) as number,
-        clicksDelta: (data.clicks_delta ?? data.clicksDelta) as number | undefined,
-        positionDelta: (data.position_delta ?? data.positionDelta) as number | undefined,
-        updated_at: data.updated_at as string | undefined,
-      });
-    }
-  };
-
-  const loadContentStats = async () => {
-    if (!user) return;
-    // Run both calls in parallel — they're independent, and the original
-    // sequential pattern was adding a full extra round-trip to the
-    // slowest leg of loadData() on every dashboard refresh.
-    // The pieces fetch is bumped to limit=50 so RecentOutcomes and
-    // UpcomingDrafts can reuse the response instead of refetching the
-    // same endpoint twice from below the fold.
-    const [statsResult, piecesResult] = await Promise.allSettled([
-      tenantClient.get<Record<string, unknown>>(`/api/content/stats?days=${days}`),
-      tenantClient.get<{ pieces?: DashboardPieceRow[]; total?: number }>(
-        "/api/content/pieces?limit=50",
-      ),
-    ]);
-    if (statsResult.status === "fulfilled" && statsResult.value) {
-      const data = statsResult.value;
-      const pieces = data.pieces as unknown[] | undefined;
-      setContentStats({
-        total: (data.total ?? pieces?.length ?? 0) as number,
-        published: (data.published ?? 0) as number,
-        drafts: (data.drafts ?? 0) as number,
-        delta: (data.delta_percent ?? data.delta) as number | undefined,
-        updated_at: data.updated_at as string | undefined,
-      });
-    }
-    if (piecesResult.status === "fulfilled" && piecesResult.value) {
-      const list = piecesResult.value.pieces ?? [];
-      const allTimeTotal = piecesResult.value.total ?? list.length;
-      setAnyContentEver(allTimeTotal > 0);
-      setRecentPieces(list);
-    } else {
-      // Surface an empty array so the children stop showing their loading
-      // state instead of hanging on `null` forever after a failed fetch.
-      setRecentPieces([]);
-    }
-  };
-
-  const loadPendingApprovals = async () => {
-    if (!user || !effectiveTenantId) return;
-    try {
-      const res = await fetch("/api/approvals?status=pending", {
-        headers: { "X-Tenant-ID": effectiveTenantId },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { approvals?: unknown[] };
-        setPendingApprovals(data.approvals?.length ?? 0);
-      }
-    } catch { /* silent */ }
-  };
 
   const runAllChecks = async () => {
     if (!user) return;
@@ -650,7 +709,7 @@ export default function CustomerDashboard() {
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />{error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700"><X className="h-4 w-4" /></button>
+            <button onClick={() => setErrorDismissed(true)} className="ml-auto text-red-500 hover:text-red-700"><X className="h-4 w-4" /></button>
           </div>
         )}
 
