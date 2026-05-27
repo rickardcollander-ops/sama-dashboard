@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
@@ -129,9 +130,9 @@ function CustomerContentInner() {
   const { tenantClient, effectiveTenantId } = useSite();
   const { runs: activeRuns } = useActiveRuns();
   const searchParams = useSearchParams();
-  const [pieces, setPieces] = useState<ContentPiece[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Errors from user actions (approve/archive/draft/etc). Load failures are
+  // derived from the pieces query below. Auto-cleared after 8s by the effect.
+  const [actionError, setActionError] = useState<string | null>(null);
   // Tabs across the top of the content list. "ideas" surfaces plan items
   // that haven't been drafted yet (status='idea' on content_plan_items),
   // because the new plan-creator stops at idea-rows and lets the user
@@ -139,8 +140,6 @@ function CustomerContentInner() {
   // is waiting; otherwise we drop the user back into "to_review" as
   // before.
   const [filter, setFilter] = useState<"ideas" | "to_review" | "scheduled" | "published" | "archived">("to_review");
-  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
-  const [ideasLoading, setIdeasLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   // Plan items currently being drafted in the background. The
   // /plan/{id}/draft endpoint returns immediately now, so we track
@@ -172,7 +171,6 @@ function CustomerContentInner() {
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [viewDialog, setViewDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   // Calendar scheduling: when set, the date-picker dialog is open for this
   // piece. Saving creates a content_plan_items row that links to the piece
@@ -182,7 +180,6 @@ function CustomerContentInner() {
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
-  const [autoPublish, setAutoPublish] = useState(false);
 
   const TYPE_LABELS: Record<string, string> = {
     linkedin_post: t.content.typeLinkedin,
@@ -213,23 +210,104 @@ function CustomerContentInner() {
     return null;
   };
 
-  useEffect(() => {
-    if (user && effectiveTenantId) fetchContent();
-  }, [user, effectiveTenantId]);
+  const queryClient = useQueryClient();
+  const baseEnabled = !!user && !!effectiveTenantId;
+  const piecesKey = useMemo(
+    () => ["content", "pieces", effectiveTenantId] as const,
+    [effectiveTenantId],
+  );
+  const ideasKey = useMemo(
+    () => ["content", "ideas", effectiveTenantId] as const,
+    [effectiveTenantId],
+  );
 
-  useEffect(() => {
-    if (!user || !effectiveTenantId) return;
-    let cancelled = false;
-    (async () => {
+  // Pieces + ideas are the page's primary data — cached by React Query keyed
+  // on the active tenant, so leaving and returning paints instantly from cache
+  // (background refetch when stale) instead of refetching from an empty list.
+  // The keying also means a different tenant is simply a different cache entry,
+  // so there is no "reset state on tenant change" effect to maintain.
+  const piecesQuery = useQuery({
+    queryKey: piecesKey,
+    queryFn: async (): Promise<ContentPiece[]> => {
       try {
-        const data = await tenantApi(effectiveTenantId).get<{ settings?: { content_autopilot?: { auto_publish?: boolean } } }>(
-          `/api/settings/${user.id}`,
+        const data = await tenantClient.get<{ pieces?: ContentPiece[] }>(
+          "/api/content/pieces",
         );
-        if (!cancelled) setAutoPublish(data?.settings?.content_autopilot?.auto_publish ?? false);
-      } catch { /* default false */ }
-    })();
-    return () => { cancelled = true; };
-  }, [user, effectiveTenantId]);
+        const pcs = data.pieces || [];
+        return pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : [];
+      } catch (err) {
+        if (IS_DEMO) return demoContentPieces;
+        throw err;
+      }
+    },
+    enabled: baseEnabled,
+  });
+
+  const ideasQuery = useQuery({
+    queryKey: ideasKey,
+    queryFn: async (): Promise<PlanIdea[]> => {
+      const data = await tenantClient.get<{ items?: PlanIdea[] }>(
+        "/api/content/plan?status=idea",
+      );
+      return (data.items || []).slice().sort((a, b) => {
+        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+        return ta - tb;
+      });
+    },
+    enabled: baseEnabled,
+  });
+
+  const autoPublishQuery = useQuery({
+    queryKey: ["content", "autopublish", effectiveTenantId, user?.id],
+    queryFn: async () => {
+      try {
+        const data = await tenantApi(effectiveTenantId).get<{
+          settings?: { content_autopilot?: { auto_publish?: boolean } };
+        }>(`/api/settings/${user!.id}`);
+        return data?.settings?.content_autopilot?.auto_publish ?? false;
+      } catch {
+        return false;
+      }
+    },
+    enabled: baseEnabled,
+  });
+
+  const approvalsQuery = useQuery({
+    queryKey: ["content", "approvals", effectiveTenantId],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/approvals?status=pending", {
+          headers: { "X-Tenant-ID": effectiveTenantId },
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { approvals?: unknown[] };
+          return data.approvals?.length ?? 0;
+        }
+      } catch { /* silent — banner just won't show */ }
+      return 0;
+    },
+    enabled: baseEnabled,
+  });
+
+  const pieces = useMemo(() => piecesQuery.data ?? [], [piecesQuery.data]);
+  const ideas = ideasQuery.data ?? [];
+  const loading = piecesQuery.isPending;
+  const ideasLoading = ideasQuery.isPending;
+  const autoPublish = autoPublishQuery.data ?? false;
+  const pendingApprovalsCount = approvalsQuery.data ?? 0;
+  const error =
+    actionError ??
+    (piecesQuery.isError && !IS_DEMO ? t.content.errorFetch : null);
+
+  // Kept names + optional `background` arg so existing call sites (including
+  // the background-poll ticks) work unchanged. A refetch never flips isPending
+  // once data exists, so the background spinners stay quiet just like the old
+  // `background` flag did.
+  const fetchIdeas = (_opts: { background?: boolean } = {}) => ideasQuery.refetch();
+  const fetchContent = async (_opts: { background?: boolean } = {}) => {
+    await Promise.all([piecesQuery.refetch(), ideasQuery.refetch()]);
+  };
 
   // While a content_plan run is in flight (e.g. user just clicked
   // "Skapa content-plan" on /c/analysis and navigated here), keep
@@ -286,103 +364,12 @@ function CustomerContentInner() {
     }
   }, [searchParams]);
 
-useEffect(() => {
-    if (!user || !effectiveTenantId) return;
-    setPendingApprovalsCount(0);
-    (async () => {
-      try {
-        const res = await fetch("/api/approvals?status=pending", {
-          headers: { "X-Tenant-ID": effectiveTenantId },
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { approvals?: unknown[] };
-          setPendingApprovalsCount(data.approvals?.length ?? 0);
-        }
-      } catch {
-        /* silent — banner just won't show */
-      }
-    })();
-  }, [user, effectiveTenantId]);
-
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(null), 8000);
       return () => clearTimeout(timer);
     }
-  }, [error]);
-
-  const fetchContent = async ({ background = false }: { background?: boolean } = {}) => {
-    if (!user) return;
-    if (!background) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      const client = tenantClient;
-      // Fetch pieces and the plan calendar together. The calendar carries the
-      // scheduled_for date per linked piece, which the pieces endpoint doesn't
-      // reliably include — we merge it in so the "Schemalagda" tab can show
-      // the real publish date instead of nothing.
-      const now = Date.now();
-      const calStart = new Date(now - 180 * 86_400_000).toISOString();
-      const calEnd = new Date(now + 180 * 86_400_000).toISOString();
-      const [piecesData, calData] = await Promise.all([
-        client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces"),
-        client
-          .get<{ scheduled?: { content_piece_id?: string | null; scheduled_for?: string | null }[] }>(
-            `/api/content/plan/calendar?start=${encodeURIComponent(calStart)}&end=${encodeURIComponent(calEnd)}`,
-          )
-          .catch(() => ({ scheduled: [] as { content_piece_id?: string | null; scheduled_for?: string | null }[] })),
-      ]);
-      const pcs = piecesData.pieces || [];
-      const scheduledByPiece = new Map<string, string>();
-      for (const r of calData.scheduled || []) {
-        if (r.content_piece_id && r.scheduled_for && !scheduledByPiece.has(r.content_piece_id)) {
-          scheduledByPiece.set(r.content_piece_id, r.scheduled_for);
-        }
-      }
-      const enriched =
-        scheduledByPiece.size > 0
-          ? pcs.map((p) =>
-              p.scheduled_for ? p : { ...p, scheduled_for: scheduledByPiece.get(p.id) ?? null },
-            )
-          : pcs;
-      setPieces(enriched.length > 0 ? enriched : IS_DEMO ? demoContentPieces : []);
-    } catch (err: any) {
-      console.error("Failed to fetch content:", err);
-      if (IS_DEMO) {
-        setPieces(demoContentPieces);
-      } else if (!background) {
-        setError(t.content.errorFetch);
-      }
-    }
-    if (!background) setLoading(false);
-    fetchIdeas({ background });
-  };
-
-  // `background` is set when the 5-second polling tick re-runs this while a
-  // content run is in flight. Skipping the loader toggle there keeps the
-  // ideas list from flashing a spinner on every tick.
-  const fetchIdeas = async ({ background = false }: { background?: boolean } = {}) => {
-    if (!user) return;
-    if (!background) setIdeasLoading(true);
-    try {
-      const client = tenantClient;
-      const data = await client.get<{ items?: PlanIdea[] }>(
-        "/api/content/plan?status=idea",
-      );
-      const sorted = (data.items || []).slice().sort((a, b) => {
-        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
-        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
-        return ta - tb;
-      });
-      setIdeas(sorted);
-    } catch (err) {
-      console.error("Failed to fetch ideas:", err);
-      setIdeas([]);
-    }
-    if (!background) setIdeasLoading(false);
-  };
+  }, [actionError]);
 
   // The first time we land on the page with ideas waiting, default the
   // user into the Ideas tab. Don't override an explicit user choice.
@@ -423,7 +410,7 @@ useEffect(() => {
       // status is now 'drafting', which fetchIdeas (status=idea) won't
       // return anyway. The polling effect below picks up the finished
       // piece in /content/pieces when the cascade completes.
-      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
       setDraftingIds((prev) => {
         const next = new Set(prev);
         next.add(idea.id);
@@ -432,7 +419,7 @@ useEffect(() => {
       setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
       setTimeout(() => setIdeaToast(null), 6000);
     } catch (err: any) {
-      setError(`${err?.message || "Could not approve the idea"}`);
+      setActionError(`${err?.message || "Could not approve the idea"}`);
     } finally {
       setApprovingId(null);
     }
@@ -465,11 +452,11 @@ useEffect(() => {
     try {
       const client = tenantClient;
       await client.patch(`/api/content/plan/${idea.id}`, { status: "archived" });
-      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
       setIdeaToast(`"${idea.title}" ${t.content.ideaArchived}`);
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte arkivera"}`);
+      setActionError(`${err?.message || "Kunde inte arkivera"}`);
     }
   };
 
@@ -514,7 +501,7 @@ useEffect(() => {
       closeEditIdea();
       await fetchIdeas();
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte spara"}`);
+      setActionError(`${err?.message || "Kunde inte spara"}`);
       setEditSaving(false);
     }
   };
@@ -538,12 +525,12 @@ useEffect(() => {
       const generated = result.body || result.content || "";
       if (!generated) {
         const detail = result.suggestions?.[0] || "The AI returned no content.";
-        setError(`Could not generate: ${detail}`);
+        setActionError(`Could not generate: ${detail}`);
       } else {
         setModalContent(generated);
       }
     } catch (err: any) {
-      setError(`Could not generate: ${err?.message || err}`);
+      setActionError(`Could not generate: ${err?.message || err}`);
     }
     setModalGenerating(false);
   };
@@ -571,7 +558,7 @@ useEffect(() => {
       // Optimistic
     }
     // Add optimistically to the list
-    setPieces((prev) => [
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [
       {
         id: `local-${Date.now()}`,
         title: modalTopic,
@@ -654,7 +641,7 @@ useEffect(() => {
     if (!user) return;
     setUpdatingStatus(pieceId);
     // Optimistic update
-    setPieces((prev) =>
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
       prev.map((p) => (p.id === pieceId ? { ...p, status: newStatus } : p))
     );
     try {
@@ -664,7 +651,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
-      setError(`Kunde inte uppdatera status: ${err?.message || err}`);
+      setActionError(`Kunde inte uppdatera status: ${err?.message || err}`);
       // Re-fetch to revert on error
       fetchContent();
     }
@@ -679,7 +666,7 @@ useEffect(() => {
     if (!user) return;
     if (!confirm("Delete this content permanently? This cannot be undone.")) return;
     setUpdatingStatus(pieceId);
-    setPieces((prev) => prev.filter((p) => p.id !== pieceId));
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.id !== pieceId));
     try {
       const client = tenantClient;
       if (!pieceId.startsWith("local-")) {
@@ -687,7 +674,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to delete piece:", err);
-      setError(`Could not delete: ${err?.message || err}`);
+      setActionError(`Could not delete: ${err?.message || err}`);
       fetchContent();
     }
     setUpdatingStatus(null);
@@ -705,12 +692,12 @@ useEffect(() => {
         client.delete(`/api/content/pieces/archived`),
         client.delete(`/api/content/plan/archived`),
       ]);
-      setPieces((prev) => prev.filter((p) => p.status !== "archived"));
+      queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.status !== "archived"));
       setIdeaToast("The archive is empty.");
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
       console.error("Failed to empty archive:", err);
-      setError(`Could not empty archive: ${err?.message || err}`);
+      setActionError(`Could not empty archive: ${err?.message || err}`);
       fetchContent();
     }
   };
@@ -932,7 +919,7 @@ useEffect(() => {
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+            <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1015,7 +1002,7 @@ useEffect(() => {
                 throw new Error(saved.error || "Kunde inte spara utkast");
               }
               if (saved.piece) {
-                setPieces((prev) => [saved.piece as ContentPiece, ...prev]);
+                queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [saved.piece as ContentPiece, ...prev]);
               }
               // Background fill-in: generate the body and PATCH the piece
               // when it returns.
@@ -1708,7 +1695,7 @@ useEffect(() => {
             open
             onClose={() => setCmsDialog(null)}
             onPublished={() => {
-              setPieces((prev) =>
+              queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
                 prev.map((p) =>
                   p.id === cmsDialog.piece.id ? { ...p, status: "published" } : p,
                 ),
