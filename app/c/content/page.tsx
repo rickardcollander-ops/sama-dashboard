@@ -45,6 +45,11 @@ interface ContentPiece {
   slug?: string | null;
   featured_image_url?: string | null;
   article_score?: number | null;
+  // Publish date pinned on the linked content_plan_items row. The pieces
+  // endpoint may not enrich this, so fetchContent backfills it from the plan
+  // calendar — without it an approved piece looks unscheduled and the
+  // auto-publish bridge (which requires scheduled_for) never picks it up.
+  scheduled_for?: string | null;
   // Sprint 2 (K-3 / K-6) — backreferences to the surface that motivated the
   // piece, so the article card can show "Skapad från lucka …" / "Skapad
   // utifrån strategi-topic …".
@@ -314,9 +319,35 @@ useEffect(() => {
     }
     try {
       const client = tenantClient;
-      const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
-      const pcs = data.pieces || [];
-      setPieces(pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : []);
+      // Fetch pieces and the plan calendar together. The calendar carries the
+      // scheduled_for date per linked piece, which the pieces endpoint doesn't
+      // reliably include — we merge it in so the "Schemalagda" tab can show
+      // the real publish date instead of nothing.
+      const now = Date.now();
+      const calStart = new Date(now - 180 * 86_400_000).toISOString();
+      const calEnd = new Date(now + 180 * 86_400_000).toISOString();
+      const [piecesData, calData] = await Promise.all([
+        client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces"),
+        client
+          .get<{ scheduled?: { content_piece_id?: string | null; scheduled_for?: string | null }[] }>(
+            `/api/content/plan/calendar?start=${encodeURIComponent(calStart)}&end=${encodeURIComponent(calEnd)}`,
+          )
+          .catch(() => ({ scheduled: [] as { content_piece_id?: string | null; scheduled_for?: string | null }[] })),
+      ]);
+      const pcs = piecesData.pieces || [];
+      const scheduledByPiece = new Map<string, string>();
+      for (const r of calData.scheduled || []) {
+        if (r.content_piece_id && r.scheduled_for && !scheduledByPiece.has(r.content_piece_id)) {
+          scheduledByPiece.set(r.content_piece_id, r.scheduled_for);
+        }
+      }
+      const enriched =
+        scheduledByPiece.size > 0
+          ? pcs.map((p) =>
+              p.scheduled_for ? p : { ...p, scheduled_for: scheduledByPiece.get(p.id) ?? null },
+            )
+          : pcs;
+      setPieces(enriched.length > 0 ? enriched : IS_DEMO ? demoContentPieces : []);
     } catch (err: any) {
       console.error("Failed to fetch content:", err);
       if (IS_DEMO) {
@@ -591,11 +622,22 @@ useEffect(() => {
   const totalWords = counts.words;
 
   const filtered = useMemo(() => {
-    return pieces.filter((p) => {
+    const list = pieces.filter((p) => {
       if (filter === "to_review") return p.status === "draft" || p.status === "review";
       if (filter === "scheduled") return p.status === "approved";
       return p.status === filter;
     });
+    // In the "Schemalagda" tab, surface pieces that actually have a date first
+    // (chronological); unscheduled approved pieces sink to the bottom — they
+    // still need a date before the auto-publish bridge will touch them.
+    if (filter === "scheduled") {
+      return list.slice().sort((a, b) => {
+        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+        return ta - tb;
+      });
+    }
+    return list;
   }, [pieces, filter]);
 
   // Workflow arrow button. Stops at "approved" — the next step is
@@ -1323,6 +1365,23 @@ useEffect(() => {
                           Score {piece.article_score}/100
                         </Link>
                       )}
+                      {/* Publish date — only meaningful before a piece is
+                          published. A scheduled date drives the auto-publish
+                          bridge; an approved piece without one is flagged so
+                          the user knows to schedule it. */}
+                      {(piece.status === "approved" || piece.status === "scheduled") &&
+                        (piece.scheduled_for ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
+                            <Calendar className="h-3 w-3" />
+                            {t.content.ideaScheduledOn}{" "}
+                            {new Date(piece.scheduled_for).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                            <Calendar className="h-3 w-3" />
+                            {t.content.ideaUnscheduled}
+                          </span>
+                        ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
