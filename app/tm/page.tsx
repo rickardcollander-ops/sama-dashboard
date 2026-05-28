@@ -9,8 +9,8 @@ import {
   ChevronRight,
   FileSpreadsheet,
   TrendingUp,
-  Clock,
 } from "lucide-react";
+import TmActivityPanel from "@/components/tm/ActivityPanel";
 
 interface CampaignRow {
   id: string;
@@ -24,19 +24,8 @@ interface CampaignRow {
   updated_at: string;
 }
 
-interface RecentChange {
-  id: string;
-  company_name: string;
-  call_status: string;
-  call_notes: string | null;
-  updated_at: string;
-  campaign_id: string;
-}
-
 interface TmStats {
   changes_today: number;
-  by_status: Record<string, number>;
-  recent: RecentChange[];
 }
 
 const STATUS_TONE: Record<CampaignRow["status"], string> = {
@@ -44,28 +33,6 @@ const STATUS_TONE: Record<CampaignRow["status"], string> = {
   running: "bg-blue-100 text-blue-700",
   completed: "bg-emerald-100 text-emerald-700",
   failed: "bg-rose-100 text-rose-700",
-};
-
-const CALL_STATUS_LABELS: Record<string, string> = {
-  new: "Ny",
-  called: "Uppringd",
-  callback: "Ring tillbaka",
-  phone_missing: "Telefon saknas",
-  answering_machine: "Telesvarare",
-  not_interested: "Ej intresserad",
-  meeting_booked: "Möte bokat",
-  converted: "Konverterad",
-};
-
-const CALL_STATUS_TONE: Record<string, string> = {
-  new: "bg-slate-100 text-slate-600",
-  called: "bg-blue-100 text-blue-700",
-  callback: "bg-amber-100 text-amber-700",
-  phone_missing: "bg-orange-100 text-orange-700",
-  answering_machine: "bg-yellow-100 text-yellow-700",
-  not_interested: "bg-rose-100 text-rose-700",
-  meeting_booked: "bg-violet-100 text-violet-700",
-  converted: "bg-emerald-100 text-emerald-700",
 };
 
 function fmtRelative(iso: string): string {
@@ -114,10 +81,6 @@ export default function TmCampaignsPage() {
     void load();
   }, [load]);
 
-  const statusBreakdown = stats
-    ? Object.entries(stats.by_status).sort((a, b) => b[1] - a[1])
-    : [];
-
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
       <header className="mb-8 border-b border-slate-200 pb-6">
@@ -144,20 +107,6 @@ export default function TmCampaignsPage() {
           )}
         </div>
 
-        {/* Status breakdown */}
-        {statusBreakdown.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {statusBreakdown.map(([status, count]) => (
-              <span
-                key={status}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${CALL_STATUS_TONE[status] ?? "bg-slate-100 text-slate-600"}`}
-              >
-                {CALL_STATUS_LABELS[status] ?? status}
-                <span className="font-bold tabular-nums">{count}</span>
-              </span>
-            ))}
-          </div>
-        )}
       </header>
 
       {error && (
@@ -167,42 +116,7 @@ export default function TmCampaignsPage() {
         </div>
       )}
 
-      {/* Recent changes */}
-      {stats && stats.recent.length > 0 && (
-        <div className="mb-6 rounded-xl border bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-            <Clock className="h-4 w-4 text-slate-400" />
-            <h2 className="text-sm font-semibold text-slate-700">Senaste ändringar idag</h2>
-          </div>
-          <ul className="divide-y divide-slate-50">
-            {stats.recent.map((change) => (
-              <li key={change.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="min-w-0">
-                  <Link
-                    href={`/tm/${change.campaign_id}`}
-                    className="block truncate text-sm font-medium text-slate-800 hover:text-violet-700"
-                  >
-                    {change.company_name}
-                  </Link>
-                  {change.call_notes && (
-                    <p className="truncate text-xs text-slate-400 mt-0.5">{change.call_notes}</p>
-                  )}
-                </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CALL_STATUS_TONE[change.call_status] ?? "bg-slate-100 text-slate-600"}`}
-                  >
-                    {CALL_STATUS_LABELS[change.call_status] ?? change.call_status}
-                  </span>
-                  <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap">
-                    {fmtRelative(change.updated_at)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <TmActivityPanel />
 
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
