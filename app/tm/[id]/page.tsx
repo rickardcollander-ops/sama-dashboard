@@ -16,6 +16,7 @@ import {
   User,
   ExternalLink,
 } from "lucide-react";
+import TmActivityPanel from "@/components/tm/ActivityPanel";
 
 interface Campaign {
   id: string;
@@ -220,6 +221,8 @@ export default function TmCampaignDetailPage({
           </button>
         </div>
       )}
+
+      <TmActivityPanel campaignId={campaignId} />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-slate-500">Filter:</span>
