@@ -176,6 +176,9 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
     (s, d) => s + (d.by_status.meeting_booked ?? 0),
     0,
   );
+  // Tallest day's total drives the y-axis — the chart should read as
+  // "how busy was this day relative to the busiest day in the window".
+  const maxDay = Math.max(1, ...data.daily.map((d) => d.total));
 
   const totalsByStatus: Record<string, number> = {};
   for (const day of data.daily) {
@@ -216,11 +219,12 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
       </div>
 
       <div className="px-4 pt-4 pb-2">
-        <div className="flex h-40 items-end gap-1">
+        <div className="flex items-end gap-1">
           {data.daily.map((day) => {
             const booked = day.by_status.meeting_booked ?? 0;
             const visible = Math.min(booked, MAX_STARS_VISIBLE);
             const overflow = booked - visible;
+            const heightPct = (day.total / maxDay) * 100;
             const tooltip =
               day.total === 0
                 ? `${fmtDayLabel(day.date)}: inga ändringar`
@@ -232,28 +236,45 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
             return (
               <div
                 key={day.date}
-                className="flex flex-1 flex-col items-center justify-end gap-0.5"
+                className="flex flex-1 flex-col items-center gap-0.5"
                 title={tooltip}
               >
-                {overflow > 0 && (
-                  <span className="text-[10px] font-bold tabular-nums text-amber-700">
-                    +{overflow}
-                  </span>
-                )}
-                {Array.from({ length: visible }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className="h-3.5 w-3.5 fill-amber-400 text-amber-500"
-                    aria-hidden
-                  />
-                ))}
                 {booked > 0 ? (
-                  <span className="mt-0.5 text-[11px] font-bold tabular-nums text-amber-700">
-                    {booked}
-                  </span>
+                  <div className="flex flex-col-reverse items-center gap-0.5">
+                    {overflow > 0 && (
+                      <span className="text-[9px] font-bold tabular-nums text-amber-700">
+                        +{overflow}
+                      </span>
+                    )}
+                    {Array.from({ length: visible }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className="h-3 w-3 fill-amber-400 text-amber-500"
+                        aria-hidden
+                      />
+                    ))}
+                  </div>
                 ) : (
-                  <span className="text-[11px] text-slate-300">·</span>
+                  <div className="h-2" />
                 )}
+                <div className="flex h-32 w-full items-end">
+                  <div
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-sm bg-slate-50"
+                    style={{ height: `${day.total > 0 ? Math.max(heightPct, 6) : 0}%` }}
+                  >
+                    {STATUS_ORDER.filter((s) => (day.by_status[s] ?? 0) > 0).map((s) => {
+                      const cnt = day.by_status[s];
+                      const segPct = (cnt / day.total) * 100;
+                      return (
+                        <div
+                          key={s}
+                          className={STATUS_BAR_BG[s] ?? "bg-slate-300"}
+                          style={{ height: `${segPct}%` }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             );
           })}
