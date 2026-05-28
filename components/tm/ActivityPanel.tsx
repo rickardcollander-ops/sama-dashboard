@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Clock, Loader2 } from "lucide-react";
+import { Activity, ChevronDown, Clock, Loader2, Star } from "lucide-react";
 
 const CALL_STATUS_LABELS: Record<string, string> = {
   new: "Ny",
@@ -119,6 +119,7 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,8 +171,11 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
     );
   }
 
-  const maxDay = Math.max(1, ...data.daily.map((d) => d.total));
   const totalInWindow = data.daily.reduce((s, d) => s + d.total, 0);
+  const meetingsInWindow = data.daily.reduce(
+    (s, d) => s + (d.by_status.meeting_booked ?? 0),
+    0,
+  );
 
   const totalsByStatus: Record<string, number> = {};
   for (const day of data.daily) {
@@ -180,6 +184,10 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
     }
   }
   const legendOrder = STATUS_ORDER.filter((s) => (totalsByStatus[s] ?? 0) > 0);
+
+  // Cap stacked stars per day so a single big day doesn't blow up the chart;
+  // overflow surfaces as "+N" above the stack.
+  const MAX_STARS_VISIBLE = 8;
 
   // Group the (already date-desc) timeline by Stockholm calendar day so the
   // feed reads like a journal: a header per day, entries underneath.
@@ -202,14 +210,17 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
           </h2>
         </div>
         <span className="text-xs text-slate-500 tabular-nums">
-          {totalInWindow} ändringar totalt
+          <span className="font-semibold text-amber-600">{meetingsInWindow}</span> möten ·{" "}
+          {totalInWindow} ändringar
         </span>
       </div>
 
       <div className="px-4 pt-4 pb-2">
-        <div className="flex h-32 items-end gap-1">
+        <div className="flex h-40 items-end gap-1">
           {data.daily.map((day) => {
-            const heightPct = (day.total / maxDay) * 100;
+            const booked = day.by_status.meeting_booked ?? 0;
+            const visible = Math.min(booked, MAX_STARS_VISIBLE);
+            const overflow = booked - visible;
             const tooltip =
               day.total === 0
                 ? `${fmtDayLabel(day.date)}: inga ändringar`
@@ -221,25 +232,28 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
             return (
               <div
                 key={day.date}
-                className="flex flex-1 flex-col items-center"
+                className="flex flex-1 flex-col items-center justify-end gap-0.5"
                 title={tooltip}
               >
-                <div
-                  className="flex w-full flex-col-reverse overflow-hidden rounded-sm bg-slate-50"
-                  style={{ height: `${day.total > 0 ? Math.max(heightPct, 6) : 0}%` }}
-                >
-                  {STATUS_ORDER.filter((s) => (day.by_status[s] ?? 0) > 0).map((s) => {
-                    const cnt = day.by_status[s];
-                    const segPct = (cnt / day.total) * 100;
-                    return (
-                      <div
-                        key={s}
-                        className={STATUS_BAR_BG[s] ?? "bg-slate-300"}
-                        style={{ height: `${segPct}%` }}
-                      />
-                    );
-                  })}
-                </div>
+                {overflow > 0 && (
+                  <span className="text-[10px] font-bold tabular-nums text-amber-700">
+                    +{overflow}
+                  </span>
+                )}
+                {Array.from({ length: visible }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className="h-3.5 w-3.5 fill-amber-400 text-amber-500"
+                    aria-hidden
+                  />
+                ))}
+                {booked > 0 ? (
+                  <span className="mt-0.5 text-[11px] font-bold tabular-nums text-amber-700">
+                    {booked}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-300">·</span>
+                )}
               </div>
             );
           })}
@@ -273,59 +287,69 @@ export default function TmActivityPanel({ campaignId, days = 14 }: Props) {
 
       {data.timeline.length > 0 ? (
         <div className="border-t border-slate-100">
-          <div className="flex items-center gap-2 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setTimelineOpen((v) => !v)}
+            aria-expanded={timelineOpen}
+            className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-slate-50"
+          >
             <Clock className="h-4 w-4 text-slate-400" />
             <h3 className="text-sm font-semibold text-slate-700">Tidslinje</h3>
             <span className="text-xs text-slate-400">
               senaste {data.timeline.length} ändringarna
             </span>
-          </div>
-          <ul>
-            {timelineDates.map((date) => {
-              const entries = timelineByDate.get(date)!;
-              return (
-                <li key={date}>
-                  <div className="bg-slate-50/60 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {fmtDayLabel(date)} <span className="text-slate-400">· {entries.length}</span>
-                  </div>
-                  <ul className="divide-y divide-slate-50">
-                    {entries.map((e) => (
-                      <li
-                        key={e.id + e.updated_at}
-                        className="flex items-center justify-between gap-3 px-4 py-2.5"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <Link
-                            href={`/tm/${e.campaign_id}`}
-                            className="block truncate text-sm font-medium text-slate-800 hover:text-violet-700"
-                          >
-                            {e.company_name}
-                          </Link>
-                          {(e.call_notes || (e.campaign_name && !campaignId)) && (
-                            <p className="truncate text-[11px] text-slate-400">
-                              {!campaignId && e.campaign_name ? e.campaign_name : ""}
-                              {!campaignId && e.campaign_name && e.call_notes ? " · " : ""}
-                              {e.call_notes ?? ""}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-shrink-0 items-center gap-2">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL[e.call_status] ?? "bg-slate-100 text-slate-700"}`}
-                          >
-                            {CALL_STATUS_LABELS[e.call_status] ?? e.call_status}
-                          </span>
-                          <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap">
-                            {fmtTime(e.updated_at)}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              );
-            })}
-          </ul>
+            <ChevronDown
+              className={`ml-auto h-4 w-4 text-slate-400 transition-transform ${timelineOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {timelineOpen && (
+            <ul className="border-t border-slate-100">
+              {timelineDates.map((date) => {
+                const entries = timelineByDate.get(date)!;
+                return (
+                  <li key={date}>
+                    <div className="bg-slate-50/60 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      {fmtDayLabel(date)} <span className="text-slate-400">· {entries.length}</span>
+                    </div>
+                    <ul className="divide-y divide-slate-50">
+                      {entries.map((e) => (
+                        <li
+                          key={e.id + e.updated_at}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/tm/${e.campaign_id}`}
+                              className="block truncate text-sm font-medium text-slate-800 hover:text-violet-700"
+                            >
+                              {e.company_name}
+                            </Link>
+                            {(e.call_notes || (e.campaign_name && !campaignId)) && (
+                              <p className="truncate text-[11px] text-slate-400">
+                                {!campaignId && e.campaign_name ? e.campaign_name : ""}
+                                {!campaignId && e.campaign_name && e.call_notes ? " · " : ""}
+                                {e.call_notes ?? ""}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-shrink-0 items-center gap-2">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL[e.call_status] ?? "bg-slate-100 text-slate-700"}`}
+                            >
+                              {CALL_STATUS_LABELS[e.call_status] ?? e.call_status}
+                            </span>
+                            <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap">
+                              {fmtTime(e.updated_at)}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       ) : (
         <div className="border-t border-slate-100 px-4 py-6 text-center text-sm text-slate-400">
