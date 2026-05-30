@@ -12,9 +12,11 @@ const SAMA_API_URL =
 /**
  * Daily cron — fires every day at 06:00 Europe/Stockholm time.
  *
- * Triggers the content agent for every onboarded user, generating 1 idea
- * and immediately drafting the article scheduled for the day after tomorrow.
- * This keeps the content calendar continuously filled without manual effort.
+ * For every site that has content autopilot enabled and is past the
+ * onboarding grace period, triggers the content agent to generate 1 idea
+ * and immediately draft the article scheduled for the day after tomorrow.
+ * This keeps the content calendar continuously filled without manual
+ * effort — but only for users who've opted in via the autopilot toggle.
  *
  * Vercel cron only speaks UTC. Two entries (04:00 and 05:00 UTC) cover the
  * DST transitions between CET (UTC+1) and CEST (UTC+2). This handler gates
@@ -62,39 +64,52 @@ export async function GET(req: NextRequest) {
     cookies: { getAll: () => [], setAll: () => {} },
   });
 
+  // user_sites is the single source of truth for tenant config — same as
+  // the weekly cron. Each site has its own autopilot toggle.
   const { data: rows, error } = await admin
-    .from("user_settings")
-    .select("user_id, settings");
+    .from("user_sites")
+    .select("id, user_id, settings");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   const summary: {
-    users_processed: number;
-    users_skipped: number;
+    sites_processed: number;
+    sites_skipped: number;
     triggers_attempted: number;
     triggers_succeeded: number;
-    failures: { user_id: string; error: string }[];
+    failures: { site_id: string; user_id: string; error: string }[];
   } = {
-    users_processed: 0,
-    users_skipped: 0,
+    sites_processed: 0,
+    sites_skipped: 0,
     triggers_attempted: 0,
     triggers_succeeded: 0,
     failures: [],
   };
 
   for (const row of rows || []) {
+    const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
     const settings = (
       (row as { settings?: Record<string, unknown> }).settings || {}
     ) as Record<string, unknown>;
 
     if (typeof settings.brand_name !== "string" || !settings.brand_name) {
-      summary.users_skipped += 1;
+      summary.sites_skipped += 1;
       continue;
     }
 
-    // Skip users who onboarded < 30 days ago — onboarding already generates
+    // Daily gap-fill only fires for sites that have explicitly enabled
+    // autopilot — same opt-in as the weekly cron. Without this, users who
+    // never toggled autopilot would still get drafts generated every day
+    // and the calendar would fill behind their back.
+    const ap = (settings.content_autopilot ?? {}) as Record<string, unknown>;
+    if (ap.enabled !== true) {
+      summary.sites_skipped += 1;
+      continue;
+    }
+
+    // Skip sites that onboarded < 30 days ago — onboarding already generates
     // a 30-day content plan, so firing the daily cron on top would duplicate.
     const onboardedAt = typeof settings.onboarding_completed_at === "string"
       ? settings.onboarding_completed_at
@@ -102,12 +117,12 @@ export async function GET(req: NextRequest) {
     if (onboardedAt) {
       const daysSince = (Date.now() - new Date(onboardedAt).getTime()) / 86_400_000;
       if (daysSince < 30) {
-        summary.users_skipped += 1;
+        summary.sites_skipped += 1;
         continue;
       }
     }
 
-    summary.users_processed += 1;
+    summary.sites_processed += 1;
     summary.triggers_attempted += 1;
 
     try {
@@ -117,6 +132,7 @@ export async function GET(req: NextRequest) {
         headers: {
           "Content-Type": "application/json",
           "X-Tenant-ID": userId,
+          "X-Sama-Site-Id": siteId,
           "X-Sama-Intent": "user-action",
         },
         body: JSON.stringify({
@@ -133,12 +149,14 @@ export async function GET(req: NextRequest) {
       } else {
         const detail = await res.text().catch(() => "");
         summary.failures.push({
+          site_id: siteId,
           user_id: userId,
           error: `${res.status} ${detail.slice(0, 120)}`,
         });
       }
     } catch (e) {
       summary.failures.push({
+        site_id: siteId,
         user_id: userId,
         error: e instanceof Error ? e.message : "fetch failed",
       });

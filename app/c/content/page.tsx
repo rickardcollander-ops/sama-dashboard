@@ -19,9 +19,9 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
-import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
 import AutoApproveToggle from "@/components/content/AutoApproveToggle";
+import AutopilotSettings from "@/components/content/AutopilotSettings";
 
 interface ContentTopicSuggestion {
   topic: string;
@@ -127,7 +127,7 @@ export default function CustomerContentPage() {
 function CustomerContentInner() {
   const { t } = useLanguage();
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, activeSite } = useSite();
   const { runs: activeRuns } = useActiveRuns();
   const searchParams = useSearchParams();
   // Errors from user actions (approve/archive/draft/etc). Load failures are
@@ -180,6 +180,13 @@ function CustomerContentInner() {
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
+  // Mirrors user_sites.settings.content_autopilot.auto_publish — same row
+  // the cron reads. Derived directly from useSite() so toggling the
+  // AutoApproveToggle (which writes to the same row) updates this in place.
+  const autoPublish =
+    ((activeSite?.settings as Record<string, unknown> | undefined)?.content_autopilot as
+      | { auto_publish?: boolean }
+      | undefined)?.auto_publish === true;
 
   const TYPE_LABELS: Record<string, string> = {
     linkedin_post: t.content.typeLinkedin,
@@ -220,94 +227,6 @@ function CustomerContentInner() {
     () => ["content", "ideas", effectiveTenantId] as const,
     [effectiveTenantId],
   );
-
-  // Pieces + ideas are the page's primary data — cached by React Query keyed
-  // on the active tenant, so leaving and returning paints instantly from cache
-  // (background refetch when stale) instead of refetching from an empty list.
-  // The keying also means a different tenant is simply a different cache entry,
-  // so there is no "reset state on tenant change" effect to maintain.
-  const piecesQuery = useQuery({
-    queryKey: piecesKey,
-    queryFn: async (): Promise<ContentPiece[]> => {
-      try {
-        const data = await tenantClient.get<{ pieces?: ContentPiece[] }>(
-          "/api/content/pieces",
-        );
-        const pcs = data.pieces || [];
-        return pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : [];
-      } catch (err) {
-        if (IS_DEMO) return demoContentPieces;
-        throw err;
-      }
-    },
-    enabled: baseEnabled,
-  });
-
-  const ideasQuery = useQuery({
-    queryKey: ideasKey,
-    queryFn: async (): Promise<PlanIdea[]> => {
-      const data = await tenantClient.get<{ items?: PlanIdea[] }>(
-        "/api/content/plan?status=idea",
-      );
-      return (data.items || []).slice().sort((a, b) => {
-        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
-        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
-        return ta - tb;
-      });
-    },
-    enabled: baseEnabled,
-  });
-
-  const autoPublishQuery = useQuery({
-    queryKey: ["content", "autopublish", effectiveTenantId, user?.id],
-    queryFn: async () => {
-      try {
-        const data = await tenantApi(effectiveTenantId).get<{
-          settings?: { content_autopilot?: { auto_publish?: boolean } };
-        }>(`/api/settings/${user!.id}`);
-        return data?.settings?.content_autopilot?.auto_publish ?? false;
-      } catch {
-        return false;
-      }
-    },
-    enabled: baseEnabled,
-  });
-
-  const approvalsQuery = useQuery({
-    queryKey: ["content", "approvals", effectiveTenantId],
-    queryFn: async () => {
-      try {
-        const res = await fetch("/api/approvals?status=pending", {
-          headers: { "X-Tenant-ID": effectiveTenantId },
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { approvals?: unknown[] };
-          return data.approvals?.length ?? 0;
-        }
-      } catch { /* silent — banner just won't show */ }
-      return 0;
-    },
-    enabled: baseEnabled,
-  });
-
-  const pieces = useMemo(() => piecesQuery.data ?? [], [piecesQuery.data]);
-  const ideas = ideasQuery.data ?? [];
-  const loading = piecesQuery.isPending;
-  const ideasLoading = ideasQuery.isPending;
-  const autoPublish = autoPublishQuery.data ?? false;
-  const pendingApprovalsCount = approvalsQuery.data ?? 0;
-  const error =
-    actionError ??
-    (piecesQuery.isError && !IS_DEMO ? t.content.errorFetch : null);
-
-  // Kept names + optional `background` arg so existing call sites (including
-  // the background-poll ticks) work unchanged. A refetch never flips isPending
-  // once data exists, so the background spinners stay quiet just like the old
-  // `background` flag did.
-  const fetchIdeas = (_opts: { background?: boolean } = {}) => ideasQuery.refetch();
-  const fetchContent = async (_opts: { background?: boolean } = {}) => {
-    await Promise.all([piecesQuery.refetch(), ideasQuery.refetch()]);
-  };
 
   // While a content_plan run is in flight (e.g. user just clicked
   // "Skapa content-plan" on /c/analysis and navigated here), keep
@@ -369,7 +288,122 @@ function CustomerContentInner() {
       const timer = setTimeout(() => setActionError(null), 8000);
       return () => clearTimeout(timer);
     }
-  }, [actionError]);
+  }, [error]);
+
+  const [triggering, setTriggering] = useState(false);
+  // Surfaced when the plan-calendar fetch fails — pieces show up unscheduled
+  // and the auto-publish bridge won't pick them up, so the user needs to
+  // know rather than silently see empty "Schemalagda" tab.
+  const [scheduleBackfillError, setScheduleBackfillError] = useState<string | null>(null);
+
+  const triggerAutopilot = async () => {
+    if (!activeSite || triggering) return;
+    setTriggering(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/integrations/autopilot/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site_id: activeSite.id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setIdeaToast("Autopilot startad — nya idéer kommer dyka upp inom någon minut");
+      setTimeout(() => setIdeaToast(null), 6000);
+      // Kick off polling on next render via the ideas useEffect tied to
+      // hasRunningContentRun; meanwhile, refresh now so the user sees
+      // something happens immediately if the backend was already fast.
+      void fetchIdeas({ background: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte starta autopilot");
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  const fetchContent = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!user) return;
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
+    try {
+      const client = tenantClient;
+      // Fetch pieces and the plan calendar together. The calendar carries the
+      // scheduled_for date per linked piece, which the pieces endpoint doesn't
+      // reliably include — we merge it in so the "Schemalagda" tab can show
+      // the real publish date instead of nothing.
+      const now = Date.now();
+      const calStart = new Date(now - 180 * 86_400_000).toISOString();
+      const calEnd = new Date(now + 180 * 86_400_000).toISOString();
+      const piecesPromise = client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
+      const calPromise = client
+        .get<{ scheduled?: { content_piece_id?: string | null; scheduled_for?: string | null }[] }>(
+          `/api/content/plan/calendar?start=${encodeURIComponent(calStart)}&end=${encodeURIComponent(calEnd)}`,
+        )
+        .then((d) => {
+          setScheduleBackfillError(null);
+          return d;
+        })
+        .catch((err: unknown) => {
+          // Surface the failure — without the calendar backfill the
+          // "Schemalagda" tab looks empty and the auto-publish bridge
+          // (which needs scheduled_for) won't pick the pieces up. Better
+          // to show a banner than to pretend everything is fine.
+          const msg = err instanceof Error ? err.message : "okänt fel";
+          setScheduleBackfillError(`Kunde inte ladda schemainfo: ${msg}`);
+          return { scheduled: [] as { content_piece_id?: string | null; scheduled_for?: string | null }[] };
+        });
+      const [piecesData, calData] = await Promise.all([piecesPromise, calPromise]);
+      const pcs = piecesData.pieces || [];
+      const scheduledByPiece = new Map<string, string>();
+      for (const r of calData.scheduled || []) {
+        if (r.content_piece_id && r.scheduled_for && !scheduledByPiece.has(r.content_piece_id)) {
+          scheduledByPiece.set(r.content_piece_id, r.scheduled_for);
+        }
+      }
+      const enriched =
+        scheduledByPiece.size > 0
+          ? pcs.map((p) =>
+              p.scheduled_for ? p : { ...p, scheduled_for: scheduledByPiece.get(p.id) ?? null },
+            )
+          : pcs;
+      setPieces(enriched.length > 0 ? enriched : IS_DEMO ? demoContentPieces : []);
+    } catch (err: any) {
+      console.error("Failed to fetch content:", err);
+      if (IS_DEMO) {
+        setPieces(demoContentPieces);
+      } else if (!background) {
+        setError(t.content.errorFetch);
+      }
+    }
+    if (!background) setLoading(false);
+    fetchIdeas({ background });
+  };
+
+  // `background` is set when the 5-second polling tick re-runs this while a
+  // content run is in flight. Skipping the loader toggle there keeps the
+  // ideas list from flashing a spinner on every tick.
+  const fetchIdeas = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!user) return;
+    if (!background) setIdeasLoading(true);
+    try {
+      const client = tenantClient;
+      const data = await client.get<{ items?: PlanIdea[] }>(
+        "/api/content/plan?status=idea",
+      );
+      const sorted = (data.items || []).slice().sort((a, b) => {
+        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+        return ta - tb;
+      });
+      setIdeas(sorted);
+    } catch (err) {
+      console.error("Failed to fetch ideas:", err);
+      setIdeas([]);
+    }
+    if (!background) setIdeasLoading(false);
+  };
 
   // The first time we land on the page with ideas waiting, default the
   // user into the Ideas tab. Don't override an explicit user choice.
@@ -880,6 +914,15 @@ function CustomerContentInner() {
               {t.content.viewCalendar}
             </Link>
             <button
+              onClick={triggerAutopilot}
+              disabled={!activeSite || triggering}
+              className="flex items-center gap-2 rounded-lg bg-white border border-blue-200 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50 shadow-sm transition-colors disabled:opacity-50"
+              title="Kör autopilot omedelbart med sajtens sparade inställningar."
+            >
+              {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Kör autopilot nu
+            </button>
+            <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
               title="Write your own topic and let SAMA generate a draft."
@@ -889,6 +932,8 @@ function CustomerContentInner() {
             </button>
           </div>
         </div>
+
+        <AutopilotSettings />
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
@@ -920,6 +965,27 @@ function CustomerContentInner() {
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
             <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {scheduleBackfillError && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">
+              {scheduleBackfillError}. &quot;Schemalagda&quot;-fliken visar inte rätt utan denna data.
+            </span>
+            <button
+              onClick={() => fetchContent()}
+              className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium hover:bg-amber-200"
+            >
+              Försök igen
+            </button>
+            <button
+              onClick={() => setScheduleBackfillError(null)}
+              className="text-amber-500 hover:text-amber-700"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1081,9 +1147,7 @@ function CustomerContentInner() {
           </div>
         )}
 
-        {filter === "ideas" && user && (
-          <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
-        )}
+        {filter === "ideas" && user && <AutoApproveToggle />}
 
         {/* Ideas list — only when this tab is active. Ideas have no body
             yet; the user picks ones to draft. */}
