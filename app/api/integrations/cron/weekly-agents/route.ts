@@ -83,47 +83,55 @@ export async function GET(req: NextRequest) {
     cookies: { getAll: () => [], setAll: () => {} },
   });
 
+  // user_sites is the single source of truth for tenant config. Each site has
+  // its own settings.brand_name and settings.content_autopilot — a user with
+  // multiple sites fires weekly agents once per site.
   const { data: rows, error } = await admin
-    .from("user_settings")
-    .select("user_id, settings");
+    .from("user_sites")
+    .select("id, user_id, settings");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   const summary: {
-    users_processed: number;
-    users_skipped: number;
+    sites_processed: number;
+    sites_skipped: number;
     triggers_attempted: number;
     triggers_succeeded: number;
-    failures: { user_id: string; agent: string; error: string }[];
+    failures: { site_id: string; user_id: string; agent: string; error: string }[];
   } = {
-    users_processed: 0,
-    users_skipped: 0,
+    sites_processed: 0,
+    sites_skipped: 0,
     triggers_attempted: 0,
     triggers_succeeded: 0,
     failures: [],
   };
 
   for (const row of rows || []) {
+    const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
     const settings = ((row as { settings?: Record<string, unknown> }).settings || {}) as Record<string, unknown>;
-    // Skip users that haven't completed onboarding (no brand_name)
+    // Skip sites that haven't completed onboarding (no brand_name)
     if (typeof settings.brand_name !== "string" || !settings.brand_name) {
-      summary.users_skipped += 1;
+      summary.sites_skipped += 1;
       continue;
     }
-    summary.users_processed += 1;
+    summary.sites_processed += 1;
+
+    const baseHeaders = {
+      "Content-Type": "application/json",
+      "X-Tenant-ID": userId,
+      "X-Sama-Site-Id": siteId,
+      "X-Sama-Intent": "user-action",
+    };
+
     for (const trigger of WEEKLY_TRIGGERS) {
       summary.triggers_attempted += 1;
       try {
         const target = `${SAMA_API_URL.replace(/\/$/, "")}${trigger.endpoint}`;
         const res = await fetch(target, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Tenant-ID": userId,
-            "X-Sama-Intent": "user-action",
-          },
+          headers: baseHeaders,
           body: JSON.stringify({ source: "weekly_cron" }),
         });
         if (res.ok) {
@@ -131,6 +139,7 @@ export async function GET(req: NextRequest) {
         } else {
           const detail = await res.text().catch(() => "");
           summary.failures.push({
+            site_id: siteId,
             user_id: userId,
             agent: trigger.agent,
             error: `${res.status} ${detail.slice(0, 120)}`,
@@ -138,6 +147,7 @@ export async function GET(req: NextRequest) {
         }
       } catch (e) {
         summary.failures.push({
+          site_id: siteId,
           user_id: userId,
           agent: trigger.agent,
           error: e instanceof Error ? e.message : "fetch failed",
@@ -145,7 +155,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Content autopilot — only for users who have explicitly enabled it.
+    // Content autopilot — only for sites that have explicitly enabled it.
     const ap = (settings.content_autopilot ?? {}) as Record<string, unknown>;
     if (ap.enabled === true) {
       const cadence = typeof ap.cadence === "string" ? ap.cadence : "weekly";
@@ -158,11 +168,7 @@ export async function GET(req: NextRequest) {
           const target = `${SAMA_API_URL.replace(/\/$/, "")}/api/tenant/agents/content/trigger`;
           const res = await fetch(target, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Tenant-ID": userId,
-              "X-Sama-Intent": "user-action",
-            },
+            headers: baseHeaders,
             body: JSON.stringify({
               source: "weekly_cron",
               ideas_per_run: ap.ideas_per_run ?? 6,
@@ -176,6 +182,7 @@ export async function GET(req: NextRequest) {
           } else {
             const detail = await res.text().catch(() => "");
             summary.failures.push({
+              site_id: siteId,
               user_id: userId,
               agent: "content",
               error: `${res.status} ${detail.slice(0, 120)}`,
@@ -183,6 +190,7 @@ export async function GET(req: NextRequest) {
           }
         } catch (e) {
           summary.failures.push({
+            site_id: siteId,
             user_id: userId,
             agent: "content",
             error: e instanceof Error ? e.message : "fetch failed",

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { tenantApi } from "@/lib/api";
+import { useSite } from "@/lib/hooks/useSite";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface AutopilotConfig {
   enabled?: boolean;
@@ -13,54 +14,55 @@ interface AutopilotConfig {
   auto_publish?: boolean;
 }
 
-interface Props {
-  tenantId: string;
-  userId: string;
-}
-
-export default function AutoApproveToggle({ tenantId, userId }: Props) {
+/**
+ * Quick toggle for content_autopilot.auto_publish. Reads from the same
+ * user_sites.settings location that the cron reads from and the full
+ * AutopilotSettings panel writes to — so flipping this toggle actually
+ * changes what the next scheduled run does.
+ */
+export default function AutoApproveToggle() {
+  const { activeSite, effectiveOwnerId, viewAs } = useSite();
   const [autoPublish, setAutoPublish] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await tenantApi(tenantId).get<{ settings?: { content_autopilot?: AutopilotConfig } }>(
-          `/api/settings/${userId}`,
-        );
-        if (!cancelled) {
-          setAutoPublish(data?.settings?.content_autopilot?.auto_publish ?? false);
-        }
-      } catch {
-        /* use default false */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [tenantId, userId]);
+    if (!activeSite) return;
+    const ap = ((activeSite.settings || {}).content_autopilot ?? {}) as AutopilotConfig;
+    setAutoPublish(ap.auto_publish === true);
+    setLoading(false);
+  }, [activeSite]);
 
   const toggle = async () => {
+    if (!activeSite || viewAs) return;
     const newValue = !autoPublish;
     setSaving(true);
+    setError(null);
     try {
-      const existing = await tenantApi(tenantId).get<{ settings?: Record<string, unknown> }>(
-        `/api/settings/${userId}`,
-      );
-      const currentSettings = existing?.settings || {};
+      const supabase = getSupabaseBrowser();
+      const currentSettings = (activeSite.settings || {}) as Record<string, unknown>;
       const currentAp = (currentSettings.content_autopilot as AutopilotConfig) || {};
-      await tenantApi(tenantId).post(`/api/settings`, {
-        user_id: userId,
-        settings: {
-          ...currentSettings,
-          content_autopilot: { ...currentAp, auto_publish: newValue },
-        },
-      });
+      const next = {
+        ...currentSettings,
+        content_autopilot: { ...currentAp, auto_publish: newValue },
+      };
+      const { error: upsertErr } = await supabase
+        .from("user_sites")
+        .upsert(
+          {
+            id: activeSite.id,
+            user_id: effectiveOwnerId || activeSite.user_id,
+            site_name: activeSite.site_name,
+            settings: next,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
+      if (upsertErr) throw upsertErr;
       setAutoPublish(newValue);
-    } catch {
-      /* silent — toggle stays at previous value */
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte spara");
     } finally {
       setSaving(false);
     }
@@ -77,10 +79,11 @@ export default function AutoApproveToggle({ tenantId, userId }: Props) {
             ? "Utkast publiceras automatiskt när de godkänns av AI"
             : "Du godkänner och publicerar varje artikel manuellt"}
         </p>
+        {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
       </div>
       <button
         onClick={toggle}
-        disabled={saving}
+        disabled={saving || !!viewAs}
         aria-pressed={autoPublish}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
           autoPublish ? "bg-purple-600" : "bg-slate-300"

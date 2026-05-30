@@ -801,7 +801,7 @@ export default function CustomerDashboard() {
               pieces={recentPieces}
               pendingApprovals={pendingApprovals}
             />
-            <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
+            <AutoApproveToggle />
           </div>
         )}
 
