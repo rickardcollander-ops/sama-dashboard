@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
@@ -129,9 +130,9 @@ function CustomerContentInner() {
   const { tenantClient, effectiveTenantId, activeSite } = useSite();
   const { runs: activeRuns } = useActiveRuns();
   const searchParams = useSearchParams();
-  const [pieces, setPieces] = useState<ContentPiece[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Errors from user actions (approve/archive/draft/etc). Load failures are
+  // derived from the pieces query below. Auto-cleared after 8s by the effect.
+  const [actionError, setActionError] = useState<string | null>(null);
   // Tabs across the top of the content list. "ideas" surfaces plan items
   // that haven't been drafted yet (status='idea' on content_plan_items),
   // because the new plan-creator stops at idea-rows and lets the user
@@ -139,8 +140,6 @@ function CustomerContentInner() {
   // is waiting; otherwise we drop the user back into "to_review" as
   // before.
   const [filter, setFilter] = useState<"ideas" | "to_review" | "scheduled" | "published" | "archived">("to_review");
-  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
-  const [ideasLoading, setIdeasLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   // Plan items currently being drafted in the background. The
   // /plan/{id}/draft endpoint returns immediately now, so we track
@@ -172,7 +171,6 @@ function CustomerContentInner() {
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [viewDialog, setViewDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   // Calendar scheduling: when set, the date-picker dialog is open for this
   // piece. Saving creates a content_plan_items row that links to the piece
@@ -219,9 +217,16 @@ function CustomerContentInner() {
     return null;
   };
 
-  useEffect(() => {
-    if (user && effectiveTenantId) fetchContent();
-  }, [user, effectiveTenantId]);
+  const queryClient = useQueryClient();
+  const baseEnabled = !!user && !!effectiveTenantId;
+  const piecesKey = useMemo(
+    () => ["content", "pieces", effectiveTenantId] as const,
+    [effectiveTenantId],
+  );
+  const ideasKey = useMemo(
+    () => ["content", "ideas", effectiveTenantId] as const,
+    [effectiveTenantId],
+  );
 
   // While a content_plan run is in flight (e.g. user just clicked
   // "Skapa content-plan" on /c/analysis and navigated here), keep
@@ -278,27 +283,9 @@ function CustomerContentInner() {
     }
   }, [searchParams]);
 
-useEffect(() => {
-    if (!user || !effectiveTenantId) return;
-    setPendingApprovalsCount(0);
-    (async () => {
-      try {
-        const res = await fetch("/api/approvals?status=pending", {
-          headers: { "X-Tenant-ID": effectiveTenantId },
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { approvals?: unknown[] };
-          setPendingApprovalsCount(data.approvals?.length ?? 0);
-        }
-      } catch {
-        /* silent — banner just won't show */
-      }
-    })();
-  }, [user, effectiveTenantId]);
-
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(null), 8000);
       return () => clearTimeout(timer);
     }
   }, [error]);
@@ -457,7 +444,7 @@ useEffect(() => {
       // status is now 'drafting', which fetchIdeas (status=idea) won't
       // return anyway. The polling effect below picks up the finished
       // piece in /content/pieces when the cascade completes.
-      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
       setDraftingIds((prev) => {
         const next = new Set(prev);
         next.add(idea.id);
@@ -466,7 +453,7 @@ useEffect(() => {
       setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
       setTimeout(() => setIdeaToast(null), 6000);
     } catch (err: any) {
-      setError(`${err?.message || "Could not approve the idea"}`);
+      setActionError(`${err?.message || "Could not approve the idea"}`);
     } finally {
       setApprovingId(null);
     }
@@ -499,11 +486,11 @@ useEffect(() => {
     try {
       const client = tenantClient;
       await client.patch(`/api/content/plan/${idea.id}`, { status: "archived" });
-      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
       setIdeaToast(`"${idea.title}" ${t.content.ideaArchived}`);
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte arkivera"}`);
+      setActionError(`${err?.message || "Kunde inte arkivera"}`);
     }
   };
 
@@ -548,7 +535,7 @@ useEffect(() => {
       closeEditIdea();
       await fetchIdeas();
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte spara"}`);
+      setActionError(`${err?.message || "Kunde inte spara"}`);
       setEditSaving(false);
     }
   };
@@ -572,12 +559,12 @@ useEffect(() => {
       const generated = result.body || result.content || "";
       if (!generated) {
         const detail = result.suggestions?.[0] || "The AI returned no content.";
-        setError(`Could not generate: ${detail}`);
+        setActionError(`Could not generate: ${detail}`);
       } else {
         setModalContent(generated);
       }
     } catch (err: any) {
-      setError(`Could not generate: ${err?.message || err}`);
+      setActionError(`Could not generate: ${err?.message || err}`);
     }
     setModalGenerating(false);
   };
@@ -605,7 +592,7 @@ useEffect(() => {
       // Optimistic
     }
     // Add optimistically to the list
-    setPieces((prev) => [
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [
       {
         id: `local-${Date.now()}`,
         title: modalTopic,
@@ -688,7 +675,7 @@ useEffect(() => {
     if (!user) return;
     setUpdatingStatus(pieceId);
     // Optimistic update
-    setPieces((prev) =>
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
       prev.map((p) => (p.id === pieceId ? { ...p, status: newStatus } : p))
     );
     try {
@@ -698,7 +685,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
-      setError(`Kunde inte uppdatera status: ${err?.message || err}`);
+      setActionError(`Kunde inte uppdatera status: ${err?.message || err}`);
       // Re-fetch to revert on error
       fetchContent();
     }
@@ -713,7 +700,7 @@ useEffect(() => {
     if (!user) return;
     if (!confirm("Delete this content permanently? This cannot be undone.")) return;
     setUpdatingStatus(pieceId);
-    setPieces((prev) => prev.filter((p) => p.id !== pieceId));
+    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.id !== pieceId));
     try {
       const client = tenantClient;
       if (!pieceId.startsWith("local-")) {
@@ -721,7 +708,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to delete piece:", err);
-      setError(`Could not delete: ${err?.message || err}`);
+      setActionError(`Could not delete: ${err?.message || err}`);
       fetchContent();
     }
     setUpdatingStatus(null);
@@ -739,12 +726,12 @@ useEffect(() => {
         client.delete(`/api/content/pieces/archived`),
         client.delete(`/api/content/plan/archived`),
       ]);
-      setPieces((prev) => prev.filter((p) => p.status !== "archived"));
+      queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.status !== "archived"));
       setIdeaToast("The archive is empty.");
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
       console.error("Failed to empty archive:", err);
-      setError(`Could not empty archive: ${err?.message || err}`);
+      setActionError(`Could not empty archive: ${err?.message || err}`);
       fetchContent();
     }
   };
@@ -977,7 +964,7 @@ useEffect(() => {
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+            <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1081,7 +1068,7 @@ useEffect(() => {
                 throw new Error(saved.error || "Kunde inte spara utkast");
               }
               if (saved.piece) {
-                setPieces((prev) => [saved.piece as ContentPiece, ...prev]);
+                queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [saved.piece as ContentPiece, ...prev]);
               }
               // Background fill-in: generate the body and PATCH the piece
               // when it returns.
@@ -1772,7 +1759,7 @@ useEffect(() => {
             open
             onClose={() => setCmsDialog(null)}
             onPublished={() => {
-              setPieces((prev) =>
+              queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
                 prev.map((p) =>
                   p.id === cmsDialog.piece.id ? { ...p, status: "published" } : p,
                 ),

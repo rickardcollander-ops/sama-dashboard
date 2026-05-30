@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle,
   Play, RefreshCw, Minus, Eye, X, Download, Trash2,
@@ -46,6 +47,14 @@ interface LockStatus {
   geo_queries_updated_at: string | null;
 }
 
+interface GeoData {
+  summary: Summary | null;
+  checks: AICheck[];
+  trackedQueries: string[];
+  queriesUpdatedAt: string | null;
+  lockStatus: LockStatus | null;
+}
+
 function formatCountdown(target: Date): string {
   const ms = target.getTime() - Date.now();
   if (ms <= 0) return "snart";
@@ -88,21 +97,20 @@ export default function CustomerGeoPage() {
   const { user, loading: userLoading } = useUser();
   const { tenantClient, effectiveTenantId } = useSite();
   const { t } = useLanguage();
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [checks, setChecks] = useState<AICheck[]>([]);
-  const [trackedQueries, setTrackedQueries] = useState<string[]>([]);
-  const [queriesUpdatedAt, setQueriesUpdatedAt] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { period, setPeriod, days } = usePeriod();
+  const { runs, triggerRun } = useActiveRuns();
+  const baseEnabled = !!user && !!effectiveTenantId;
+
   const [removingQuery, setRemovingQuery] = useState<string | null>(null);
   const [newQueryInput, setNewQueryInput] = useState("");
   const [addingQuery, setAddingQuery] = useState(false);
   const [expandedCheckId, setExpandedCheckId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [lockStatus, setLockStatus] = useState<LockStatus | null>(null);
+  // Errors from user actions (add/remove query, run check). Load failures are
+  // derived from the query below. Auto-cleared after 8s by the effect.
+  const [actionError, setActionError] = useState("");
   // Re-render once a minute so the countdown ticks down without a refetch.
   const [, setNowTick] = useState(0);
-  const { period, setPeriod, days } = usePeriod();
-  const { runs, triggerRun } = useActiveRuns();
 
   const activeGeoRun = runs.find(
     (r) => r.agent === "ai_visibility" && (r.status === "running" || r.status === "pending"),
@@ -111,45 +119,19 @@ export default function CustomerGeoPage() {
     .filter((r) => r.agent === "ai_visibility" && r.status === "completed")
     .sort((a, b) => (b.completed_at || 0) - (a.completed_at || 0))[0]?.id;
 
-  // Reset cached data when the active site changes so we don't show
-  // another site's mentions/checks while the new fetch is in flight.
-  useEffect(() => {
-    setSummary(null);
-    setChecks([]);
-    setTrackedQueries([]);
-    setQueriesUpdatedAt(null);
-    setLockStatus(null);
-  }, [effectiveTenantId]);
-
-  useEffect(() => {
-    const id = setInterval(() => setNowTick((n) => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    if (user && effectiveTenantId) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, days, effectiveTenantId]);
-
-  useEffect(() => {
-    if (!lastCompletedGeoRunId) return;
-    loadData(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastCompletedGeoRunId]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
-  const loadData = async (silent = false) => {
-    if (!user) return;
-    if (!silent) setLoading(true);
-    setError("");
-    const client = tenantClient;
-    try {
+  // All four GEO reads are fetched together and cached by React Query, keyed on
+  // tenant + period — so leaving the page and returning paints instantly from
+  // cache (background refetch when stale) instead of refetching from an empty
+  // state. The keying also replaces the old "reset state on tenant change"
+  // effect: a different tenant is simply a different cache key.
+  const geoKey = useMemo(
+    () => ["geo", "overview", effectiveTenantId, days] as const,
+    [effectiveTenantId, days],
+  );
+  const geoQuery = useQuery({
+    queryKey: geoKey,
+    queryFn: async (): Promise<GeoData> => {
+      const client = tenantClient;
       const [summaryData, checksData, trackedRes, lockRes] = await Promise.all([
         client.get(`/api/ai-visibility/summary?days=${days}`).catch(() => null),
         client.get(`/api/ai-visibility/checks?limit=50&days=${days}`).catch(() => []),
@@ -158,35 +140,72 @@ export default function CustomerGeoPage() {
           .catch(() => null),
         client.get(`/api/ai-visibility/lock-status`).catch(() => null),
       ]);
-      if (summaryData) setSummary(summaryData);
-      if (Array.isArray(checksData)) setChecks(checksData);
-      else if (checksData?.checks) setChecks(checksData.checks);
-      setTrackedQueries(Array.isArray(trackedRes?.geo_queries) ? trackedRes.geo_queries : []);
-      // Prefer the dashboard-side timestamp (it's authoritative for the
-      // current user's edits) but fall back to the backend mirror when
-      // /list didn't include it (older clients) so the banner still works.
-      setQueriesUpdatedAt(
-        typeof trackedRes?.geo_queries_updated_at === "string"
-          ? trackedRes.geo_queries_updated_at
-          : (lockRes?.geo_queries_updated_at ?? null),
-      );
-      setLockStatus(lockRes ?? null);
-    } catch (err: any) {
-      console.error("Failed to load GEO data:", err);
-      setError(`Could not load data: ${err?.message || err}`);
+      const list: AICheck[] = Array.isArray(checksData)
+        ? checksData
+        : checksData?.checks ?? [];
+      return {
+        summary: summaryData ?? null,
+        checks: list,
+        trackedQueries: Array.isArray(trackedRes?.geo_queries) ? trackedRes.geo_queries : [],
+        // Prefer the dashboard-side timestamp (authoritative for the current
+        // user's edits) but fall back to the backend mirror when /list didn't
+        // include it (older clients) so the staleness banner still works.
+        queriesUpdatedAt:
+          typeof trackedRes?.geo_queries_updated_at === "string"
+            ? trackedRes.geo_queries_updated_at
+            : (lockRes?.geo_queries_updated_at ?? null),
+        lockStatus: lockRes ?? null,
+      };
+    },
+    enabled: baseEnabled,
+  });
+
+  const summary = geoQuery.data?.summary ?? null;
+  const checks = geoQuery.data?.checks ?? [];
+  const trackedQueries = geoQuery.data?.trackedQueries ?? [];
+  const queriesUpdatedAt = geoQuery.data?.queriesUpdatedAt ?? null;
+  const lockStatus = geoQuery.data?.lockStatus ?? null;
+  const loading = geoQuery.isPending;
+  const error =
+    actionError ||
+    (geoQuery.isError
+      ? `Could not load data: ${(geoQuery.error as Error)?.message ?? ""}`
+      : "");
+
+  const refetchGeo = () => geoQuery.refetch();
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!lastCompletedGeoRunId) return;
+    void refetchGeo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastCompletedGeoRunId]);
+
+  useEffect(() => {
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(""), 8000);
+      return () => clearTimeout(timer);
     }
-    if (!silent) setLoading(false);
-  };
+  }, [actionError]);
+
+  const patchTrackedQueries = (next: string[]) =>
+    queryClient.setQueryData<GeoData>(geoKey, (prev) =>
+      prev ? { ...prev, trackedQueries: next } : prev,
+    );
 
   const addTrackedQuery = async () => {
     const query = newQueryInput.trim();
     if (!query) return;
     if (trackedQueries.length >= MAX_GEO_QUERIES) {
-      setError(`Tracking cap reached — remove a query to add a new one (max ${MAX_GEO_QUERIES}).`);
+      setActionError(`Tracking cap reached — remove a query to add a new one (max ${MAX_GEO_QUERIES}).`);
       return;
     }
     setAddingQuery(true);
-    setError("");
+    setActionError("");
     try {
       const res = await fetch("/api/recommendations/add", {
         method: "POST",
@@ -195,14 +214,14 @@ export default function CustomerGeoPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Add failed");
-      setTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : trackedQueries);
+      patchTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : trackedQueries);
       setNewQueryInput("");
       if (data?.geo_added === 0 && data?.geo_skipped_full > 0) {
-        setError(`Tracking cap reached — only ${MAX_GEO_QUERIES} queries can be tracked at a time.`);
+        setActionError(`Tracking cap reached — only ${MAX_GEO_QUERIES} queries can be tracked at a time.`);
       }
     } catch (err: any) {
       console.error("Failed to add tracked query:", err);
-      setError(`Could not add query: ${err?.message || err}`);
+      setActionError(`Could not add query: ${err?.message || err}`);
     }
     setAddingQuery(false);
   };
@@ -217,10 +236,10 @@ export default function CustomerGeoPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : []);
+      patchTrackedQueries(Array.isArray(data?.geo_queries) ? data.geo_queries : []);
     } catch (err: any) {
       console.error("Failed to remove tracked query:", err);
-      setError(`Could not remove query: ${err?.message || err}`);
+      setActionError(`Could not remove query: ${err?.message || err}`);
     }
     setRemovingQuery(null);
   };
@@ -244,9 +263,9 @@ export default function CustomerGeoPage() {
 
   const runCheck = async () => {
     if (!user) return;
-    setError("");
+    setActionError("");
     if (trackedQueries.length === 0) {
-      setError(
+      setActionError(
         "Lägg till minst en bevakad fråga nedan innan du kör en kontroll — annars finns det inget att mäta.",
       );
       return;
@@ -261,7 +280,11 @@ export default function CustomerGeoPage() {
     if (result) {
       try {
         const lockRes = await tenantClient.get(`/api/ai-visibility/lock-status`);
-        if (lockRes) setLockStatus(lockRes);
+        if (lockRes) {
+          queryClient.setQueryData<GeoData>(geoKey, (prev) =>
+            prev ? { ...prev, lockStatus: lockRes } : prev,
+          );
+        }
       } catch {
         // non-critical
       }
@@ -360,7 +383,7 @@ export default function CustomerGeoPage() {
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+            <button onClick={() => setActionError("")} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -490,7 +513,7 @@ export default function CustomerGeoPage() {
                   description={`AI suggests new natural-language queries to monitor in ChatGPT, Claude, Perplexity and Gemini. Pick which to add (max ${MAX_GEO_QUERIES} at a time).`}
                   geoTrackedCount={trackedQueries.length}
                   geoMax={MAX_GEO_QUERIES}
-                  onAdded={() => { loadData(); setShowSuggestPanel(false); }}
+                  onAdded={() => { void refetchGeo(); setShowSuggestPanel(false); }}
                   compact
                 />
               </div>

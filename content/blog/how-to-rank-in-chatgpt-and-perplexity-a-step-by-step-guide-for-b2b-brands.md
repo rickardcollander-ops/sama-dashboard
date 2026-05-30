@@ -1,7 +1,7 @@
 ---
 title: "How to Rank in ChatGPT and Perplexity: A Step-by-Step Guide for B2B Brands"
 slug: "how-to-rank-in-chatgpt-and-perplexity-a-step-by-step-guide-for-b2b-brands"
-date: 2026-05-25T12:39:35.843Z
+date: 2026-05-28T18:00:33.757Z
 excerpt: "How to Rank in ChatGPT and Perplexity: A Step by Step Guide for B2B Brands Search behavior is shifting fast. A growing share of B2B buyers now type their…"
 description: "How to Rank in ChatGPT and Perplexity: A Step by Step Guide for B2B Brands Search behavior is shifting fast. A growing share of B2B buyers now type their…"
 language: "en"

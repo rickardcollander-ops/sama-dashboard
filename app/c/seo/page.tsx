@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Search, TrendingUp, ArrowUp, ArrowDown, RefreshCw,
   Loader2, BarChart2, Target, AlertCircle, X, Plus, Sparkles,
@@ -34,95 +35,117 @@ interface Keyword {
   position_history?: { date: string; position: number }[];
 }
 
+interface BrandContext {
+  brand_name?: string;
+  domain?: string;
+  brand_description?: string;
+  target_audience?: string;
+  competitors?: string[];
+}
+
 export default function CustomerSeoPage() {
   const { user, loading: userLoading } = useUser();
   const { tenantClient, effectiveTenantId, activeAccountId } = useSite();
   const { t } = useLanguage();
-  const [keywords, setKeywords] = useState<Keyword[]>([]);
-  const [loading, setLoading] = useState(true);
-  // True until the first keyword fetch resolves. Gates the full-page skeleton
-  // so later refreshes (add/delete keyword) only swap the table's inline
-  // spinner instead of flashing the whole page back to a skeleton.
-  const [firstLoad, setFirstLoad] = useState(true);
+  const queryClient = useQueryClient();
+  const baseEnabled = !!user && !!effectiveTenantId;
+
   const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Errors from user actions (add keyword, run check, suggest). Load failures
+  // are derived from the query below. Auto-cleared after 8s by the effect.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [selectedKeyword, setSelectedKeyword] = useState<Keyword | null>(null);
   const [newKeyword, setNewKeyword] = useState("");
   const [addingKeyword, setAddingKeyword] = useState(false);
-  const [gscConnected, setGscConnected] = useState<boolean | null>(null);
   const [suggestingKeywords, setSuggestingKeywords] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [brandContext, setBrandContext] = useState<{
-    brand_name?: string; domain?: string; brand_description?: string;
-    target_audience?: string; competitors?: string[];
-  }>({});
   const [sortKey, setSortKey] = useState<SortKey>("position");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [searchFilter, setSearchFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
 
-  // Reset cached keywords/brand info when the active site changes so the
-  // table doesn't briefly show the previous site's rows while the new
-  // fetch is in flight.
-  useEffect(() => {
-    setKeywords([]);
-    setBrandContext({});
-    setSuggestions([]);
-    setGscConnected(null);
-  }, [effectiveTenantId]);
+  // The keyword list is the page's primary data — cached by React Query keyed
+  // on the active tenant, so leaving the page and returning paints instantly
+  // from cache (with a background refetch when stale) instead of refetching
+  // from an empty table. That keying also replaces the old "reset state on
+  // tenant change" effect: a different tenant is simply a different cache key.
+  const keywordsKey = useMemo(
+    () => ["seo", "keywords", effectiveTenantId] as const,
+    [effectiveTenantId],
+  );
+  const keywordsQuery = useQuery({
+    queryKey: keywordsKey,
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/seo/keywords", {
+          method: "GET",
+          headers: samaHeaders(),
+        });
+        if (!res.ok) throw new Error(`GET /api/seo/keywords: ${res.status}`);
+        const data = (await res.json()) as { keywords?: Keyword[] };
+        const kws = data.keywords || [];
+        return kws.length > 0 ? kws : IS_DEMO ? demoSeoKeywords : [];
+      } catch (err) {
+        if (IS_DEMO) return demoSeoKeywords;
+        throw err;
+      }
+    },
+    enabled: baseEnabled,
+  });
+  const keywords = useMemo(() => keywordsQuery.data ?? [], [keywordsQuery.data]);
+
+  const brandQuery = useQuery({
+    queryKey: ["seo", "brand-context", user?.id],
+    queryFn: async (): Promise<BrandContext> => {
+      try {
+        const supabase = getSupabaseBrowser();
+        const { data } = await supabase
+          .from("user_settings")
+          .select("settings")
+          .eq("user_id", user!.id)
+          .maybeSingle();
+        return (data?.settings as BrandContext) ?? {};
+      } catch {
+        return {};
+      }
+    },
+    enabled: !!user,
+  });
+  const brandContext = brandQuery.data ?? {};
+
+  const gscQuery = useQuery({
+    queryKey: ["seo", "gsc-status", effectiveTenantId],
+    queryFn: async () => {
+      try {
+        const status = await api.get<Record<string, { connected?: boolean }>>(
+          `/api/auth/google/status?tenant_id=${effectiveTenantId}`,
+        );
+        return !!status?.search_console?.connected;
+      } catch {
+        return false;
+      }
+    },
+    enabled: baseEnabled,
+  });
+  const gscConnected = gscQuery.data ?? null;
+
+  // Inline table spinner follows live fetches; the full-page skeleton only
+  // shows on the very first load (or while the tenant resolves).
+  const loading = keywordsQuery.isFetching;
+  const error =
+    actionError ??
+    (keywordsQuery.isError && !IS_DEMO
+      ? "Could not load keywords. The SEO agent may not have run yet."
+      : null);
+
+  const refetchKeywords = () => keywordsQuery.refetch();
 
   useEffect(() => {
-    if (user && effectiveTenantId) {
-      fetchKeywords();
-      loadBrandContext();
-    }
-  }, [user, effectiveTenantId]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(null), 8000);
       return () => clearTimeout(timer);
     }
-  }, [error]);
-
-  const loadBrandContext = async () => {
-    if (!user) return;
-    try {
-      const supabase = getSupabaseBrowser();
-      const { data } = await supabase.from("user_settings").select("settings").eq("user_id", user.id).maybeSingle();
-      if (data?.settings) setBrandContext(data.settings);
-    } catch {}
-    try {
-      const status = await api.get<Record<string, { connected?: boolean }>>(
-        `/api/auth/google/status?tenant_id=${effectiveTenantId}`
-      );
-      setGscConnected(!!status?.search_console?.connected);
-    } catch {
-      setGscConnected(false);
-    }
-  };
-
-  const fetchKeywords = async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/seo/keywords", { method: "GET", headers: samaHeaders() });
-      if (!res.ok) throw new Error(`GET /api/seo/keywords: ${res.status}`);
-      const data = (await res.json()) as { keywords?: Keyword[] };
-      const kws = data.keywords || [];
-      setKeywords(kws.length > 0 ? kws : IS_DEMO ? demoSeoKeywords : []);
-    } catch (err: any) {
-      console.error("Failed to fetch keywords:", err);
-      if (IS_DEMO) {
-        setKeywords(demoSeoKeywords);
-      } else {
-        setError("Could not load keywords. The SEO agent may not have run yet.");
-      }
-    }
-    setLoading(false);
-    setFirstLoad(false);
-  };
+  }, [actionError]);
 
   const triggerCheck = async () => {
     if (!user) return;
@@ -130,13 +153,13 @@ export default function CustomerSeoPage() {
     try {
       const client = tenantClient;
       await client.post("/api/seo/keywords/track");
-      setTimeout(() => fetchKeywords(), 2000);
+      setTimeout(() => refetchKeywords(), 2000);
     } catch (err: any) {
       console.error("Failed to trigger SEO check:", err);
       if (String(err?.message || err).includes("404")) {
-        setError("SEO check could not run. Verify that Google Search Console is connected in Settings.");
+        setActionError("SEO check could not run. Verify that Google Search Console is connected in Settings.");
       } else {
-        setError(`Could not run SEO check: ${err?.message || err}`);
+        setActionError(`Could not run SEO check: ${err?.message || err}`);
       }
     }
     setChecking(false);
@@ -156,15 +179,15 @@ export default function CustomerSeoPage() {
         const detail = await res.text().catch(() => "");
         throw new Error(`${res.status} ${detail.slice(0, 200)}`);
       }
-      setKeywords(prev =>
+      queryClient.setQueryData<Keyword[]>(keywordsKey, (prev = []) =>
         prev.some(k => k.keyword.toLowerCase() === trimmed.toLowerCase())
           ? prev
           : [...prev, { keyword: trimmed, position: 0, clicks: 0, impressions: 0, ctr: 0 }],
       );
       setNewKeyword("");
-      await fetchKeywords();
+      await refetchKeywords();
     } catch (err: any) {
-      setError(`Could not add keyword: ${err?.message || err}`);
+      setActionError(`Could not add keyword: ${err?.message || err}`);
     }
     setAddingKeyword(false);
   };
@@ -182,9 +205,9 @@ export default function CustomerSeoPage() {
         throw new Error(`${res.status} ${detail.slice(0, 200)}`);
       }
       setSuggestions((prev) => prev.filter((s) => s !== keyword));
-      await fetchKeywords();
+      await refetchKeywords();
     } catch (err: any) {
-      setError(`Could not add keyword: ${err?.message || err}`);
+      setActionError(`Could not add keyword: ${err?.message || err}`);
     }
   };
 
@@ -203,10 +226,10 @@ export default function CustomerSeoPage() {
       if (newSuggestions.length > 0) {
         setSuggestions(newSuggestions);
       } else {
-        setError("No new keyword suggestions found. Try updating your brand description in Settings.");
+        setActionError("No new keyword suggestions found. Try updating your brand description in Settings.");
       }
     } catch (err: any) {
-      setError(`Could not generate keyword suggestions: ${err?.message || err}`);
+      setActionError(`Could not generate keyword suggestions: ${err?.message || err}`);
     }
     setSuggestingKeywords(false);
   };
@@ -284,7 +307,7 @@ export default function CustomerSeoPage() {
     );
   };
 
-  if (userLoading || (loading && firstLoad)) {
+  if (userLoading || keywordsQuery.isPending) {
     return <CustomerPageShellSkeleton maxWidth="max-w-5xl" />;
   }
 
@@ -354,7 +377,7 @@ export default function CustomerSeoPage() {
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+            <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -597,7 +620,7 @@ export default function CustomerSeoPage() {
               accountId={activeAccountId}
               agentName="seo"
               trackedCount={keywords.length}
-              onSynced={fetchKeywords}
+              onSynced={refetchKeywords}
               showImportFromGsc
             />
           </div>

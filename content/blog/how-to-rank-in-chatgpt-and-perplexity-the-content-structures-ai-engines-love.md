@@ -1,7 +1,7 @@
 ---
 title: "How to Rank in ChatGPT and Perplexity: The Content Structures AI Engines Love"
 slug: "how-to-rank-in-chatgpt-and-perplexity-the-content-structures-ai-engines-love"
-date: 2026-05-25T12:39:27.167Z
+date: 2026-05-28T18:00:23.987Z
 excerpt: "How to Rank in ChatGPT and Perplexity: The Content Structures AI Engines Love Most SEO advice assumes a human will click your blue link. That assumption is…"
 description: "How to Rank in ChatGPT and Perplexity: The Content Structures AI Engines Love Most SEO advice assumes a human will click your blue link. That assumption is…"
 language: "en"
