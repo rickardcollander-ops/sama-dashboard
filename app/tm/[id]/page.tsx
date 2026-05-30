@@ -84,6 +84,24 @@ function callStatusTone(s: CallStatus): string {
   );
 }
 
+// Normaliserar svenska/internationella nummer till E.164. Phone Link kräver
+// detta format för att uppringningen ska fungera tillförlitligt.
+function toE164(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[\s\-().]/g, "");
+  if (!cleaned) return null;
+  if (cleaned.startsWith("+")) {
+    const digits = cleaned.slice(1);
+    return /^\d{6,15}$/.test(digits) ? `+${digits}` : null;
+  }
+  if (cleaned.startsWith("00")) {
+    const digits = cleaned.slice(2);
+    return /^\d{6,15}$/.test(digits) ? `+${digits}` : null;
+  }
+  const stripped = cleaned.replace(/^0+/, "");
+  return /^\d{6,15}$/.test(stripped) ? `+46${stripped}` : null;
+}
+
 function scoreTone(s: number | null): string {
   if (s == null) return "text-slate-400";
   if (s >= 80) return "text-emerald-600";
@@ -178,6 +196,12 @@ export default function TmCampaignDetailPage({
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte spara");
+    }
+  };
+
+  const handleDial = (lead: Lead) => {
+    if (lead.call_status === "new") {
+      void updateLead(lead.id, { call_status: "called" });
     }
   };
 
@@ -298,6 +322,7 @@ export default function TmCampaignDetailPage({
               const contactName = [lead.contact_first_name, lead.contact_last_name]
                 .filter(Boolean)
                 .join(" ");
+              const phoneE164 = toE164(lead.contact_phone);
               return (
                 <Fragment key={lead.id}>
                   <tr className="hover:bg-slate-50/60 align-top">
@@ -359,13 +384,21 @@ export default function TmCampaignDetailPage({
                             <div className="text-xs text-slate-400">{lead.contact_title}</div>
                           )}
                           {lead.contact_phone ? (
-                            <a
-                              href={`tel:${lead.contact_phone}`}
-                              className="text-xs text-slate-600 flex items-center gap-1"
-                            >
-                              <Phone className="h-3 w-3" />
-                              {lead.contact_phone}
-                            </a>
+                            phoneE164 ? (
+                              <a
+                                href={`tel:${phoneE164}`}
+                                onClick={() => handleDial(lead)}
+                                className="text-xs text-slate-600 flex items-center gap-1 hover:text-violet-600"
+                              >
+                                <Phone className="h-3 w-3" />
+                                {lead.contact_phone}
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-600 flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {lead.contact_phone}
+                              </span>
+                            )
                           ) : (
                             <span className="text-xs text-orange-600 flex items-center gap-1">
                               <Phone className="h-3 w-3" /> saknas
@@ -432,6 +465,16 @@ export default function TmCampaignDetailPage({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5">
+                        {phoneE164 && (
+                          <a
+                            href={`tel:${phoneE164}`}
+                            onClick={() => handleDial(lead)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                            title="Ring via Phone Link (Länk till Windows)"
+                          >
+                            <Phone className="h-3 w-3" /> Ring upp
+                          </a>
+                        )}
                         {lead.contact_email && (
                           <div className="inline-flex rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
                             <a
