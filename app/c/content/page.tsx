@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Loader2, Calendar, Hash, CheckCircle,
@@ -133,6 +132,16 @@ function CustomerContentInner() {
   // Errors from user actions (approve/archive/draft/etc). Load failures are
   // derived from the pieces query below. Auto-cleared after 8s by the effect.
   const [actionError, setActionError] = useState<string | null>(null);
+  // Local state — the in-flight React Query refactor on master left these
+  // declarations gone but the optimistic-update call sites (queryClient.
+  // setQueryData) intact, with no useQuery() to read the cache. Restoring
+  // the original useState pattern is the smallest fix to get the page
+  // compiling and rendering again.
+  const [pieces, setPieces] = useState<ContentPiece[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   // Tabs across the top of the content list. "ideas" surfaces plan items
   // that haven't been drafted yet (status='idea' on content_plan_items),
   // because the new plan-creator stops at idea-rows and lets the user
@@ -217,17 +226,6 @@ function CustomerContentInner() {
     return null;
   };
 
-  const queryClient = useQueryClient();
-  const baseEnabled = !!user && !!effectiveTenantId;
-  const piecesKey = useMemo(
-    () => ["content", "pieces", effectiveTenantId] as const,
-    [effectiveTenantId],
-  );
-  const ideasKey = useMemo(
-    () => ["content", "ideas", effectiveTenantId] as const,
-    [effectiveTenantId],
-  );
-
   // While a content_plan run is in flight (e.g. user just clicked
   // "Skapa content-plan" on /c/analysis and navigated here), keep
   // refetching ideas so the new rows appear without a manual reload.
@@ -288,7 +286,35 @@ function CustomerContentInner() {
       const timer = setTimeout(() => setActionError(null), 8000);
       return () => clearTimeout(timer);
     }
-  }, [error]);
+  }, [actionError]);
+
+  // Initial load + reload when the active tenant changes. fetchContent
+  // also kicks off fetchIdeas so both lists are populated in one pass.
+  useEffect(() => {
+    if (user && effectiveTenantId) fetchContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, effectiveTenantId]);
+
+  // Pending approval banner — separate from the main pieces fetch because
+  // it hits a different endpoint and we don't want one transient failure
+  // to take down the other.
+  useEffect(() => {
+    if (!user || !effectiveTenantId) return;
+    setPendingApprovalsCount(0);
+    (async () => {
+      try {
+        const res = await fetch("/api/approvals?status=pending", {
+          headers: { "X-Tenant-ID": effectiveTenantId },
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { approvals?: unknown[] };
+          setPendingApprovalsCount(data.approvals?.length ?? 0);
+        }
+      } catch {
+        /* silent — banner just won't show */
+      }
+    })();
+  }, [user, effectiveTenantId]);
 
   const [triggering, setTriggering] = useState(false);
   // Surfaced when the plan-calendar fetch fails — pieces show up unscheduled
@@ -299,7 +325,7 @@ function CustomerContentInner() {
   const triggerAutopilot = async () => {
     if (!activeSite || triggering) return;
     setTriggering(true);
-    setError(null);
+    setActionError(null);
     try {
       const res = await fetch("/api/integrations/autopilot/trigger", {
         method: "POST",
@@ -315,7 +341,7 @@ function CustomerContentInner() {
       // something happens immediately if the backend was already fast.
       void fetchIdeas({ background: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kunde inte starta autopilot");
+      setActionError(e instanceof Error ? e.message : "Kunde inte starta autopilot");
     } finally {
       setTriggering(false);
     }
@@ -325,7 +351,7 @@ function CustomerContentInner() {
     if (!user) return;
     if (!background) {
       setLoading(true);
-      setError(null);
+      setActionError(null);
     }
     try {
       const client = tenantClient;
@@ -374,7 +400,7 @@ function CustomerContentInner() {
       if (IS_DEMO) {
         setPieces(demoContentPieces);
       } else if (!background) {
-        setError(t.content.errorFetch);
+        setActionError(t.content.errorFetch);
       }
     }
     if (!background) setLoading(false);
@@ -444,7 +470,7 @@ function CustomerContentInner() {
       // status is now 'drafting', which fetchIdeas (status=idea) won't
       // return anyway. The polling effect below picks up the finished
       // piece in /content/pieces when the cascade completes.
-      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
+      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
       setDraftingIds((prev) => {
         const next = new Set(prev);
         next.add(idea.id);
@@ -486,7 +512,7 @@ function CustomerContentInner() {
     try {
       const client = tenantClient;
       await client.patch(`/api/content/plan/${idea.id}`, { status: "archived" });
-      queryClient.setQueryData<PlanIdea[]>(ideasKey, (prev = []) => prev.filter((i) => i.id !== idea.id));
+      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
       setIdeaToast(`"${idea.title}" ${t.content.ideaArchived}`);
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
@@ -592,7 +618,7 @@ function CustomerContentInner() {
       // Optimistic
     }
     // Add optimistically to the list
-    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [
+    setPieces((prev) => [
       {
         id: `local-${Date.now()}`,
         title: modalTopic,
@@ -675,7 +701,7 @@ function CustomerContentInner() {
     if (!user) return;
     setUpdatingStatus(pieceId);
     // Optimistic update
-    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
+    setPieces((prev) =>
       prev.map((p) => (p.id === pieceId ? { ...p, status: newStatus } : p))
     );
     try {
@@ -700,7 +726,7 @@ function CustomerContentInner() {
     if (!user) return;
     if (!confirm("Delete this content permanently? This cannot be undone.")) return;
     setUpdatingStatus(pieceId);
-    queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.id !== pieceId));
+    setPieces((prev) => prev.filter((p) => p.id !== pieceId));
     try {
       const client = tenantClient;
       if (!pieceId.startsWith("local-")) {
@@ -726,7 +752,7 @@ function CustomerContentInner() {
         client.delete(`/api/content/pieces/archived`),
         client.delete(`/api/content/plan/archived`),
       ]);
-      queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => prev.filter((p) => p.status !== "archived"));
+      setPieces((prev) => prev.filter((p) => p.status !== "archived"));
       setIdeaToast("The archive is empty.");
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
@@ -960,10 +986,10 @@ function CustomerContentInner() {
           </div>
         </div>
 
-        {error && (
+        {actionError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            {error}
+            {actionError}
             <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
               <X className="h-4 w-4" />
             </button>
@@ -1068,7 +1094,7 @@ function CustomerContentInner() {
                 throw new Error(saved.error || "Kunde inte spara utkast");
               }
               if (saved.piece) {
-                queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) => [saved.piece as ContentPiece, ...prev]);
+                setPieces((prev) => [saved.piece as ContentPiece, ...prev]);
               }
               // Background fill-in: generate the body and PATCH the piece
               // when it returns.
@@ -1759,7 +1785,7 @@ function CustomerContentInner() {
             open
             onClose={() => setCmsDialog(null)}
             onPublished={() => {
-              queryClient.setQueryData<ContentPiece[]>(piecesKey, (prev = []) =>
+              setPieces((prev) =>
                 prev.map((p) =>
                   p.id === cmsDialog.piece.id ? { ...p, status: "published" } : p,
                 ),
