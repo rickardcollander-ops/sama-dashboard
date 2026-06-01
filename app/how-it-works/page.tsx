@@ -15,6 +15,7 @@ export default function HowItWorksPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -83,6 +84,7 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

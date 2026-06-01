@@ -111,7 +111,7 @@ export default function MarketingFooter() {
 
         {/* Link columns */}
         {f.columns.map((col) => (
-          <div key={col.heading}>
+          <nav key={col.heading} aria-label={col.heading}>
             <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--neon-orange)" }}>
               {col.heading}
             </div>
@@ -124,7 +124,7 @@ export default function MarketingFooter() {
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
         ))}
       </div>
 

@@ -9,6 +9,7 @@ export default function BlogPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -40,6 +41,7 @@ export default function BlogPage() {
         <BlogPostsList posts={posts} />
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

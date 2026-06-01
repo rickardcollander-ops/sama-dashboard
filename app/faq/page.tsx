@@ -29,6 +29,7 @@ export default function FaqPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -91,6 +92,7 @@ export default function FaqPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

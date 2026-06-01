@@ -57,7 +57,7 @@ export default async function SharedAuditPage(
     <div className="min-h-screen bg-white text-slate-900">
       {!isTmView && <MarketingHeader />}
 
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="mb-6">
           <p className="text-xs font-medium uppercase tracking-wider text-violet-600">
             {isTmView ? "Lead audit" : "Shared audit"}
@@ -89,7 +89,7 @@ export default async function SharedAuditPage(
             </Link>
           </div>
         )}
-      </div>
+      </main>
 
       {!isTmView && <MarketingFooter />}
     </div>

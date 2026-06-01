@@ -5,7 +5,7 @@ const BASE_URL = "https://sama.successifier.com";
 export const metadata: Metadata = {
   title: "How Sama AI Works — GEO & SEO Automation Pipeline",
   description:
-    "See how Sama AI's 5-pillar pipeline works: AI visibility audit, keyword discovery, content creation, technical fixes, and automated publishing to make your business rank in AI answers.",
+    "See how Sama AI's 5-pillar pipeline works: AI visibility audit, keyword discovery, content creation, technical fixes and automated publishing.",
   alternates: {
     canonical: `${BASE_URL}/how-it-works`,
   },
