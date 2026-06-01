@@ -15,6 +15,7 @@ export default function AdsPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
       <section className="relative overflow-hidden">
         <div
           className="absolute inset-0 -z-10"
@@ -73,6 +74,7 @@ export default function AdsPage() {
           </div>
         </div>
       </section>
+      </main>
       <MarketingFooter />
     </div>
   );

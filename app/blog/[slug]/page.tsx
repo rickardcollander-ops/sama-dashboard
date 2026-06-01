@@ -56,6 +56,7 @@ export default async function BlogArticlePage({ params }: Props) {
       />
       <MarketingHeader />
 
+      <main>
       <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-20">
         {/* Back */}
         <Link
@@ -145,6 +146,7 @@ export default async function BlogArticlePage({ params }: Props) {
           </Link>
         </div>
       </article>
+      </main>
 
       <MarketingFooter />
     </div>

@@ -31,6 +31,7 @@ export default function AboutPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
       />
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -79,6 +80,7 @@ export default function AboutPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

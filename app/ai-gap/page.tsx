@@ -15,6 +15,7 @@ export default function AiGapPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -118,6 +119,7 @@ export default function AiGapPage() {
       </section>
 
       <div className="pb-20" />
+      </main>
       <MarketingFooter />
     </div>
   );
