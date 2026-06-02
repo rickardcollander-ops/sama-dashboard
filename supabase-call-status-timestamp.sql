@@ -12,7 +12,10 @@ UPDATE apollo_leads
   WHERE call_status_updated_at IS NULL;
 
 -- Replace the TM lead RPC so it returns the new column.
-CREATE OR REPLACE FUNCTION get_tm_campaign_leads(p_campaign_id uuid)
+-- DROP first because Postgres rejects return-type changes via CREATE OR REPLACE.
+DROP FUNCTION IF EXISTS get_tm_campaign_leads(uuid);
+
+CREATE FUNCTION get_tm_campaign_leads(p_campaign_id uuid)
 RETURNS TABLE (
   id                      uuid,
   company_name            text,
