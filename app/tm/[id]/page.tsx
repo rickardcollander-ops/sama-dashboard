@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, use } from "react";
+import { useCallback, useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,8 +15,26 @@ import {
   MapPin,
   User,
   ExternalLink,
+  CalendarClock,
+  CalendarCheck,
+  ListChecks,
 } from "lucide-react";
 import TmActivityPanel from "@/components/tm/ActivityPanel";
+import LeadDrawer from "@/components/tm/LeadDrawer";
+import {
+  type Lead,
+  type CallStatus,
+  type LeadActivity,
+  CALL_STATUS_OPTIONS,
+  callStatusLabel,
+  callStatusTone,
+  scoreTone,
+  toE164,
+  buildGmailCompose,
+  buildMailto,
+  contactName,
+} from "@/lib/tm/leads";
+import { fmtDateTime, isOverdue } from "@/lib/tm/format";
 
 interface Campaign {
   id: string;
@@ -27,86 +45,6 @@ interface Campaign {
   audited_leads: number;
   failed_leads: number;
   created_at: string;
-}
-
-type CallStatus =
-  | "new"
-  | "called"
-  | "callback"
-  | "phone_missing"
-  | "answering_machine"
-  | "not_interested"
-  | "meeting_booked"
-  | "converted";
-
-interface PriorCampaign {
-  campaign_id: string;
-  campaign_name: string;
-  call_status: string;
-}
-
-interface Lead {
-  id: string;
-  company_name: string;
-  domain: string | null;
-  contact_first_name: string | null;
-  contact_last_name: string | null;
-  contact_title: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  industry: string | null;
-  company_size: string | null;
-  city: string | null;
-  country: string | null;
-  linkedin_url: string | null;
-  audit_score: number | null;
-  audit_id: string | null;
-  audited_at: string | null;
-  call_status: CallStatus;
-  call_notes: string | null;
-  prior_campaigns: PriorCampaign[];
-}
-
-const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] = [
-  { value: "new", label: "Ny", tone: "bg-slate-100 text-slate-700" },
-  { value: "called", label: "Uppringd", tone: "bg-blue-100 text-blue-700" },
-  { value: "callback", label: "Ring tillbaka", tone: "bg-amber-100 text-amber-700" },
-  { value: "phone_missing", label: "Telefonnummer saknas", tone: "bg-orange-100 text-orange-700" },
-  { value: "answering_machine", label: "Telesvarare", tone: "bg-yellow-100 text-yellow-700" },
-  { value: "not_interested", label: "Ej intresserad", tone: "bg-rose-100 text-rose-700" },
-  { value: "meeting_booked", label: "Möte bokat", tone: "bg-violet-100 text-violet-700" },
-  { value: "converted", label: "Konverterad", tone: "bg-emerald-100 text-emerald-700" },
-];
-
-function callStatusTone(s: CallStatus): string {
-  return (
-    CALL_STATUS_OPTIONS.find((o) => o.value === s)?.tone ?? "bg-slate-100 text-slate-700"
-  );
-}
-
-// Normaliserar svenska/internationella nummer till E.164. Phone Link kräver
-// detta format för att uppringningen ska fungera tillförlitligt.
-function toE164(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const cleaned = raw.replace(/[\s\-().]/g, "");
-  if (!cleaned) return null;
-  if (cleaned.startsWith("+")) {
-    const digits = cleaned.slice(1);
-    return /^\d{6,15}$/.test(digits) ? `+${digits}` : null;
-  }
-  if (cleaned.startsWith("00")) {
-    const digits = cleaned.slice(2);
-    return /^\d{6,15}$/.test(digits) ? `+${digits}` : null;
-  }
-  const stripped = cleaned.replace(/^0+/, "");
-  return /^\d{6,15}$/.test(stripped) ? `+46${stripped}` : null;
-}
-
-function scoreTone(s: number | null): string {
-  if (s == null) return "text-slate-400";
-  if (s >= 80) return "text-emerald-600";
-  if (s >= 50) return "text-amber-600";
-  return "text-rose-600";
 }
 
 export default function TmCampaignDetailPage({
@@ -120,13 +58,17 @@ export default function TmCampaignDetailPage({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
-  const [activeNotes, setActiveNotes] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CallStatus | "all">("all");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const visibleLeads = leads
-    .filter((l) => statusFilter === "all" || l.call_status === statusFilter)
-    .filter((l) => !duplicatesOnly || (l.prior_campaigns ?? []).length > 0);
+  const visibleLeads = useMemo(
+    () =>
+      leads
+        .filter((l) => statusFilter === "all" || l.call_status === statusFilter)
+        .filter((l) => !duplicatesOnly || (l.prior_campaigns ?? []).length > 0),
+    [leads, statusFilter, duplicatesOnly],
+  );
 
   const duplicateCount = leads.filter((l) => (l.prior_campaigns ?? []).length > 0).length;
 
@@ -134,28 +76,6 @@ export default function TmCampaignDetailPage({
     acc[l.call_status] = (acc[l.call_status] ?? 0) + 1;
     return acc;
   }, {});
-
-  const buildEmailParts = (lead: Lead): { to: string; subject: string; body: string } => {
-    const to = lead.contact_email ?? "";
-    const company = lead.company_name || lead.domain || "";
-    const subject = `Information om er sajt${company ? ` — ${company}` : ""}`;
-    const greeting = lead.contact_first_name ? `Hej ${lead.contact_first_name},` : "Hej,";
-    const auditLine = lead.audit_score != null
-      ? `Vi körde en snabb AI-läsbarhetsanalys av ${lead.domain || "er sajt"} och fick en score på ${lead.audit_score}/100. Jag tänkte dela vad vi hittade och prata om hur ni kan lyfta synligheten.`
-      : `Vi har tittat på ${lead.domain || "er sajt"} och har några konkreta förbättringar för synlighet i Google och AI-assistenter (ChatGPT, Claude, Perplexity).`;
-    const body = `${greeting}\n\n${auditLine}\n\nFinns det 15 minuter nästa vecka för en kort genomgång?\n\n— SAMA-teamet`;
-    return { to, subject, body };
-  };
-
-  const buildMailto = (lead: Lead): string => {
-    const { to, subject, body } = buildEmailParts(lead);
-    return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
-
-  const buildGmailCompose = (lead: Lead): string => {
-    const { to, subject, body } = buildEmailParts(lead);
-    return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
 
   const load = useCallback(async () => {
     setError("");
@@ -179,10 +99,22 @@ export default function TmCampaignDetailPage({
     void load();
   }, [load]);
 
+  // Deep-link from the worklist: /tm/{id}?lead={leadId} opens that lead's card.
+  // Read from window to avoid the useSearchParams Suspense requirement.
+  useEffect(() => {
+    if (typeof window === "undefined" || leads.length === 0) return;
+    const wanted = new URLSearchParams(window.location.search).get("lead");
+    if (wanted && leads.some((l) => l.id === wanted)) setSelectedId(wanted);
+    // run once leads are first available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads.length]);
+
   const updateLead = async (
     leadId: string,
-    patch: Partial<Pick<Lead, "call_status" | "call_notes">>,
+    patch: Partial<Pick<Lead, "call_status" | "call_notes" | "callback_at" | "meeting_at">>,
   ) => {
+    // Optimistic — merge immediately so the drawer + table reflect the change.
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
     try {
       const res = await fetch(`/api/tm/campaigns/leads/${leadId}`, {
         method: "PATCH",
@@ -193,9 +125,38 @@ export default function TmCampaignDetailPage({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte spara");
+      void load(); // re-sync on failure
+    }
+  };
+
+  const addNote = async (leadId: string, body: string, operator?: string) => {
+    try {
+      const res = await fetch(`/api/tm/campaigns/leads/${leadId}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, operator }),
+      });
+      if (!res.ok) {
+        const r = await res.json().catch(() => ({}));
+        throw new Error(r.error || `HTTP ${res.status}`);
+      }
+      const activity = (await res.json()) as LeadActivity;
+      // Optimistic: prepend the activity and mirror call_notes (matches server).
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                call_notes: body,
+                activities: [activity, ...(l.activities ?? [])],
+              }
+            : l,
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kunde inte spara anteckning");
     }
   };
 
@@ -205,14 +166,24 @@ export default function TmCampaignDetailPage({
     }
   };
 
+  // Drawer navigation within the currently filtered list.
+  const selectedIndex = visibleLeads.findIndex((l) => l.id === selectedId);
+  const selectedLead = selectedIndex >= 0 ? visibleLeads[selectedIndex] : null;
+
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <Link
           href="/tm"
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
           <ArrowLeft className="h-4 w-4" /> Tillbaka till kampanjer
+        </Link>
+        <Link
+          href="/tm/worklist"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100"
+        >
+          <ListChecks className="h-3.5 w-3.5" /> Att ringa idag
         </Link>
       </div>
 
@@ -319,220 +290,255 @@ export default function TmCampaignDetailPage({
               </tr>
             )}
             {visibleLeads.map((lead) => {
-              const contactName = [lead.contact_first_name, lead.contact_last_name]
-                .filter(Boolean)
-                .join(" ");
+              const name = contactName(lead);
               const phoneE164 = toE164(lead.contact_phone);
+              const callbackOverdue = isOverdue(lead.callback_at);
               return (
-                <Fragment key={lead.id}>
-                  <tr className="hover:bg-slate-50/60 align-top">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-slate-400" /> {lead.company_name}
+                <tr
+                  key={lead.id}
+                  onClick={() => setSelectedId(lead.id)}
+                  className={`cursor-pointer align-top transition-colors hover:bg-violet-50/40 ${
+                    selectedId === lead.id ? "bg-violet-50/60" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-900 flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-slate-400" /> {lead.company_name}
+                    </div>
+                    {lead.domain && (
+                      <a
+                        href={`https://${lead.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-violet-600"
+                      >
+                        <Globe className="h-3 w-3" /> {lead.domain}{" "}
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    )}
+                    {(lead.industry || lead.city) && (
+                      <div className="mt-0.5 text-xs text-slate-400 flex items-center gap-1">
+                        {lead.industry && <span>{lead.industry}</span>}
+                        {lead.industry && lead.city && <span>·</span>}
+                        {lead.city && (
+                          <>
+                            <MapPin className="h-3 w-3" /> {lead.city}
+                            {lead.country && `, ${lead.country}`}
+                          </>
+                        )}
                       </div>
-                      {lead.domain && (
-                        <a
-                          href={`https://${lead.domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-violet-600"
-                        >
-                          <Globe className="h-3 w-3" /> {lead.domain}{" "}
-                          <ExternalLink className="h-2.5 w-2.5" />
-                        </a>
-                      )}
-                      {(lead.industry || lead.city) && (
-                        <div className="mt-0.5 text-xs text-slate-400 flex items-center gap-1">
-                          {lead.industry && <span>{lead.industry}</span>}
-                          {lead.industry && lead.city && <span>·</span>}
-                          {lead.city && (
-                            <>
-                              <MapPin className="h-3 w-3" /> {lead.city}
-                              {lead.country && `, ${lead.country}`}
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {(lead.prior_campaigns ?? []).length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {lead.prior_campaigns.map((p) => (
-                            <a
-                              key={p.campaign_id}
-                              href={`/tm/${p.campaign_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700 hover:bg-amber-100"
-                            >
-                              <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                              {p.campaign_name}
-                              <span className={`ml-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${callStatusTone(p.call_status as CallStatus)}`}>
-                                {CALL_STATUS_OPTIONS.find((o) => o.value === p.call_status)?.label ?? p.call_status}
-                              </span>
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {contactName ? (
-                        <>
-                          <div className="font-medium text-slate-700 text-xs flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {contactName}
-                          </div>
-                          {lead.contact_title && (
-                            <div className="text-xs text-slate-400">{lead.contact_title}</div>
-                          )}
-                          {lead.contact_phone ? (
-                            phoneE164 ? (
-                              <a
-                                href={`tel:${phoneE164}`}
-                                onClick={() => handleDial(lead)}
-                                className="text-xs text-slate-600 flex items-center gap-1 hover:text-violet-600"
-                              >
-                                <Phone className="h-3 w-3" />
-                                {lead.contact_phone}
-                              </a>
-                            ) : (
-                              <span className="text-xs text-slate-600 flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {lead.contact_phone}
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-xs text-orange-600 flex items-center gap-1">
-                              <Phone className="h-3 w-3" /> saknas
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {lead.contact_email ? (
-                        <a
-                          href={`mailto:${lead.contact_email}`}
-                          className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
-                        >
-                          <Mail className="h-3 w-3" />
-                          {lead.contact_email}
-                        </a>
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {lead.audit_score != null ? (
-                        lead.audit_id ? (
+                    )}
+                    {(lead.callback_at || lead.meeting_at) && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {lead.callback_at && (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              callbackOverdue
+                                ? "bg-rose-100 text-rose-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            <CalendarClock className="h-3 w-3" /> {fmtDateTime(lead.callback_at)}
+                          </span>
+                        )}
+                        {lead.meeting_at && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                            <CalendarCheck className="h-3 w-3" /> {fmtDateTime(lead.meeting_at)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {(lead.prior_campaigns ?? []).length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {lead.prior_campaigns.map((p) => (
                           <a
-                            href={`/audit/r/${lead.audit_id}`}
+                            key={p.campaign_id}
+                            href={`/tm/${p.campaign_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Öppna fullständig rapport"
-                            className={`inline-flex items-center gap-1 text-2xl font-bold tabular-nums hover:underline ${scoreTone(lead.audit_score)}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700 hover:bg-amber-100"
                           >
-                            {lead.audit_score}
-                            <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+                            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                            {p.campaign_name}
+                            <span
+                              className={`ml-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${callStatusTone(p.call_status)}`}
+                            >
+                              {callStatusLabel(p.call_status)}
+                            </span>
                           </a>
-                        ) : (
-                          <div
-                            className={`text-2xl font-bold tabular-nums ${scoreTone(lead.audit_score)}`}
-                          >
-                            {lead.audit_score}
-                          </div>
-                        )
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={lead.call_status}
-                        onChange={(e) =>
-                          void updateLead(lead.id, {
-                            call_status: e.target.value as CallStatus,
-                          })
-                        }
-                        className={`rounded-lg border-0 px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-violet-500 ${callStatusTone(lead.call_status)}`}
-                      >
-                        {CALL_STATUS_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
                         ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1.5">
-                        {phoneE164 && (
-                          <a
-                            href={`tel:${phoneE164}`}
-                            onClick={() => handleDial(lead)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                            title="Ring via Phone Link (Länk till Windows)"
-                          >
-                            <Phone className="h-3 w-3" /> Ring upp
-                          </a>
-                        )}
-                        {lead.contact_email && (
-                          <div className="inline-flex rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
-                            <a
-                              href={buildGmailCompose(lead)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
-                              title="Öppna ett färdigt mail i Gmail"
-                            >
-                              <Mail className="h-3 w-3" /> Gmail
-                            </a>
-                            <a
-                              href={buildMailto(lead)}
-                              className="inline-flex items-center border-l border-violet-200 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
-                              title="Öppna i standardmailklient"
-                            >
-                              mailto
-                            </a>
-                          </div>
-                        )}
-                          <button
-                            onClick={() => setActiveNotes(activeNotes === lead.id ? null : lead.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                          >
-                            {activeNotes === lead.id ? "Dölj" : "Anteckningar"}
-                          </button>
                       </div>
-                    </td>
-                  </tr>
-                  <tr className="bg-slate-50/60">
-                    <td colSpan={6} className="px-4 py-3">
-                      {activeNotes === lead.id ? (
-                        <textarea
-                          autoFocus
-                          defaultValue={lead.call_notes || ""}
-                          onBlur={(e) => {
-                            if (e.target.value !== (lead.call_notes || "")) {
-                              void updateLead(lead.id, { call_notes: e.target.value });
-                            }
-                            setActiveNotes(null);
-                          }}
-                          placeholder="Anteckningar från samtalet — sparas när du klickar utanför rutan."
-                          rows={2}
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                        />
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {name ? (
+                      <>
+                        <div className="font-medium text-slate-700 text-xs flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          {name}
+                        </div>
+                        {lead.contact_title && (
+                          <div className="text-xs text-slate-400">{lead.contact_title}</div>
+                        )}
+                        {lead.contact_phone ? (
+                          phoneE164 ? (
+                            <a
+                              href={`tel:${phoneE164}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDial(lead);
+                              }}
+                              className="text-xs text-slate-600 flex items-center gap-1 hover:text-violet-600"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {lead.contact_phone}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-600 flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {lead.contact_phone}
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-xs text-orange-600 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> saknas
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {lead.contact_email ? (
+                      <a
+                        href={`mailto:${lead.contact_email}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
+                      >
+                        <Mail className="h-3 w-3" />
+                        {lead.contact_email}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {lead.audit_score != null ? (
+                      lead.audit_id ? (
+                        <a
+                          href={`/audit/r/${lead.audit_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Öppna fullständig rapport"
+                          className={`inline-flex items-center gap-1 text-2xl font-bold tabular-nums hover:underline ${scoreTone(lead.audit_score)}`}
+                        >
+                          {lead.audit_score}
+                          <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+                        </a>
                       ) : (
-                        <p className="min-h-[1.25rem] text-sm text-slate-600 whitespace-pre-wrap">
-                          {lead.call_notes || <span className="text-slate-400 italic">Inga anteckningar</span>}
-                        </p>
+                        <div className={`text-2xl font-bold tabular-nums ${scoreTone(lead.audit_score)}`}>
+                          {lead.audit_score}
+                        </div>
+                      )
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={lead.call_status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        void updateLead(lead.id, { call_status: e.target.value as CallStatus })
+                      }
+                      className={`rounded-lg border-0 px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-violet-500 ${callStatusTone(lead.call_status)}`}
+                    >
+                      {CALL_STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1.5">
+                      {phoneE164 && (
+                        <a
+                          href={`tel:${phoneE164}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDial(lead);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                          title="Ring via Phone Link (Länk till Windows)"
+                        >
+                          <Phone className="h-3 w-3" /> Ring upp
+                        </a>
                       )}
-                    </td>
-                  </tr>
-                </Fragment>
+                      {lead.contact_email && (
+                        <div className="inline-flex rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
+                          <a
+                            href={buildGmailCompose(lead)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                            title="Öppna ett färdigt mail i Gmail"
+                          >
+                            <Mail className="h-3 w-3" /> Gmail
+                          </a>
+                          <a
+                            href={buildMailto(lead)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center border-l border-violet-200 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100"
+                            title="Öppna i standardmailklient"
+                          >
+                            mailto
+                          </a>
+                        </div>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(lead.id);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        Öppna kort
+                        {(lead.activities?.length ?? 0) > 0 && (
+                          <span className="rounded-full bg-slate-100 px-1 text-[10px] text-slate-500">
+                            {lead.activities!.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      <LeadDrawer
+        lead={selectedLead}
+        onClose={() => setSelectedId(null)}
+        onPatch={updateLead}
+        onAddNote={addNote}
+        onPrev={() => {
+          if (selectedIndex > 0) setSelectedId(visibleLeads[selectedIndex - 1].id);
+        }}
+        onNext={() => {
+          if (selectedIndex >= 0 && selectedIndex < visibleLeads.length - 1)
+            setSelectedId(visibleLeads[selectedIndex + 1].id);
+        }}
+        hasPrev={selectedIndex > 0}
+        hasNext={selectedIndex >= 0 && selectedIndex < visibleLeads.length - 1}
+      />
     </main>
   );
 }

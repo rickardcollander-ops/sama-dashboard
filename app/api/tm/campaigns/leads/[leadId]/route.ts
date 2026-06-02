@@ -17,11 +17,22 @@ const ALLOWED_CALL_STATUSES = new Set([
   "converted",
 ]);
 
+// Accepts an ISO timestamp string or explicit null (to clear). Returns ok:false
+// for anything else (including bad date strings) so we can 400.
+function parseNullableTimestamp(v: unknown): { ok: boolean; value: string | null } {
+  if (v === null) return { ok: true, value: null };
+  if (typeof v !== "string") return { ok: false, value: null };
+  const t = Date.parse(v);
+  return Number.isNaN(t)
+    ? { ok: false, value: null }
+    : { ok: true, value: new Date(t).toISOString() };
+}
+
 /**
  * PATCH /api/tm/campaigns/leads/[leadId] — TM operators can only update
- * the call workflow fields. Intentionally unauthenticated; everything
- * else (audit state, contact data) stays admin-only by virtue of not
- * being patchable here.
+ * the call workflow fields (call_status, call_notes, callback_at, meeting_at).
+ * Intentionally unauthenticated; everything else (audit state, contact data)
+ * stays admin-only by virtue of not being patchable here.
  */
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const admin = getSupabaseAdmin();
@@ -44,6 +55,21 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (typeof body.call_notes === "string") {
     update.call_notes = body.call_notes.slice(0, 4000);
   }
+  // Use "key" in body (not typeof) so clients can send null to clear a schedule.
+  if ("callback_at" in body) {
+    const parsed = parseNullableTimestamp(body.callback_at);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: "Invalid callback_at" }, { status: 400 });
+    }
+    update.callback_at = parsed.value;
+  }
+  if ("meeting_at" in body) {
+    const parsed = parseNullableTimestamp(body.meeting_at);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: "Invalid meeting_at" }, { status: 400 });
+    }
+    update.meeting_at = parsed.value;
+  }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
@@ -52,7 +78,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     .from("apollo_leads")
     .update(update)
     .eq("id", leadId)
-    .select("id, call_status, call_notes")
+    .select("id, call_status, call_notes, callback_at, meeting_at, updated_at")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
