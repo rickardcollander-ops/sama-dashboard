@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ leadId: string }> };
 
 const ALLOWED_CALL_STATUSES = new Set([
-  "new", "called", "callback", "phone_missing", "answering_machine", "not_interested", "meeting_booked", "converted",
+  "new", "called", "no_answer_1", "no_answer_2", "no_answer_3", "callback", "phone_missing", "answering_machine", "not_interested", "meeting_booked", "converted",
 ]);
 
 /** PATCH /api/admin/campaigns/leads/[leadId] — update call status / notes. */
@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Invalid call_status" }, { status: 400 });
     }
     update.call_status = body.call_status;
+    update.call_status_updated_at = new Date().toISOString();
   }
   if (typeof body.call_notes === "string") {
     update.call_notes = body.call_notes.slice(0, 4000);

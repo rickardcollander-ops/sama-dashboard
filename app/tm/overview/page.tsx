@@ -48,6 +48,9 @@ interface Overview {
 const STATUS_BAR_BG: Record<string, string> = {
   new: "bg-slate-400",
   called: "bg-blue-500",
+  no_answer_1: "bg-yellow-500",
+  no_answer_2: "bg-orange-500",
+  no_answer_3: "bg-rose-400",
   callback: "bg-amber-500",
   phone_missing: "bg-orange-500",
   answering_machine: "bg-yellow-500",

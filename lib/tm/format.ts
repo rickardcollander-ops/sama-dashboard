@@ -84,6 +84,23 @@ export function fromDatetimeLocalValue(local: string | null | undefined): string
   return d.toISOString();
 }
 
+// Coarse "X min/tim/d sedan" relative label (Swedish). Used to show how stale a
+// lead's status is.
+export function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Math.max(0, Date.now() - then);
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "just nu";
+  if (minutes < 60) return `${minutes} min sedan`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} tim sedan`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} d sedan`;
+  return new Date(iso).toLocaleDateString("sv-SE");
+}
+
 // True when a callback time has already passed (overdue).
 export function isOverdue(iso: string | null | undefined, now: Date = new Date()): boolean {
   if (!iso) return false;

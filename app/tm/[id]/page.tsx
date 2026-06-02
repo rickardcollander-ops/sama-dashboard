@@ -34,7 +34,7 @@ import {
   buildMailto,
   contactName,
 } from "@/lib/tm/leads";
-import { fmtDateTime, isOverdue } from "@/lib/tm/format";
+import { fmtDateTime, formatRelative, isOverdue } from "@/lib/tm/format";
 
 interface Campaign {
   id: string;
@@ -463,6 +463,14 @@ export default function TmCampaignDetailPage({
                         </option>
                       ))}
                     </select>
+                    {lead.call_status_updated_at && (
+                      <div
+                        className="mt-1 text-[10px] text-slate-400"
+                        title={new Date(lead.call_status_updated_at).toLocaleString("sv-SE")}
+                      >
+                        {formatRelative(lead.call_status_updated_at)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">

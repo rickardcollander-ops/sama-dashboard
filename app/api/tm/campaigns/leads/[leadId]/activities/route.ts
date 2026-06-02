@@ -65,10 +65,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     .single();
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
 
-  // Back-compat with /api/tm/stats: it keys on apollo_leads.call_notes /
-  // call_status / updated_at. Mirror the latest note text into call_notes so the
-  // stats timeline + changes_today keep working and updated_at bumps (trigger).
-  // Do NOT remove this — dropping the mirror would make the stats go stale.
+  // Mirror the latest note text into apollo_leads.call_notes so the activity
+  // timeline preview and the call_notes-based selection predicate in
+  // /api/tm/stats keep reflecting the most recent note. We intentionally do NOT
+  // touch call_status_updated_at here — the stats chart buckets on status
+  // history, and a note alone is not a status change.
   if (kind === "note" && text) {
     await admin.from("apollo_leads").update({ call_notes: text }).eq("id", leadId);
   }

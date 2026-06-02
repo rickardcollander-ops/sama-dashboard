@@ -1,7 +1,9 @@
 -- TM portal "kundkort" upgrade: callback/meeting scheduling, a timestamped
 -- call-activity log, and the worklist ("att ringa idag") queue.
 --
--- Run this in your Supabase SQL editor AFTER supabase-apollo-duplicates.sql.
+-- Run this in your Supabase SQL editor AFTER supabase-apollo-duplicates.sql AND
+-- supabase-call-status-timestamp.sql (this file rebuilds get_tm_campaign_leads
+-- and keeps that file's call_status_updated_at column in the return shape).
 -- It is idempotent (IF NOT EXISTS / DROP+CREATE) so it can be re-run safely.
 
 -- 1a. Scheduling fields on the lead. Stored as timestamptz; the UI bridges them
@@ -67,13 +69,14 @@ RETURNS TABLE (
   audit_score        int,
   audit_id           text,
   audited_at         timestamptz,
-  call_status        text,
-  call_notes         text,
-  callback_at        timestamptz,
-  meeting_at         timestamptz,
-  updated_at         timestamptz,
-  activities         jsonb,
-  prior_campaigns    jsonb
+  call_status            text,
+  call_notes             text,
+  call_status_updated_at timestamptz,
+  callback_at            timestamptz,
+  meeting_at             timestamptz,
+  updated_at             timestamptz,
+  activities             jsonb,
+  prior_campaigns        jsonb
 )
 LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT
@@ -95,6 +98,7 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
     l.audited_at,
     l.call_status,
     l.call_notes,
+    l.call_status_updated_at,
     l.callback_at,
     l.meeting_at,
     l.updated_at,

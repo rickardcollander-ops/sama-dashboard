@@ -35,6 +35,7 @@ const STATUS_TONE: Record<CampaignRow["status"], string> = {
   failed: "bg-rose-100 text-rose-700",
 };
 
+
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);

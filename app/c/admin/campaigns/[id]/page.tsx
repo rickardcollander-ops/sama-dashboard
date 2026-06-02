@@ -23,7 +23,7 @@ interface Campaign {
   created_at: string;
 }
 
-type CallStatus = "new" | "called" | "callback" | "not_interested" | "meeting_booked" | "converted" | "phone_missing" | "answering_machine";
+type CallStatus = "new" | "called" | "no_answer_1" | "no_answer_2" | "no_answer_3" | "callback" | "not_interested" | "meeting_booked" | "converted" | "phone_missing" | "answering_machine";
 
 interface Lead {
   id: string;
@@ -52,6 +52,9 @@ interface Lead {
 const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] = [
   { value: "new",            label: "New",            tone: "bg-slate-100 text-slate-700" },
   { value: "called",         label: "Called",         tone: "bg-blue-100 text-blue-700" },
+  { value: "no_answer_1",    label: "No answer 1",    tone: "bg-yellow-100 text-yellow-700" },
+  { value: "no_answer_2",    label: "No answer 2",    tone: "bg-orange-100 text-orange-700" },
+  { value: "no_answer_3",    label: "No answer 3",    tone: "bg-rose-100 text-rose-700" },
   { value: "callback",       label: "Callback",       tone: "bg-amber-100 text-amber-700" },
   { value: "phone_missing",    label: "Phone missing",    tone: "bg-orange-100 text-orange-700" },
   { value: "answering_machine", label: "Answering machine", tone: "bg-yellow-100 text-yellow-700" },

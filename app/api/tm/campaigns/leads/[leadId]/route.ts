@@ -9,6 +9,9 @@ type Ctx = { params: Promise<{ leadId: string }> };
 const ALLOWED_CALL_STATUSES = new Set([
   "new",
   "called",
+  "no_answer_1",
+  "no_answer_2",
+  "no_answer_3",
   "callback",
   "phone_missing",
   "answering_machine",
@@ -51,6 +54,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Invalid call_status" }, { status: 400 });
     }
     update.call_status = body.call_status;
+    // Stamp when status changed so the stats chart can key on real status
+    // history (not the touch-trigger's updated_at, which moves on any write).
+    update.call_status_updated_at = new Date().toISOString();
   }
   if (typeof body.call_notes === "string") {
     update.call_notes = body.call_notes.slice(0, 4000);
@@ -78,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     .from("apollo_leads")
     .update(update)
     .eq("id", leadId)
-    .select("id, call_status, call_notes, callback_at, meeting_at, updated_at")
+    .select("id, call_status, call_notes, call_status_updated_at, callback_at, meeting_at, updated_at")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -683,7 +683,7 @@ export default function CustomerGeoPage() {
           <div className="mb-8 rounded-xl border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">{t.geo.mentionHistory}</h2>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 600, height: 256 }} debounce={50}>
                 <LineChart
                   data={summary.history}
                   margin={{ top: 5, right: 20, bottom: 5, left: 0 }}

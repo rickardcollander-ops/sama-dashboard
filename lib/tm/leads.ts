@@ -7,6 +7,9 @@
 export type CallStatus =
   | "new"
   | "called"
+  | "no_answer_1"
+  | "no_answer_2"
+  | "no_answer_3"
   | "callback"
   | "phone_missing"
   | "answering_machine"
@@ -55,6 +58,7 @@ export interface Lead {
   audited_at: string | null;
   call_status: CallStatus;
   call_notes: string | null;
+  call_status_updated_at: string | null;
   callback_at: string | null;
   meeting_at: string | null;
   updated_at?: string | null;
@@ -65,6 +69,9 @@ export interface Lead {
 export const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] = [
   { value: "new", label: "Ny", tone: "bg-slate-100 text-slate-700" },
   { value: "called", label: "Uppringd", tone: "bg-blue-100 text-blue-700" },
+  { value: "no_answer_1", label: "Ej svar 1", tone: "bg-yellow-100 text-yellow-700" },
+  { value: "no_answer_2", label: "Ej svar 2", tone: "bg-orange-100 text-orange-700" },
+  { value: "no_answer_3", label: "Ej svar 3", tone: "bg-rose-100 text-rose-700" },
   { value: "callback", label: "Ring tillbaka", tone: "bg-amber-100 text-amber-700" },
   { value: "phone_missing", label: "Telefonnummer saknas", tone: "bg-orange-100 text-orange-700" },
   { value: "answering_machine", label: "Telesvarare", tone: "bg-yellow-100 text-yellow-700" },
