@@ -23,7 +23,7 @@ interface LeadRow {
   company_name: string;
   call_status: string;
   call_notes: string | null;
-  updated_at: string;
+  call_status_updated_at: string | null;
   campaign_id: string;
   // PostgREST embeds the linked campaign as either an object (to-one) or null;
   // some clients have seen the array shape so we accept both defensively.
@@ -55,13 +55,13 @@ export async function GET(req: NextRequest) {
   let query = admin
     .from("apollo_leads")
     .select(
-      "id, company_name, call_status, call_notes, updated_at, campaign_id, apollo_campaigns(name)",
+      "id, company_name, call_status, call_notes, call_status_updated_at, campaign_id, apollo_campaigns(name)",
     )
-    .gte("updated_at", windowStartUtc.toISOString())
+    .gte("call_status_updated_at", windowStartUtc.toISOString())
     // Same "operator touched" predicate the today-stats endpoint used — leaves
     // out leads whose only change is the audit pipeline writing audit_score.
     .or("call_status.neq.new,call_notes.not.is.null")
-    .order("updated_at", { ascending: false })
+    .order("call_status_updated_at", { ascending: false })
     .limit(5000);
 
   if (campaignId) query = query.eq("campaign_id", campaignId);
@@ -86,7 +86,8 @@ export async function GET(req: NextRequest) {
   const todayByStatus: Record<string, number> = {};
 
   for (const lead of leads) {
-    const key = stockholmDateKey(new Date(lead.updated_at));
+    if (!lead.call_status_updated_at) continue;
+    const key = stockholmDateKey(new Date(lead.call_status_updated_at));
     const bucket = dailyMap.get(key);
     if (bucket) {
       bucket.total += 1;
@@ -104,18 +105,23 @@ export async function GET(req: NextRequest) {
     by_status: dailyMap.get(date)!.by_status,
   }));
 
-  const timeline = leads.slice(0, 100).map((l) => {
-    const embed = Array.isArray(l.apollo_campaigns) ? l.apollo_campaigns[0] : l.apollo_campaigns;
-    return {
-      id: l.id,
-      company_name: l.company_name,
-      campaign_id: l.campaign_id,
-      campaign_name: embed?.name ?? null,
-      call_status: l.call_status,
-      call_notes: l.call_notes,
-      updated_at: l.updated_at,
-    };
-  });
+  const timeline = leads
+    .filter((l) => l.call_status_updated_at)
+    .slice(0, 100)
+    .map((l) => {
+      const embed = Array.isArray(l.apollo_campaigns) ? l.apollo_campaigns[0] : l.apollo_campaigns;
+      return {
+        id: l.id,
+        company_name: l.company_name,
+        campaign_id: l.campaign_id,
+        campaign_name: embed?.name ?? null,
+        call_status: l.call_status,
+        call_notes: l.call_notes,
+        // Response key stays `updated_at` so ActivityPanel keeps its current
+        // shape; underneath we read from the more accurate status timestamp.
+        updated_at: l.call_status_updated_at!,
+      };
+    });
 
   // Back-compat: the old /tm page reads changes_today / by_status / recent.
   // Keep them on the response, but recompute against the Stockholm calendar
