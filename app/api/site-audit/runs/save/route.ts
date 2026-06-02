@@ -30,9 +30,18 @@ export async function POST(req: NextRequest) {
   // saved under. The browser sets the X-Tenant-ID header from useSite(), but
   // an upstream-backend mixup could still hand us a foreign run — saving it
   // would persist the leak even after the upstream is fixed.
+  //
+  // Only enforce when we actually know the workspace's domain. An empty
+  // expectedDomain means the server couldn't read settings.domain for this
+  // tenant (e.g. an account-member workspace the user can see but whose
+  // user_sites row isn't readable under their RLS, or settings.domain not
+  // yet stored). In that case we mirror the read routes
+  // (/api/site-audit/runs/[id], /api/site-audit/runs) and trust the
+  // client-side domain check the page already performs before calling save,
+  // rather than hard-403ing a legitimate run and losing the local history.
   const siteSettings = await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>));
   const expectedDomain = (siteSettings.domain as string) || "";
-  if (!sameDomain(run.domain, expectedDomain)) {
+  if (expectedDomain && !sameDomain(run.domain, expectedDomain)) {
     return NextResponse.json(
       { error: "run does not belong to this workspace" },
       { status: 403 },
