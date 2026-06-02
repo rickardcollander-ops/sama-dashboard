@@ -28,9 +28,18 @@ export async function POST(req: NextRequest) {
 
   // Belt-and-braces: refuse to cache a run that doesn't belong to the
   // workspace it's being saved under. Mirrors /api/site-audit/runs/save.
+  //
+  // Only enforce when we actually know the workspace's domain. An empty
+  // expectedDomain means the server couldn't read settings.domain for this
+  // tenant (e.g. an account-member workspace the user can see but whose
+  // user_sites row isn't readable under their RLS, or settings.domain not
+  // yet stored). In that case we mirror the read routes
+  // (/api/analysis/runs/[id], /api/analysis/latest) and trust the
+  // client-side domain check the page already performs before calling save,
+  // rather than hard-403ing a legitimate run and losing the local history.
   const siteSettings = await loadSiteSettings(tenantId).catch(() => ({} as Record<string, unknown>));
   const expectedDomain = (siteSettings.domain as string) || "";
-  if (!sameDomain(run.domain, expectedDomain)) {
+  if (expectedDomain && !sameDomain(run.domain, expectedDomain)) {
     return NextResponse.json(
       { error: "run does not belong to this workspace" },
       { status: 403 },
