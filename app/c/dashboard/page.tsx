@@ -36,20 +36,11 @@ const TrafficGraph = dynamic(() => import("@/components/dashboard/TrafficGraph")
 const AnalysisHub = dynamic(() => import("@/components/dashboard/AnalysisHub"), {
   loading: () => <div className="h-72 rounded-xl border bg-white shadow-sm" />,
 });
-const RecentOutcomes = dynamic(() => import("@/components/dashboard/RecentOutcomes"), {
-  loading: () => null,
-});
 const OnboardingChecklist = dynamic(() => import("@/components/dashboard/OnboardingChecklist"), {
   loading: () => null,
 });
-const ContentPipeline = dynamic(() => import("@/components/dashboard/ContentPipeline"), {
-  loading: () => <div className="h-28 animate-pulse rounded-xl border bg-white shadow-sm" />,
-});
 const AutomationStatus = dynamic(() => import("@/components/dashboard/AutomationStatus"), {
   loading: () => <div className="h-14 animate-pulse rounded-xl border bg-white shadow-sm" />,
-});
-const AutoApproveToggle = dynamic(() => import("@/components/content/AutoApproveToggle"), {
-  loading: () => null,
 });
 
 interface CustomerSettings {
@@ -103,9 +94,8 @@ interface ContentStats {
   updated_at?: string;
 }
 
-// Shape consumed by RecentOutcomes / UpcomingDrafts. Keep it loose so the
-// shared fetch here doesn't have to mirror every column they read — they
-// each pick their own fields.
+// Shape consumed by AutomationStatus. Keep it loose so the shared fetch
+// here doesn't have to mirror every column the widget reads.
 interface DashboardPieceRow {
   id: string;
   title: string;
@@ -260,9 +250,9 @@ export default function CustomerDashboard() {
     enabled: baseEnabled,
   });
 
-  // One request feeds both the scoreboard's content stat AND the shared
-  // `pieces` list that RecentOutcomes/UpcomingDrafts read below the fold.
-  // allSettled so a failed stats call doesn't blank out the pieces list.
+  // One request feeds both the scoreboard's content stat AND the pieces
+  // list that AutomationStatus reads below the fold. allSettled so a failed
+  // stats call doesn't blank out the pieces list.
   const contentQuery = useQuery({
     queryKey: ["dashboard", "content", effectiveTenantId, days],
     queryFn: async () => {
@@ -788,7 +778,7 @@ export default function CustomerDashboard() {
         </div>
 
         {user && (
-          <div className="mt-8 space-y-4">
+          <div className="mt-8">
             <AutomationStatus
               tenantId={effectiveTenantId}
               userId={user.id}
@@ -796,18 +786,6 @@ export default function CustomerDashboard() {
               active={hasSetup}
               onboardingCompletedAt={settings.onboarding_completed_at}
             />
-            <ContentPipeline
-              tenantId={effectiveTenantId}
-              pieces={recentPieces}
-              pendingApprovals={pendingApprovals}
-            />
-            <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
-          </div>
-        )}
-
-        {user && (
-          <div className="mt-8">
-            <RecentOutcomes tenantId={effectiveTenantId} pieces={recentPieces} />
           </div>
         )}
       </main>

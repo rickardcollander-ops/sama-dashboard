@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 const BASE_URL = "https://sama.successifier.com";
 
 export const metadata: Metadata = {
-  title: "The AI Gap — Why Businesses Are Missing AI Citations | Sama AI",
+  title: "The AI Gap — Why Businesses Miss AI Citations",
   description:
-    "Discover the AI visibility gap: why most businesses are invisible to AI assistants like ChatGPT and Perplexity, and how Generative Engine Optimization closes the gap.",
+    "Discover the AI visibility gap: why most businesses are invisible to AI assistants like ChatGPT and Perplexity, and how GEO closes the gap.",
   alternates: {
     canonical: `${BASE_URL}/ai-gap`,
   },

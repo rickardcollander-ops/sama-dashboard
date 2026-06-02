@@ -15,6 +15,7 @@ export default function IntegrationsPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -106,6 +107,7 @@ export default function IntegrationsPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

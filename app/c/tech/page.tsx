@@ -13,7 +13,7 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import CodeBlock, { type CodeBlockLanguage } from "@/components/tech/CodeBlock";
 import TechReportDocument from "@/components/tech/TechReportDocument";
-import type { SiteAuditFinding, SiteAuditRun } from "@/app/c/analysis/audit-types";
+import type { SiteAuditFinding, SiteAuditRecommendation, SiteAuditRun, AuditCategory } from "@/app/c/analysis/audit-types";
 
 interface TechSuggestion {
   title: string;
@@ -80,6 +80,44 @@ const EFFORT_TONE: Record<NonNullable<TechSuggestion["effort"]>, string> = {
   medium: "bg-amber-50 text-amber-700 border border-amber-200",
   high: "bg-rose-50 text-rose-700 border border-rose-200",
 };
+
+// Friendly Swedish labels for audit categories. "geo" is the audit's
+// internal name for AI-assistant readiness — schema, llms.txt, structured
+// headings, OpenGraph — but a user looking for "AI-assistenter" doesn't
+// recognise the raw "geo" tag, so we surface it under its plain-language
+// name on this page.
+const CATEGORY_LABEL: Record<AuditCategory, string> = {
+  geo: "AI-assistenter",
+  technical: "Teknisk SEO",
+  on_page: "On-page SEO",
+  links: "Länkar",
+  performance: "Prestanda",
+};
+
+// Render order — AI-assistenter first since this page exists primarily to
+// surface AI-readiness fixes the user can ship via the GitHub agent.
+const CATEGORY_ORDER: AuditCategory[] = ["geo", "technical", "on_page", "links", "performance"];
+
+// Recommendations carry the same shape as findings minus `severity` /
+// `affected_pages`. The /c/analysis page renders both — this page used to
+// drop recommendations on the floor, which is why GEO action points that
+// only land in `recommendations` looked missing. Adapt the priority to a
+// severity so the icon + tone match the finding-style rendering.
+function recommendationsAsFindings(recs: SiteAuditRecommendation[]): SiteAuditFinding[] {
+  return recs.map((r) => ({
+    category: r.category,
+    severity: r.priority === "high" ? "critical" : r.priority === "medium" ? "warning" : "info",
+    title: r.title,
+    description: r.description,
+    affected_pages: r.affected_count,
+    affected_urls: r.affected_urls,
+    examples: r.examples,
+    how_to_fix: r.how_to_fix,
+    impact: r.impact,
+    effort: r.effort,
+    group: r.group,
+  }));
+}
 
 export default function TechAgentPage() {
   const { user, loading: userLoading } = useUser();
@@ -267,10 +305,25 @@ export default function TechAgentPage() {
     s === "critical" ? "Critical" : s === "warning" ? "Warning" : "Info";
 
   // Passing checks ("success") are positive signals, not actionable issues —
-  // keep them out of the on-screen list and the report's issue count.
-  const visibleFindings = auditFindings.filter((f) => f.severity !== "success");
-  const criticalFindings = visibleFindings.filter((f) => f.severity === "critical");
-  const otherFindings = visibleFindings.filter((f) => f.severity !== "critical");
+  // keep them out of the on-screen list and the report's issue count. Merge
+  // recommendations into the finding stream because the backend splits the
+  // two and the GEO ("AI-assistenter") category often lands in
+  // `recommendations` rather than `findings`.
+  const combinedFindings: SiteAuditFinding[] = [
+    ...auditFindings,
+    ...recommendationsAsFindings(auditRun?.recommendations ?? []),
+  ];
+  const visibleFindings = combinedFindings.filter((f) => f.severity !== "success");
+  const findingsByCategory = new Map<AuditCategory, SiteAuditFinding[]>();
+  for (const f of visibleFindings) {
+    const list = findingsByCategory.get(f.category) || [];
+    list.push(f);
+    findingsByCategory.set(f.category, list);
+  }
+  const sevOrder: Record<SiteAuditFinding["severity"], number> = { critical: 0, warning: 1, info: 2, success: 3 };
+  for (const [, list] of findingsByCategory) {
+    list.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
+  }
   const hasReport = visibleFindings.length > 0 || exportItems.length > 0;
 
   if (userLoading) {
@@ -408,49 +461,60 @@ export default function TechAgentPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               Fetching findings from the latest analysis...
             </div>
-          ) : auditFindings.length > 0 ? (
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-3">
+          ) : visibleFindings.length > 0 ? (
+            <div className="mb-8 space-y-6">
+              <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                   <Wrench className="h-4 w-4 text-slate-500" />
-                  Findings from the latest analysis
+                  Åtgärdspunkter från senaste analysen
                 </h2>
                 <Link href="/c/analysis" className="text-xs text-blue-600 hover:underline">
                   View in Insights →
                 </Link>
               </div>
-              <div className="space-y-2">
-                {[...criticalFindings, ...otherFindings].map((finding, idx) => (
-                  <div
-                    key={idx}
-                    className={`rounded-xl border p-4 flex items-start justify-between gap-4 ${
-                      finding.severity === "critical" ? "border-red-100 bg-red-50" : "bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                      {severityIcon(finding.severity)}
-                      <div className="min-w-0">
-                        <span className={`text-xs font-semibold uppercase mr-2 ${
-                          finding.severity === "critical" ? "text-red-600" : "text-slate-500"
-                        }`}>{severityLabel(finding.severity)}</span>
-                        {finding.category && <span className="text-xs text-slate-400 mr-2">{finding.category}</span>}
-                        <p className="text-sm font-medium text-slate-900 mt-0.5">{finding.title}</p>
-                        {finding.description && <p className="text-xs text-slate-500 mt-0.5">{finding.description}</p>}
-                      </div>
+              {CATEGORY_ORDER.map((cat) => {
+                const items = findingsByCategory.get(cat) || [];
+                if (items.length === 0) return null;
+                return (
+                  <section key={cat}>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {CATEGORY_LABEL[cat]}{" "}
+                      <span className="text-slate-400">· {items.length}</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {items.map((finding, idx) => (
+                        <div
+                          key={`${cat}-${idx}`}
+                          className={`rounded-xl border p-4 flex items-start justify-between gap-4 ${
+                            finding.severity === "critical" ? "border-red-100 bg-red-50" : "bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                            {severityIcon(finding.severity)}
+                            <div className="min-w-0">
+                              <span className={`text-xs font-semibold uppercase mr-2 ${
+                                finding.severity === "critical" ? "text-red-600" : "text-slate-500"
+                              }`}>{severityLabel(finding.severity)}</span>
+                              <p className="text-sm font-medium text-slate-900 mt-0.5">{finding.title}</p>
+                              {finding.description && <p className="text-xs text-slate-500 mt-0.5">{finding.description}</p>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => sendFindingToAgent(finding)}
+                            className={`flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                              ghStatus?.connected
+                                ? "bg-slate-800 hover:bg-slate-900 text-white"
+                                : "border border-slate-200 hover:bg-slate-50 text-slate-600"
+                            }`}
+                          >
+                            {ghStatus?.connected ? "Fix with PR" : <><Eye className="h-3.5 w-3.5" />Show code</>}
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <button
-                      onClick={() => sendFindingToAgent(finding)}
-                      className={`flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                        ghStatus?.connected
-                          ? "bg-slate-800 hover:bg-slate-900 text-white"
-                          : "border border-slate-200 hover:bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      {ghStatus?.connected ? "Fix with PR" : <><Eye className="h-3.5 w-3.5" />Show code</>}
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  </section>
+                );
+              })}
             </div>
           ) : (
             <div className="mb-8 rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center">

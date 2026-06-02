@@ -24,6 +24,7 @@ export default function UseCasesPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -82,6 +83,7 @@ export default function UseCasesPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

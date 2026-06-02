@@ -17,6 +17,7 @@ export default function PlatformPage() {
   return (
     <div className="mkt-site">
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div
@@ -92,6 +93,7 @@ export default function PlatformPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

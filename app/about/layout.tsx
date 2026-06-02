@@ -5,7 +5,7 @@ const BASE_URL = "https://sama.successifier.com";
 export const metadata: Metadata = {
   title: "About Sama AI — Our Mission & Vision",
   description:
-    "Sama AI was built to close the AI citation gap. Learn about our mission to help every business get found and cited by AI assistants like ChatGPT, Perplexity, and Google AI Overviews.",
+    "Sama AI was built to close the AI citation gap. Learn about our mission to help every business get found and cited by ChatGPT, Perplexity and Google AI.",
   alternates: {
     canonical: `${BASE_URL}/about`,
   },

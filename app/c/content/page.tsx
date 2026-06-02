@@ -18,9 +18,9 @@ import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 import { useActiveRuns } from "@/lib/hooks/useActiveRuns";
 import { useLanguage } from "@/lib/hooks/useLanguage";
-import { tenantApi } from "@/lib/api";
 import { IS_DEMO, demoContentPieces } from "@/lib/demo-data";
 import AutoApproveToggle from "@/components/content/AutoApproveToggle";
+import AutopilotSettings from "@/components/content/AutopilotSettings";
 
 interface ContentTopicSuggestion {
   topic: string;
@@ -45,6 +45,11 @@ interface ContentPiece {
   slug?: string | null;
   featured_image_url?: string | null;
   article_score?: number | null;
+  // Publish date pinned on the linked content_plan_items row. The pieces
+  // endpoint may not enrich this, so fetchContent backfills it from the plan
+  // calendar — without it an approved piece looks unscheduled and the
+  // auto-publish bridge (which requires scheduled_for) never picks it up.
+  scheduled_for?: string | null;
   // Sprint 2 (K-3 / K-6) — backreferences to the surface that motivated the
   // piece, so the article card can show "Skapad från lucka …" / "Skapad
   // utifrån strategi-topic …".
@@ -121,12 +126,22 @@ export default function CustomerContentPage() {
 function CustomerContentInner() {
   const { t } = useLanguage();
   const { user, loading: userLoading } = useUser();
-  const { tenantClient, effectiveTenantId } = useSite();
+  const { tenantClient, effectiveTenantId, activeSite } = useSite();
   const { runs: activeRuns } = useActiveRuns();
   const searchParams = useSearchParams();
+  // Errors from user actions (approve/archive/draft/etc). Load failures are
+  // derived from the pieces query below. Auto-cleared after 8s by the effect.
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Local state — the in-flight React Query refactor on master left these
+  // declarations gone but the optimistic-update call sites (queryClient.
+  // setQueryData) intact, with no useQuery() to read the cache. Restoring
+  // the original useState pattern is the smallest fix to get the page
+  // compiling and rendering again.
   const [pieces, setPieces] = useState<ContentPiece[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   // Tabs across the top of the content list. "ideas" surfaces plan items
   // that haven't been drafted yet (status='idea' on content_plan_items),
   // because the new plan-creator stops at idea-rows and lets the user
@@ -134,8 +149,6 @@ function CustomerContentInner() {
   // is waiting; otherwise we drop the user back into "to_review" as
   // before.
   const [filter, setFilter] = useState<"ideas" | "to_review" | "scheduled" | "published" | "archived">("to_review");
-  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
-  const [ideasLoading, setIdeasLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   // Plan items currently being drafted in the background. The
   // /plan/{id}/draft endpoint returns immediately now, so we track
@@ -167,7 +180,6 @@ function CustomerContentInner() {
   const [loadingBodyId, setLoadingBodyId] = useState<string | null>(null);
   const [viewDialog, setViewDialog] = useState<{ piece: ContentPiece; body: string } | null>(null);
   const [loadingViewId, setLoadingViewId] = useState<string | null>(null);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [expandedPerf, setExpandedPerf] = useState<Set<string>>(new Set());
   // Calendar scheduling: when set, the date-picker dialog is open for this
   // piece. Saving creates a content_plan_items row that links to the piece
@@ -177,7 +189,13 @@ function CustomerContentInner() {
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
-  const [autoPublish, setAutoPublish] = useState(false);
+  // Mirrors user_sites.settings.content_autopilot.auto_publish — same row
+  // the cron reads. Derived directly from useSite() so toggling the
+  // AutoApproveToggle (which writes to the same row) updates this in place.
+  const autoPublish =
+    ((activeSite?.settings as Record<string, unknown> | undefined)?.content_autopilot as
+      | { auto_publish?: boolean }
+      | undefined)?.auto_publish === true;
 
   const TYPE_LABELS: Record<string, string> = {
     linkedin_post: t.content.typeLinkedin,
@@ -207,24 +225,6 @@ function CustomerContentInner() {
     if (s === "approved") return t.content.actionMarkPublished;
     return null;
   };
-
-  useEffect(() => {
-    if (user && effectiveTenantId) fetchContent();
-  }, [user, effectiveTenantId]);
-
-  useEffect(() => {
-    if (!user || !effectiveTenantId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await tenantApi(effectiveTenantId).get<{ settings?: { content_autopilot?: { auto_publish?: boolean } } }>(
-          `/api/settings/${user.id}`,
-        );
-        if (!cancelled) setAutoPublish(data?.settings?.content_autopilot?.auto_publish ?? false);
-      } catch { /* default false */ }
-    })();
-    return () => { cancelled = true; };
-  }, [user, effectiveTenantId]);
 
   // While a content_plan run is in flight (e.g. user just clicked
   // "Skapa content-plan" on /c/analysis and navigated here), keep
@@ -281,7 +281,24 @@ function CustomerContentInner() {
     }
   }, [searchParams]);
 
-useEffect(() => {
+  useEffect(() => {
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionError]);
+
+  // Initial load + reload when the active tenant changes. fetchContent
+  // also kicks off fetchIdeas so both lists are populated in one pass.
+  useEffect(() => {
+    if (user && effectiveTenantId) fetchContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, effectiveTenantId]);
+
+  // Pending approval banner — separate from the main pieces fetch because
+  // it hits a different endpoint and we don't want one transient failure
+  // to take down the other.
+  useEffect(() => {
     if (!user || !effectiveTenantId) return;
     setPendingApprovalsCount(0);
     (async () => {
@@ -299,30 +316,91 @@ useEffect(() => {
     })();
   }, [user, effectiveTenantId]);
 
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 8000);
-      return () => clearTimeout(timer);
+  const [triggering, setTriggering] = useState(false);
+  // Surfaced when the plan-calendar fetch fails — pieces show up unscheduled
+  // and the auto-publish bridge won't pick them up, so the user needs to
+  // know rather than silently see empty "Schemalagda" tab.
+  const [scheduleBackfillError, setScheduleBackfillError] = useState<string | null>(null);
+
+  const triggerAutopilot = async () => {
+    if (!activeSite || triggering) return;
+    setTriggering(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/integrations/autopilot/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site_id: activeSite.id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setIdeaToast("Autopilot startad — nya idéer kommer dyka upp inom någon minut");
+      setTimeout(() => setIdeaToast(null), 6000);
+      // Kick off polling on next render via the ideas useEffect tied to
+      // hasRunningContentRun; meanwhile, refresh now so the user sees
+      // something happens immediately if the backend was already fast.
+      void fetchIdeas({ background: true });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Kunde inte starta autopilot");
+    } finally {
+      setTriggering(false);
     }
-  }, [error]);
+  };
 
   const fetchContent = async ({ background = false }: { background?: boolean } = {}) => {
     if (!user) return;
     if (!background) {
       setLoading(true);
-      setError(null);
+      setActionError(null);
     }
     try {
       const client = tenantClient;
-      const data = await client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
-      const pcs = data.pieces || [];
-      setPieces(pcs.length > 0 ? pcs : IS_DEMO ? demoContentPieces : []);
+      // Fetch pieces and the plan calendar together. The calendar carries the
+      // scheduled_for date per linked piece, which the pieces endpoint doesn't
+      // reliably include — we merge it in so the "Schemalagda" tab can show
+      // the real publish date instead of nothing.
+      const now = Date.now();
+      const calStart = new Date(now - 180 * 86_400_000).toISOString();
+      const calEnd = new Date(now + 180 * 86_400_000).toISOString();
+      const piecesPromise = client.get<{ pieces?: ContentPiece[] }>("/api/content/pieces");
+      const calPromise = client
+        .get<{ scheduled?: { content_piece_id?: string | null; scheduled_for?: string | null }[] }>(
+          `/api/content/plan/calendar?start=${encodeURIComponent(calStart)}&end=${encodeURIComponent(calEnd)}`,
+        )
+        .then((d) => {
+          setScheduleBackfillError(null);
+          return d;
+        })
+        .catch((err: unknown) => {
+          // Surface the failure — without the calendar backfill the
+          // "Schemalagda" tab looks empty and the auto-publish bridge
+          // (which needs scheduled_for) won't pick the pieces up. Better
+          // to show a banner than to pretend everything is fine.
+          const msg = err instanceof Error ? err.message : "okänt fel";
+          setScheduleBackfillError(`Kunde inte ladda schemainfo: ${msg}`);
+          return { scheduled: [] as { content_piece_id?: string | null; scheduled_for?: string | null }[] };
+        });
+      const [piecesData, calData] = await Promise.all([piecesPromise, calPromise]);
+      const pcs = piecesData.pieces || [];
+      const scheduledByPiece = new Map<string, string>();
+      for (const r of calData.scheduled || []) {
+        if (r.content_piece_id && r.scheduled_for && !scheduledByPiece.has(r.content_piece_id)) {
+          scheduledByPiece.set(r.content_piece_id, r.scheduled_for);
+        }
+      }
+      const enriched =
+        scheduledByPiece.size > 0
+          ? pcs.map((p) =>
+              p.scheduled_for ? p : { ...p, scheduled_for: scheduledByPiece.get(p.id) ?? null },
+            )
+          : pcs;
+      setPieces(enriched.length > 0 ? enriched : IS_DEMO ? demoContentPieces : []);
     } catch (err: any) {
       console.error("Failed to fetch content:", err);
       if (IS_DEMO) {
         setPieces(demoContentPieces);
       } else if (!background) {
-        setError(t.content.errorFetch);
+        setActionError(t.content.errorFetch);
       }
     }
     if (!background) setLoading(false);
@@ -401,7 +479,7 @@ useEffect(() => {
       setIdeaToast(`"${idea.title}" ${t.content.ideaApproved}`);
       setTimeout(() => setIdeaToast(null), 6000);
     } catch (err: any) {
-      setError(`${err?.message || "Could not approve the idea"}`);
+      setActionError(`${err?.message || "Could not approve the idea"}`);
     } finally {
       setApprovingId(null);
     }
@@ -438,7 +516,7 @@ useEffect(() => {
       setIdeaToast(`"${idea.title}" ${t.content.ideaArchived}`);
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte arkivera"}`);
+      setActionError(`${err?.message || "Kunde inte arkivera"}`);
     }
   };
 
@@ -483,7 +561,7 @@ useEffect(() => {
       closeEditIdea();
       await fetchIdeas();
     } catch (err: any) {
-      setError(`${err?.message || "Kunde inte spara"}`);
+      setActionError(`${err?.message || "Kunde inte spara"}`);
       setEditSaving(false);
     }
   };
@@ -507,12 +585,12 @@ useEffect(() => {
       const generated = result.body || result.content || "";
       if (!generated) {
         const detail = result.suggestions?.[0] || "The AI returned no content.";
-        setError(`Could not generate: ${detail}`);
+        setActionError(`Could not generate: ${detail}`);
       } else {
         setModalContent(generated);
       }
     } catch (err: any) {
-      setError(`Could not generate: ${err?.message || err}`);
+      setActionError(`Could not generate: ${err?.message || err}`);
     }
     setModalGenerating(false);
   };
@@ -591,11 +669,22 @@ useEffect(() => {
   const totalWords = counts.words;
 
   const filtered = useMemo(() => {
-    return pieces.filter((p) => {
+    const list = pieces.filter((p) => {
       if (filter === "to_review") return p.status === "draft" || p.status === "review";
       if (filter === "scheduled") return p.status === "approved";
       return p.status === filter;
     });
+    // In the "Schemalagda" tab, surface pieces that actually have a date first
+    // (chronological); unscheduled approved pieces sink to the bottom — they
+    // still need a date before the auto-publish bridge will touch them.
+    if (filter === "scheduled") {
+      return list.slice().sort((a, b) => {
+        const ta = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Infinity;
+        const tb = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Infinity;
+        return ta - tb;
+      });
+    }
+    return list;
   }, [pieces, filter]);
 
   // Workflow arrow button. Stops at "approved" — the next step is
@@ -622,7 +711,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
-      setError(`Kunde inte uppdatera status: ${err?.message || err}`);
+      setActionError(`Kunde inte uppdatera status: ${err?.message || err}`);
       // Re-fetch to revert on error
       fetchContent();
     }
@@ -645,7 +734,7 @@ useEffect(() => {
       }
     } catch (err: any) {
       console.error("Failed to delete piece:", err);
-      setError(`Could not delete: ${err?.message || err}`);
+      setActionError(`Could not delete: ${err?.message || err}`);
       fetchContent();
     }
     setUpdatingStatus(null);
@@ -668,7 +757,7 @@ useEffect(() => {
       setTimeout(() => setIdeaToast(null), 4000);
     } catch (err: any) {
       console.error("Failed to empty archive:", err);
-      setError(`Could not empty archive: ${err?.message || err}`);
+      setActionError(`Could not empty archive: ${err?.message || err}`);
       fetchContent();
     }
   };
@@ -851,6 +940,15 @@ useEffect(() => {
               {t.content.viewCalendar}
             </Link>
             <button
+              onClick={triggerAutopilot}
+              disabled={!activeSite || triggering}
+              className="flex items-center gap-2 rounded-lg bg-white border border-blue-200 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50 shadow-sm transition-colors disabled:opacity-50"
+              title="Kör autopilot omedelbart med sajtens sparade inställningar."
+            >
+              {triggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Kör autopilot nu
+            </button>
+            <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 shadow-sm transition-colors"
               title="Write your own topic and let SAMA generate a draft."
@@ -860,6 +958,8 @@ useEffect(() => {
             </button>
           </div>
         </div>
+
+        <AutopilotSettings />
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
@@ -886,11 +986,32 @@ useEffect(() => {
           </div>
         </div>
 
-        {error && (
+        {actionError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            {error}
-            <button onClick={() => setError("")} className="ml-auto text-red-500 hover:text-red-700">
+            {actionError}
+            <button onClick={() => setActionError(null)} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {scheduleBackfillError && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">
+              {scheduleBackfillError}. &quot;Schemalagda&quot;-fliken visar inte rätt utan denna data.
+            </span>
+            <button
+              onClick={() => fetchContent()}
+              className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium hover:bg-amber-200"
+            >
+              Försök igen
+            </button>
+            <button
+              onClick={() => setScheduleBackfillError(null)}
+              className="text-amber-500 hover:text-amber-700"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1052,9 +1173,7 @@ useEffect(() => {
           </div>
         )}
 
-        {filter === "ideas" && user && (
-          <AutoApproveToggle tenantId={effectiveTenantId} userId={user.id} />
-        )}
+        {filter === "ideas" && user && <AutoApproveToggle />}
 
         {/* Ideas list — only when this tab is active. Ideas have no body
             yet; the user picks ones to draft. */}
@@ -1323,6 +1442,23 @@ useEffect(() => {
                           Score {piece.article_score}/100
                         </Link>
                       )}
+                      {/* Publish date — only meaningful before a piece is
+                          published. A scheduled date drives the auto-publish
+                          bridge; an approved piece without one is flagged so
+                          the user knows to schedule it. */}
+                      {(piece.status === "approved" || piece.status === "scheduled") &&
+                        (piece.scheduled_for ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
+                            <Calendar className="h-3 w-3" />
+                            {t.content.ideaScheduledOn}{" "}
+                            {new Date(piece.scheduled_for).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                            <Calendar className="h-3 w-3" />
+                            {t.content.ideaUnscheduled}
+                          </span>
+                        ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">

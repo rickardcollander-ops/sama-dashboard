@@ -5,7 +5,7 @@ const BASE_URL = "https://sama.successifier.com";
 export const metadata: Metadata = {
   title: "Blog — GEO & SEO Insights by Sama AI",
   description:
-    "Expert articles on Generative Engine Optimization, AI visibility, SEO strategies, and how to get your business cited by ChatGPT, Perplexity, Google AI Overviews, and other AI assistants.",
+    "Expert articles on Generative Engine Optimization, AI visibility and SEO strategies — and how to get your business cited by ChatGPT and Perplexity.",
   alternates: {
     canonical: `${BASE_URL}/blog`,
   },

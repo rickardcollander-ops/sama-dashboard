@@ -121,6 +121,7 @@ export default function AuditLandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA) }}
       />
       <MarketingHeader />
+      <main>
 
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-violet-50/60 via-white to-white" />
@@ -302,6 +303,7 @@ export default function AuditLandingPage() {
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
     </div>
   );

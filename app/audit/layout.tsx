@@ -5,7 +5,7 @@ const BASE_URL = "https://sama.successifier.com";
 export const metadata: Metadata = {
   title: "Free AI & SEO Audit — Analyze Your Site",
   description:
-    "Get a free instant audit of your website's AI visibility, SEO health, and GEO readiness. See exactly how your site appears to ChatGPT, Perplexity, and Google AI Overviews — and what to fix first.",
+    "Get a free instant audit of your website's AI visibility, SEO health and GEO readiness — see how your site appears to ChatGPT and what to fix first.",
   alternates: {
     canonical: `${BASE_URL}/audit`,
   },

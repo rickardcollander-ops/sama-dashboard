@@ -7,6 +7,7 @@ import {
   Loader2, Mail, Megaphone, Plug, RefreshCw, Search,
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
+import { api } from "@/lib/api";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
 
@@ -160,7 +161,7 @@ export default function IntegrationsPage() {
   const connectGoogle = (service: string) => {
     if (!user || !effectiveTenantId) return;
     const returnUrl = `${window.location.origin}/c/settings/integrations`;
-    window.location.href = `/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
+    window.location.href = `${api.baseUrl}/api/auth/google/connect?service=${service}&tenant_id=${effectiveTenantId}&return_url=${encodeURIComponent(returnUrl)}`;
   };
 
   return (

@@ -1,7 +1,7 @@
 ---
 title: "Generative Engine Optimization Platform Showdown: 6 Features That Separate Leaders from Laggards"
 slug: "generative-engine-optimization-platform-showdown-6-features-that-separate-leader"
-date: 2026-05-25T12:39:22.260Z
+date: 2026-05-28T18:00:18.833Z
 excerpt: "Generative Engine Optimization Platform Showdown: 6 Features That Separate Leaders from Laggards Most marketers are still treating generative engine…"
 description: "Generative Engine Optimization Platform Showdown: 6 Features That Separate Leaders from Laggards Most marketers are still treating generative engine…"
 language: "en"
