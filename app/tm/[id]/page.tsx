@@ -31,6 +31,9 @@ interface Campaign {
 type CallStatus =
   | "new"
   | "called"
+  | "no_answer_1"
+  | "no_answer_2"
+  | "no_answer_3"
   | "callback"
   | "phone_missing"
   | "answering_machine"
@@ -63,12 +66,16 @@ interface Lead {
   audited_at: string | null;
   call_status: CallStatus;
   call_notes: string | null;
+  call_status_updated_at: string | null;
   prior_campaigns: PriorCampaign[];
 }
 
 const CALL_STATUS_OPTIONS: { value: CallStatus; label: string; tone: string }[] = [
   { value: "new", label: "Ny", tone: "bg-slate-100 text-slate-700" },
   { value: "called", label: "Uppringd", tone: "bg-blue-100 text-blue-700" },
+  { value: "no_answer_1", label: "Ej svar 1", tone: "bg-yellow-100 text-yellow-700" },
+  { value: "no_answer_2", label: "Ej svar 2", tone: "bg-orange-100 text-orange-700" },
+  { value: "no_answer_3", label: "Ej svar 3", tone: "bg-rose-100 text-rose-700" },
   { value: "callback", label: "Ring tillbaka", tone: "bg-amber-100 text-amber-700" },
   { value: "phone_missing", label: "Telefonnummer saknas", tone: "bg-orange-100 text-orange-700" },
   { value: "answering_machine", label: "Telesvarare", tone: "bg-yellow-100 text-yellow-700" },
@@ -99,6 +106,21 @@ function toE164(raw: string | null | undefined): string | null {
   }
   const stripped = cleaned.replace(/^0+/, "");
   return /^\d{6,15}$/.test(stripped) ? `+46${stripped}` : null;
+}
+
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Math.max(0, Date.now() - then);
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "just nu";
+  if (minutes < 60) return `${minutes} min sedan`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} tim sedan`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} d sedan`;
+  return new Date(iso).toLocaleDateString("sv-SE");
 }
 
 function scoreTone(s: number | null): string {
@@ -459,6 +481,14 @@ export default function TmCampaignDetailPage({
                           </option>
                         ))}
                       </select>
+                      {lead.call_status_updated_at && (
+                        <div
+                          className="mt-1 text-[10px] text-slate-400"
+                          title={new Date(lead.call_status_updated_at).toLocaleString("sv-SE")}
+                        >
+                          {formatRelative(lead.call_status_updated_at)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5">
