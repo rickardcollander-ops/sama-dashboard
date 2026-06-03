@@ -10,7 +10,7 @@ import {
   FileSpreadsheet,
   TrendingUp,
 } from "lucide-react";
-import TmActivityPanel from "@/components/tm/ActivityPanel";
+import TmNav from "@/components/tm/TmNav";
 
 interface CampaignRow {
   id: string;
@@ -35,33 +35,6 @@ const STATUS_TONE: Record<CampaignRow["status"], string> = {
   failed: "bg-rose-100 text-rose-700",
 };
 
-const CALL_STATUS_LABELS: Record<string, string> = {
-  new: "Ny",
-  called: "Uppringd",
-  no_answer_1: "Ej svar 1",
-  no_answer_2: "Ej svar 2",
-  no_answer_3: "Ej svar 3",
-  callback: "Ring tillbaka",
-  phone_missing: "Telefon saknas",
-  answering_machine: "Telesvarare",
-  not_interested: "Ej intresserad",
-  meeting_booked: "Möte bokat",
-  converted: "Konverterad",
-};
-
-const CALL_STATUS_TONE: Record<string, string> = {
-  new: "bg-slate-100 text-slate-600",
-  called: "bg-blue-100 text-blue-700",
-  no_answer_1: "bg-yellow-100 text-yellow-700",
-  no_answer_2: "bg-orange-100 text-orange-700",
-  no_answer_3: "bg-rose-100 text-rose-700",
-  callback: "bg-amber-100 text-amber-700",
-  phone_missing: "bg-orange-100 text-orange-700",
-  answering_machine: "bg-yellow-100 text-yellow-700",
-  not_interested: "bg-rose-100 text-rose-700",
-  meeting_booked: "bg-violet-100 text-violet-700",
-  converted: "bg-emerald-100 text-emerald-700",
-};
 
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -111,6 +84,7 @@ export default function TmCampaignsPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
+      <TmNav />
       <header className="mb-8 border-b border-slate-200 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -143,8 +117,6 @@ export default function TmCampaignsPage() {
           <span className="flex-1">{error}</span>
         </div>
       )}
-
-      <TmActivityPanel />
 
       <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
