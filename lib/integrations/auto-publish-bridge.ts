@@ -272,7 +272,16 @@ export async function markPiecePublished(
     const res = await fetch(`${backendUrl}/api/content/pieces/${encodeURIComponent(pieceId)}`, {
       method: "PATCH",
       headers: tenantHeaders(siteId),
-      body: JSON.stringify({ status: "published", published_url: publishedUrl }),
+      // Use the columns the backend piece actually stores the live URL in
+      // (external_url / target_url). The backend stamps published_at itself when
+      // status flips to "published". The old `published_url` key was silently
+      // dropped, so the URL — and the published_at the 24h social email depends
+      // on — never landed.
+      body: JSON.stringify({
+        status: "published",
+        external_url: publishedUrl,
+        target_url: publishedUrl,
+      }),
     });
     if (!res.ok) return { ok: false, error: `patch ${res.status}` };
     return { ok: true };

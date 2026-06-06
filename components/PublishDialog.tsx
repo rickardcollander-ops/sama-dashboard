@@ -19,8 +19,9 @@ interface Destination {
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Called when the piece is successfully published (not just scheduled). */
-  onPublished?: () => void;
+  /** Called when the piece is successfully published (not just scheduled).
+   *  Receives the live URL so the caller can persist it on the backend piece. */
+  onPublished?: (publishedUrl?: string) => void;
   title: string;
   body: string;
   pieceId?: string;
@@ -114,7 +115,7 @@ export default function PublishDialog(props: Props) {
         setResult({ scheduled: true });
       } else {
         setResult({ url: data.result?.url });
-        onPublished?.();
+        onPublished?.(data.result?.url);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t.publishDialog.publishFailed);
