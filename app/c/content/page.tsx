@@ -1784,13 +1784,33 @@ function CustomerContentInner() {
           <PublishDialog
             open
             onClose={() => setCmsDialog(null)}
-            onPublished={() => {
+            onPublished={(publishedUrl?: string) => {
+              const pieceId = cmsDialog.piece.id;
               setPieces((prev) =>
                 prev.map((p) =>
-                  p.id === cmsDialog.piece.id ? { ...p, status: "published" } : p,
+                  p.id === pieceId ? { ...p, status: "published" } : p,
                 ),
               );
               setCmsDialog(null);
+              // Persist the published status to the backend. Without this the
+              // piece reverts to "approved" on the next fetch — live on the site
+              // but still shown as scheduled (Publicerat stays 0). Local-only
+              // pieces have no backend row to update.
+              if (!pieceId.startsWith("local-")) {
+                tenantClient
+                  .patch(`/api/content/pieces/${pieceId}`, {
+                    status: "published",
+                    ...(publishedUrl
+                      ? { external_url: publishedUrl, target_url: publishedUrl }
+                      : {}),
+                  })
+                  .catch((err: unknown) => {
+                    console.error("Failed to persist published status:", err);
+                    setActionError(
+                      "Artikeln publicerades men status kunde inte sparas. Ladda om och försök igen.",
+                    );
+                  });
+              }
             }}
             title={cmsDialog.piece.title}
             body={cmsDialog.body}
