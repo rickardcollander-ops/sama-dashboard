@@ -12,6 +12,7 @@ import {
   SettingsJson,
   buildGithubVirtualDestination,
 } from "./store";
+import { mapPool } from "./concurrency";
 
 export interface AutopilotConfig {
   enabled?: boolean;
@@ -160,15 +161,23 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     }
   }
 
-  for (const row of due) {
-    const pieceId = row.content_piece_id as string;
-
-    // Score gate — an unscored piece passes so the scorer can't silently stall
-    // the pipeline; a present score below threshold is held back.
+  // Score gate up front — an unscored piece passes so the scorer can't
+  // silently stall the pipeline; a present score below threshold is held back.
+  const toFetch = due.filter((row) => {
     if (minScore !== undefined && typeof row.article_score === "number" && row.article_score < minScore) {
       result.skipped_low_score += 1;
-      continue;
+      return false;
     }
+    return true;
+  });
+
+  // Fetch the article bodies with bounded concurrency rather than one
+  // sequential round-trip per due piece (the previous N+1). Each task returns
+  // the ScheduledPublish to queue, or null when the piece is skipped/errors;
+  // mapPool preserves input order so the queue is deterministic.
+  const PIECE_CONCURRENCY = 5;
+  const built = await mapPool(toFetch, PIECE_CONCURRENCY, async (row): Promise<ScheduledPublish | null> => {
+    const pieceId = row.content_piece_id as string;
 
     let bodyMd = "";
     let metaTitle = row.title || "";
@@ -181,7 +190,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       });
       if (!res.ok) {
         result.errors.push({ piece_id: pieceId, error: `piece fetch ${res.status}` });
-        continue;
+        return null;
       }
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       const piece = (data.piece && typeof data.piece === "object" ? data.piece : data) as Record<string, unknown>;
@@ -192,12 +201,12 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       if (Array.isArray(piece.tags)) tags = piece.tags.filter((t): t is string => typeof t === "string");
     } catch (e) {
       result.errors.push({ piece_id: pieceId, error: e instanceof Error ? e.message : "piece fetch failed" });
-      continue;
+      return null;
     }
 
     if (!bodyMd.trim()) {
       result.skipped_no_body += 1;
-      continue;
+      return null;
     }
 
     const lang =
@@ -227,7 +236,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       publisher_name: ctx.brandName,
     });
 
-    const item: ScheduledPublish = {
+    return {
       id: `sched_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       piece_id: pieceId,
       destination_id: dest.id,
@@ -249,9 +258,13 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
         source: "auto_bridge",
       },
     };
-    result.newItems.push(item);
-    alreadyQueued.add(pieceId);
-    result.ingested += 1;
+  });
+
+  for (const item of built) {
+    if (item) {
+      result.newItems.push(item);
+      result.ingested += 1;
+    }
   }
 
   return result;
