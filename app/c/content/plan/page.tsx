@@ -684,6 +684,8 @@ export default function ContentCalendarPage() {
                             <img
                               src={thumb}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               className="h-3.5 w-3.5 flex-shrink-0 rounded-sm object-cover"
                             />
                           ) : (
@@ -715,6 +717,8 @@ export default function ContentCalendarPage() {
                             <img
                               src={thumb}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               className="h-3.5 w-3.5 flex-shrink-0 rounded-sm object-cover"
                             />
                           ) : (
@@ -898,6 +902,8 @@ function FinishedArticleRow({
             <img
               src={item.featured_image_url}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="h-16 w-24 object-cover"
             />
           </Link>
@@ -906,6 +912,8 @@ function FinishedArticleRow({
           <img
             src={item.featured_image_url}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="hidden h-16 w-24 shrink-0 rounded-lg border border-slate-200 object-cover sm:block"
           />
         )

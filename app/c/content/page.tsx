@@ -1363,6 +1363,8 @@ function CustomerContentInner() {
                       <img
                         src={piece.featured_image_url}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="w-24 h-16 object-cover"
                       />
                     </Link>
