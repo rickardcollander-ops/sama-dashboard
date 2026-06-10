@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { mapPool } from "@/lib/integrations/concurrency";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Fan-out over every eligible site. Bounded concurrency keeps this well under
+// a few seconds even with many sites, but set an explicit ceiling so the run
+// can't be silently truncated at the platform default as the tenant list grows.
+export const maxDuration = 60;
+
+// How many backend triggers to keep in flight at once. Each trigger just kicks
+// off async work on the backend and returns quickly, so this is mostly about
+// not opening hundreds of sockets simultaneously.
+const TRIGGER_CONCURRENCY = 8;
 
 const SAMA_API_URL =
   process.env.SAMA_API_URL ||
@@ -87,6 +97,9 @@ export async function GET(req: NextRequest) {
     failures: [],
   };
 
+  // Decide eligibility up front (cheap, synchronous) so the triggers can run
+  // as a bounded parallel pool rather than one slow sequential loop.
+  const eligible: { siteId: string; userId: string }[] = [];
   for (const row of rows || []) {
     const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
@@ -122,11 +135,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    summary.sites_processed += 1;
-    summary.triggers_attempted += 1;
+    eligible.push({ siteId, userId });
+  }
 
+  summary.sites_processed = eligible.length;
+  summary.triggers_attempted = eligible.length;
+
+  const target = `${SAMA_API_URL.replace(/\/$/, "")}/api/tenant/agents/content/trigger`;
+  await mapPool(eligible, TRIGGER_CONCURRENCY, async ({ siteId, userId }) => {
     try {
-      const target = `${SAMA_API_URL.replace(/\/$/, "")}/api/tenant/agents/content/trigger`;
       const res = await fetch(target, {
         method: "POST",
         headers: {
@@ -161,7 +178,7 @@ export async function GET(req: NextRequest) {
         error: e instanceof Error ? e.message : "fetch failed",
       });
     }
-  }
+  });
 
   return NextResponse.json({ ok: true, ...summary });
 }
