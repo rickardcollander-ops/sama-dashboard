@@ -239,7 +239,7 @@ function CustomerContentInner() {
     if (!hasRunningContentRun) return;
     const id = setInterval(() => {
       fetchIdeas({ background: true });
-    }, 5000);
+    }, 10000);
     return () => clearInterval(id);
     // fetchIdeas is stable enough for this purpose; intentionally not a dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,9 +407,9 @@ function CustomerContentInner() {
     fetchIdeas({ background });
   };
 
-  // `background` is set when the 5-second polling tick re-runs this while a
-  // content run is in flight. Skipping the loader toggle there keeps the
-  // ideas list from flashing a spinner on every tick.
+  // `background` is set when the polling tick re-runs this while a content run
+  // is in flight. Skipping the loader toggle there keeps the ideas list from
+  // flashing a spinner on every tick.
   const fetchIdeas = async ({ background = false }: { background?: boolean } = {}) => {
     if (!user) return;
     if (!background) setIdeasLoading(true);
@@ -486,16 +486,19 @@ function CustomerContentInner() {
   };
 
   // While there are ideas drafting in the background, refresh the lists
-  // every 5s so the new piece surfaces without a manual reload. Cap the
+  // every 10s so the new piece surfaces without a manual reload. Cap the
   // window at 3 minutes per approve to bound the polling — a cascade
   // that hasn't finished by then has almost certainly failed silently.
   useEffect(() => {
     if (!user || !effectiveTenantId) return;
     if (draftingIds.size === 0) return;
     const tick = setInterval(() => {
-      fetchIdeas({ background: true });
+      // fetchContent refreshes the ideas list at its tail, so we don't call
+      // fetchIdeas separately here — that double-fetched /plan?status=idea on
+      // every tick (two identical requests per 5s, each paying the proxy auth
+      // round-trip).
       fetchContent({ background: true });
-    }, 5000);
+    }, 10000);
     const stop = setTimeout(() => {
       setDraftingIds(new Set());
     }, 180_000);
