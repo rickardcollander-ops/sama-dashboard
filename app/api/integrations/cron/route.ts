@@ -10,9 +10,18 @@ import {
   markPiecePublished,
 } from "@/lib/integrations/auto-publish-bridge";
 import { buildGithubVirtualDestination } from "@/lib/integrations/store";
+import { mapPool } from "@/lib/integrations/concurrency";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Real CMS publishes happen here, so allow headroom and cap explicitly rather
+// than risking truncation at the platform default.
+export const maxDuration = 60;
+
+// Sites are independent, so process them in parallel — but keep this modest
+// since each site makes external CMS API calls. Publishes WITHIN a site stay
+// sequential (they share one settings row that's written back at the end).
+const SITE_CONCURRENCY = 5;
 
 const BACKEND =
   process.env.SAMA_API_URL ||
@@ -106,7 +115,7 @@ export async function GET(req: NextRequest) {
     backend_sync_failed: 0,
   };
 
-  for (const row of rows || []) {
+  await mapPool(rows || [], SITE_CONCURRENCY, async (row) => {
     const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
     const settings = ((row as { settings?: SettingsRow }).settings || {}) as SettingsRow;
@@ -144,7 +153,7 @@ export async function GET(req: NextRequest) {
     summary.skipped_no_body += bridge.skipped_no_body;
     summary.skipped_low_score += bridge.skipped_low_score;
 
-    if (!scheduled.length) continue;
+    if (!scheduled.length) return;
 
     for (const item of scheduled) {
       if (item.status !== "scheduled") continue;
@@ -219,7 +228,7 @@ export async function GET(req: NextRequest) {
         .update({ settings: next, updated_at: new Date().toISOString() })
         .eq("id", siteId);
     }
-  }
+  });
 
   return NextResponse.json({ ok: true, ...summary });
 }

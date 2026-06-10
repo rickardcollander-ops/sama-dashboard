@@ -3,7 +3,12 @@
 import { useEffect } from "react";
 import { useUser } from "@/lib/hooks/useUser";
 
-const HEARTBEAT_INTERVAL_MS = 30_000;
+// The heartbeat powers a cosmetic "online" dot. Each ping is a full auth
+// round-trip + DB upsert, so we keep it infrequent and skip ticks while the
+// tab is hidden — a background tab doesn't need to report itself online. The
+// visibilitychange handler fires an immediate ping on resume so the dot is
+// fresh the moment the user comes back.
+const HEARTBEAT_INTERVAL_MS = 180_000;
 
 async function ping() {
   try {
@@ -24,7 +29,9 @@ export function usePresenceHeartbeat() {
     if (!user) return;
 
     void ping();
-    const interval = setInterval(() => void ping(), HEARTBEAT_INTERVAL_MS);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void ping();
+    }, HEARTBEAT_INTERVAL_MS);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") void ping();

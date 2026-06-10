@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { mapPool } from "@/lib/integrations/concurrency";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Each site fires up to four backend triggers; bounded parallelism across sites
+// keeps the whole run to a few seconds. Set an explicit ceiling so it can't be
+// truncated at the platform default as the tenant list grows.
+export const maxDuration = 60;
+
+const SITE_CONCURRENCY = 8;
 
 const SAMA_API_URL =
   process.env.SAMA_API_URL ||
@@ -107,6 +114,10 @@ export async function GET(req: NextRequest) {
     failures: [],
   };
 
+  // Filter to onboarded sites synchronously, then fan out with bounded
+  // concurrency. The per-site trigger sequence stays sequential within a site
+  // (cheap, and keeps the summary ordering intact); sites run in parallel.
+  const eligible: { siteId: string; userId: string; settings: Record<string, unknown> }[] = [];
   for (const row of rows || []) {
     const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
@@ -116,8 +127,11 @@ export async function GET(req: NextRequest) {
       summary.sites_skipped += 1;
       continue;
     }
-    summary.sites_processed += 1;
+    eligible.push({ siteId, userId, settings });
+  }
+  summary.sites_processed = eligible.length;
 
+  await mapPool(eligible, SITE_CONCURRENCY, async ({ siteId, userId, settings }) => {
     const baseHeaders = {
       "Content-Type": "application/json",
       "X-Tenant-ID": userId,
@@ -198,7 +212,7 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-  }
+  });
 
   return NextResponse.json({ ok: true, ...summary });
 }

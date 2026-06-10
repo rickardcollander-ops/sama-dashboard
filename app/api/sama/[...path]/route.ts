@@ -130,12 +130,49 @@ function rateLimit(key: string, limit: number): { ok: boolean; remaining: number
   return { ok, remaining: Math.max(0, limit - b.count), reset: b.windowStart + WINDOW_MS };
 }
 
-async function getCurrentUser(): Promise<{ id: string; email: string | null } | null> {
+/* ── Authenticated user resolution (token-keyed cache) ─────────────────── */
+
+interface CachedUser {
+  user: { id: string; email: string | null } | null;
+  expires: number;
+}
+
+// `supabase.auth.getUser()` makes a network round-trip to the Supabase auth
+// server to cryptographically validate the JWT — and the dashboard fires many
+// proxied calls per second (polling), each paying that round-trip. Cache the
+// validated identity keyed by the opaque auth-cookie value: the same token
+// reuses the result for USER_TTL_MS, and on refresh/logout the cookie value
+// changes so we re-validate. The token is still validated on first use and
+// every TTL window, so this is not an auth bypass — just deduplication of
+// repeated validations of the same short-lived token.
+const USER_TTL_MS = 60_000;
+const userCache = new Map<string, CachedUser>();
+
+/** Opaque key built from the Supabase auth cookies (which may be chunked into
+ *  `…auth-token.0/.1`). We don't parse it — any change to any chunk yields a
+ *  new key and forces re-validation. Empty when the user isn't signed in. */
+function authCookieKey(req: NextRequest): string {
+  return req.cookies
+    .getAll()
+    .filter((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"))
+    .map((c) => `${c.name}=${c.value}`)
+    .join("|");
+}
+
+async function getCurrentUser(
+  req: NextRequest,
+): Promise<{ id: string; email: string | null } | null> {
+  const key = authCookieKey(req);
+  if (key) {
+    const hit = userCache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.user;
+  }
   try {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
-    if (!data?.user) return null;
-    return { id: data.user.id, email: data.user.email ?? null };
+    const user = data?.user ? { id: data.user.id, email: data.user.email ?? null } : null;
+    if (key) userCache.set(key, { user, expires: Date.now() + USER_TTL_MS });
+    return user;
   } catch {
     return null;
   }
@@ -153,7 +190,12 @@ interface CachedContext extends TenantContext {
   expires: number;
 }
 
-const CONTEXT_TTL_MS = 30_000;
+// 2 minutes. The cache key includes the requested site, so switching sites
+// (which forces a full page reload via useSite) resolves fresh context
+// immediately. The window only bounds staleness of site.domain changes and
+// account-membership revocation — both tolerable for a couple of minutes,
+// and worth far fewer admin-table round-trips on every proxied poll.
+const CONTEXT_TTL_MS = 120_000;
 const contextCache = new Map<string, CachedContext>();
 
 /**
@@ -281,7 +323,7 @@ async function handle(
   const fullPath = "/" + path.join("/");
   const target = `${BACKEND.replace(/\/$/, "")}/${path.join("/")}${url.search}`;
 
-  const user = await getCurrentUser();
+  const user = await getCurrentUser(req);
   const userId = user?.id ?? null;
   const requireAuth = process.env.SAMA_PROXY_REQUIRE_AUTH !== "0";
   if (requireAuth && !user) {
