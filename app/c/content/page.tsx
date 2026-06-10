@@ -115,6 +115,19 @@ function ContentShellSkeleton() {
   );
 }
 
+// Module-level snapshot of the last-rendered lists, kept in sync with state
+// below. On navigating away and back the component remounts; seeding initial
+// state from this snapshot paints the previous content instantly while we
+// revalidate in the background, instead of flashing a full-page spinner and
+// refetching from scratch. Keyed by tenant so switching customers never shows
+// the previous tenant's content. (A proper React Query migration would
+// subsume this, but that refactor was reverted — see the note in-component.)
+const contentSnapshot: {
+  tenantId: string | null;
+  pieces: ContentPiece[];
+  ideas: PlanIdea[];
+} = { tenantId: null, pieces: [], ideas: [] };
+
 export default function CustomerContentPage() {
   return (
     <Suspense fallback={<ContentShellSkeleton />}>
@@ -137,9 +150,12 @@ function CustomerContentInner() {
   // setQueryData) intact, with no useQuery() to read the cache. Restoring
   // the original useState pattern is the smallest fix to get the page
   // compiling and rendering again.
-  const [pieces, setPieces] = useState<ContentPiece[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [ideas, setIdeas] = useState<PlanIdea[]>([]);
+  // Seed from the cross-navigation snapshot when it belongs to the current
+  // tenant, so a remount paints immediately instead of spinner-then-refetch.
+  const seeded = contentSnapshot.tenantId === effectiveTenantId;
+  const [pieces, setPieces] = useState<ContentPiece[]>(seeded ? contentSnapshot.pieces : []);
+  const [loading, setLoading] = useState(!seeded);
+  const [ideas, setIdeas] = useState<PlanIdea[]>(seeded ? contentSnapshot.ideas : []);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   // Tabs across the top of the content list. "ideas" surfaces plan items
@@ -289,11 +305,25 @@ function CustomerContentInner() {
   }, [actionError]);
 
   // Initial load + reload when the active tenant changes. fetchContent
-  // also kicks off fetchIdeas so both lists are populated in one pass.
+  // also kicks off fetchIdeas so both lists are populated in one pass. When we
+  // seeded from the snapshot (same-tenant remount) revalidate in the
+  // background so the cached lists stay on screen instead of flashing a
+  // spinner; otherwise do a foreground load.
   useEffect(() => {
-    if (user && effectiveTenantId) fetchContent();
+    if (user && effectiveTenantId) fetchContent({ background: seeded });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, effectiveTenantId]);
+
+  // Mirror the live lists into the cross-navigation snapshot (tenant-keyed) so
+  // a remount can paint them instantly. Gated on !loading so the brief window
+  // during a tenant switch — before the new tenant's data has loaded — never
+  // writes the previous tenant's lists under the new tenant id.
+  useEffect(() => {
+    if (!effectiveTenantId || loading) return;
+    contentSnapshot.tenantId = effectiveTenantId;
+    contentSnapshot.pieces = pieces;
+    contentSnapshot.ideas = ideas;
+  }, [pieces, ideas, effectiveTenantId, loading]);
 
   // Pending approval banner — separate from the main pieces fetch because
   // it hits a different endpoint and we don't want one transient failure
