@@ -6,8 +6,10 @@ import {
 } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import CustomerPageShellSkeleton from "@/components/CustomerPageShellSkeleton";
+import ApprovalStats from "@/components/approvals/ApprovalStats";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
+import { useActiveTimer } from "@/lib/hooks/useActiveTimer";
 
 interface Approval {
   id: string;
@@ -38,6 +40,10 @@ export default function ApprovalsPage() {
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"pending" | "approved" | "rejected">("pending");
+  // The ticket the reviewer is currently working on — drives the active-time
+  // timer and a subtle "selected" ring.
+  const [selected, setSelected] = useState<string | null>(null);
+  const timer = useActiveTimer();
   // True until the first fetch resolves. Gates the full-page skeleton so
   // switching tabs only swaps the list's inline spinner instead of flashing
   // the whole page (header + tabs) back to a skeleton.
@@ -69,13 +75,16 @@ export default function ApprovalsPage() {
 
   const decide = async (id: string, action: "approve" | "reject", note?: string) => {
     if (!user || !effectiveTenantId) return;
+    // Capture how long the reviewer actively worked on this ticket before
+    // deciding, so the stats section can show real hands-on time.
+    const activeSeconds = timer.stop(id);
     setWorking(id);
     setError("");
     try {
       const res = await fetch(`/api/approvals/${id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Tenant-ID": effectiveTenantId },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ note, active_seconds: activeSeconds }),
       });
       if (!res.ok) throw new Error("decide failed");
       await load();
@@ -119,6 +128,8 @@ export default function ApprovalsPage() {
             Drafts your agents have prepared — review before publishing.
           </p>
         </div>
+
+        <ApprovalStats tenantId={effectiveTenantId ?? null} />
 
         <div className="mb-4 flex gap-1 border-b border-slate-200">
           {(["pending", "approved", "rejected"] as const).map((t) => {
@@ -165,7 +176,20 @@ export default function ApprovalsPage() {
               const Icon = KIND_ICON[a.kind] || FileText;
               const isEditing = editing === a.id;
               return (
-                <li key={a.id} className="rounded-xl border bg-white p-5 shadow-sm">
+                <li
+                  key={a.id}
+                  onClick={
+                    tab === "pending"
+                      ? () => {
+                          setSelected(a.id);
+                          timer.start(a.id);
+                        }
+                      : undefined
+                  }
+                  className={`rounded-xl border bg-white p-5 shadow-sm ${
+                    tab === "pending" ? "cursor-pointer" : ""
+                  } ${selected === a.id ? "ring-2 ring-emerald-200" : ""}`}
+                >
                   <div className="flex items-start gap-3">
                     <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
                       <Icon className="h-4 w-4" />
