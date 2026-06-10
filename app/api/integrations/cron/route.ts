@@ -84,7 +84,6 @@ export async function GET(req: NextRequest) {
   // so we can pass it to the JSON-LD builder without a query per item.
   const userIds = [...new Set((rows || []).map((r) => (r as { user_id: string }).user_id))];
   const brandByUserId = new Map<string, string | undefined>();
-  const autopilotByUserId = new Map<string, AutopilotConfig | undefined>();
   if (userIds.length) {
     const { data: userSettingsRows } = await admin
       .from("user_settings")
@@ -94,12 +93,6 @@ export async function GET(req: NextRequest) {
       const s = ((ur as { settings?: Record<string, unknown> }).settings || {}) as Record<string, unknown>;
       const uid = (ur as { user_id: string }).user_id;
       brandByUserId.set(uid, typeof s.brand_name === "string" ? (s.brand_name as string) : undefined);
-      autopilotByUserId.set(
-        uid,
-        s.content_autopilot && typeof s.content_autopilot === "object"
-          ? (s.content_autopilot as AutopilotConfig)
-          : undefined,
-      );
     }
   }
 
@@ -131,6 +124,15 @@ export async function GET(req: NextRequest) {
 
     const brandName = brandByUserId.get(userId);
 
+    // Autopilot config is per-site and lives in user_sites.settings — the same
+    // row the panel and the weekly/daily crons read and write. Reading it from
+    // user_settings (a different table) meant the auto-publish gate never saw
+    // the user's toggle, so approved + due pieces sat scheduled but unpublished.
+    const autopilot =
+      settings.content_autopilot && typeof settings.content_autopilot === "object"
+        ? (settings.content_autopilot as AutopilotConfig)
+        : undefined;
+
     let mutated = false;
 
     // Bridge phase: pull due, approved, auto-publish backend pieces into the
@@ -140,7 +142,7 @@ export async function GET(req: NextRequest) {
       backendUrl: BACKEND,
       siteId,
       settings,
-      autopilot: autopilotByUserId.get(userId),
+      autopilot,
       brandName,
       now,
     });
