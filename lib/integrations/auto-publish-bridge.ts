@@ -92,7 +92,12 @@ export function resolveBridgeDestination(settings: SettingsJson): CmsDestination
  * to Supabase. Gated on the autopilot auto-publish toggle.
  */
 export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<BridgeResult> {
-  if (!(ctx.autopilot?.enabled && ctx.autopilot?.auto_publish)) {
+  // Gate on autopilot being enabled only — NOT on the auto_publish toggle. A
+  // piece reaches the calendar with piece_status='approved' either because the
+  // backend auto-approved it (fully-automatic mode) or because a human approved
+  // it in /c/approvals (review-first mode). Both mean "ready to publish", so the
+  // bridge — the single publisher for both modes — ships any approved, due piece.
+  if (!ctx.autopilot?.enabled) {
     return emptyResult();
   }
 

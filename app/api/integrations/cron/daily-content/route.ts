@@ -99,7 +99,12 @@ export async function GET(req: NextRequest) {
 
   // Decide eligibility up front (cheap, synchronous) so the triggers can run
   // as a bounded parallel pool rather than one slow sequential loop.
-  const eligible: { siteId: string; userId: string }[] = [];
+  const eligible: {
+    siteId: string;
+    userId: string;
+    autoPublish: boolean;
+    minScore: number;
+  }[] = [];
   for (const row of rows || []) {
     const siteId = (row as { id: string }).id;
     const userId = (row as { user_id: string }).user_id;
@@ -135,14 +140,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    eligible.push({ siteId, userId });
+    eligible.push({
+      siteId,
+      userId,
+      // The autopilot mode toggle: true = fully automatic (auto-publish on the
+      // scheduled date), false = draft + human review in /c/approvals.
+      autoPublish: ap.auto_publish === true,
+      minScore: typeof ap.min_score_for_publish === "number" ? ap.min_score_for_publish : 70,
+    });
   }
 
   summary.sites_processed = eligible.length;
   summary.triggers_attempted = eligible.length;
 
   const target = `${SAMA_API_URL.replace(/\/$/, "")}/api/tenant/agents/content/trigger`;
-  await mapPool(eligible, TRIGGER_CONCURRENCY, async ({ siteId, userId }) => {
+  await mapPool(eligible, TRIGGER_CONCURRENCY, async ({ siteId, userId, autoPublish, minScore }) => {
     try {
       const res = await fetch(target, {
         method: "POST",
@@ -156,7 +168,8 @@ export async function GET(req: NextRequest) {
           source: "daily_cron",
           ideas_per_run: 1,
           auto_draft_top_n: 1,
-          auto_publish: false,
+          auto_publish: autoPublish,
+          min_score_for_publish: minScore,
           scheduled_for_days_ahead: 2,
         }),
       });

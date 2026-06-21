@@ -49,10 +49,16 @@ plan from onboarding).
   "source": "daily_cron",
   "ideas_per_run": 1,
   "auto_draft_top_n": 1,
-  "auto_publish": false,
+  "auto_publish": <site content_autopilot.auto_publish>,
+  "min_score_for_publish": <site setting, default 70>,
   "scheduled_for_days_ahead": 2
 }
 ```
+
+`auto_publish` is **not** hardcoded — it's read from the site's
+`content_autopilot.auto_publish` toggle (the per-site mode selector). `true` = fully
+automatic (auto-approve + auto-publish on the scheduled date); `false` = draft into the
+approval queue for human review.
 
 **Expected behaviour:** Generate 1 idea, draft it, pin `scheduled_for` to today + 2 days.
 The backend should skip (return 200 with `{ skipped: true }`) if there is already a
@@ -82,6 +88,24 @@ Respects `cadence: "biweekly"` (odd ISO weeks only).
 
 Work happens async. The frontend polls `/api/content/pieces` and
 `/api/content/plan?status=idea` to surface results.
+
+### Publishing (owned by the dashboard)
+
+The dashboard is the **single publisher**. The 5-min cron
+(`/api/integrations/cron` → `lib/integrations/auto-publish-bridge.ts`) ingests backend
+calendar rows whose `piece_status === "approved"` and whose `scheduled_for <= now`, then
+ships each article to that site's own destination in
+`user_sites.settings.publishing_destinations[]` (CMS adapter or GitHub), and PATCHes the
+backend piece to `published` for idempotency. The bridge is gated only on
+`content_autopilot.enabled` (not `auto_publish`) so both modes publish:
+
+- **Fully automatic:** the backend auto-approves passing drafts → they publish on the
+  scheduled date.
+- **Review-first:** drafts wait in `/c/approvals`; approving flips the piece to
+  `approved` + `scheduled_for=now` → the bridge publishes within ~5 min.
+
+The backend's own GitHub publish (`process_due_scheduled_items`) is disabled to prevent
+double-publishing.
 
 ## Content Plan API
 
