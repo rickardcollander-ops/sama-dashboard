@@ -23,6 +23,12 @@ export interface AutopilotConfig {
 export interface BridgeContext {
   backendUrl: string;
   siteId: string;
+  // Owning account (the site owner's user_id). Sent as X-Sama-Account-Id so the
+  // backend's tenant middleware can resolve a tenant on the protected
+  // /api/content/* routes without a Supabase JWT — these are service-to-service
+  // cron calls. Without it the bare legacy X-Tenant-ID is rejected and every
+  // read comes back empty, so nothing ever publishes.
+  accountId?: string;
   settings: SettingsJson;
   autopilot: AutopilotConfig | undefined;
   brandName?: string;
@@ -63,13 +69,23 @@ function emptyResult(): BridgeResult {
   };
 }
 
-function tenantHeaders(siteId: string): HeadersInit {
-  return {
+function tenantHeaders(siteId: string, accountId?: string): HeadersInit {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    // The backend's tenant middleware treats /api/content/* as protected and
+    // rejects a bare legacy X-Tenant-ID (no JWT on these cron calls) unless the
+    // tenant is allowlisted — returning an empty {} on GET and 401 on PATCH.
+    // Sending the explicit site + account headers is the same contract the
+    // authenticated dashboard proxy uses, so the tenant resolves regardless of
+    // the LEGACY_TENANT_HEADERS_ALLOW env allowlist.
+    "X-Sama-Site-Id": siteId,
+    // Kept for backward-compat with backend code still reading the legacy header.
     "X-Tenant-ID": siteId,
     "X-Sama-Intent": "user-action",
   };
+  if (accountId) headers["X-Sama-Account-Id"] = accountId;
+  return headers;
 }
 
 /**
@@ -111,7 +127,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
   let rows: CalendarRow[];
   try {
     const url = `${ctx.backendUrl}/api/content/plan/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-    const res = await fetch(url, { headers: tenantHeaders(ctx.siteId) });
+    const res = await fetch(url, { headers: tenantHeaders(ctx.siteId, ctx.accountId) });
     if (!res.ok) return result;
     const data = (await res.json().catch(() => ({}))) as {
       scheduled?: CalendarRow[];
@@ -191,7 +207,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     let tags: string[] = [];
     try {
       const res = await fetch(`${ctx.backendUrl}/api/content/pieces/${encodeURIComponent(pieceId)}`, {
-        headers: tenantHeaders(ctx.siteId),
+        headers: tenantHeaders(ctx.siteId, ctx.accountId),
       });
       if (!res.ok) {
         result.errors.push({ piece_id: pieceId, error: `piece fetch ${res.status}` });
@@ -285,11 +301,12 @@ export async function markPiecePublished(
   siteId: string,
   pieceId: string,
   publishedUrl?: string,
+  accountId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${backendUrl}/api/content/pieces/${encodeURIComponent(pieceId)}`, {
       method: "PATCH",
-      headers: tenantHeaders(siteId),
+      headers: tenantHeaders(siteId, accountId),
       // Use the columns the backend piece actually stores the live URL in
       // (external_url / target_url). The backend stamps published_at itself when
       // status flips to "published". The old `published_url` key was silently

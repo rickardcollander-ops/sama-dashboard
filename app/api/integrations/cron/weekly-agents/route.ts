@@ -136,6 +136,10 @@ export async function GET(req: NextRequest) {
       "Content-Type": "application/json",
       "X-Tenant-ID": userId,
       "X-Sama-Site-Id": siteId,
+      // Explicit account dimension so tenant resolution doesn't depend on the
+      // trigger route happening to be unprotected — matches the headers the
+      // dashboard proxy and publish bridge send.
+      "X-Sama-Account-Id": userId,
       "X-Sama-Intent": "user-action",
     };
 
