@@ -141,6 +141,11 @@ export async function GET(req: NextRequest) {
     const bridge = await ingestDueApprovedPieces({
       backendUrl: BACKEND,
       siteId,
+      // The site owner's user_id is the account dimension. Sending it lets the
+      // bridge authenticate against the protected /api/content/* routes without
+      // a JWT — without it the backend returns an empty calendar and nothing
+      // ever publishes.
+      accountId: userId,
       settings,
       autopilot,
       brandName,
@@ -210,7 +215,7 @@ export async function GET(req: NextRequest) {
         // calendar filter no longer matches it. Only bridge-ingested items
         // carry a real backend piece_id worth syncing.
         if (item.payload?.source === "auto_bridge") {
-          const sync = await markPiecePublished(BACKEND, siteId, item.piece_id, result.url);
+          const sync = await markPiecePublished(BACKEND, siteId, item.piece_id, result.url, userId);
           if (!sync.ok) {
             item.error = `published; backend sync failed: ${sync.error}`;
             summary.backend_sync_failed += 1;
