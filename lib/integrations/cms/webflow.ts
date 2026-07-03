@@ -59,14 +59,22 @@ export const webflowAdapter: CmsAdapter = {
     const itemId = data.id;
 
     if (input.status !== "draft" && cfg.site_id) {
-      await fetch(`${API}/collections/${collection}/items/${itemId}/publish`, {
+      const publishRes = await fetch(`${API}/collections/${collection}/items/${itemId}/publish`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ siteId: cfg.site_id }),
-      }).catch(() => {});
+      });
+      if (!publishRes.ok) {
+        const text = await publishRes.text().catch(() => "");
+        throw new PublishError(
+          `Webflow item created but publish step failed (${publishRes.status})`,
+          publishRes.status,
+          text.slice(0, 300),
+        );
+      }
     }
     return {
       external_id: itemId,

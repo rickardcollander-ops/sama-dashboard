@@ -19,6 +19,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertPublicHttpUrl } from "@/lib/security/url-guard";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -527,6 +528,7 @@ async function scrapeSiteMeta(domain: string): Promise<SiteMetaScrape | null> {
   const host = domain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
   if (!host) return null;
   try {
+    assertPublicHttpUrl(`https://${host}`);
     const res = await fetch(`https://${host}`, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; SAMABot/1.0; +https://sama.ai)" },
       signal: AbortSignal.timeout(8_000),

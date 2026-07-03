@@ -1,4 +1,5 @@
 import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
+import { safeJsonLdScript } from "./markdown";
 
 function apiBase(region: string): string {
   switch (region.toLowerCase()) {
@@ -49,9 +50,7 @@ export const dudaAdapter: CmsAdapter = {
     const auth = buildAuthHeader(cfg);
 
     const html = input.body_html || "";
-    const jsonldScript = input.jsonld
-      ? `\n<script type="application/ld+json">${JSON.stringify(input.jsonld)}</script>`
-      : "";
+    const jsonldScript = input.jsonld ? `\n${safeJsonLdScript(input.jsonld)}` : "";
 
     const payload: Record<string, unknown> = {
       title: input.title,

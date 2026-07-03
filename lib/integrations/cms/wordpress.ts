@@ -1,4 +1,6 @@
 import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
+import { safeJsonLdScript } from "./markdown";
+import { assertPublicHttpUrl } from "@/lib/security/url-guard";
 
 function normalizeBase(url: string): string {
   let u = url.trim().replace(/\/+$/, "");
@@ -7,6 +9,7 @@ function normalizeBase(url: string): string {
   // (e.g. https://site.com/admin), which would push requests to a path that
   // 404s. Strip the common admin/login/REST suffixes.
   u = u.replace(/\/(wp-admin|wp-login\.php|admin|wp-json)\/?$/i, "");
+  assertPublicHttpUrl(u);
   return u;
 }
 
@@ -54,9 +57,7 @@ export const wordpressAdapter: CmsAdapter = {
     const auth = buildAuthHeader(cfg);
 
     const html = input.body_html || "";
-    const jsonldScript = input.jsonld
-      ? `\n<script type="application/ld+json">${JSON.stringify(input.jsonld)}</script>`
-      : "";
+    const jsonldScript = input.jsonld ? `\n${safeJsonLdScript(input.jsonld)}` : "";
 
     const payload: Record<string, unknown> = {
       title: input.title,

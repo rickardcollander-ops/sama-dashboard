@@ -40,9 +40,12 @@ X-Sama-Intent: user-action
 
 ### Daily cron — `app/api/integrations/cron/daily-content/route.ts`
 
-Runs every day at 06:00 Europe/Stockholm for all onboarded users (skips users
-whose `onboarding_completed_at` is < 30 days ago — they already have a 30-day
-plan from onboarding).
+Runs every day at 06:00 Europe/Stockholm for every onboarded site that has
+**explicitly enabled content autopilot** (`user_sites.settings.content_autopilot.enabled === true`
+— same opt-in as the weekly cron; without it, drafts would silently accumulate
+for users who never asked for them). Skips sites whose
+`onboarding_completed_at` is < 30 days ago — they already have a 30-day plan
+from onboarding.
 
 ```json
 {
@@ -66,17 +69,21 @@ scheduled or draft article for that date — gap-filling, not blind generation.
 
 ### Weekly autopilot — `app/api/integrations/cron/weekly-agents/route.ts`
 
-Runs every Monday 07:30 Europe/Stockholm. Only fires for users where
-`user_settings.settings.content_autopilot.enabled === true`.
+Runs every Monday 07:30 Europe/Stockholm. Only fires for sites where
+`user_sites.settings.content_autopilot.enabled === true` (per-site, same row
+the daily cron and the publish bridge read).
 Respects `cadence: "biweekly"` (odd ISO weeks only).
+
+The payload forwards the site's own autopilot settings, with these defaults
+when unset:
 
 ```json
 {
   "source": "weekly_cron",
-  "ideas_per_run": 6,
-  "auto_draft_top_n": 3,
-  "auto_publish": false,
-  "min_score_for_publish": 70
+  "ideas_per_run": <site setting, default 6>,
+  "auto_draft_top_n": <site setting, default 3>,
+  "auto_publish": <site content_autopilot.auto_publish, default false>,
+  "min_score_for_publish": <site setting, default 70>
 }
 ```
 
@@ -129,3 +136,15 @@ POST /api/content/plan/{id}/draft     → convert idea to draft (async LLM)
 | `/api/integrations/cron/daily-content` | `0 4 * * *` + `0 5 * * *` | Daily content fill (DST dual-schedule) |
 
 All cron routes authenticate with `Authorization: Bearer {CRON_SECRET}`.
+
+## Service-to-service auth (`SAMA_INTERNAL_TOKEN`)
+
+Server-side calls to the backend (the `/api/sama` proxy, the cron routes, the
+publish bridge, `buildBackendAuth`) attach `X-Sama-Internal-Token:
+{SAMA_INTERNAL_TOKEN}` when the env var is set. The backend's tenant
+middleware only honours header-based tenant context (no Supabase JWT) from
+callers presenting this shared secret — configure the **same value** on both
+Vercel and Railway. Until it is set on both sides the backend runs in a
+logged "migration mode" that still trusts bare tenant headers. The proxy
+strips `x-sama-internal-token` from incoming browser requests so clients can
+never mint trusted calls.

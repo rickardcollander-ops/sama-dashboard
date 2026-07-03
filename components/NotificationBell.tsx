@@ -83,10 +83,12 @@ export default function NotificationBell() {
   );
 
   const fetchNotifications = useCallback(async () => {
+    if (!effectiveTenantId) return;
     try {
       // The badge is non-critical, so give up early instead of waiting out a
       // slow backend (which otherwise surfaces as a 504 in the console).
       const res = await fetch(`${SAMA_API_URL}/api/notifications?limit=20&unread_only=true`, {
+        headers: { "X-Tenant-ID": effectiveTenantId },
         signal: AbortSignal.timeout(8000),
       });
       if (res.ok) {
@@ -96,7 +98,7 @@ export default function NotificationBell() {
     } catch {
       /* silent — aborts and transient failures degrade to an empty badge */
     }
-  }, []);
+  }, [effectiveTenantId]);
 
   const fetchPending = useCallback(async () => {
     if (!user || !effectiveTenantId) return;

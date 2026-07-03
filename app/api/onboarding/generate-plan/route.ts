@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { resolveSiteId } from "@/lib/integrations/site-context";
+import { userCanAccessSite } from "@/lib/site-access";
 import {
   runOnboardingGeneration,
   type OnboardingFormInput,
@@ -106,9 +107,15 @@ export async function POST(req: NextRequest) {
 
   // When an admin runs onboarding on behalf of a customer the siteId differs
   // from user.id. Look up the site's actual owner so rows land under the
-  // correct account rather than the admin's.
+  // correct account rather than the admin's — but only after verifying the
+  // caller may act on that site. This route overwrites user_sites.settings
+  // and pushes content into the backend tenant, so an unverified siteId is a
+  // full tenant-isolation bypass.
   let ownerId = user.id;
   if (siteId !== user.id) {
+    if (!(await userCanAccessSite(user, siteId))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const { data: siteRow } = await admin
       .from("user_sites")
       .select("user_id")

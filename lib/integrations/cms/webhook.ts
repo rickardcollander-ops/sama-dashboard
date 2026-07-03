@@ -1,4 +1,5 @@
 import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
+import { assertPublicHttpUrl } from "@/lib/security/url-guard";
 
 async function hmacSignature(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -22,12 +23,18 @@ export const webhookAdapter: CmsAdapter = {
     if (!url || !/^https?:\/\//.test(url)) {
       return { ok: false, message: "URL is required (https recommended)" };
     }
+    try {
+      assertPublicHttpUrl(url);
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : "URL is not allowed" };
+    }
     return { ok: true };
   },
 
   async publish(cfg, input: PublishInput): Promise<PublishResult> {
     const url = cfg.url?.trim();
     if (!url) throw new PublishError("Webhook: url is required", 400);
+    assertPublicHttpUrl(url);
 
     const payload = {
       title: input.title,

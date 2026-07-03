@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,10 +8,13 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/tm/campaigns — campaign index for the public TM portal.
  *
- * Intentionally unauthenticated: anyone with the /tm URL can read the
+ * Requires the TM operator token or an admin session; it can read the
  * campaign list. Operators don't need accounts.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(

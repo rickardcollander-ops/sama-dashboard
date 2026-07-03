@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
+import { rateLimit } from "@/lib/auth/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,19 @@ export async function POST(
 ) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
-  const { admin } = guard;
+  const { admin, userId } = guard;
+
+  const rl = await rateLimit({
+    key: `admin-set-password:${userId}`,
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));

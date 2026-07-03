@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,10 +35,13 @@ function parseNullableTimestamp(v: unknown): { ok: boolean; value: string | null
 /**
  * PATCH /api/tm/campaigns/leads/[leadId] — TM operators can only update
  * the call workflow fields (call_status, call_notes, callback_at, meeting_at).
- * Intentionally unauthenticated; everything else (audit state, contact data)
+ * Requires TM operator token or admin session; everything else (audit state, contact data)
  * stays admin-only by virtue of not being patchable here.
  */
 export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(

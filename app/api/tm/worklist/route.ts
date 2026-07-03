@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { startOfTodayStockholmIso } from "@/lib/tm/format";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,9 +25,12 @@ function shape(rows: unknown[]): unknown[] {
 /**
  * GET /api/tm/worklist — the operator's "att ringa idag" queue, across all
  * campaigns (optionally scoped with ?campaign_id=). Three independently sorted
- * buckets so each is ordered by its own urgency. Intentionally unauthenticated.
+ * buckets so each is ordered by its own urgency. Requires TM operator token or admin session (see lib/tm/auth.ts).
  */
 export async function GET(req: NextRequest) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(

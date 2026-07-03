@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { requireAdmin } from "@/lib/admin-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,19 +9,24 @@ const SAMA_API_URL =
   process.env.NEXT_PUBLIC_SAMA_API_URL ||
   "https://web-production-5324a.up.railway.app";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export async function POST(req: NextRequest) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+  const { userId } = guard;
 
   const body = await req.json().catch(() => ({}));
   const overrideRaw = typeof body?.recipient_override === "string" ? body.recipient_override.trim() : "";
+  if (overrideRaw && !EMAIL_RE.test(overrideRaw)) {
+    return NextResponse.json({ error: "Ogiltig e-postadress" }, { status: 400 });
+  }
   const recipient_override = overrideRaw || null;
 
   const upstream = await fetch(`${SAMA_API_URL}/api/email/weekly/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: user.id, recipient_override }),
+    body: JSON.stringify({ user_id: userId, recipient_override }),
   });
 
   const data = await upstream.json().catch(() => ({}));

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { assertPublicHttpUrl } from "@/lib/security/url-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ const SUPPORTED_LANGS = new Set(["sv", "en", "de", "fr", "es", "no", "da", "fi",
 
 async function fetchSiteHtml(domain: string): Promise<string> {
   const url = `https://${domain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase()}`;
+  assertPublicHttpUrl(url);
   const res = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; SAMABot/1.0; +https://sama.ai)" },
     signal: AbortSignal.timeout(8_000),
@@ -92,6 +94,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const domain = (body?.domain ?? "").toString().trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
   if (!domain) return NextResponse.json({ error: "domain required" }, { status: 400 });
+  try {
+    assertPublicHttpUrl(`https://${domain}`);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Invalid domain" },
+      { status: 400 },
+    );
+  }
 
   const preferredLang = SUPPORTED_LANGS.has(body?.content_language) ? body.content_language : "";
 

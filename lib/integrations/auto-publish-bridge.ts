@@ -41,6 +41,9 @@ export interface BridgeResult {
   skipped_no_destination: number;
   skipped_no_body: number;
   skipped_low_score: number;
+  /** True when the calendar read itself failed — distinguishes a backend
+   *  outage from a legitimate "nothing due" empty result. */
+  calendar_fetch_failed: boolean;
   errors: { piece_id: string; error: string }[];
   newItems: ScheduledPublish[];
 }
@@ -64,10 +67,16 @@ function emptyResult(): BridgeResult {
     skipped_no_destination: 0,
     skipped_no_body: 0,
     skipped_low_score: 0,
+    calendar_fetch_failed: false,
     errors: [],
     newItems: [],
   };
 }
+
+// Every backend call in the bridge runs inside the 5-min cron's shared time
+// budget — an unresponsive backend must fail the call, not hold a mapPool
+// slot until the platform kills the whole run.
+const FETCH_TIMEOUT_MS = 15_000;
 
 function tenantHeaders(siteId: string, accountId?: string): HeadersInit {
   const headers: Record<string, string> = {
@@ -85,6 +94,11 @@ function tenantHeaders(siteId: string, accountId?: string): HeadersInit {
     "X-Sama-Intent": "user-action",
   };
   if (accountId) headers["X-Sama-Account-Id"] = accountId;
+  // Service secret: marks these cron calls as trusted server-to-server so the
+  // backend's tenant middleware honours the headers without a Supabase JWT.
+  if (process.env.SAMA_INTERNAL_TOKEN) {
+    headers["X-Sama-Internal-Token"] = process.env.SAMA_INTERNAL_TOKEN;
+  }
   return headers;
 }
 
@@ -127,14 +141,21 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
   let rows: CalendarRow[];
   try {
     const url = `${ctx.backendUrl}/api/content/plan/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-    const res = await fetch(url, { headers: tenantHeaders(ctx.siteId, ctx.accountId) });
-    if (!res.ok) return result;
+    const res = await fetch(url, {
+      headers: tenantHeaders(ctx.siteId, ctx.accountId),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      result.calendar_fetch_failed = true;
+      return result;
+    }
     const data = (await res.json().catch(() => ({}))) as {
       scheduled?: CalendarRow[];
       items?: CalendarRow[];
     };
     rows = data.scheduled || data.items || [];
   } catch {
+    result.calendar_fetch_failed = true;
     return result;
   }
 
@@ -182,10 +203,18 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     }
   }
 
-  // Score gate up front — an unscored piece passes so the scorer can't
-  // silently stall the pipeline; a present score below threshold is held back.
+  // Score gate — applies ONLY to backend auto-approved rows (flagged
+  // auto_publish_on_schedule). A human approval in /c/approvals is an
+  // explicit "publish this" and must never be silently held back by the
+  // score threshold; the old unconditional gate stranded low-scoring
+  // human-approved pieces as skipped_low_score forever.
   const toFetch = due.filter((row) => {
-    if (minScore !== undefined && typeof row.article_score === "number" && row.article_score < minScore) {
+    if (
+      row.auto_publish_on_schedule === true &&
+      minScore !== undefined &&
+      typeof row.article_score === "number" &&
+      row.article_score < minScore
+    ) {
       result.skipped_low_score += 1;
       return false;
     }
@@ -208,6 +237,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     try {
       const res = await fetch(`${ctx.backendUrl}/api/content/pieces/${encodeURIComponent(pieceId)}`, {
         headers: tenantHeaders(ctx.siteId, ctx.accountId),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         result.errors.push({ piece_id: pieceId, error: `piece fetch ${res.status}` });
@@ -307,6 +337,7 @@ export async function markPiecePublished(
     const res = await fetch(`${backendUrl}/api/content/pieces/${encodeURIComponent(pieceId)}`, {
       method: "PATCH",
       headers: tenantHeaders(siteId, accountId),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       // Use the columns the backend piece actually stores the live URL in
       // (external_url / target_url). The backend stamps published_at itself when
       // status flips to "published". The old `published_url` key was silently

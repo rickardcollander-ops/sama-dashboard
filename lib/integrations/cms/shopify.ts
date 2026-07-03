@@ -1,10 +1,17 @@
 import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
+import { safeJsonLdScript } from "./markdown";
 
 const DEFAULT_VERSION = "2024-10";
 
 function normalizeShop(domain: string): string {
   let d = domain.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
   if (!d.includes(".")) d = `${d}.myshopify.com`;
+  // The shop domain is used verbatim as the fetch host below. Requiring the
+  // *.myshopify.com suffix prevents a caller from pointing the Admin API
+  // calls at an arbitrary attacker-controlled or internal host.
+  if (!d.toLowerCase().endsWith(".myshopify.com")) {
+    throw new PublishError("Shopify: shop_domain must be a myshopify.com domain", 400);
+  }
   return d;
 }
 
@@ -48,9 +55,7 @@ export const shopifyAdapter: CmsAdapter = {
     }
 
     const html = input.body_html || "";
-    const jsonldScript = input.jsonld
-      ? `\n<script type="application/ld+json">${JSON.stringify(input.jsonld)}</script>`
-      : "";
+    const jsonldScript = input.jsonld ? `\n${safeJsonLdScript(input.jsonld)}` : "";
 
     const article: Record<string, unknown> = {
       title: input.title,

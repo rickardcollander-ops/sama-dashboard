@@ -72,14 +72,14 @@ export async function POST(req: NextRequest) {
         }),
       });
 
-      let pieceId: string | undefined;
       if (pieceRes.ok) {
         const pieceData = await pieceRes.json().catch(() => ({}));
-        pieceId = pieceData?.id || pieceData?.piece?.id;
+        const pieceId: string | undefined = pieceData?.id || pieceData?.piece?.id;
         if (pieceId) pieceIds.push(pieceId);
+        created++;
+      } else {
+        failed++;
       }
-
-      created++;
     } catch {
       failed++;
     }

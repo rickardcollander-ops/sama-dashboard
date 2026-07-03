@@ -21,6 +21,9 @@ const TENANT_HEADERS_TO_STRIP = [
   "x-sama-site-id",
   "x-sama-site-domain",
   "x-tenant-id",
+  // Service secret — must never pass through from a browser, or a client
+  // could mint trusted server-to-server calls.
+  "x-sama-internal-token",
 ];
 
 /**
@@ -113,6 +116,31 @@ const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 60; // 1 req/sec average per user
 const EXPENSIVE_MAX_PER_WINDOW = 5; // expensive paths: 5/min per user
 
+/**
+ * The in-memory maps (rate buckets, user cache, context cache) are keyed by
+ * per-token/per-user values and were never evicted, so a long-lived process
+ * under cookie churn grows without bound. Sweep expired entries opportunistically
+ * and cap hard at MAX_ENTRIES by dropping oldest-inserted.
+ */
+const MAX_ENTRIES = 10_000;
+function sweepMap<V extends { expires?: number; windowStart?: number }>(
+  map: Map<string, V>,
+  isExpired: (v: V, now: number) => boolean,
+): void {
+  if (map.size < MAX_ENTRIES) return;
+  const now = Date.now();
+  for (const [k, v] of map) {
+    if (isExpired(v, now)) map.delete(k);
+  }
+  // Still oversized after dropping expired: evict oldest insertion order.
+  if (map.size >= MAX_ENTRIES) {
+    for (const k of map.keys()) {
+      map.delete(k);
+      if (map.size < MAX_ENTRIES / 2) break;
+    }
+  }
+}
+
 function bucketKey(req: NextRequest, userId: string | null): string {
   const id = userId || req.headers.get("x-tenant-id") || req.headers.get("x-forwarded-for") || "anon";
   return id;
@@ -122,6 +150,7 @@ function rateLimit(key: string, limit: number): { ok: boolean; remaining: number
   const now = Date.now();
   const b = buckets.get(key);
   if (!b || now - b.windowStart >= WINDOW_MS) {
+    sweepMap(buckets, (v, n) => n - (v.windowStart ?? 0) >= WINDOW_MS);
     buckets.set(key, { windowStart: now, count: 1 });
     return { ok: true, remaining: limit - 1, reset: now + WINDOW_MS };
   }
@@ -171,7 +200,10 @@ async function getCurrentUser(
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     const user = data?.user ? { id: data.user.id, email: data.user.email ?? null } : null;
-    if (key) userCache.set(key, { user, expires: Date.now() + USER_TTL_MS });
+    if (key) {
+      sweepMap(userCache, (v, n) => (v.expires ?? 0) <= n);
+      userCache.set(key, { user, expires: Date.now() + USER_TTL_MS });
+    }
     return user;
   } catch {
     return null;
@@ -239,7 +271,10 @@ async function resolveTenantContext(
 
   const admin = getSupabaseAdmin();
   if (!admin) {
-    return { accountId: requestedAccount, siteId: requestedSite || null, siteDomain: null };
+    // Fail closed: without the service-role client we cannot validate the
+    // client-supplied tenant headers, so fall back to the user's own tenant
+    // instead of echoing unverified identifiers upstream.
+    return { accountId: userId, siteId: null, siteDomain: null };
   }
 
   // Admin "view-as" mode: the operator account browses other tenants'
@@ -297,6 +332,7 @@ async function resolveTenantContext(
         : null;
 
   const ctx: TenantContext = { accountId, siteId, siteDomain };
+  sweepMap(contextCache, (v, n) => (v.expires ?? 0) <= n);
   contextCache.set(cacheKey, { ...ctx, expires: now + CONTEXT_TTL_MS });
   return ctx;
 }
@@ -388,6 +424,13 @@ async function handle(
   }
   if (tenant.siteDomain) {
     headers.set("X-Sama-Site-Domain", tenant.siteDomain);
+  }
+  // Mark this as a trusted server-to-server call: the backend's tenant
+  // middleware only honours header-based tenant context (no JWT) when this
+  // shared secret is present. Without it, proxied calls fall back to the
+  // backend's legacy header trust, which it now warns about.
+  if (process.env.SAMA_INTERNAL_TOKEN) {
+    headers.set("X-Sama-Internal-Token", process.env.SAMA_INTERNAL_TOKEN);
   }
 
   const init: RequestInit = {
