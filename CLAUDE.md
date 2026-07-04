@@ -111,8 +111,8 @@ backend piece to `published` for idempotency. The bridge is gated only on
 - **Review-first:** drafts wait in `/c/approvals`; approving flips the piece to
   `approved` + `scheduled_for=now` → the bridge publishes within ~5 min.
 
-The backend's own GitHub publish (`process_due_scheduled_items`) is disabled to prevent
-double-publishing.
+The backend's own GitHub publish (`process_due_scheduled_items`) has been removed
+entirely to prevent double-publishing.
 
 ## Content Plan API
 
@@ -122,7 +122,7 @@ POST /api/content/plan/calendar       → create/update plan items
 POST /api/content/plan/{id}/draft     → convert idea to draft (async LLM)
 ```
 
-`PlanIdea` shape used by the dashboard `ContentPipeline` component:
+`PlanIdea` shape used by the dashboard content-plan views:
 ```typescript
 { id: string; title: string; content_type?: string; scheduled_for?: string | null }
 ```
