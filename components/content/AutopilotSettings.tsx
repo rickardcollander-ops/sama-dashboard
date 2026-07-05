@@ -70,8 +70,30 @@ export default function AutopilotSettings() {
     setOkMsg(null);
     try {
       const supabase = getSupabaseBrowser();
-      const currentSettings = (activeSite.settings || {}) as Record<string, unknown>;
-      const next = { ...currentSettings, content_autopilot: cfg };
+      // Re-fetch the current row first: local state can be stale relative to
+      // what's actually in the DB (e.g. AutoApproveToggle wrote auto_publish
+      // in the meantime), and overwriting the whole content_autopilot object
+      // from possibly-stale cfg would clobber those out-of-band writes.
+      const { data: freshRow, error: fetchErr } = await supabase
+        .from("user_sites")
+        .select("settings")
+        .eq("id", activeSite.id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const freshSettings = (freshRow?.settings || {}) as Record<string, unknown>;
+      const freshAutopilot = (freshSettings.content_autopilot ?? {}) as Record<string, unknown>;
+      const next = {
+        ...freshSettings,
+        content_autopilot: {
+          ...freshAutopilot,
+          enabled: cfg.enabled,
+          cadence: cfg.cadence,
+          ideas_per_run: cfg.ideas_per_run,
+          auto_draft_top_n: cfg.auto_draft_top_n,
+          min_score_for_publish: cfg.min_score_for_publish,
+          auto_publish: cfg.auto_publish,
+        },
+      };
       const { error: upsertErr } = await supabase
         .from("user_sites")
         .upsert(

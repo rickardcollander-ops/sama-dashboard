@@ -1,8 +1,11 @@
 import { CmsAdapter, PublishError, PublishInput, PublishResult } from "./types";
+import { safeJsonLdScript } from "./markdown";
+import { assertPublicHttpUrl } from "@/lib/security/url-guard";
 
 function normalizeBase(url: string): string {
   let u = url.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//.test(u)) u = `https://${u}`;
+  assertPublicHttpUrl(u);
   return u;
 }
 
@@ -52,9 +55,7 @@ export const ghostAdapter: CmsAdapter = {
     const token = await ghostJwt(cfg.admin_api_key || "");
 
     const html = input.body_html || "";
-    const codeinjection = input.jsonld
-      ? `<script type="application/ld+json">${JSON.stringify(input.jsonld)}</script>`
-      : undefined;
+    const codeinjection = input.jsonld ? safeJsonLdScript(input.jsonld) : undefined;
 
     const post = {
       title: input.title,

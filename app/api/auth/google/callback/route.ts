@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { userCanAccessSite } from "@/lib/site-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/c/login`);
   }
 
+  // Re-verify ownership at write time: the state is signed but was minted up
+  // to an hour ago, and the tokens are upserted with the service-role client.
+  if (state.tenantId && !(await userCanAccessSite(user, state.tenantId))) {
+    return NextResponse.redirect(`${fallback}?error=forbidden_tenant`);
+  }
+
+  // The signed returnUrl is only trusted when it stays on this origin.
+  let safeReturnUrl = fallback;
+  try {
+    const parsed = new URL(state.returnUrl, origin);
+    if (parsed.origin === origin) safeReturnUrl = parsed.toString();
+  } catch {
+    /* keep fallback */
+  }
+
   const clientId = process.env.GOOGLE_CLIENT_ID!;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
   const redirectUri = `${origin}/api/auth/google/callback`;
@@ -70,7 +86,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${state.returnUrl}?error=token_exchange_failed`);
+    return NextResponse.redirect(`${safeReturnUrl}?error=token_exchange_failed`);
   }
 
   const { access_token, refresh_token, expires_in } = await tokenRes.json() as {
@@ -92,7 +108,7 @@ export async function GET(req: NextRequest) {
 
   const admin = getSupabaseAdmin();
   if (!admin) {
-    return NextResponse.redirect(`${state.returnUrl}?error=db_error`);
+    return NextResponse.redirect(`${safeReturnUrl}?error=db_error`);
   }
 
   // One OAuth grants all scopes — upsert a row for every supported service
@@ -111,5 +127,5 @@ export async function GET(req: NextRequest) {
     .from("google_tokens")
     .upsert(rows, { onConflict: "site_id,service" });
 
-  return NextResponse.redirect(state.returnUrl);
+  return NextResponse.redirect(safeReturnUrl);
 }

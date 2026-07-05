@@ -34,6 +34,18 @@ export function slugify(s: string): string {
     .slice(0, 80);
 }
 
+/**
+ * Serializes a JSON-LD object into a `<script type="application/ld+json">`
+ * tag safe to interpolate into HTML/CMS payloads. Escaping `<` as `<`
+ * prevents a malicious jsonld value (e.g. containing `</script><script>...`)
+ * from breaking out of the script tag and injecting markup — the classic
+ * stored-XSS vector for JSON embedded in HTML.
+ */
+export function safeJsonLdScript(jsonld: unknown): string {
+  const json = JSON.stringify(jsonld).replace(/</g, "\\u003c");
+  return `<script type="application/ld+json">${json}</script>`;
+}
+
 export function excerptFromMarkdown(md: string, limit = 160): string {
   const text = md
     .replace(/```[\s\S]*?```/g, "")

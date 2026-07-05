@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,13 +8,16 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * GET /api/tm/campaigns/[id] — campaign + leads for the public TM portal.
+ * GET /api/tm/campaigns/[id] — campaign + leads for the TM operator portal.
  *
  * Returns the subset of lead columns a TM operator actually needs:
- * contact details, score, call status and notes. Intentionally
- * unauthenticated.
+ * contact details, score, call status and notes. Requires the TM
+ * operator token or an admin session.
  */
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(

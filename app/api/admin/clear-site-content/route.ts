@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
     errors.push(`pieces fetch failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Bulk-delete any remaining archived pieces and plan items
+  // Bulk-delete any remaining archived pieces and plan items. Best-effort —
+  // failures here shouldn't abort the operation, but they must still be
+  // surfaced in `errors[]` rather than silently dropped.
   try {
     const archivedPiecesRes = await fetch(`${SAMA_BACKEND_URL}/api/content/pieces/archived`, {
       method: "DELETE",
@@ -73,7 +75,10 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15_000),
     });
     if (archivedPiecesRes.ok) deletedPieces++;
-  } catch { /* best effort */ }
+    else errors.push(`DELETE /api/content/pieces/archived: HTTP ${archivedPiecesRes.status}`);
+  } catch (e) {
+    errors.push(`archived pieces delete failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   try {
     const archivedPlanRes = await fetch(`${SAMA_BACKEND_URL}/api/content/plan/archived`, {
@@ -82,7 +87,10 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15_000),
     });
     if (archivedPlanRes.ok) deletedPlan++;
-  } catch { /* best effort */ }
+    else errors.push(`DELETE /api/content/plan/archived: HTTP ${archivedPlanRes.status}`);
+  } catch (e) {
+    errors.push(`archived plan delete failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   // Reset onboarding flag in user_sites so the customer can re-onboard
   const { admin } = guard;

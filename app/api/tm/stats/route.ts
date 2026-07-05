@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,9 @@ interface LeadRow {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(

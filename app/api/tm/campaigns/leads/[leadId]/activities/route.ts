@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { requireTmAccess } from "@/lib/tm/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,13 +16,16 @@ const ALLOWED_KINDS = new Set([
 
 /**
  * POST /api/tm/campaigns/leads/[leadId]/activities — append one entry to a
- * lead's call log. Intentionally unauthenticated, same posture as the PATCH
+ * lead's call log. Requires TM operator token or admin session, same as the PATCH
  * route: only the call-workflow surface is writable.
  *
  * Security: campaign_id is derived server-side from the looked-up lead, never
  * taken from the request body, so a caller can't forge cross-campaign rows.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
+  const denied = await requireTmAccess(req);
+  if (denied) return denied;
+
   const admin = getSupabaseAdmin();
   if (!admin) {
     return NextResponse.json(
@@ -71,7 +75,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // touch call_status_updated_at here — the stats chart buckets on status
   // history, and a note alone is not a status change.
   if (kind === "note" && text) {
-    await admin.from("apollo_leads").update({ call_notes: text }).eq("id", leadId);
+    const { error: mirrorErr } = await admin
+      .from("apollo_leads")
+      .update({ call_notes: text })
+      .eq("id", leadId);
+    if (mirrorErr) {
+      return NextResponse.json({
+        ...activity,
+        mirror_sync_failed: true,
+        mirror_sync_error: mirrorErr.message,
+      });
+    }
   }
 
   return NextResponse.json(activity);

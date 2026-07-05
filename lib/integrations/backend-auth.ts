@@ -10,11 +10,18 @@
  * dedicated read routes were the missing piece.
  *
  * Resolves the active site/account from the caller's Supabase session and
- * the X-Tenant-ID / X-Sama-Site-Id headers the dashboard sends. Falls back to
- * the user's own id when no header was provided (legacy single-site mode).
+ * the X-Tenant-ID / X-Sama-Site-Id headers the dashboard sends — and, unlike
+ * the original version, VALIDATES those headers against user_sites and
+ * account_members before honouring them. A client-supplied site id that the
+ * session user doesn't own (directly, via account membership, or as platform
+ * admin) falls back to the user's own tenant instead of being forwarded
+ * upstream, so these routes can no longer be used to read another tenant's
+ * runs by header spoofing.
  */
 import { NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { isAdminEmail } from "@/lib/admin";
 
 export interface BackendAuth {
   /** Resolved tenant/site id used for upstream and `loadSiteSettings`. */
@@ -25,6 +32,22 @@ export interface BackendAuth {
   authenticated: boolean;
   /** Header bag ready to spread into a fetch() call. */
   headers: Record<string, string>;
+}
+
+async function isActiveMember(
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  accountId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("account_members")
+    .select("id")
+    .eq("account_id", accountId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  return !!data;
 }
 
 /**
@@ -47,12 +70,44 @@ export async function buildBackendAuth(
 
   const userId = user?.id ?? "";
   const accessToken = session?.access_token ?? "";
+  const admin = getSupabaseAdmin();
+  const adminUser = isAdminEmail(user?.email ?? null);
 
   const headerSite =
     req.headers.get("X-Sama-Site-Id") || req.headers.get("X-Tenant-ID") || "";
   const headerAccount = req.headers.get("X-Sama-Account-Id") || "";
-  const tenantId = headerSite || userId;
-  const accountId = headerAccount || userId;
+
+  // Default to the caller's own identity; only widen after validation.
+  let tenantId = userId;
+  let accountId = userId;
+
+  if (userId && headerAccount && headerAccount !== userId) {
+    if (adminUser || (admin && (await isActiveMember(admin, headerAccount, userId)))) {
+      accountId = headerAccount;
+    }
+  }
+
+  if (userId && headerSite && headerSite !== userId) {
+    if (adminUser) {
+      tenantId = headerSite;
+    } else if (admin) {
+      const { data: siteRow } = await admin
+        .from("user_sites")
+        .select("id, user_id")
+        .eq("id", headerSite)
+        .maybeSingle();
+      const owner = siteRow?.user_id ?? "";
+      if (
+        owner &&
+        (owner === userId ||
+          owner === accountId ||
+          (await isActiveMember(admin, owner, userId)))
+      ) {
+        tenantId = headerSite;
+        if (accountId === userId && owner !== userId) accountId = owner;
+      }
+    }
+  }
 
   const headers: Record<string, string> = {};
   if (contentType) headers["Content-Type"] = contentType;
@@ -68,6 +123,11 @@ export async function buildBackendAuth(
   headers["X-Sama-Intent"] = "user-action";
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+  // Service secret for the backend's tenant middleware — marks this as a
+  // trusted server-to-server call whose tenant headers were validated here.
+  if (process.env.SAMA_INTERNAL_TOKEN) {
+    headers["X-Sama-Internal-Token"] = process.env.SAMA_INTERNAL_TOKEN;
   }
 
   return {

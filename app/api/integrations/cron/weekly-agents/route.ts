@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { mapPool } from "@/lib/integrations/concurrency";
+import { fetchAllSites } from "@/lib/integrations/all-sites";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -93,11 +94,9 @@ export async function GET(req: NextRequest) {
   // user_sites is the single source of truth for tenant config. Each site has
   // its own settings.brand_name and settings.content_autopilot — a user with
   // multiple sites fires weekly agents once per site.
-  const { data: rows, error } = await admin
-    .from("user_sites")
-    .select("id, user_id, settings");
+  const { rows, error } = await fetchAllSites(admin);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   const summary: {
@@ -141,6 +140,9 @@ export async function GET(req: NextRequest) {
       // dashboard proxy and publish bridge send.
       "X-Sama-Account-Id": userId,
       "X-Sama-Intent": "user-action",
+      ...(process.env.SAMA_INTERNAL_TOKEN
+        ? { "X-Sama-Internal-Token": process.env.SAMA_INTERNAL_TOKEN }
+        : {}),
     };
 
     for (const trigger of WEEKLY_TRIGGERS) {
@@ -151,6 +153,7 @@ export async function GET(req: NextRequest) {
           method: "POST",
           headers: baseHeaders,
           body: JSON.stringify({ source: "weekly_cron" }),
+          signal: AbortSignal.timeout(15_000),
         });
         if (res.ok) {
           summary.triggers_succeeded += 1;
@@ -194,6 +197,7 @@ export async function GET(req: NextRequest) {
               auto_publish: ap.auto_publish ?? false,
               min_score_for_publish: ap.min_score_for_publish ?? 70,
             }),
+            signal: AbortSignal.timeout(15_000),
           });
           if (res.ok) {
             summary.triggers_succeeded += 1;

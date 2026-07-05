@@ -21,7 +21,7 @@ interface AutopilotConfig {
  * changes what the next scheduled run does.
  */
 export default function AutoApproveToggle() {
-  const { activeSite, effectiveOwnerId, viewAs } = useSite();
+  const { activeSite, effectiveOwnerId, viewAs, reloadSites } = useSite();
   const [autoPublish, setAutoPublish] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +61,9 @@ export default function AutoApproveToggle() {
         );
       if (upsertErr) throw upsertErr;
       setAutoPublish(newValue);
+      // Re-fetch sites so other components reading activeSite.settings see
+      // the new autopilot config without a page reload.
+      void reloadSites();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kunde inte spara");
     } finally {

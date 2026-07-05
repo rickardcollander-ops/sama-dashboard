@@ -11,6 +11,7 @@ import {
 } from "@/lib/integrations/auto-publish-bridge";
 import { buildGithubVirtualDestination } from "@/lib/integrations/store";
 import { mapPool } from "@/lib/integrations/concurrency";
+import { fetchAllSites } from "@/lib/integrations/all-sites";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -73,11 +74,9 @@ export async function GET(req: NextRequest) {
   // Scheduled publishes are stored in user_sites.settings (written by
   // appendScheduled in lib/integrations/store.ts). The old cron read from
   // user_settings which is the wrong table — nothing was ever processed.
-  const { data: rows, error } = await admin
-    .from("user_sites")
-    .select("id, user_id, settings");
+  const { rows, error } = await fetchAllSites(admin);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   // Brand name lives in user_settings, not user_sites. Load it once per user
@@ -106,10 +105,27 @@ export async function GET(req: NextRequest) {
     skipped_no_body: 0,
     skipped_low_score: 0,
     backend_sync_failed: 0,
+    calendar_fetch_failed: 0,
+    bridge_errors: [] as { site_id: string; piece_id: string; error: string }[],
+    site_errors: [] as { site_id: string; error: string }[],
   };
 
   await mapPool(rows || [], SITE_CONCURRENCY, async (row) => {
     const siteId = (row as { id: string }).id;
+    // The whole mapper is wrapped so one site's failure (network, adapter
+    // crash, settings write rejection) is recorded and skipped instead of
+    // rejecting mapPool's Promise.all — which 500'd the entire run and
+    // abandoned all remaining sites for the tick.
+    try {
+      await processSite();
+    } catch (e) {
+      summary.site_errors.push({
+        site_id: siteId,
+        error: e instanceof Error ? e.message : "site processing failed",
+      });
+    }
+
+    async function processSite() {
     const userId = (row as { user_id: string }).user_id;
     const settings = ((row as { settings?: SettingsRow }).settings || {}) as SettingsRow;
     const scheduled: ScheduledRow[] = settings.scheduled_publishes || [];
@@ -159,6 +175,10 @@ export async function GET(req: NextRequest) {
     summary.skipped_no_destination += bridge.skipped_no_destination;
     summary.skipped_no_body += bridge.skipped_no_body;
     summary.skipped_low_score += bridge.skipped_low_score;
+    if (bridge.calendar_fetch_failed) summary.calendar_fetch_failed += 1;
+    for (const err of bridge.errors) {
+      summary.bridge_errors.push({ site_id: siteId, ...err });
+    }
 
     if (!scheduled.length) return;
 
@@ -230,10 +250,20 @@ export async function GET(req: NextRequest) {
     }
     if (mutated) {
       const next = { ...settings, scheduled_publishes: scheduled };
-      await admin
+      const { error: writeError } = await admin
         .from("user_sites")
         .update({ settings: next, updated_at: new Date().toISOString() })
         .eq("id", siteId);
+      if (writeError) {
+        // A dropped write means already-published items stay "scheduled" and
+        // will re-publish next tick — surface it loudly instead of silently
+        // double-publishing.
+        summary.site_errors.push({
+          site_id: siteId,
+          error: `settings write failed after publish: ${writeError.message}`,
+        });
+      }
+    }
     }
   });
 

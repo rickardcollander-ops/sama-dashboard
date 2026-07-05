@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { rateLimit, clientIp } from "@/lib/auth/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,23 @@ export const dynamic = "force-dynamic";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+
+  // Unauthenticated lead-capture endpoint — rate limit per IP to prevent
+  // abuse (mirrors public-audit/route.ts's 3/hr pattern; this endpoint is
+  // cheaper per-call so a slightly higher ceiling is fine).
+  const rl = await rateLimit({
+    key: `public-audit-subscribe:${ip}`,
+    limit: Number(process.env.PUBLIC_AUDIT_SUBSCRIBE_RATE_LIMIT || "5"),
+    windowMs: Number(process.env.PUBLIC_AUDIT_SUBSCRIBE_RATE_WINDOW_MS || `${60 * 60 * 1000}`),
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const email: string = (body?.email || "").toString().trim().toLowerCase();
   const domain: string = (body?.domain || "").toString().trim().toLowerCase();
