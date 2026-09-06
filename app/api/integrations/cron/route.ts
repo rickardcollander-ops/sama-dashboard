@@ -79,10 +79,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error }, { status: 500 });
   }
 
-  // Brand name lives in user_settings, not user_sites. Load it once per user
-  // so we can pass it to the JSON-LD builder without a query per item.
+  // Brand name is PER SITE — it goes into every published article's JSON-LD as
+  // the author and publisher. Reading it from user_settings (one row per user)
+  // gave all of an owner's sites the same brand, so on a multi-site account
+  // (successifier.com, successifier.se, supportifier.se) two of the three
+  // published under the wrong name. Prefer the site's own brand_name and fall
+  // back to the owner's user_settings only for legacy sites that never had one
+  // written to their row.
   const userIds = [...new Set((rows || []).map((r) => (r as { user_id: string }).user_id))];
-  const brandByUserId = new Map<string, string | undefined>();
+  const legacyBrandByUserId = new Map<string, string | undefined>();
   if (userIds.length) {
     const { data: userSettingsRows } = await admin
       .from("user_settings")
@@ -91,7 +96,7 @@ export async function GET(req: NextRequest) {
     for (const ur of userSettingsRows || []) {
       const s = ((ur as { settings?: Record<string, unknown> }).settings || {}) as Record<string, unknown>;
       const uid = (ur as { user_id: string }).user_id;
-      brandByUserId.set(uid, typeof s.brand_name === "string" ? (s.brand_name as string) : undefined);
+      legacyBrandByUserId.set(uid, typeof s.brand_name === "string" ? (s.brand_name as string) : undefined);
     }
   }
 
@@ -138,7 +143,9 @@ export async function GET(req: NextRequest) {
       destinations.push(githubVirtual);
     }
 
-    const brandName = brandByUserId.get(userId);
+    const brandName =
+      (typeof settings.brand_name === "string" && settings.brand_name) ||
+      legacyBrandByUserId.get(userId);
 
     // Autopilot config is per-site and lives in user_sites.settings — the same
     // row the panel and the weekly/daily crons read and write. Reading it from

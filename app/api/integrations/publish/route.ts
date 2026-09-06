@@ -11,6 +11,7 @@ import { excerptFromMarkdown, markdownToHtml, slugify } from "@/lib/integrations
 import { buildArticleJsonLd } from "@/lib/integrations/jsonld";
 import { PublishError, PublishInput } from "@/lib/integrations/cms/types";
 import { fetchSitemapEntries, injectInternalLinks, resolveSiteOrigin } from "@/lib/integrations/internal-links";
+import { resolveSiteLanguage } from "@/lib/content/language";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -41,7 +42,14 @@ export async function POST(req: NextRequest) {
 
   const slug = body.slug || slugify(title);
   const excerpt = body.excerpt || excerptFromMarkdown(bodyMd);
-  const language = body.language || settingStr("content_language") || "en";
+  // Same resolution the publish bridge uses: an explicit language on the
+  // request, else the site's configured one, else what its domain implies
+  // (.se -> sv). A bare "en" default mislabelled every Swedish site that had
+  // never opened the language selector.
+  const language = resolveSiteLanguage(
+    settings,
+    typeof body.language === "string" ? body.language : undefined,
+  );
   const tags: string[] = Array.isArray(body.tags) ? body.tags : [];
   const featuredImage = body.featured_image_url as string | undefined;
   const status: "draft" | "published" = body.status === "draft" ? "draft" : "published";

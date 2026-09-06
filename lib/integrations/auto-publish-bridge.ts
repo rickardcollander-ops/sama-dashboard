@@ -13,6 +13,7 @@ import {
   buildGithubVirtualDestination,
 } from "./store";
 import { mapPool } from "./concurrency";
+import { resolveSiteLanguage } from "@/lib/content/language";
 
 export interface AutopilotConfig {
   enabled?: boolean;
@@ -232,6 +233,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
     let bodyMd = "";
     let metaTitle = row.title || "";
     let language: string | undefined;
+    let pieceSlug: string | undefined;
     let featuredImage: string | undefined;
     let tags: string[] = [];
     try {
@@ -248,6 +250,7 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       bodyMd = [piece.body, piece.content, piece.markdown].find((v) => typeof v === "string" && v) as string || "";
       if (typeof piece.title === "string" && piece.title) metaTitle = piece.title;
       if (typeof piece.language === "string") language = piece.language;
+      if (typeof piece.slug === "string" && piece.slug) pieceSlug = piece.slug;
       if (typeof piece.featured_image_url === "string") featuredImage = piece.featured_image_url;
       if (Array.isArray(piece.tags)) tags = piece.tags.filter((t): t is string => typeof t === "string");
     } catch (e) {
@@ -260,11 +263,15 @@ export async function ingestDueApprovedPieces(ctx: BridgeContext): Promise<Bridg
       return null;
     }
 
-    const lang =
-      language ||
-      (typeof ctx.settings.content_language === "string" ? (ctx.settings.content_language as string) : undefined) ||
-      "en";
-    const slug = slugify(metaTitle);
+    // Language of the piece as written, else the site's configured language,
+    // else what its domain implies (.se -> sv). The old chain ended at a bare
+    // "en", so a Swedish article on a site whose content_language had never
+    // been filled in shipped to the CMS tagged as English.
+    const lang = resolveSiteLanguage(ctx.settings, language);
+    // Prefer the slug the article writer already produced. Recomputing it from
+    // the title is a fallback: the two slugifiers agree, but only the writer's
+    // slug is what the rest of the backend recorded for this piece.
+    const slug = pieceSlug || slugify(metaTitle);
     const excerpt = excerptFromMarkdown(bodyMd);
     const blogUrl = typeof ctx.settings.blog_url === "string" ? (ctx.settings.blog_url as string) : undefined;
     const domain = typeof ctx.settings.domain === "string" ? (ctx.settings.domain as string) : undefined;
