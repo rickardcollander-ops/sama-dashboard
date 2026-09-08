@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Globe, Plus, Trash2, Loader2, CheckCircle, X, AlertCircle, Edit2, Save, Lock } from "lucide-react";
+import { Globe, Plus, Trash2, Loader2, CheckCircle, X, AlertCircle, Edit2, Save, Lock, Plane, CircleAlert, Info } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useSite, type UserSite } from "@/lib/hooks/useSite";
 import { useUser } from "@/lib/hooks/useUser";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { isAdminEmail } from "@/lib/admin";
+import { languageFromDomain } from "@/lib/content/language";
+import {
+  evaluateSiteReadiness,
+  type ReadinessCheck,
+  type SiteReadiness,
+} from "@/lib/content/site-readiness";
 
 export default function SitesSettingsPage() {
   const { user } = useUser();
@@ -20,6 +26,12 @@ export default function SitesSettingsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDomain, setNewDomain] = useState("");
+  // Language is captured at creation rather than left to a later visit to
+  // /c/settings: it drives what language every generated article is written in,
+  // and a site added without it used to publish English on a Swedish domain.
+  // "" means "derive it from the domain", which is right far more often than a
+  // hardcoded default.
+  const [newLanguage, setNewLanguage] = useState("");
   const [adding, setAdding] = useState(false);
 
   // Inline rename
@@ -40,7 +52,27 @@ export default function SitesSettingsPage() {
     }
     const ownerId = effectiveOwnerId || user.id;
     const siteName = newName.trim();
-    const settings = { brand_name: siteName, domain: newDomain.trim() };
+    const domain = newDomain.trim();
+    // Seed the settings a site needs to be automatable, not just identifiable.
+    // The previous version wrote brand_name + domain only, so a new site had no
+    // language and no autopilot block at all — it silently did nothing until
+    // someone found three different settings screens. Autopilot is still
+    // created disabled (enabling generation for a site nobody asked to automate
+    // would fill the calendar behind the user's back); the Sites list now shows
+    // exactly what is left to switch on.
+    const settings: Record<string, unknown> = {
+      brand_name: siteName,
+      domain,
+      content_language: newLanguage || languageFromDomain(domain) || "en",
+      content_autopilot: {
+        enabled: false,
+        cadence: "weekly",
+        ideas_per_run: 6,
+        auto_draft_top_n: 3,
+        min_score_for_publish: 70,
+        auto_publish: false,
+      },
+    };
     setAdding(true);
     setError("");
     try {
@@ -66,7 +98,8 @@ export default function SitesSettingsPage() {
       setShowAdd(false);
       setNewName("");
       setNewDomain("");
-      flash("Site added!");
+      setNewLanguage("");
+      flash("Sajten är tillagd. Slå på autopilot och välj publiceringsmål nedan för att den ska köra av sig själv.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add the site");
     }
@@ -216,6 +249,25 @@ export default function SitesSettingsPage() {
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Innehållsspråk</label>
+                <select
+                  value={newLanguage}
+                  onChange={(e) => setNewLanguage(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">
+                    Från domänen{languageFromDomain(newDomain) ? ` (${languageFromDomain(newDomain)})` : " (en)"}
+                  </option>
+                  <option value="sv">Svenska (sv)</option>
+                  <option value="nb">Norsk (nb)</option>
+                  <option value="da">Dansk (da)</option>
+                  <option value="en">English (en)</option>
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Allt som autopiloten skriver för sajten hamnar på det här språket.
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -228,7 +280,7 @@ export default function SitesSettingsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setShowAdd(false); setNewName(""); setNewDomain(""); }}
+                onClick={() => { setShowAdd(false); setNewName(""); setNewDomain(""); setNewLanguage(""); }}
                 className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 Cancel
@@ -244,6 +296,7 @@ export default function SitesSettingsPage() {
             const domain = site.settings?.domain as string | undefined;
             const isBusy = busy === site.id;
             const isEditing = editingId === site.id;
+            const readiness = evaluateSiteReadiness(site);
             return (
               <div
                 key={site.id}
@@ -325,6 +378,8 @@ export default function SitesSettingsPage() {
                     </button>
                   </div>
                 </div>
+
+                <AutomationReadiness readiness={readiness} />
               </div>
             );
           })}
@@ -335,5 +390,69 @@ export default function SitesSettingsPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+/**
+ * Per-site automation status.
+ *
+ * The crons decide site by site, so on a multi-site account one domain can be
+ * fully automatic while the one next to it silently does nothing. This panel
+ * answers the only question that matters when you own several: will this site
+ * write and publish on its own, and if not, what is missing?
+ */
+function AutomationReadiness({ readiness }: { readiness: SiteReadiness }) {
+  const { willGenerate, willPublish, mode } = readiness;
+  const running = willGenerate && willPublish;
+
+  const summary = running
+    ? mode === "automatic"
+      ? "Kör automatiskt — skriver och publicerar utan att du gör något"
+      : "Kör automatiskt — utkast väntar på ditt godkännande i /c/approvals"
+    : willGenerate
+      ? "Skriver artiklar, men publicerar dem inte"
+      : "Gör ingenting just nu";
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-3">
+      <div className="flex items-center gap-2">
+        <Plane className={`h-3.5 w-3.5 ${running ? "text-green-600" : "text-amber-500"}`} />
+        <span className={`text-xs font-medium ${running ? "text-green-700" : "text-amber-700"}`}>
+          {summary}
+        </span>
+      </div>
+
+      <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        {readiness.checks.map((check) => (
+          <ReadinessRow key={check.key} check={check} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReadinessRow({ check }: { check: ReadinessCheck }) {
+  const Icon =
+    check.status === "ok" ? CheckCircle : check.status === "info" ? Info : CircleAlert;
+  const tone =
+    check.status === "ok"
+      ? "text-green-600"
+      : check.status === "info"
+        ? "text-slate-400"
+        : "text-amber-500";
+
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <Icon className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${tone}`} />
+      <span className="min-w-0">
+        <span className="font-medium text-slate-700">{check.label}:</span>{" "}
+        <span className="text-slate-500">{check.detail}</span>{" "}
+        {check.fixHref && check.status !== "ok" && (
+          <a href={check.fixHref} className="text-blue-600 hover:text-blue-700 whitespace-nowrap">
+            Åtgärda
+          </a>
+        )}
+      </span>
+    </li>
   );
 }

@@ -114,6 +114,46 @@ backend piece to `published` for idempotency. The bridge is gated only on
 The backend's own GitHub publish (`process_due_scheduled_items`) has been removed
 entirely to prevent double-publishing.
 
+## Multi-site: what makes a site run on its own
+
+An account can own several sites (`user_sites`), and **every cron gate is
+per-site**. One domain can be fully automatic while the one next to it does
+nothing, so "it works for my main site" says nothing about the others.
+
+A site runs by itself only when all of these are true, all in
+`user_sites.settings`:
+
+| Setting | Needed for | Without it |
+|---------|-----------|------------|
+| `brand_name` | daily + weekly cron | Both crons skip the site outright |
+| `domain` | canonical URLs, internal links, language inference | Canonical URLs and sitemap link-weaving are skipped |
+| `content_autopilot.enabled === true` | daily + weekly cron, publish bridge | Nothing is generated and nothing is published |
+| `publishing_destinations[0]` or a complete `github` config | publish bridge | Articles are written but strand as `skipped_no_destination` |
+
+`content_autopilot.auto_publish` then selects the mode: `true` = write and
+publish unattended, `false` = drafts wait in `/c/approvals`.
+
+`lib/content/site-readiness.ts` encodes exactly these gates as a pure function
+and `/c/settings/sites` renders the result per site, so a site that will do
+nothing says so instead of failing silently. **If you change a gate in a cron
+route, change it there too** or the dashboard will report a site as ready that
+the cron then skips.
+
+### Per-site language
+
+`lib/content/language.ts` mirrors `TenantConfig.language` in the backend
+(`shared/tenant.py`), including its country-code TLD fallback: explicit
+`content_language`, else `.se` → `sv` / `.no` → `nb` / `.dk` → `da`, else
+`"en"`. The publish bridge and the manual publish route both resolve the
+language through it — a bare `"en"` default used to tag Swedish articles as
+English in the CMS and in their JSON-LD. Adding a site captures the language up
+front and seeds a (disabled) `content_autopilot` block, so a new domain is one
+toggle away from running rather than silently unconfigured.
+
+`slugify` in `lib/integrations/cms/markdown.ts` transliterates the same
+characters as the backend's `shared/language.py`, so the slug computed here
+matches the one the article writer produced.
+
 ## Content Plan API
 
 ```

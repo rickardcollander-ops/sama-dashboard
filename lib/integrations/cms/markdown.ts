@@ -24,14 +24,33 @@ export function markdownToHtml(md: string): string {
   return String(processor.processSync(stripHeadingIds(md)));
 }
 
+// Letters with no combining-mark decomposition, so NFKD alone would delete
+// them. Kept in step with `_SLUG_TRANSLITERATIONS` in the backend's
+// shared/language.py so a slug computed here matches the one the article
+// writer produced — otherwise the canonical URL and the published URL diverge.
+const SLUG_TRANSLITERATIONS: Record<string, string> = {
+  "ß": "ss",
+  "æ": "ae",
+  "ø": "o",
+  "œ": "oe",
+  "đ": "d",
+  "ð": "d",
+  "þ": "th",
+  "ł": "l",
+};
+
 export function slugify(s: string): string {
-  return s
-    .toLowerCase()
+  let text = s.toLowerCase();
+  for (const [from, to] of Object.entries(SLUG_TRANSLITERATIONS)) {
+    text = text.split(from).join(to);
+  }
+  return text
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
+    .slice(0, 80)
+    .replace(/-+$/, "");
 }
 
 /**
