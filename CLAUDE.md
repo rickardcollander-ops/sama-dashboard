@@ -178,10 +178,27 @@ GitHub token used to look like being signed out and nobody went to reconnect it.
 | 403 | 502 | `destination_forbidden` |
 | anything else | unchanged (our own 400s stay 400) | `publish_failed` |
 
-The body carries `upstream_status` and `fix_href` (Settings → Publishing for
-GitHub, Settings → Integrations for CMS destinations). `PublishDialog` uses
-`code` to render the message in the user's language with a link straight to the
-reconnect screen.
+The body carries `upstream_status`, `fix_href` (Settings → Publishing for
+GitHub, Settings → Integrations for CMS destinations) and `reason` — the CMS's
+own one-line explanation, which is the part that says *which* fix applies: one
+403 is "Resource not accessible by personal access token", another is
+"Repository was archived so is read-only". Adapters put it on
+`PublishError.reason`; `detail` stays the raw body and is never rendered.
+`PublishDialog` uses `code` to render the message in the user's language, with a
+link straight to the reconnect screen and `reason` beneath it.
+
+### GitHub needs *write* access, and says so early
+
+`GET /user` (the token check in the connect flow) passes for any live token,
+including one that cannot commit — which then failed at publish time with a 403.
+`githubAdapter.validate` therefore also checks two read-only signals from
+`GET /repos/{owner}/{name}`: `permissions.push === false` (a read-only
+collaborator) and, for classic tokens, the `x-oauth-scopes` header (needs `repo`,
+or `public_repo` on a public repo). Both are shaped to never reject a token that
+would in fact work — a fine-grained token's own Contents scope is invisible to
+the API, so `validate` can still say ok about a token that cannot write.
+The connect route runs this check before saving once a repo is chosen, and the
+destination health check runs it afterwards.
 
 ### Per-site language
 

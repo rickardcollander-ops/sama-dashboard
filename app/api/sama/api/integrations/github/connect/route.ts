@@ -10,6 +10,7 @@ import {
   saveGitHubConfig,
   validateGitHubToken,
 } from "@/lib/integrations/github";
+import { githubAdapter } from "@/lib/integrations/cms/github";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +49,21 @@ export async function POST(req: NextRequest) {
     branch: branch || existing.branch || "main",
     connected_at: existing.connected_at || new Date().toISOString(),
   };
+
+  // A token that authenticates is not yet a token that can publish: /user says
+  // nothing about this repository. Check write access while the user is still
+  // on the connect screen, instead of letting them find out from a 403 the
+  // first time they press Publish.
+  if (config.repo_owner && config.repo_name) {
+    const check = await githubAdapter.validate?.({
+      token,
+      repo_owner: config.repo_owner,
+      repo_name: config.repo_name,
+    });
+    if (check && !check.ok) {
+      return NextResponse.json({ error: check.message || "GitHub refused the connection" }, { status: 400 });
+    }
+  }
 
   try {
     await saveGitHubConfig(siteId, config);

@@ -58,6 +58,10 @@ export default function PublishDialog(props: Props) {
   // Set when the failure is one the user can fix themselves (a dead or
   // under-privileged connection): where to go and reconnect.
   const [errorFixHref, setErrorFixHref] = useState<string | null>(null);
+  // The CMS's own words for why it refused, shown under our message when it
+  // isn't already part of it. "Resource not accessible by personal access
+  // token" is the difference between reissuing a token and re-scoping it.
+  const [errorReason, setErrorReason] = useState<string | null>(null);
 
   // Mail state
   const [mailTo, setMailTo] = useState(defaultMailRecipient || "");
@@ -69,6 +73,7 @@ export default function PublishDialog(props: Props) {
     setResult(null);
     setError(null);
     setErrorFixHref(null);
+    setErrorReason(null);
     setLoading(true);
     setMailTo(defaultMailRecipient || "");
     setMailSubject(title || "");
@@ -92,6 +97,7 @@ export default function PublishDialog(props: Props) {
     setPublishing(true);
     setError(null);
     setErrorFixHref(null);
+    setErrorReason(null);
     try {
       const tags = tagInput
         .split(",")
@@ -127,11 +133,16 @@ export default function PublishDialog(props: Props) {
             : data?.code === "destination_forbidden"
               ? t.publishDialog.connectionForbidden
               : null;
-        throw new Error(
+        const shown =
           (destName && template?.replace("{destination}", destName)) ||
-            data?.error ||
-            `${t.publishDialog.publishFailed} (HTTP ${res.status})`,
-        );
+          data?.error ||
+          `${t.publishDialog.publishFailed} (HTTP ${res.status})`;
+        // Our localized sentence drops the upstream wording, so re-attach it —
+        // unless we fell back to the server's message, which already carries it.
+        if (typeof data?.reason === "string" && !shown.includes(data.reason)) {
+          setErrorReason(data.reason);
+        }
+        throw new Error(shown);
       }
       if (!data) throw new Error(t.publishDialog.publishFailed);
       if (data.scheduled) {
@@ -152,6 +163,7 @@ export default function PublishDialog(props: Props) {
   const handlePublishMail = () => {
     setError(null);
     setErrorFixHref(null);
+    setErrorReason(null);
     if (!mailTo.trim()) {
       setError(t.publishDialog.mailRecipientRequired);
       return;
@@ -249,6 +261,7 @@ export default function PublishDialog(props: Props) {
                 publishing={publishing}
                 error={error}
                 errorFixHref={errorFixHref}
+                errorReason={errorReason}
                 result={result}
                 onPublish={handlePublishCms}
               />
@@ -287,6 +300,7 @@ function CmsForm(props: {
   publishing: boolean;
   error: string | null;
   errorFixHref: string | null;
+  errorReason: string | null;
   result: { url?: string; scheduled?: boolean; mailed?: boolean } | null;
   onPublish: () => void;
 }) {
@@ -295,7 +309,7 @@ function CmsForm(props: {
     destinations, destinationId, setDestinationId,
     excerpt, setExcerpt, tagInput, setTagInput,
     scheduleEnabled, setScheduleEnabled, scheduleAt, setScheduleAt,
-    publishing, error, errorFixHref, result, onPublish,
+    publishing, error, errorFixHref, errorReason, result, onPublish,
   } = props;
 
   if (destinations.length === 0) {
@@ -382,6 +396,7 @@ function CmsForm(props: {
                 </Link>
               </>
             )}
+            {errorReason && <span className="mt-1 block text-red-700/80">{errorReason}</span>}
           </span>
         </div>
       )}

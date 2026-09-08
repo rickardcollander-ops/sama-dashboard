@@ -26,6 +26,13 @@ export type PublishFailureCode =
 export interface PublishFailureBody {
   error: string;
   code: PublishFailureCode;
+  /**
+   * The CMS's own one-line explanation, when it gave one. This is what
+   * separates the several different fixes behind a single status — a 403 is
+   * "the token cannot write here", "the org needs SSO authorization" or "the
+   * repository is archived", and only this string says which.
+   */
+  reason?: string;
   /** The status the CMS itself returned, when the failure came from upstream. */
   upstream_status?: number;
   /** Where the user goes to fix it. */
@@ -54,16 +61,24 @@ export function describePublishFailure(
 ): PublishFailure {
   const upstream = e instanceof PublishError ? e.status : undefined;
   const detail = e instanceof PublishError ? e.detail : undefined;
+  const reason = e instanceof PublishError ? e.reason : undefined;
   const message = e instanceof Error ? e.message : "Publish failed";
   const label = dest?.name || dest?.kind || "The destination";
   const fix_href = reconnectHref(dest?.kind);
+  // Our sentence says what to do; the CMS's says what it objected to. Both, in
+  // that order — the raw upstream line alone ("Resource not accessible by
+  // personal access token") tells nobody where to click.
+  const withReason = (text: string) => (reason ? `${text} (${reason})` : text);
 
   if (upstream === 401) {
     return {
       status: 502,
       body: {
-        error: `${label}: the connection is no longer valid — the token is expired, revoked or wrong. Reconnect it, then publish again.`,
+        error: withReason(
+          `${label}: the connection is no longer valid — the token is expired, revoked or wrong. Reconnect it, then publish again.`,
+        ),
         code: "destination_auth",
+        reason,
         upstream_status: 401,
         fix_href,
         detail,
@@ -75,8 +90,11 @@ export function describePublishFailure(
     return {
       status: 502,
       body: {
-        error: `${label} refused the request (HTTP 403) — the token is missing write permission for this destination, or its rate limit is spent.`,
+        error: withReason(
+          `${label} refused the request (HTTP 403) — the token authenticates but is not allowed to write here. Check that it has write access to this repository, that any SSO authorization is granted, and that the repository is not archived.`,
+        ),
         code: "destination_forbidden",
+        reason,
         upstream_status: 403,
         fix_href,
         detail,
@@ -91,6 +109,6 @@ export function describePublishFailure(
   const status = upstream && upstream >= 400 && upstream <= 599 ? upstream : 500;
   return {
     status,
-    body: { error: message, code: "publish_failed", upstream_status: upstream, detail },
+    body: { error: withReason(message), code: "publish_failed", reason, upstream_status: upstream, detail },
   };
 }

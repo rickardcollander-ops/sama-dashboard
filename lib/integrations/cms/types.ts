@@ -50,10 +50,21 @@ export interface CmsAdapter {
 export class PublishError extends Error {
   status: number;
   detail?: unknown;
-  constructor(message: string, status = 500, detail?: unknown) {
+  /**
+   * The CMS's own explanation, short enough to show a user.
+   *
+   * `detail` is the raw response body — sometimes an HTML error page, always
+   * unsafe to render blindly. `reason` is the one line the CMS gave us for why
+   * it refused (GitHub's `message` field, say), which is usually the only part
+   * that says what to actually change: "Resource not accessible by personal
+   * access token" is a very different fix from "Repository was archived".
+   */
+  reason?: string;
+  constructor(message: string, status = 500, detail?: unknown, reason?: string) {
     super(message);
     this.name = "PublishError";
     this.status = status;
     this.detail = detail;
+    this.reason = reason;
   }
 }
