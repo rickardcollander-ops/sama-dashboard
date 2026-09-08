@@ -9,7 +9,8 @@ import {
 import { getAdapter } from "@/lib/integrations/cms";
 import { excerptFromMarkdown, markdownToHtml, slugify } from "@/lib/integrations/cms/markdown";
 import { buildArticleJsonLd } from "@/lib/integrations/jsonld";
-import { PublishError, PublishInput } from "@/lib/integrations/cms/types";
+import { PublishInput } from "@/lib/integrations/cms/types";
+import { describePublishFailure } from "@/lib/integrations/publish-failure";
 import { fetchSitemapEntries, injectInternalLinks, resolveSiteOrigin } from "@/lib/integrations/internal-links";
 import { resolveSiteLanguage } from "@/lib/content/language";
 
@@ -133,9 +134,10 @@ export async function POST(req: NextRequest) {
     const result = await adapter.publish(dest.config, input);
     return NextResponse.json({ result, destination: { id: dest.id, kind: dest.kind, name: dest.name } });
   } catch (e) {
-    const status = e instanceof PublishError ? e.status : 500;
-    const message = e instanceof Error ? e.message : "Publish failed";
-    const detail = e instanceof PublishError ? e.detail : undefined;
-    return NextResponse.json({ error: message, detail }, { status });
+    // Never answer with the CMS's own 401/403: to the browser those read as
+    // "your SAMA session expired" rather than "reconnect GitHub". See
+    // lib/integrations/publish-failure.ts.
+    const failure = describePublishFailure(e, { kind: dest.kind, name: dest.name });
+    return NextResponse.json(failure.body, { status: failure.status });
   }
 }

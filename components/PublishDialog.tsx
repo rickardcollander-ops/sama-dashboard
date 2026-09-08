@@ -55,6 +55,9 @@ export default function PublishDialog(props: Props) {
   const [publishing, setPublishing] = useState(false);
   const [result, setResult] = useState<{ url?: string; scheduled?: boolean; mailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set when the failure is one the user can fix themselves (a dead or
+  // under-privileged connection): where to go and reconnect.
+  const [errorFixHref, setErrorFixHref] = useState<string | null>(null);
 
   // Mail state
   const [mailTo, setMailTo] = useState(defaultMailRecipient || "");
@@ -65,6 +68,7 @@ export default function PublishDialog(props: Props) {
     if (!open) return;
     setResult(null);
     setError(null);
+    setErrorFixHref(null);
     setLoading(true);
     setMailTo(defaultMailRecipient || "");
     setMailSubject(title || "");
@@ -87,6 +91,7 @@ export default function PublishDialog(props: Props) {
   const handlePublishCms = async () => {
     setPublishing(true);
     setError(null);
+    setErrorFixHref(null);
     try {
       const tags = tagInput
         .split(",")
@@ -109,7 +114,25 @@ export default function PublishDialog(props: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `${t.publishDialog.publishFailed} (HTTP ${res.status})`);
+      if (!res.ok) {
+        // The API answers 502 with a `code` when the CMS itself refused us, so
+        // "reconnect GitHub" can be said in the user's own language with a link
+        // to the page that does it — rather than leaking GitHub's raw 401,
+        // which reads like being signed out of SAMA.
+        if (typeof data?.fix_href === "string") setErrorFixHref(data.fix_href);
+        const destName = destinations.find((d) => d.id === destinationId)?.name;
+        const template =
+          data?.code === "destination_auth"
+            ? t.publishDialog.connectionExpired
+            : data?.code === "destination_forbidden"
+              ? t.publishDialog.connectionForbidden
+              : null;
+        throw new Error(
+          (destName && template?.replace("{destination}", destName)) ||
+            data?.error ||
+            `${t.publishDialog.publishFailed} (HTTP ${res.status})`,
+        );
+      }
       if (!data) throw new Error(t.publishDialog.publishFailed);
       if (data.scheduled) {
         setResult({ scheduled: true });
@@ -128,6 +151,7 @@ export default function PublishDialog(props: Props) {
   // /api/integrations/publish-via-mail.
   const handlePublishMail = () => {
     setError(null);
+    setErrorFixHref(null);
     if (!mailTo.trim()) {
       setError(t.publishDialog.mailRecipientRequired);
       return;
@@ -224,6 +248,7 @@ export default function PublishDialog(props: Props) {
                 setScheduleAt={setScheduleAt}
                 publishing={publishing}
                 error={error}
+                errorFixHref={errorFixHref}
                 result={result}
                 onPublish={handlePublishCms}
               />
@@ -261,6 +286,7 @@ function CmsForm(props: {
   setScheduleAt: (v: string) => void;
   publishing: boolean;
   error: string | null;
+  errorFixHref: string | null;
   result: { url?: string; scheduled?: boolean; mailed?: boolean } | null;
   onPublish: () => void;
 }) {
@@ -269,7 +295,7 @@ function CmsForm(props: {
     destinations, destinationId, setDestinationId,
     excerpt, setExcerpt, tagInput, setTagInput,
     scheduleEnabled, setScheduleEnabled, scheduleAt, setScheduleAt,
-    publishing, error, result, onPublish,
+    publishing, error, errorFixHref, result, onPublish,
   } = props;
 
   if (destinations.length === 0) {
@@ -344,8 +370,19 @@ function CmsForm(props: {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          <AlertCircle className="h-4 w-4" /> {error}
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>
+            {error}
+            {errorFixHref && (
+              <>
+                {" "}
+                <Link href={errorFixHref} className="font-medium underline whitespace-nowrap">
+                  {t.publishDialog.reconnect}
+                </Link>
+              </>
+            )}
+          </span>
         </div>
       )}
       {result?.scheduled && (
