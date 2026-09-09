@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { getAdapter } from "@/lib/integrations/cms";
 import { markdownToHtml } from "@/lib/integrations/cms/markdown";
 import { buildArticleJsonLd } from "@/lib/integrations/jsonld";
+import { describePublishFailure } from "@/lib/integrations/publish-failure";
 import { PublishInput } from "@/lib/integrations/cms/types";
 import {
   AutopilotConfig,
@@ -250,7 +251,10 @@ export async function GET(req: NextRequest) {
         }
       } catch (e) {
         item.status = "failed";
-        item.error = e instanceof Error ? e.message : "publish failed";
+        // Same wording the publish dialog gets, so a scheduled item stranded by
+        // an expired token says "reconnect it" in the cron summary too, instead
+        // of a bare "GitHub could not read the file (HTTP 401)".
+        item.error = describePublishFailure(e, { kind: dest.kind, name: dest.name }).body.error;
         summary.failed += 1;
       }
       mutated = true;

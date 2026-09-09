@@ -19,8 +19,17 @@
 //
 // If you change a gate in one of those routes, change it here too, or the
 // dashboard will report a site as ready when the cron will skip it.
+//
+// Settings are only half the truth, though: a *configured* destination whose
+// credentials have expired still fails at publish time. Pass the live verdict
+// from /api/integrations/destinations/health as the second argument and the
+// destination check reports that instead of a green tick.
 
 import { resolveSiteLanguage, languageFromDomain, normalizeLanguage } from "./language";
+// Type-only: keeps the CMS adapters (and their server-side fetches) out of
+// the client bundle that renders this.
+import type { DestinationHealth } from "@/lib/integrations/destination-health";
+import { reconnectHref } from "@/lib/integrations/publish-failure";
 
 export type ReadinessStatus = "ok" | "blocked" | "info";
 
@@ -111,11 +120,15 @@ function daysSinceOnboarding(settings: Record<string, unknown>): number | null {
   return (Date.now() - ts) / 86_400_000;
 }
 
-export function evaluateSiteReadiness(site: {
-  id: string;
-  site_name?: string | null;
-  settings?: Record<string, unknown> | null;
-}): SiteReadiness {
+export function evaluateSiteReadiness(
+  site: {
+    id: string;
+    site_name?: string | null;
+    settings?: Record<string, unknown> | null;
+  },
+  /** Live verdict from the CMS, when the caller has fetched one. */
+  health?: DestinationHealth,
+): SiteReadiness {
   const settings = site.settings || {};
   const brand = str(settings, "brand_name");
   const domain = str(settings, "domain");
@@ -129,6 +142,10 @@ export function evaluateSiteReadiness(site: {
 
   const destination = describeDestination(settings);
   const hasDestination = Boolean(destination);
+  // "failing" is a verdict from the CMS itself (401/404 on a read that costs
+  // nothing). "unknown" — no probe for this kind, or the check timed out — is
+  // deliberately treated as fine, so a network blip never invents a blocker.
+  const destinationFailing = hasDestination && health?.state === "failing";
 
   const checks: ReadinessCheck[] = [];
 
@@ -189,7 +206,17 @@ export function evaluateSiteReadiness(site: {
   );
 
   checks.push(
-    hasDestination
+    destinationFailing
+      ? {
+          key: "destination",
+          status: "blocked",
+          label: "Publiceringsmål",
+          // The adapter's own words — "GitHub token is invalid or expired",
+          // "Repository not found" — say more than "something is wrong".
+          detail: `${destination} svarar inte: ${health?.message || "anslutningen nekades"}. Återanslut, annars publiceras ingenting.`,
+          fixHref: reconnectHref(health?.kind),
+        }
+      : hasDestination
       ? { key: "destination", status: "ok", label: "Publiceringsmål", detail: destination }
       : {
           key: "destination",
@@ -219,7 +246,7 @@ export function evaluateSiteReadiness(site: {
     languageInferred,
     mode,
     willGenerate: Boolean(brand) && autopilotOn,
-    willPublish: autopilotOn && hasDestination,
+    willPublish: autopilotOn && hasDestination && !destinationFailing,
     checks,
   };
 }

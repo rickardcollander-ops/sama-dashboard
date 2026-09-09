@@ -9,6 +9,7 @@ import {
   Play, Activity, Zap, Code2, Link, Info, Star, Compass, RefreshCw, Sparkles, MapPin, Image,
 } from "lucide-react";
 import type { TargetLocation } from "@/lib/types/location";
+import type { DestinationHealth } from "@/lib/integrations/destination-health";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useUser } from "@/lib/hooks/useUser";
 import { useSite } from "@/lib/hooks/useSite";
@@ -203,6 +204,10 @@ function CustomerSettingsPageInner() {
   const [ghConnecting, setGhConnecting] = useState(false);
   const [ghError, setGhError] = useState("");
   const [ghTokenValidated, setGhTokenValidated] = useState(false);
+  // Whether GitHub still accepts the stored token. `connected` only says a
+  // token is *saved*: an expired one kept this card green while every publish
+  // failed with 401, which is exactly the wrong place to look confident.
+  const [ghHealth, setGhHealth] = useState<DestinationHealth | null>(null);
   const [blogUrl, setBlogUrl] = useState("");
 
   const searchParams = useSearchParams();
@@ -224,6 +229,25 @@ function CustomerSettingsPageInner() {
       if (data.connected) { setGhBlogPath(data.blog_path || "content/blog"); setGhBranch(data.branch || "main"); }
     } catch { setGhStatus({ connected: false }); }
     setGhLoading(false);
+    loadGitHubHealth();
+  };
+
+  // Does the saved token still work? Deliberately after the status render, and
+  // never fatal: a check we could not run leaves the card exactly as it was.
+  // Only a "github" verdict applies here — the health endpoint reports the
+  // destination the publish bridge would use, which on a site that also has a
+  // CMS destination is not GitHub at all.
+  const loadGitHubHealth = async () => {
+    setGhHealth(null);
+    try {
+      const res = await fetch("/api/integrations/destinations/health");
+      if (!res.ok) return;
+      const body = (await res.json()) as { health?: Record<string, DestinationHealth> };
+      const verdict = body.health?.[effectiveTenantId];
+      setGhHealth(verdict?.kind === "github" ? verdict : null);
+    } catch {
+      // Leave it unknown; the card keeps reporting what is configured.
+    }
   };
 
   const handleGhValidateToken = async () => {
@@ -451,6 +475,10 @@ function CustomerSettingsPageInner() {
 
   const togglePlatform = (p: string) => setSettings((prev) => ({ ...prev, geo_platforms: prev.geo_platforms.includes(p) ? prev.geo_platforms.filter((x) => x !== p) : [...prev.geo_platforms, p] }));
 
+  // A saved token GitHub no longer accepts. Distinct from "not connected":
+  // there is nothing to set up, only something to replace.
+  const ghBroken = ghStatus.connected && ghHealth?.state === "failing";
+
   if (loading) {
     return <CustomerPageShellSkeleton maxWidth="max-w-4xl" />;
   }
@@ -493,7 +521,7 @@ function CustomerSettingsPageInner() {
           </div>
         )}
 
-        <IntegrationStatusSummary gsc={googleStatus.search_console} analytics={googleStatus.analytics} ads={googleStatus.ads} github={ghStatus.connected} />
+        <IntegrationStatusSummary gsc={googleStatus.search_console} analytics={googleStatus.analytics} ads={googleStatus.ads} github={ghStatus.connected ? (ghBroken ? "broken" : "ok") : "off"} />
 
         <div className="space-y-8">
           {/* ── SAMA Agenter ── */}
@@ -791,18 +819,29 @@ function CustomerSettingsPageInner() {
             <div className="rounded-lg border border-slate-200 bg-white overflow-hidden mb-4">
               <div className="flex items-center justify-between px-4 py-4">
                 <div className="flex items-center gap-3">
-                  <div className={`rounded-lg p-2 ${ghStatus.connected ? "bg-emerald-50" : "bg-slate-100"}`}><Code2 className={`h-5 w-5 ${ghStatus.connected ? "text-emerald-500" : "text-slate-400"}`} /></div>
+                  <div className={`rounded-lg p-2 ${ghBroken ? "bg-amber-50" : ghStatus.connected ? "bg-emerald-50" : "bg-slate-100"}`}><Code2 className={`h-5 w-5 ${ghBroken ? "text-amber-500" : ghStatus.connected ? "text-emerald-500" : "text-slate-400"}`} /></div>
                   <div>
                     <h4 className="text-sm font-medium text-slate-900">{t.settings.githubConnection}</h4>
-                    <p className={`text-xs mt-0.5 ${ghStatus.connected ? "text-emerald-600" : "text-slate-400"}`}>{ghLoading ? t.common.loading : ghStatus.connected ? `${t.settings.connectedTo} ${ghStatus.repo}` : t.common.notConnected}</p>
+                    <p className={`text-xs mt-0.5 ${ghBroken ? "text-amber-600" : ghStatus.connected ? "text-emerald-600" : "text-slate-400"}`}>{ghLoading ? t.common.loading : ghStatus.connected ? `${t.settings.connectedTo} ${ghStatus.repo}` : t.common.notConnected}</p>
                   </div>
                 </div>
-                {ghStatus.connected && <span className="flex items-center gap-1 text-xs font-medium text-emerald-600"><CheckCircle className="h-3.5 w-3.5" /> {t.common.connected}</span>}
+                {ghStatus.connected && (ghBroken
+                  ? <span className="flex items-center gap-1 text-xs font-medium text-amber-600"><AlertCircle className="h-3.5 w-3.5" /> {t.settings.intGhBroken}</span>
+                  : <span className="flex items-center gap-1 text-xs font-medium text-emerald-600"><CheckCircle className="h-3.5 w-3.5" /> {t.common.connected}</span>)}
               </div>
               {ghError && (
                 <div className="mx-4 mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="h-3 w-3 flex-shrink-0" />{ghError}
                   <button onClick={() => setGhError("")} className="ml-auto"><X className="h-3 w-3" /></button>
+                </div>
+              )}
+              {ghBroken && (
+                <div className="mx-4 mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
+                  <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                  <span>
+                    {t.settings.intGhBrokenFix}
+                    {ghHealth?.message && <span className="mt-0.5 block text-amber-700/80">GitHub: {ghHealth.message}</span>}
+                  </span>
                 </div>
               )}
               <div className="border-t border-slate-100 px-4 py-4">
@@ -994,14 +1033,16 @@ function TextareaField({ label, value, onChange, placeholder }: { label: string;
   );
 }
 
-function IntegrationStatusSummary({ gsc, analytics, ads, github }: { gsc: boolean; analytics: boolean; ads: boolean; github: boolean }) {
+function IntegrationStatusSummary({ gsc, analytics, ads, github }: { gsc: boolean; analytics: boolean; ads: boolean; github: "ok" | "broken" | "off" }) {
   const { t } = useLanguage();
   type Tone = "ok" | "warn" | "off";
   const items: { label: string; tone: Tone; status: string; fix?: string; anchor: string }[] = [
     { label: "Google Search Console", tone: gsc ? "ok" : "off", status: gsc ? t.settings.intGscConnected : t.settings.intGscOff, fix: gsc ? undefined : t.settings.intGscFix, anchor: "google-integrations" },
     { label: "Google Analytics", tone: analytics ? "ok" : "warn", status: analytics ? t.settings.intGaConnected : t.settings.intGaOptional, fix: analytics ? undefined : t.settings.intGaFix, anchor: "google-integrations" },
     { label: "Google Ads", tone: ads ? "ok" : "warn", status: ads ? t.settings.intGadsConnected : t.settings.intGadsOptional, fix: ads ? undefined : t.settings.intGadsFix, anchor: "google-integrations" },
-    { label: "GitHub (publishing)", tone: github ? "ok" : "off", status: github ? t.settings.intGhConnected : t.settings.intGhOff, fix: github ? undefined : t.settings.intGhFix, anchor: "publishing" },
+    // "broken" is amber rather than red: the connection exists and one new
+    // token fixes it, which is a different job from setting GitHub up.
+    { label: "GitHub (publishing)", tone: github === "ok" ? "ok" : github === "broken" ? "warn" : "off", status: github === "ok" ? t.settings.intGhConnected : github === "broken" ? t.settings.intGhBroken : t.settings.intGhOff, fix: github === "ok" ? undefined : github === "broken" ? t.settings.intGhBrokenFix : t.settings.intGhFix, anchor: "publishing" },
   ];
   const toneClass: Record<Tone, string> = { ok: "bg-emerald-500", warn: "bg-amber-400", off: "bg-red-500" };
   return (

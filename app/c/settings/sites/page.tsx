@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Globe, Plus, Trash2, Loader2, CheckCircle, X, AlertCircle, Edit2, Save, Lock, Plane, CircleAlert, Info } from "lucide-react";
 import CustomerNav from "@/components/CustomerNav";
 import { useSite, type UserSite } from "@/lib/hooks/useSite";
@@ -13,6 +13,7 @@ import {
   type ReadinessCheck,
   type SiteReadiness,
 } from "@/lib/content/site-readiness";
+import type { DestinationHealth } from "@/lib/integrations/destination-health";
 
 export default function SitesSettingsPage() {
   const { user } = useUser();
@@ -21,6 +22,30 @@ export default function SitesSettingsPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Whether each site's publish destination still *works*, which the settings
+  // blob alone cannot say: an expired GitHub token reads as a perfectly
+  // configured destination right up until the publish returns 401. Fetched
+  // after paint — the readiness panel renders immediately and the destination
+  // row corrects itself when the verdict lands.
+  const [health, setHealth] = useState<Record<string, DestinationHealth>>({});
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetch("/api/integrations/destinations/health")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.health) setHealth(d.health);
+      })
+      .catch(() => {
+        // Best-effort: no verdict just means the destination row keeps
+        // reporting what is configured, exactly as it did before.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, sites.length]);
 
   // Add-site form state
   const [showAdd, setShowAdd] = useState(false);
@@ -296,7 +321,7 @@ export default function SitesSettingsPage() {
             const domain = site.settings?.domain as string | undefined;
             const isBusy = busy === site.id;
             const isEditing = editingId === site.id;
-            const readiness = evaluateSiteReadiness(site);
+            const readiness = evaluateSiteReadiness(site, health[site.id]);
             return (
               <div
                 key={site.id}

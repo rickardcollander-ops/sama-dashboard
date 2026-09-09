@@ -139,6 +139,67 @@ nothing says so instead of failing silently. **If you change a gate in a cron
 route, change it there too** or the dashboard will report a site as ready that
 the cron then skips.
 
+### Configured is not the same as working
+
+A settings blob can only prove a destination is *configured*. An expired GitHub
+token is still configured, so the dashboard used to show a green
+"Publiceringsmål" while every publish — manual and cron alike — failed with
+HTTP 401.
+
+`GET /api/integrations/destinations/health` closes that gap: for each site the
+caller can see (RLS-scoped), it resolves the same destination the publish bridge
+would use and runs that adapter's `validate()` — a read-only call that costs
+nothing and catches a dead token (401) or a lost grant (404). Verdicts are
+cached for 60 s, keyed by the config itself so a reconnect is re-checked at
+once.
+
+| `state` | Means | Effect |
+|---------|-------|--------|
+| `ok` | The CMS accepted the credentials | Nothing changes |
+| `failing` | The CMS refused them | Destination check turns blocking; `willPublish` becomes false |
+| `unknown` | No probe for this kind (webhook), or the check timed out | Treated as fine — a network blip must not invent a blocker |
+
+Pass the verdict as the second argument to `evaluateSiteReadiness`.
+`/c/settings/sites` and the GitHub card on `/c/settings` both render it, so a
+dead token is visible on the page that fixes it.
+
+### Publish failures the user can act on
+
+Adapters throw `PublishError` carrying the CMS's own HTTP status.
+`describePublishFailure` (`lib/integrations/publish-failure.ts`) translates that
+into the dashboard's answer, and both `/api/integrations/publish` and the
+publish cron go through it. **Never return an upstream 401/403 verbatim** — in
+this app a 401 from our own API means "your SAMA session expired", so a dead
+GitHub token used to look like being signed out and nobody went to reconnect it.
+
+| Upstream | We answer | `code` |
+|----------|-----------|--------|
+| 401 | 502 | `destination_auth` |
+| 403 | 502 | `destination_forbidden` |
+| anything else | unchanged (our own 400s stay 400) | `publish_failed` |
+
+The body carries `upstream_status`, `fix_href` (Settings → Publishing for
+GitHub, Settings → Integrations for CMS destinations) and `reason` — the CMS's
+own one-line explanation, which is the part that says *which* fix applies: one
+403 is "Resource not accessible by personal access token", another is
+"Repository was archived so is read-only". Adapters put it on
+`PublishError.reason`; `detail` stays the raw body and is never rendered.
+`PublishDialog` uses `code` to render the message in the user's language, with a
+link straight to the reconnect screen and `reason` beneath it.
+
+### GitHub needs *write* access, and says so early
+
+`GET /user` (the token check in the connect flow) passes for any live token,
+including one that cannot commit — which then failed at publish time with a 403.
+`githubAdapter.validate` therefore also checks two read-only signals from
+`GET /repos/{owner}/{name}`: `permissions.push === false` (a read-only
+collaborator) and, for classic tokens, the `x-oauth-scopes` header (needs `repo`,
+or `public_repo` on a public repo). Both are shaped to never reject a token that
+would in fact work — a fine-grained token's own Contents scope is invisible to
+the API, so `validate` can still say ok about a token that cannot write.
+The connect route runs this check before saving once a repo is chosen, and the
+destination health check runs it afterwards.
+
 ### Per-site language
 
 `lib/content/language.ts` mirrors `TenantConfig.language` in the backend
