@@ -68,10 +68,19 @@ export function safeJsonLdScript(jsonld: unknown): string {
 export function excerptFromMarkdown(md: string, limit = 160): string {
   const text = md
     .replace(/```[\s\S]*?```/g, "")
-    .replace(/[#>*_`-]/g, " ")
+    // Headings (including the article H1) do not belong in a summary.
+    .replace(/^\s{0,3}#{1,6}\s.*$/gm, "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    // Strip list markers only; hyphens inside words ("B2B-bolag") must survive.
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, "")
+    .replace(/[#>*_`]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (text.length <= limit) return text;
-  return text.slice(0, limit - 1).replace(/\s\S*$/, "") + "…";
+  const cut = text.slice(0, limit);
+  // Prefer ending on a full sentence; otherwise cut on a word boundary.
+  const sentenceEnd = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  if (sentenceEnd >= limit * 0.5) return cut.slice(0, sentenceEnd + 1);
+  return cut.replace(/\s\S*$/, "").replace(/[,;:\s]+$/, "") + "…";
 }
